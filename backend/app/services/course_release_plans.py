@@ -23,7 +23,11 @@ from app.models import (
     User,
 )
 from app.models.base import utc_now
-from app.services.access_control import lock_active_class_for_write
+from app.services.learning_evidence_access import (
+    authoritative_activity_projections_by_subjects,
+    authoritative_prerequisite_unit_ids,
+    prerequisite_access_unit_ids_by_subjects,
+)
 
 
 RELEASE_MODES = {"hidden", "locked", "open"}
@@ -166,19 +170,13 @@ def effective_unit_access(
         if student_id is None:
             return EffectiveUnitAccess("locked", ("prerequisite",))
         if completed_unit_ids is None:
-            complete = db.scalar(
-                select(LearningEvent.id).where(
-                    LearningEvent.user_id == student_id,
-                    LearningEvent.class_id == class_group.id,
-                    LearningEvent.course_id == course.id,
-                    LearningEvent.unit_id == plan.prerequisite_unit_id,
-                    LearningEvent.event_type == "complete",
-                )
+            completed_unit_ids = authoritative_prerequisite_unit_ids(
+                db,
+                subject_user_id=student_id,
+                class_id=class_group.id,
+                course_id=course.id,
             )
-            prerequisite_complete = complete is not None
-        else:
-            prerequisite_complete = plan.prerequisite_unit_id in completed_unit_ids
-        if not prerequisite_complete:
+        if plan.prerequisite_unit_id not in completed_unit_ids:
             return EffectiveUnitAccess("locked", ("prerequisite",))
     return EffectiveUnitAccess("open")
 
@@ -208,75 +206,6 @@ def require_student_unit_open(
     return access
 
 
-def require_student_unit_open_for_write(
-    db: Session,
-    *,
-    course: Course,
-    class_group: ClassGroup,
-    unit: CourseUnit,
-    student_id: int,
-) -> ClassGroup:
-    """Lock the release scope and then make the authoritative write decision.
-
-    Release-plan PATCH takes locks in school -> class -> course-class order.
-    Student writes must take the same locks before evaluating release state, or
-    an access check made before a teacher hides/locks a unit can be persisted
-    after that teacher change commits.
-    """
-    locked_class = lock_active_class_for_write(db, class_group.id)
-    locked_course = db.scalar(
-        select(Course)
-        .where(Course.id == course.id)
-        .execution_options(populate_existing=True)
-    )
-    if locked_course is None:
-        raise HTTPException(status_code=404, detail="Course not found")
-    locked_unit = db.scalar(
-        select(CourseUnit)
-        .where(CourseUnit.id == unit.id, CourseUnit.course_id == locked_course.id)
-        .execution_options(populate_existing=True)
-    )
-    if locked_unit is None:
-        raise HTTPException(status_code=404, detail="Course unit not found")
-    course_class = db.scalar(
-        select(CourseClass)
-        .where(
-            CourseClass.course_id == locked_course.id,
-            CourseClass.class_id == locked_class.id,
-        )
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if course_class is None:
-        raise HTTPException(status_code=403, detail="Course is not attached to this class")
-    if course_class.status != "active":
-        raise HTTPException(status_code=409, detail="Course attachment is not active")
-    plan = db.scalar(
-        select(CourseUnitClassPlan)
-        .where(
-            CourseUnitClassPlan.course_class_id == course_class.id,
-            CourseUnitClassPlan.course_unit_id == locked_unit.id,
-        )
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if plan is None:
-        raise HTTPException(status_code=409, detail="Course release plan is inconsistent")
-    access = effective_unit_access(
-        db,
-        course=locked_course,
-        class_group=locked_class,
-        unit=locked_unit,
-        plan=plan,
-        student_id=student_id,
-    )
-    if access.state == "hidden":
-        raise HTTPException(status_code=403, detail="Course unit is not visible in this class")
-    if access.state != "open":
-        raise HTTPException(status_code=409, detail="Course unit is locked in this class")
-    return locked_class
-
-
 def school_is_active(db: Session, school_id: int) -> bool:
     return db.scalar(select(School.status).where(School.id == school_id)) == "active"
 
@@ -288,16 +217,11 @@ def student_completed_unit_ids(
     class_id: int,
     course_id: int,
 ) -> set[int]:
-    return set(
-        db.scalars(
-            select(LearningEvent.unit_id).where(
-                LearningEvent.user_id == student_id,
-                LearningEvent.class_id == class_id,
-                LearningEvent.course_id == course_id,
-                LearningEvent.event_type == "complete",
-                LearningEvent.unit_id.is_not(None),
-            )
-        ).all()
+    return authoritative_prerequisite_unit_ids(
+        db,
+        subject_user_id=student_id,
+        class_id=class_id,
+        course_id=course_id,
     )
 
 
@@ -434,7 +358,24 @@ def build_student_course_progress_page(
     student_ids = [student.id for student in page_students]
     event_stats: dict[tuple[int, int], dict] = {}
     submission_stats: dict[tuple[int, int], dict] = {}
-    completed_by_student: dict[int, set[int]] = {student_id: set() for student_id in student_ids}
+    projections = authoritative_activity_projections_by_subjects(
+        db,
+        subject_user_ids=student_ids,
+        class_id=class_group.id,
+        course_id=course.id,
+    )
+    completed_by_student: dict[int, set[int]] = {
+        student_id: set() for student_id in student_ids
+    }
+    for (student_id, unit_id), projection in projections.items():
+        if projection.status in {"completed", "transferred"}:
+            completed_by_student[student_id].add(unit_id)
+    access_by_student = prerequisite_access_unit_ids_by_subjects(
+        db,
+        subject_user_ids=student_ids,
+        class_id=class_group.id,
+        course_id=course.id,
+    )
     if student_ids and unit_ids:
         event_rows = db.execute(
             select(
@@ -443,7 +384,6 @@ def build_student_course_progress_page(
                 func.max(
                     case((LearningEvent.event_type.in_(["visit", "start", "submit", "complete"]), 1), else_=0)
                 ).label("started"),
-                func.max(case((LearningEvent.event_type == "complete", 1), else_=0)).label("completed"),
                 func.max(LearningEvent.occurred_at).label("recent_activity_at"),
             )
             .where(
@@ -457,8 +397,6 @@ def build_student_course_progress_page(
         for row in event_rows:
             key = (int(row["user_id"]), int(row["unit_id"]))
             event_stats[key] = dict(row)
-            if bool(row["completed"]):
-                completed_by_student[key[0]].add(key[1])
         submission_rows = db.execute(
             select(
                 Submission.student_id,
@@ -491,7 +429,7 @@ def build_student_course_progress_page(
                 unit=unit,
                 plan=plan,
                 student_id=student.id,
-                completed_unit_ids=completed_by_student[student.id],
+                completed_unit_ids=access_by_student[student.id],
                 school_active=True,
             )
             row = {
@@ -508,17 +446,30 @@ def build_student_course_progress_page(
             if access.state != "hidden":
                 event_stat = event_stats.get((student.id, unit.id), {})
                 submission_stat = submission_stats.get((student.id, unit.id), {})
+                projection = projections.get((student.id, unit.id))
                 timestamps = [
                     timestamp
                     for timestamp in (
                         event_stat.get("recent_activity_at"),
                         submission_stat.get("recent_submission_at"),
+                        (
+                            projection.last_occurred_at
+                            if projection is not None
+                            else None
+                        ),
                     )
                     if timestamp is not None
                 ]
                 row.update(
-                    started=bool(event_stat.get("started")) or bool(submission_stat.get("submitted")),
-                    completed=bool(event_stat.get("completed")),
+                    started=(
+                        bool(event_stat.get("started"))
+                        or bool(submission_stat.get("submitted"))
+                        or (
+                            projection is not None
+                            and projection.status != "not_started"
+                        )
+                    ),
+                    completed=unit.id in completed_by_student[student.id],
                     submitted=int(submission_stat.get("submitted") or 0),
                     graded=int(submission_stat.get("graded") or 0),
                     recent_activity_at=max(timestamps) if timestamps else None,

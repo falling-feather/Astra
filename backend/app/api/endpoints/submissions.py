@@ -56,12 +56,17 @@ from app.services.points import (
     assignment_grade_point_total,
     points_for_assignment_score,
 )
+from app.services.learning_evidence_access import (
+    authoritative_prerequisite_unit_ids_by_scope,
+)
 from app.services.pagination import list_legacy_scalars, paged_endpoint_url
 from app.services.course_release_plans import (
     effective_unit_access,
     get_course_class_or_404,
     get_plan_for_unit,
     require_student_unit_open,
+)
+from app.services.course_release_write_gate import (
     require_student_unit_open_for_write,
 )
 
@@ -183,19 +188,11 @@ def list_my_assignments(
         for school in db.scalars(select(School).where(School.id.in_({row[1].school_id for row in rows}))).all()
     } if rows else {}
     prerequisite_ids = {row[6].prerequisite_unit_id for row in rows if row[6].prerequisite_unit_id is not None}
-    completed_by_scope: dict[tuple[int, int], set[int]] = {}
-    if prerequisite_ids:
-        complete_rows = db.execute(
-            select(LearningEvent.class_id, LearningEvent.course_id, LearningEvent.unit_id).where(
-                LearningEvent.user_id == current_user.id,
-                LearningEvent.class_id.in_({row[0].id for row in rows}),
-                LearningEvent.course_id.in_({row[1].id for row in rows}),
-                LearningEvent.unit_id.in_(prerequisite_ids),
-                LearningEvent.event_type == "complete",
-            )
-        ).all()
-        for completed_class_id, completed_course_id, completed_unit_id in complete_rows:
-            completed_by_scope.setdefault((completed_class_id, completed_course_id), set()).add(completed_unit_id)
+    completed_by_scope = authoritative_prerequisite_unit_ids_by_scope(
+        db,
+        subject_user_id=current_user.id,
+        scopes={(row[0].id, row[1].id) for row in rows} if prerequisite_ids else set(),
+    )
     visible_rows = []
     for row in rows:
         row_class, course, unit, assignment, submission, policy, plan = row
@@ -285,7 +282,17 @@ def create_submission(
         unit=unit,
         student_id=current_user.id,
     )
-    effective = resolve_assignment_class_policy(db, assignment, class_group.id)
+    effective = resolve_assignment_class_policy(
+        db,
+        assignment,
+        class_group.id,
+        locking_read=True,
+    )
+    if assignment.unit_id != unit.id:
+        raise HTTPException(
+            status_code=409,
+            detail="Assignment scope changed during submission",
+        )
     if not effective.assigned:
         raise HTTPException(status_code=403, detail="Assignment is not assigned to this class")
     if effective.status != "active":

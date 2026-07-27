@@ -1,16 +1,15 @@
 from contextlib import asynccontextmanager
 import logging
-import re
 from time import perf_counter
-from uuid import uuid4
 
-from fastapi import Request
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.http_requests import is_api_path, request_id_from_header
+from app.core.request_validation import register_request_validation_handler
 from app.db.session import get_session_factory, init_db
 from app.services.content_catalog import ensure_seed_pages
 from app.services.content_script_asset_scan_scheduler import scheduler_from_settings as content_script_scheduler_from_settings
@@ -32,6 +31,7 @@ def create_app() -> FastAPI:
         openapi_url=f"{settings.api_prefix}/openapi.json",
         lifespan=lifespan,
     )
+    register_request_validation_handler(app)
     if settings.auto_create_tables:
         init_db(settings.database_url)
         session_factory = get_session_factory(settings.database_url)
@@ -58,9 +58,9 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def attach_request_id_and_api_cache_policy(request: Request, call_next):
         request_started_at = perf_counter()
-        request_id = _request_id_from_header(request.headers.get("x-request-id"))
+        request_id = request_id_from_header(request.headers.get("x-request-id"))
         request.state.request_id = request_id
-        is_api = _is_api_path(request.url.path, settings.api_prefix)
+        is_api = is_api_path(request.url.path, settings.api_prefix)
         try:
             response = await call_next(request)
         except Exception as exc:
@@ -134,18 +134,6 @@ async def lifespan(app: FastAPI):
             await content_script_scheduler.stop()
         if scheduler is not None:
             await scheduler.stop()
-
-
-def _request_id_from_header(value: str | None) -> str:
-    request_id = (value or "").strip()
-    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,64}", request_id):
-        return uuid4().hex
-    return request_id
-
-
-def _is_api_path(path: str, api_prefix: str) -> bool:
-    prefix = api_prefix.rstrip("/") or "/api"
-    return path == prefix or path.startswith(f"{prefix}/")
 
 
 app = create_app()

@@ -44,8 +44,39 @@ def lock_active_school_for_write(db: Session, school_id: int) -> School:
     return school
 
 
-def lock_active_class_for_write(db: Session, class_id: int) -> ClassGroup:
-    school_id = db.scalar(select(ClassGroup.school_id).where(ClassGroup.id == class_id))
+def lock_course_for_write(db: Session, course_id: int) -> Course:
+    """Lock a course in the global school -> course mutation order."""
+    school_id = db.scalar(select(Course.school_id).where(Course.id == course_id))
+    if school_id is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    lock_active_school_for_write(db, school_id)
+    course = db.scalar(
+        select(Course)
+        .where(Course.id == course_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if course.school_id != school_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Course organization changed during write",
+        )
+    return course
+
+
+def lock_active_class_for_write(
+    db: Session,
+    class_id: int,
+    *,
+    expected_school_id: int | None = None,
+) -> ClassGroup:
+    school_id = expected_school_id
+    if school_id is None:
+        school_id = db.scalar(
+            select(ClassGroup.school_id).where(ClassGroup.id == class_id)
+        )
     if school_id is None:
         raise HTTPException(status_code=404, detail="Class not found")
     lock_active_school_for_write(db, school_id)
@@ -304,19 +335,21 @@ def require_class_teacher_or_admin(
     class_group: ClassGroup,
     *,
     detail: str = "Class statistics require teacher scope",
+    locking_read: bool = False,
 ) -> None:
     if user.role == "admin":
         return
     if user.role != "teacher":
         raise HTTPException(status_code=403, detail=detail)
-    membership = db.scalar(
-        select(ClassMembership).where(
-            ClassMembership.class_id == class_group.id,
-            ClassMembership.user_id == user.id,
-            ClassMembership.role == "teacher",
-            ClassMembership.status == "active",
-        )
+    statement = select(ClassMembership).where(
+        ClassMembership.class_id == class_group.id,
+        ClassMembership.user_id == user.id,
+        ClassMembership.role == "teacher",
+        ClassMembership.status == "active",
     )
+    if locking_read:
+        statement = statement.with_for_update()
+    membership = db.scalar(statement)
     if membership is None:
         raise HTTPException(status_code=403, detail=detail)
 
@@ -381,19 +414,21 @@ def require_course_collaborator_or_admin(
     roles: set[str],
     *,
     detail: str = "Course collaborator role is required",
+    locking_read: bool = False,
 ) -> None:
     if user.role == "admin" or (user.role == "teacher" and course.creator_user_id == user.id):
         return
     if user.role != "teacher":
         raise HTTPException(status_code=403, detail=detail)
-    collaborator = db.scalar(
-        select(CourseCollaborator).where(
-            CourseCollaborator.course_id == course.id,
-            CourseCollaborator.user_id == user.id,
-            CourseCollaborator.role.in_(roles),
-            CourseCollaborator.status == "active",
-        )
+    statement = select(CourseCollaborator).where(
+        CourseCollaborator.course_id == course.id,
+        CourseCollaborator.user_id == user.id,
+        CourseCollaborator.role.in_(roles),
+        CourseCollaborator.status == "active",
     )
+    if locking_read:
+        statement = statement.with_for_update()
+    collaborator = db.scalar(statement)
     if collaborator is not None:
         return
     raise HTTPException(status_code=403, detail=detail)

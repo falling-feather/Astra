@@ -53,6 +53,8 @@ from app.services.course_release_plans import (
     effective_unit_access,
     get_course_class_or_404,
     get_plan_for_unit,
+)
+from app.services.course_release_write_gate import (
     require_student_unit_open_for_write,
 )
 from app.services.pagination import list_legacy_scalars, paged_endpoint_url
@@ -256,8 +258,13 @@ def create_student_code_submission(
     problem = _problem_or_404(db, problem_id)
     if problem.status != "active":
         raise HTTPException(status_code=409, detail="Code problem is not active")
-    _require_student_problem_open_for_write(db, current_user, problem, payload.class_id)
-    version = _active_version_or_409(db, problem.id)
+    problem = _require_student_problem_open_for_write(
+        db,
+        current_user,
+        problem,
+        payload.class_id,
+    )
+    version = _active_version_or_409(db, problem.id, locking_read=True)
     try:
         result = create_code_submission(
             db,
@@ -478,7 +485,7 @@ def _require_student_problem_open_for_write(
     student: User,
     problem: CodeProblem,
     class_id: int,
-) -> None:
+) -> CodeProblem:
     course = require_course_visible(db, student, problem.course_id)
     class_group = require_class_member(db, student, class_id)
     if class_group.school_id != course.school_id or not course_attached_to_class(db, course.id, class_group.id):
@@ -492,6 +499,21 @@ def _require_student_problem_open_for_write(
         unit=unit,
         student_id=student.id,
     )
+    locked_problem = db.scalar(
+        select(CodeProblem)
+        .where(
+            CodeProblem.id == problem.id,
+            CodeProblem.course_id == course.id,
+            CodeProblem.course_unit_id == unit.id,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if locked_problem is None:
+        raise HTTPException(status_code=404, detail="Code problem not found")
+    if locked_problem.status != "active":
+        raise HTTPException(status_code=409, detail="Code problem is not active")
+    return locked_problem
 
 
 def _authorize_submission_read(
@@ -539,9 +561,18 @@ def _course_unit_or_404(db: Session, course: Course, unit_id: int) -> CourseUnit
     return unit
 
 
-def _active_version_or_409(db: Session, problem_id: int) -> CodeProblemVersion:
+def _active_version_or_409(
+    db: Session,
+    problem_id: int,
+    *,
+    locking_read: bool = False,
+) -> CodeProblemVersion:
     try:
-        return active_problem_version(db, problem_id)
+        return active_problem_version(
+            db,
+            problem_id,
+            locking_read=locking_read,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

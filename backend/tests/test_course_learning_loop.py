@@ -266,13 +266,13 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
         json={
             "class_id": class_id,
             "assignment_id": assignment_id,
-            "event_type": "complete",
+            "event_type": "start",
             "payload": {"score": 18, "sample_size": 1},
         },
     )
     assert event.status_code == 201
     assert event.json()["assignment_id"] == assignment_id
-    assert event.json()["event_type"] == "complete"
+    assert event.json()["event_type"] == "start"
     assert event.json()["school_id"] == school_id
 
     unscoped_assignment_event = client.post(
@@ -360,7 +360,7 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
     assert class_stats_before["active_courses"] == 1
     assert class_stats_before["expected_submissions"] == 1
     assert class_stats_before["total_learning_events"] == 2
-    assert class_stats_before["complete_learning_events"] == 1
+    assert class_stats_before["complete_learning_events"] == 0
     assert class_stats_before["pending_submissions"] == 1
     assert class_stats_before["pending_submission_ratio"] == 1
     assert class_stats_before["average_score_percent"] == 0
@@ -624,17 +624,17 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
     assert knowledge_body["graded_assignments"] == 1
     assert knowledge_body["total_events"] == 2
     assert knowledge_body["submit_events"] == 1
-    assert knowledge_body["complete_events"] == 1
+    assert knowledge_body["complete_events"] == 0
     assert knowledge_body["score_total"] == 18
     assert knowledge_body["max_score_total"] == 20
     assert knowledge_body["accuracy_percent"] == 90
-    assert knowledge_body["completion_percent"] == 50
+    assert knowledge_body["completion_percent"] == 0
     assert knowledge_body["total_points"] == 18
     knowledge_stats = {item["rule_code"]: item for item in knowledge_body["knowledge_stats"]}
     assert knowledge_stats["assignment_completion"]["percent"] == 100
     assert knowledge_stats["graded_score"]["frequency"] == 18
     assert knowledge_stats["graded_score"]["sample_size"] == 20
-    assert knowledge_stats["learning_completion"]["percent"] == 50
+    assert knowledge_stats["learning_completion"]["percent"] == 0
 
     snapshot_params = {
         "course_id": course_id,
@@ -715,7 +715,7 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
     assert class_knowledge_body["submitted_assignments"] == 1
     assert class_knowledge_body["graded_assignments"] == 1
     assert class_knowledge_body["average_score_percent"] == 90
-    assert class_knowledge_body["completion_percent"] == 50
+    assert class_knowledge_body["completion_percent"] == 0
     assert class_knowledge_body["total_points"] == 18
     assert class_knowledge_body["average_points_per_student"] == 18
     class_stats = {item["rule_code"]: item for item in class_knowledge_body["knowledge_stats"]}
@@ -1411,7 +1411,7 @@ def test_assignment_class_policy_controls_audience_status_events_and_point_overr
         json={
             "class_id": class_two_id,
             "assignment_id": assignment_id,
-            "event_type": "complete",
+            "event_type": "start",
             "payload": {},
         },
     )
@@ -1424,7 +1424,7 @@ def test_assignment_class_policy_controls_audience_status_events_and_point_overr
             "class_id": class_one_id,
             "assignment_id": assignment_id,
             "knowledge_code": "Energy.Balance",
-            "event_type": "complete",
+            "event_type": "start",
             "payload": {},
         },
     )
@@ -1495,15 +1495,16 @@ def test_assignment_class_policy_controls_audience_status_events_and_point_overr
         if item["dimension"] == "knowledge_point"
     )
     assert knowledge_point["knowledge_code"] == "energy.balance"
-    assert knowledge_point["frequency"] == 1
+    assert knowledge_point["frequency"] == 0
     assert knowledge_point["sample_size"] == 1
+    assert knowledge_point["evidence"]["events"]["start"] == 1
     assignment_dimension = next(
         item
         for item in student_knowledge_body["knowledge_stats"]
         if item["dimension"] == "assignment"
     )
     assert assignment_dimension["evidence"]["points"] == 30
-    assert assignment_dimension["evidence"]["events"]["complete"] == 1
+    assert assignment_dimension["evidence"]["events"]["complete"] == 0
 
     class_knowledge = client.get(
         f"/api/classes/{class_one_id}/knowledge?course_id={course_id}",

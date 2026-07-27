@@ -21,7 +21,7 @@ from app.models import (
     CourseUnitClassPlan,
     School,
 )
-from app.services import course_release_plans
+from app.services import course_release_plans, course_release_write_gate
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -223,7 +223,7 @@ def test_release_plan_effective_access_and_progress_contract(client):
     locked_event = client.post(
         "/api/learning-events",
         headers=_auth(student),
-        json={"class_id": class_id, "unit_id": unit_one_id, "event_type": "complete"},
+        json={"class_id": class_id, "unit_id": unit_one_id, "event_type": "start"},
     )
     assert locked_event.status_code == 409
 
@@ -371,7 +371,7 @@ def test_learning_event_page_uses_limited_database_query(client):
     _attach(client, teacher, course_id, class_id)
     unit_id = _unit(client, teacher, course_id, 1)
     assert client.post(f"/api/classes/{class_id}/join", headers=_auth(student), json={"role": "student"}).status_code == 201
-    for event_type in ("visit", "start", "complete"):
+    for event_type in ("visit", "start", "submit"):
         response = client.post(
             "/api/learning-events",
             headers=_auth(student),
@@ -500,14 +500,22 @@ def test_student_write_access_rechecks_release_after_barrier(client, monkeypatch
     assert client.post(f"/api/classes/{class_id}/join", headers=_auth(student), json={"role": "student"}).status_code == 201
 
     barrier = Barrier(2, timeout=5)
-    original_lock = course_release_plans.lock_active_class_for_write
+    original_lock = course_release_write_gate.lock_active_class_for_write
 
-    def pause_before_student_write_lock(db, locked_class_id):
+    def pause_before_student_write_lock(
+        db,
+        locked_class_id,
+        **lock_options,
+    ):
         barrier.wait()
         barrier.wait()
-        return original_lock(db, locked_class_id)
+        return original_lock(db, locked_class_id, **lock_options)
 
-    monkeypatch.setattr(course_release_plans, "lock_active_class_for_write", pause_before_student_write_lock)
+    monkeypatch.setattr(
+        course_release_write_gate,
+        "lock_active_class_for_write",
+        pause_before_student_write_lock,
+    )
     outcome: dict[str, int] = {}
     session_factory = get_session_factory(get_settings().database_url)
 
@@ -519,7 +527,7 @@ def test_student_write_access_rechecks_release_after_barrier(client, monkeypatch
             student_user = db.scalar(text("SELECT id FROM users WHERE username = :username"), {"username": f"release_barrier_student_{release_mode}"})
             assert course is not None and class_group is not None and unit is not None and student_user is not None
             try:
-                course_release_plans.require_student_unit_open_for_write(
+                course_release_write_gate.require_student_unit_open_for_write(
                     db,
                     course=course,
                     class_group=class_group,

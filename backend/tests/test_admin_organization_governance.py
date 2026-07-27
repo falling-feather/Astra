@@ -18,7 +18,7 @@ from app.api.endpoints import (
 from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.models import ClassMembership, SchoolMembership
-from app.services import class_join_requests, course_release_plans
+from app.services import class_join_requests, course_release_write_gate
 from app.services.knowledge_snapshot_runs import rebuild_periodic_knowledge_snapshots
 
 
@@ -882,7 +882,9 @@ def test_scoped_domain_write_handlers_keep_active_organization_gate(handler, req
 
 
 def test_student_release_write_gate_keeps_active_class_lock():
-    source = getsource(course_release_plans.require_student_unit_open_for_write)
+    source = getsource(
+        course_release_write_gate.require_student_unit_open_for_write
+    )
     assert "lock_active_class_for_write" in source
 
 

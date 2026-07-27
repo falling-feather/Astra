@@ -20,6 +20,15 @@ from app.models.content import (
     ContentScriptHostPolicy,
 )
 from app.models.code_judge import CodeJudgeAttempt, CodeProblem, CodeProblemVersion, CodeSubmission
+from app.models.learning_evidence import (
+    LegacyAccessEntitlement,
+    LearningActivityProjection,
+    LearningCompletionRule,
+    LearningEvidenceEvent,
+    LearningResumeProjection,
+    LearningRuleActivation,
+    LearningRuleClassBinding,
+)
 from app.models.course import (
     Assignment,
     AssignmentClassPolicy,
@@ -73,6 +82,13 @@ __all__ = [
     "CourseUnit",
     "CourseUnitClassPlan",
     "KnowledgeSnapshotRun",
+    "LegacyAccessEntitlement",
+    "LearningActivityProjection",
+    "LearningCompletionRule",
+    "LearningEvidenceEvent",
+    "LearningResumeProjection",
+    "LearningRuleActivation",
+    "LearningRuleClassBinding",
     "LearningEvent",
     "LoginAttempt",
     "PasswordResetToken",

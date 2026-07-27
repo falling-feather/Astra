@@ -10,6 +10,7 @@ from app.api.endpoints import (
     courses,
     health,
     knowledge,
+    learning_evidence,
     learning_events,
     points,
     progress,
@@ -31,6 +32,7 @@ api_router.include_router(code_judge.router, tags=["code-judge"])
 api_router.include_router(courses.router, prefix="/courses", tags=["courses"])
 api_router.include_router(assignment_policies.router, tags=["assignments"])
 api_router.include_router(knowledge.router, tags=["knowledge"])
+api_router.include_router(learning_evidence.router, prefix="/learning-evidence", tags=["learning-evidence"])
 api_router.include_router(learning_events.router, prefix="/learning-events", tags=["learning-events"])
 api_router.include_router(submissions.router, tags=["submissions"])
 api_router.include_router(points.router, prefix="/points", tags=["points"])

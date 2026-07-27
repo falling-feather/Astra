@@ -341,7 +341,7 @@ def test_school_teacher_without_class_scope_cannot_manage_class_assignments(clie
     event = client.post(
         "/api/learning-events",
         headers=student_headers,
-        json={"class_id": scope["class_id"], "assignment_id": scope["assignment_id"], "event_type": "complete"},
+        json={"class_id": scope["class_id"], "assignment_id": scope["assignment_id"], "event_type": "start"},
     )
     assert event.status_code == 201
 
@@ -1358,27 +1358,27 @@ def test_students_only_see_published_course_content_and_active_assignments(clien
     visible_event = client.post(
         "/api/learning-events",
         headers=student_headers,
-        json={"class_id": class_id, "assignment_id": visible_assignment_id, "event_type": "complete", "payload": {}},
+        json={"class_id": class_id, "assignment_id": visible_assignment_id, "event_type": "start", "payload": {}},
     )
     assert visible_event.status_code == 201
     hidden_unit_event = client.post(
         "/api/learning-events",
         headers=student_headers,
-        json={"class_id": class_id, "assignment_id": hidden_unit_assignment_id, "event_type": "complete", "payload": {}},
+        json={"class_id": class_id, "assignment_id": hidden_unit_assignment_id, "event_type": "start", "payload": {}},
     )
     assert hidden_unit_event.status_code == 403
     assert hidden_unit_event.json()["detail"] == "Course unit is not published"
     closed_event = client.post(
         "/api/learning-events",
         headers=student_headers,
-        json={"class_id": class_id, "assignment_id": closed_assignment_id, "event_type": "complete", "payload": {}},
+        json={"class_id": class_id, "assignment_id": closed_assignment_id, "event_type": "start", "payload": {}},
     )
     assert closed_event.status_code == 409
     assert closed_event.json()["detail"] == "Assignment is not active"
     draft_course_event = client.post(
         "/api/learning-events",
         headers=student_headers,
-        json={"class_id": class_id, "assignment_id": draft_course_assignment_id, "event_type": "complete", "payload": {}},
+        json={"class_id": class_id, "assignment_id": draft_course_assignment_id, "event_type": "start", "payload": {}},
     )
     assert draft_course_event.status_code == 403
     assert draft_course_event.json()["detail"] == "Course is not published"
@@ -1501,7 +1501,7 @@ def test_student_personal_progress_and_knowledge_exclude_hidden_resource_history
         event = client.post(
             "/api/learning-events",
             headers=student_headers,
-            json={"class_id": class_id, "assignment_id": assignment_id, "event_type": "complete", "payload": {}},
+            json={"class_id": class_id, "assignment_id": assignment_id, "event_type": "start", "payload": {}},
         )
         assert event.status_code == 201
         submission = client.post(
@@ -1550,7 +1550,7 @@ def test_student_personal_progress_and_knowledge_exclude_hidden_resource_history
     assert progress.json()["submitted_assignments"] == 1
     assert progress.json()["graded_assignments"] == 1
     assert progress.json()["learning_events"] == 2
-    assert progress.json()["completed_events"] == 1
+    assert progress.json()["completed_events"] == 0
     assert progress.json()["total_points"] == 7
 
     teacher_progress = client.get(
@@ -1561,7 +1561,7 @@ def test_student_personal_progress_and_knowledge_exclude_hidden_resource_history
     assert teacher_progress.json()["submitted_assignments"] == 1
     assert teacher_progress.json()["graded_assignments"] == 1
     assert teacher_progress.json()["learning_events"] == 2
-    assert teacher_progress.json()["completed_events"] == 1
+    assert teacher_progress.json()["completed_events"] == 0
     assert teacher_progress.json()["total_points"] == 7
 
     knowledge = client.get(f"/api/knowledge/me?class_id={class_id}&course_id={course_id}", headers=student_headers)
@@ -1570,7 +1570,7 @@ def test_student_personal_progress_and_knowledge_exclude_hidden_resource_history
     assert knowledge.json()["submitted_assignments"] == 1
     assert knowledge.json()["graded_assignments"] == 1
     assert knowledge.json()["total_events"] == 2
-    assert knowledge.json()["complete_events"] == 1
+    assert knowledge.json()["complete_events"] == 0
     assert knowledge.json()["score_total"] == 7
     assert knowledge.json()["max_score_total"] == 10
     assert knowledge.json()["total_points"] == 7

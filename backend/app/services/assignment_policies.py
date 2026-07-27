@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from fastapi import HTTPException
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -28,21 +29,57 @@ def get_assignment_class_policy(
     db: Session,
     assignment_id: int,
     class_id: int,
+    *,
+    locking_read: bool = False,
 ) -> AssignmentClassPolicy | None:
     return db.scalar(
-        select(AssignmentClassPolicy).where(
-            AssignmentClassPolicy.assignment_id == assignment_id,
-            AssignmentClassPolicy.class_id == class_id,
+        assignment_class_policy_statement(
+            assignment_id,
+            class_id,
+            locking_read=locking_read,
         )
     )
+
+
+def assignment_class_policy_statement(
+    assignment_id: int,
+    class_id: int,
+    *,
+    locking_read: bool = False,
+):
+    statement = select(AssignmentClassPolicy).where(
+        AssignmentClassPolicy.assignment_id == assignment_id,
+        AssignmentClassPolicy.class_id == class_id,
+    )
+    return statement.with_for_update() if locking_read else statement
 
 
 def resolve_assignment_class_policy(
     db: Session,
     assignment: Assignment,
     class_id: int,
+    *,
+    locking_read: bool = False,
 ) -> EffectiveAssignmentPolicy:
-    policy = get_assignment_class_policy(db, assignment.id, class_id)
+    if locking_read:
+        locked_assignment = db.scalar(
+            select(Assignment)
+            .where(Assignment.id == assignment.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if locked_assignment is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Assignment no longer exists",
+            )
+        assignment = locked_assignment
+    policy = get_assignment_class_policy(
+        db,
+        assignment.id,
+        class_id,
+        locking_read=locking_read,
+    )
     return build_effective_assignment_policy(assignment, class_id, policy)
 
 

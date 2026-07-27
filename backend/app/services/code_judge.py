@@ -169,13 +169,21 @@ def create_problem_version(
     return version
 
 
-def active_problem_version(db: Session, problem_id: int) -> CodeProblemVersion:
-    version = db.scalar(
+def active_problem_version(
+    db: Session,
+    problem_id: int,
+    *,
+    locking_read: bool = False,
+) -> CodeProblemVersion:
+    statement = (
         select(CodeProblemVersion)
         .where(CodeProblemVersion.problem_id == problem_id, CodeProblemVersion.status == "active")
         .order_by(CodeProblemVersion.version_number.desc())
         .limit(1)
     )
+    if locking_read:
+        statement = statement.with_for_update()
+    version = db.scalar(statement.execution_options(populate_existing=True))
     if version is None:
         raise ValueError("code problem has no active version")
     return version

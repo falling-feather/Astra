@@ -30,7 +30,13 @@ from app.services.access_control import (
     teacher_class_ids,
 )
 from app.services.assignment_policies import resolve_assignment_class_policy
-from app.services.course_release_plans import require_student_unit_open_for_write
+from app.services.course_release_write_gate import (
+    require_student_unit_open_for_write,
+)
+from app.services.legacy_learning_events import (
+    reject_retired_complete_write,
+    resolve_learning_scope,
+)
 from app.services.pagination import list_legacy_scalars, paged_endpoint_url
 
 
@@ -43,11 +49,12 @@ def create_learning_event(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> LearningEvent:
+    reject_retired_complete_write(payload.event_type)
     if payload.assignment_id is not None and payload.class_id is None:
         raise HTTPException(status_code=422, detail="Assignment learning events require class_id")
     if current_user.role == "student" and payload.class_id is None:
         raise HTTPException(status_code=422, detail="Student learning events require class_id")
-    course, unit, assignment = _resolve_learning_scope(db, payload)
+    course, unit, assignment = resolve_learning_scope(db, payload)
     if course is None:
         raise HTTPException(status_code=422, detail="Learning event must target a course, unit, or assignment")
     require_course_visible(db, current_user, course.id)
@@ -70,7 +77,12 @@ def create_learning_event(
             student_id=current_user.id,
         )
     if assignment is not None and class_group is not None:
-        effective = resolve_assignment_class_policy(db, assignment, class_group.id)
+        effective = resolve_assignment_class_policy(
+            db,
+            assignment,
+            class_group.id,
+            locking_read=current_user.role == "student",
+        )
         if not effective.assigned:
             raise HTTPException(status_code=403, detail="Assignment is not assigned to this class")
         if current_user.role == "student" and effective.status != "active":
@@ -94,11 +106,10 @@ def create_learning_event(
         occurred_at=payload.occurred_at or utc_now(),
     )
     db.add(event)
+    db.flush([event])
     db.commit()
     db.refresh(event)
     return event
-
-
 @router.get("", response_model=list[LearningEventRead], deprecated=True)
 def list_learning_events(
     class_id: int | None = Query(default=None),
@@ -241,39 +252,6 @@ def _apply_student_database_release_filters(statement):
             )
         )
     )
-
-
-def _resolve_learning_scope(
-    db: Session,
-    payload: LearningEventCreate,
-) -> tuple[Course | None, CourseUnit | None, Assignment | None]:
-    assignment: Assignment | None = None
-    unit: CourseUnit | None = None
-    course: Course | None = None
-
-    if payload.assignment_id is not None:
-        assignment = db.get(Assignment, payload.assignment_id)
-        if assignment is None:
-            raise HTTPException(status_code=404, detail="Assignment not found")
-        unit = db.get(CourseUnit, assignment.unit_id)
-        if unit is None:
-            raise HTTPException(status_code=404, detail="Course unit not found")
-        course = db.get(Course, unit.course_id)
-    elif payload.unit_id is not None:
-        unit = db.get(CourseUnit, payload.unit_id)
-        if unit is None:
-            raise HTTPException(status_code=404, detail="Course unit not found")
-        course = db.get(Course, unit.course_id)
-    elif payload.course_id is not None:
-        course = db.get(Course, payload.course_id)
-
-    if course is None and (payload.course_id is not None or unit is not None):
-        raise HTTPException(status_code=404, detail="Course not found")
-    if payload.course_id is not None and course is not None and course.id != payload.course_id:
-        raise HTTPException(status_code=422, detail="Course scope does not match referenced resource")
-    if payload.unit_id is not None and unit is not None and unit.id != payload.unit_id:
-        raise HTTPException(status_code=422, detail="Unit scope does not match referenced resource")
-    return course, unit, assignment
 
 
 def _apply_student_visible_event_filters(statement):
