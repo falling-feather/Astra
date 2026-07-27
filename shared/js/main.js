@@ -6,16 +6,10 @@ function initApp() {
     }
     if (window.__loadProgress) window.__loadProgress(30);
 
-    // 1. Initialize legacy card system when it is available.
-    // The module gallery is the primary entry now; missing legacy cards must not block routing.
-    if (typeof initExperimentCards === 'function') {
-        initExperimentCards();
-    }
-
-    // 1b. Initialize module selector (gallery-based navigation per subject page)
+    // 1. Initialize module selector (gallery-based navigation per subject page)
     if (typeof ModuleSelector !== 'undefined') ModuleSelector.init();
 
-    // 1c. Initialize experiment guide system
+    // 1b. Initialize experiment guide system
     if (typeof ExperimentGuide !== 'undefined') ExperimentGuide.init();
 
     // 1d. Initialize experiment export system (E-03)
@@ -259,7 +253,6 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/planets/planets.js?v=' + ROLE_LANDING_ASSET_VERSION
     ],
     englab: [
-        './shared/css/cards.css?v=20260630mainV64',
         './shared/css/module-selector.css?v=20260630mainV64',
         './shared/css/experiment-guide.css?v=20260630mainV64',
         './shared/css/experiment-export.css?v=20260424v44a',

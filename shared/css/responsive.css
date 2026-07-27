@@ -32,27 +32,6 @@
 
 /* ── Touch-device overrides ── */
 @media (hover: none) and (pointer: coarse) {
-    /* Remove hover-only transforms on touch */
-    .card:hover {
-        transform: none;
-    }
-
-    .card:active {
-        transform: scale(0.97);
-        border-color: var(--border-hover);
-        box-shadow: var(--shadow-lg);
-        background: var(--surface-2);
-    }
-
-    .card:active::before {
-        transform: scaleX(1);
-    }
-
-    .card--upcoming:active {
-        opacity: 1;
-        border-style: solid;
-    }
-
     /* Satellite: show labels always on touch */
     .satellite-label-container {
         opacity: 1 !important;
@@ -74,15 +53,6 @@
 
 /* ── Tablet ── */
 @media (max-width: 1024px) {
-    .bento-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .card--featured {
-        grid-column: span 2;
-        grid-row: span 1;
-    }
-
     .demo-layout {
         grid-template-columns: 1fr;
     }
@@ -204,25 +174,6 @@
         font-size: var(--text-2xl);
     }
 
-    /* Cards */
-    .bento-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: var(--space-3);
-    }
-
-    .card--featured,
-    .card--wide {
-        grid-column: span 2;
-    }
-
-    .card {
-        padding: var(--space-5);
-    }
-
-    .card--featured {
-        padding: var(--space-6);
-    }
-
     /* Content */
     .content-section {
         padding: var(--space-6) var(--space-4);
@@ -316,23 +267,6 @@
     }
 
     .page-hero__desc {
-        font-size: var(--text-sm);
-    }
-
-    .bento-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .card--featured,
-    .card--wide {
-        grid-column: span 1;
-    }
-
-    .card--featured .card-title {
-        font-size: var(--text-lg);
-    }
-
-    .card--featured .card-desc {
         font-size: var(--text-sm);
     }
 

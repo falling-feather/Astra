@@ -12,29 +12,6 @@ function initPageScrollAnimations(page) {
     const pageEl = document.getElementById(`page-${page}`);
     if (!pageEl) return;
 
-    // Staggered card reveal
-    const cards = pageEl.querySelectorAll('.bento-grid .card');
-    if (cards.length) {
-        gsap.fromTo(cards,
-            { y: 30, opacity: 0 },
-            {
-                y: 0,
-                opacity: 1,
-                duration: 0.5,
-                ease: 'power3.out',
-                stagger: {
-                    each: 0.08,
-                    from: 'start'
-                },
-                scrollTrigger: {
-                    trigger: pageEl.querySelector('.bento-grid'),
-                    start: 'top 85%',
-                    toggleActions: 'play none none none'
-                }
-            }
-        );
-    }
-
     // Section headers
     const headers = pageEl.querySelectorAll('.section-header');
     headers.forEach(header => {
