@@ -10,11 +10,11 @@
 
 ## 当前状态
 
-- V7.5.11 是最近一次四分支统一的稳定集成基线；后续文档与开发从 `houduan` 推进，验收后再汇入 `main`，`review` 保持冻结。
+- `main@V7.5.11` 是公开稳定线；`主开发` 已进入 V7.6 活动集成，`houduan` 保留下轮后端起点，`review` 保持冻结。
 - 登录前置、Cookie Session、三角色资源裁剪、星序统一角色工作台、三星系课程、教师编排、组织治理和 9001 本机同源交付已经进入当前实现。
 - 代码空间和未来星系均为 6 组/18 活动；默认 `DisabledCodeRunnerAdapter` 只诚实持久化 `runner_unavailable`，不会把未配置判题器伪报为通过。
-- Alembic 当前 head 为 `20260719_0050`；最近一次独立门禁为 197 个受跟踪 JavaScript、35/35 前端合同、后端 519 passed/7 个真实 MySQL 条件跳过，QA-011 的 P0/P1/P2/P3 均为 0。
-- 真实 MySQL、隔离 runner、staging/production、公网 TLS 与首个外部 provider 仍未完成，本机 9001 结果不得外推为正式上线。
+- Alembic 当前 head 为 `20260727_0051`；V7.6.5 的权威学习证据服务已通过 QA-014 A02，后端 555 passed、8 个真实 MySQL 条件跳过。三星系客户端接入仍属于 FE-012，不能提前宣称 V7.6 学习主路径已经完成。
+- 当前作品定位为课程作业 / 设计大赛本地展示版：优先完成代表课程互动和学生—教师—管理员三端协同。真实 MySQL、隔离 runner、staging/production、公网 TLS、压力测试和真实课堂试点保留为后置工程，不阻塞 V8.0 展示候选。
 
 当前实现见 [`doc/01-开发者文档.md`](doc/01-开发者文档.md)，下一阶段任务与版本见 [`doc/02-项目规划.md`](doc/02-项目规划.md)，V7.4.12 起的版本与验收证据见 [`doc/03-开发历史.md`](doc/03-开发历史.md)，更早历史保留在 [`doc/03-发布历史.md`](doc/03-发布历史.md)。
 
@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
 powershell -ExecutionPolicy Bypass -File .\astra-local.ps1 -BootstrapAdmin
 ```
 
-这是本机 development/验收入口，不配置域名、TLS、Windows 服务或正式 MySQL，也不能作为 staging/production 发布证据。完整边界见 [`doc/04-部署指南.md`](doc/04-部署指南.md)。
+这是当前展示版的正式启动与验收入口；它不配置域名、TLS、Windows 服务或正式 MySQL，也不能被描述成 staging/production。完整边界见 [`doc/04-部署指南.md`](doc/04-部署指南.md)。
 
 ### 手动拆分 1：启动静态主站
 
@@ -60,7 +60,7 @@ python -m alembic upgrade head
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-默认数据库是本地 SQLite。生产或发布证据环境必须显式配置 MySQL、关闭自动建表，并按 [`doc/04-部署指南.md`](doc/04-部署指南.md) 执行预检、迁移、烟测和回滚检查。
+默认数据库是本地 SQLite，也是当前展示版要求复验的数据库。以后恢复生产发布时，才需要显式配置 MySQL、关闭自动建表，并按 [`doc/04-部署指南.md`](doc/04-部署指南.md) 执行预检、迁移、烟测和回滚检查。
 
 `backend/requirements.txt` 是直接依赖约束输入，不能用于发布安装。依赖升级必须在独立变更中同时更新哈希锁：先安装 `uv==0.10.6`，再从仓库根目录执行 `python backend/scripts/compile_requirements_lock.py --exclude-newer YYYY-MM-DD`；CI 会重新解析并拒绝漂移。
 
@@ -115,7 +115,7 @@ try {
 git diff --check
 ```
 
-GitHub Actions 还会执行独立 MySQL 8.4 发布证据和 C++ Release 构建。发布前需同时满足自动化、浏览器桌面/390×844 验收和部署清单。
+GitHub Actions 仍保留 MySQL 8.4 兼容证据和 C++ Release 构建，防止已有工程能力退化；当前展示版的退出门禁以自动化、本机 9001、浏览器桌面/390×844、三角色数据对账和干净仓库为准。
 
 ## 项目结构
 
