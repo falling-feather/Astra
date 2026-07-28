@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-EXPECTED_REVISION = "20260719_0050"
+EXPECTED_REVISION = "20260727_0051"
 
 
 def quoted_identifier(value: str) -> str:

@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..', '..');
 const source = fs.readFileSync(path.join(root, 'tools/quality/sqlite-qa-ledger.py'), 'utf8');
 
-assert.match(source, /EXPECTED_REVISION = "20260719_0050"/);
+assert.match(source, /EXPECTED_REVISION = "20260727_0051"/);
 assert.match(source, /sqlite3\.connect\(f"\{resolved\.as_uri\(\)\}\?mode=ro", uri=True\)/);
 assert.match(source, /os\.path\.normcase\(str\(resolved_output\)\)[\s\S]*os\.path\.normcase\(str\(resolved_database\)\)/);
 assert.match(source, /output\.exists\(\) and output\.samefile\(resolved_database\)/);
