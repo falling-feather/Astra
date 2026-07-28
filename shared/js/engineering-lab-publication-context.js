@@ -8,7 +8,9 @@
         classes: [],
         selectedClassId: 0,
         generation: 0,
-        controller: null
+        controller: null,
+        navigationGeneration: 0,
+        navigationController: null
     };
 
     function api() {
@@ -37,7 +39,7 @@
         return scope && scope.generation === state.generation && scope.controller === state.controller && !scope.signal.aborted;
     }
 
-    async function prepare(user) {
+    async function prepare(user, options = {}) {
         const session = global.AstraApplicationSession;
         const sessionUser = session && typeof session.getUser === 'function' ? session.getUser() : null;
         state.user = user || sessionUser || null;
@@ -45,27 +47,178 @@
             return Object.freeze({ available: false, error_code: 'student_role_required', classes: [] });
         }
         const scope = begin();
-        const classes = list(await api().request('/api/classes', {
-            params: { mine: true },
-            signal: scope.signal
-        }));
-        if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled', classes: [] });
-        state.classes = classes;
-        if (!classes.some(item => id(item.id) === state.selectedClassId)) state.selectedClassId = 0;
-        if (classes.length === 1) state.selectedClassId = id(classes[0].id);
-        return Object.freeze({
-            available: Boolean(state.selectedClassId),
-            error_code: state.selectedClassId ? '' : classes.length ? 'class_selection_required' : 'class_scope_missing',
-            classes: classes.slice(),
-            class_id: state.selectedClassId || null
-        });
+        const externalSignal = options && options.signal;
+        const abortScope = () => scope.controller.abort();
+        if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+            if (externalSignal.aborted) abortScope();
+            else externalSignal.addEventListener('abort', abortScope, { once: true });
+        }
+        try {
+            const classes = list(await api().request('/api/classes', {
+                params: { mine: true },
+                signal: scope.signal
+            }));
+            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled', classes: [] });
+            state.classes = classes;
+            if (!classes.some(item => id(item.id) === state.selectedClassId)) state.selectedClassId = 0;
+            if (classes.length === 1) state.selectedClassId = id(classes[0].id);
+            return Object.freeze({
+                available: Boolean(state.selectedClassId),
+                error_code: state.selectedClassId ? '' : classes.length ? 'class_selection_required' : 'class_scope_missing',
+                classes: classes.slice(),
+                class_id: state.selectedClassId || null
+            });
+        } catch (error) {
+            if (scope.signal.aborted || (api().isCancelled && api().isCancelled(error))) {
+                return Object.freeze({ available: false, error_code: 'cancelled', classes: [] });
+            }
+            throw error;
+        } finally {
+            if (externalSignal && typeof externalSignal.removeEventListener === 'function') {
+                externalSignal.removeEventListener('abort', abortScope);
+            }
+        }
+    }
+
+    function cancelNavigation() {
+        if (state.navigationController) state.navigationController.abort();
+        state.navigationController = null;
+        state.navigationGeneration += 1;
+    }
+
+    function beginNavigation(externalSignal) {
+        cancelNavigation();
+        const controller = new AbortController();
+        state.navigationController = controller;
+        const abortNavigation = () => controller.abort();
+        if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+            if (externalSignal.aborted) abortNavigation();
+            else externalSignal.addEventListener('abort', abortNavigation, { once: true });
+        }
+        return {
+            generation: state.navigationGeneration,
+            controller,
+            signal: controller.signal,
+            detach: () => {
+                if (externalSignal && typeof externalSignal.removeEventListener === 'function') {
+                    externalSignal.removeEventListener('abort', abortNavigation);
+                }
+            }
+        };
+    }
+
+    function currentNavigation(scope) {
+        return Boolean(
+            scope
+            && scope.generation === state.navigationGeneration
+            && scope.controller === state.navigationController
+            && !scope.signal.aborted
+        );
+    }
+
+    function navigationError(code) {
+        const error = new Error(code);
+        error.code = code;
+        return error;
+    }
+
+    function invalidatePublicationScope() {
+        cancelNavigation();
+        if (state.controller) state.controller.abort();
+        state.controller = null;
+        state.generation += 1;
+        state.selectedClassId = 0;
+    }
+
+    function selectPreparedClass(classId, classes) {
+        const selected = classes.find(item => id(item.id) === id(classId));
+        if (!selected) return false;
+        state.classes = classes.slice();
+        state.selectedClassId = id(selected.id);
+        return true;
     }
 
     function selectClass(classId) {
-        const selected = state.classes.find(item => id(item.id) === id(classId));
-        if (!selected) return false;
-        state.selectedClassId = id(selected.id);
-        return true;
+        const classes = state.classes.slice();
+        invalidatePublicationScope();
+        return selectPreparedClass(classId, classes);
+    }
+
+    async function switchClass(user, classId, options = {}) {
+        const classKey = id(classId);
+        invalidatePublicationScope();
+        const session = global.AstraApplicationSession;
+        const sessionUser = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        state.user = user || sessionUser || null;
+        if (!classKey) {
+            return Object.freeze({
+                available: false,
+                error_code: 'class_selection_required',
+                classes: state.classes.slice(),
+                class_id: null
+            });
+        }
+        try {
+            const prepared = await prepare(state.user, options);
+            if (prepared.error_code === 'cancelled' || prepared.error_code === 'student_role_required') return prepared;
+            state.selectedClassId = 0;
+            if (!selectPreparedClass(classKey, prepared.classes || [])) {
+                return Object.freeze({
+                    available: false,
+                    error_code: 'class_scope_missing',
+                    classes: prepared.classes || [],
+                    class_id: null
+                });
+            }
+            return Object.freeze({
+                available: true,
+                error_code: '',
+                classes: state.classes.slice(),
+                class_id: state.selectedClassId
+            });
+        } catch (error) {
+            return Object.freeze({
+                available: false,
+                error_code: error && error.code || 'publication_context_unavailable',
+                classes: state.classes.slice(),
+                class_id: null
+            });
+        }
+    }
+
+    function describeStudentUnit(unit, index) {
+        const releaseState = String(unit && unit.effective_release_state || '').trim().toLowerCase();
+        if (releaseState !== 'open' && releaseState !== 'locked') return null;
+        const contentSlug = String(unit && unit.content_slug || '').trim();
+        const activityKey = String(unit && unit.activity_key || '').trim();
+        return Object.freeze({
+            release_state: releaseState,
+            title: String(unit && unit.title || `单元 ${Number(index) + 1}`),
+            position: Number(index) + 1,
+            content_slug: contentSlug,
+            activity_key: activityKey,
+            executable: releaseState === 'open' && Boolean(contentSlug),
+            engineering_activity: releaseState === 'open' && activityKey === 'physics.mechanics'
+        });
+    }
+
+    async function navigateStudent(user, classId, href, options = {}) {
+        const target = String(href || '');
+        const classKey = id(classId);
+        if (!target.startsWith('#') || !classKey) throw new Error('invalid_engineering_navigation');
+        const navigation = beginNavigation(options && options.signal);
+        try {
+            const prepared = await prepare(user, { signal: navigation.signal });
+            if (!currentNavigation(navigation) || prepared.error_code === 'cancelled') throw navigationError('cancelled');
+            if (prepared.error_code === 'student_role_required') throw navigationError('student_role_required');
+            if (!selectPreparedClass(classKey, prepared.classes || [])) throw navigationError('class_scope_missing');
+            if (!currentNavigation(navigation)) throw navigationError('cancelled');
+            global.location.hash = target;
+            return true;
+        } finally {
+            navigation.detach();
+            if (state.navigationController === navigation.controller) state.navigationController = null;
+        }
     }
 
     async function resolve(activity) {
@@ -124,12 +277,9 @@
     }
 
     function close() {
-        if (state.controller) state.controller.abort();
-        state.controller = null;
-        state.generation += 1;
+        invalidatePublicationScope();
         state.user = null;
         state.classes = [];
-        state.selectedClassId = 0;
     }
 
     global.addEventListener('astra:session-ready', event => {
@@ -147,6 +297,10 @@
     global.AstraEngineeringLabPublicationContext = Object.freeze({
         prepare,
         selectClass,
+        switchClass,
+        cancelNavigation,
+        describeStudentUnit,
+        navigateStudent,
         resolve,
         close,
         snapshot: () => Object.freeze({

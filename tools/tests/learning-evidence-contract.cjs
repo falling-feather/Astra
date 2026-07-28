@@ -314,10 +314,22 @@ function testStaticOwnershipAndSemantics() {
     assert.doesNotMatch(source, /\/api\/learning-evidence/, `${name} must not bypass the shared client`);
   }
 
-  const openStart = moduleSelectorSource.indexOf('openModule(page, moduleId)');
+  const openStart = moduleSelectorSource.indexOf('openModule(page, moduleId, options = {})');
   const closeStart = moduleSelectorSource.indexOf('closeModule(page, options');
+  assert.ok(openStart >= 0 && closeStart > openStart, 'openModule ownership boundary must remain discoverable');
   const openBody = moduleSelectorSource.slice(openStart, closeStart);
   assert.ok(openBody.indexOf('_releaseModuleRuntime') < openBody.indexOf('_releaseEvidenceRuntime'));
+  const publicationGateStart = moduleSelectorSource.indexOf('_openPublicationGuardedModule(page, moduleId, pageEl, sections)');
+  const publicationGateEnd = moduleSelectorSource.indexOf('_isCurrentPublicationGate(page, moduleId, generation)', publicationGateStart);
+  assert.ok(
+    publicationGateStart >= 0 && publicationGateEnd > publicationGateStart,
+    'publication-gated ownership boundary must remain discoverable'
+  );
+  const publicationGateBody = moduleSelectorSource.slice(publicationGateStart, publicationGateEnd);
+  assert.ok(
+    publicationGateBody.indexOf('_releaseModuleRuntime') < publicationGateBody.indexOf('_releaseEvidenceRuntime'),
+    'publication recheck must release the experiment owner before evidence'
+  );
   const leaveStart = moduleSelectorSource.indexOf('leavePage(page, options');
   const closeBody = moduleSelectorSource.slice(closeStart, leaveStart);
   assert.ok(closeBody.indexOf('_releaseModuleRuntime') < closeBody.indexOf('_releaseEvidenceRuntime'));
