@@ -167,7 +167,7 @@
                 error.code = 'learning_evidence_loader_unavailable';
                 throw error;
             }
-            await loader.ensure({ student: true });
+            await loader.ensure({ student: true, engineeringContext: true });
             if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
             if (!window.AstraStudentLearningEvidence || typeof window.AstraStudentLearningEvidence.mount !== 'function') {
                 const error = new Error('student learning evidence owner unavailable');
@@ -175,6 +175,7 @@
                 throw error;
             }
             window.AstraStudentLearningEvidence.mount(state.root);
+            renderWorkspace();
             return true;
         } catch (error) {
             if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
@@ -241,6 +242,20 @@
 
             if (target.closest('[data-student-action="refresh"]')) {
                 refreshAll();
+                return;
+            }
+
+            const engineeringUnitLink = target.closest('[data-student-englab-activity]');
+            if (engineeringUnitLink) {
+                event.preventDefault();
+                const navigationGeneration = state.scopeGeneration;
+                const navigationSignal = state.scopeController && state.scopeController.signal;
+                window.AstraLearningEvidenceLoader.ensure({ engineeringContext: true })
+                    .then(() => {
+                        if (!state.active || state.scopeGeneration !== navigationGeneration || !navigationSignal || navigationSignal.aborted) return false;
+                        return window.AstraEngineeringLabPublicationContext.navigateStudent(state.user, state.selected.classId, engineeringUnitLink.hash, { signal: navigationSignal });
+                    })
+                    .catch(error => { if (error && error.code === 'cancelled') return; setFlash('error', errorMessage(error)); renderWorkspace(); });
                 return;
             }
 
@@ -509,12 +524,14 @@
     }
 
     async function refreshClassScope() {
+        const scope = beginScopeRequest();
+        const publication = window.AstraEngineeringLabPublicationContext;
+        if (publication && typeof publication.switchClass === 'function') void publication.switchClass(state.user, state.selected.classId, { signal: scope.signal });
         if (!state.authorized || !state.selected.classId) {
             if (state.authorized) closeFutureGalaxyPublication();
             renderWorkspace();
             return;
         }
-        const scope = beginScopeRequest();
         state.loadingScope = true;
         state.errors = {};
         state.data.schools = [];
@@ -1166,6 +1183,8 @@
         if (!container) return;
         const course = selectedCourse();
         const units = state.data.units || [];
+        const context = window.AstraEngineeringLabPublicationContext;
+        const visibleUnits = context ? units.map(context.describeStudentUnit).filter(Boolean) : [];
         container.innerHTML = panelHeader('课程内容', 'route', course ? course.title : '') + (state.errors.units
             ? renderPanelError(state.errors.units, '课程内容读取失败')
             : state.loadingScope && !units.length
@@ -1174,17 +1193,15 @@
                     ? renderEmpty('当前班级暂无已发布课程')
                     : `
                         ${course.summary ? `<p class="student-course-summary">${escapeHtml(course.summary)}</p>` : ''}
-                        ${units.length ? `
+                        ${visibleUnits.length ? `
                             <ol class="student-unit-rail">
-                                ${units.map((unit, index) => `
-                                    <li>
-                                        <span class="student-unit-index">${index + 1}</span>
-                                        <div><strong>${escapeHtml(unit.title || `单元 ${index + 1}`)}</strong><small>可学习</small></div>
-                                        ${unit.content_slug ? `<a href="#${escapeAttr(unit.content_slug)}" aria-label="进入 ${escapeAttr(unit.title || '课程内容')}"><i data-lucide="arrow-up-right"></i></a>` : '<span class="student-unit-no-link">待绑定</span>'}
-                                    </li>
-                                `).join('')}
+                                ${visibleUnits.map((unit) => `<li data-student-unit-state="${unit.release_state}">
+                                    <span class="student-unit-index">${unit.position}</span>
+                                    <div><strong>${escapeHtml(unit.title)}</strong><small>${unit.release_state === 'open' ? '开放学习' : '教师已锁定'}</small></div>
+                                    ${unit.executable ? `<a href="#${escapeAttr(unit.content_slug)}" aria-label="进入 ${escapeAttr(unit.title)}"${unit.engineering_activity ? ` data-student-englab-activity="${unit.activity_key}"` : ''}><i data-lucide="arrow-up-right"></i></a>` : `<span class="student-unit-no-link"${unit.release_state === 'open' ? '' : ` aria-label="${escapeAttr(unit.title)}当前被教师锁定"`}>${unit.release_state === 'open' ? '待绑定' : '暂不可进入'}</span>`}
+                                </li>`).join('')}
                             </ol>
-                        ` : renderEmpty('该课程暂无已发布单元')}
+                        ` : renderEmpty('该课程暂无当前可见单元')}
                     `);
     }
 
@@ -1782,7 +1799,8 @@
             buildFutureCourseIdMap,
             bootstrapFutureGalaxyPublication,
             configureFutureGalaxyPublication,
-            closeFutureGalaxyPublication
+            closeFutureGalaxyPublication,
+            renderCoursePanel
         };
     }
 })();

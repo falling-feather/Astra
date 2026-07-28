@@ -26,10 +26,28 @@
     flex: 1;
     -webkit-appearance: none;
     appearance: none;
+    height: 44px;
+    min-height: 44px;
+    border-radius: 2px;
+    background: transparent;
+    outline: none;
+}
+
+.range::-webkit-slider-runnable-track {
     height: 4px;
     border-radius: 2px;
     background: var(--surface-3);
-    outline: none;
+}
+
+.range::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+}
+
+.range:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
 }
 
 .range::-webkit-slider-thumb {
@@ -71,8 +89,28 @@
     gap: var(--space-3);
 }
 
+#page-physics [data-module="mechanics"] .demo-section {
+    --experiment-control-height: 44px;
+}
+
 .physics-actions .btn {
     flex: 1;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+#gravity-slider,
+#restitution-slider,
+#friction-slider,
+#radius-slider {
+    height: 44px;
+    min-height: 44px;
+}
+
+#physics-clear,
+#physics-pause {
+    min-width: 44px;
+    min-height: 44px;
 }
 
 .physics-stats {
@@ -821,7 +859,9 @@
 /* ══════ Physics Zoom Modal ══════ */
 .physics-zoom-btn {
     margin-left: auto;
-    padding: 4px 12px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
     border-radius: 6px;
     border: 1px solid rgba(139,111,192,.35);
     background: transparent;
@@ -829,6 +869,12 @@
     font-size: .82rem;
     cursor: pointer;
     transition: all .2s;
+}
+.physics-zoom-btn:focus-visible,
+.physics-zoom-modal__close:focus-visible,
+.physics-publication-gate button:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
 }
 .physics-zoom-btn:hover {
     background: rgba(139,111,192,.18);
@@ -877,11 +923,55 @@
 }
 
 .physics-zoom-modal__close {
+    min-width: 44px;
+    min-height: 44px;
     border: 1px solid var(--border-default);
     background: transparent;
     color: var(--text-secondary);
     border-radius: 6px;
     padding: 4px 10px;
+    cursor: pointer;
+}
+
+.physics-publication-gate {
+    width: min(680px, calc(100% - 32px));
+    margin: clamp(28px, 8vh, 84px) auto;
+    padding: clamp(24px, 5vw, 42px);
+    border: 1px solid rgba(139, 111, 192, .32);
+    border-radius: var(--radius-default);
+    background: var(--surface-1);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, .22);
+    text-align: center;
+}
+
+.physics-publication-gate__eyebrow {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--accent-purple);
+    font-size: var(--text-xs);
+    letter-spacing: .08em;
+}
+
+.physics-publication-gate h2 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.physics-publication-gate p {
+    margin: 14px auto 22px;
+    max-width: 48ch;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.physics-publication-gate button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px 18px;
+    border: 1px solid rgba(139, 111, 192, .5);
+    border-radius: 8px;
+    background: rgba(139, 111, 192, .16);
+    color: var(--text-primary);
     cursor: pointer;
 }
 

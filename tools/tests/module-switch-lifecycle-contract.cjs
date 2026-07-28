@@ -207,6 +207,30 @@ function activate(harness, id, initialized = true) {
   if (initialized) harness.selector._initialized[`physics:${id}`] = true;
 }
 
+async function settlePromises(rounds = 8) {
+  for (let index = 0; index < rounds; index += 1) await Promise.resolve();
+}
+
+function configureStudentPublication(harness, access) {
+  harness.windowObject.AstraApplicationSession = {
+    getUser: () => ({ id: 7, role: 'student' })
+  };
+  harness.windowObject.AstraEngineeringLabPublicationContext = {
+    resolve: () => Promise.resolve(access)
+  };
+  harness.selector._renderPublicationGate = (page, _pageEl, state, code = '') => {
+    delete harness.selector._publicationGateNodes[page];
+    harness.selector._publicationGateNodes[page] = { state, code };
+    harness.order.push(`publication-gate:${state}:${code}`);
+  };
+  harness.selector._clearPublicationGate = (page) => {
+    delete harness.selector._publicationGateNodes[page];
+    harness.order.push('publication-gate:clear');
+  };
+  harness.selector._focusExperiment = () => {};
+  harness.selector._showRelatedExperiments = () => {};
+}
+
 (async () => {
   const success = createHarness();
   activate(success, 'mechanics');
@@ -234,6 +258,120 @@ function activate(harness, id, initialized = true) {
   assert.equal(success.cleanupCalls.filter(key => key === 'physics:gas-laws').length, 1);
   assert.equal(success.selector.openModule('physics', 'mechanics'), true);
   assert.ok(success.order.includes('init:physics:mechanics'), 'gallery to verified module must initialize again');
+
+  const lockedPublication = createHarness();
+  activate(lockedPublication, 'mechanics');
+  configureStudentPublication(lockedPublication, {
+    available: false,
+    error_code: 'activity_locked'
+  });
+  lockedPublication.selector._initModule = () => lockedPublication.order.push('unexpected-locked-init');
+  lockedPublication.selector._loadModuleAssets = () => {
+    lockedPublication.order.push('unexpected-locked-assets');
+    return Promise.resolve();
+  };
+  lockedPublication.selector._mountEvidenceRuntime = () => lockedPublication.order.push('unexpected-locked-evidence');
+  assert.equal(lockedPublication.selector.openModule('physics', 'mechanics'), true);
+  assert.equal(
+    lockedPublication.cleanupCalls.filter(key => key === 'physics:mechanics').length,
+    1,
+    'a publication recheck must synchronously release an already running mechanics owner'
+  );
+  assert.equal(lockedPublication.selector.activeModule.physics, null);
+  assert.equal(lockedPublication.sections.mechanics.classList.contains('module-active'), false);
+  assert.ok(lockedPublication.order.includes('evidence-destroy'));
+  await settlePromises();
+  assert.equal(lockedPublication.order.includes('unexpected-locked-init'), false);
+  assert.equal(lockedPublication.order.includes('unexpected-locked-assets'), false);
+  assert.equal(lockedPublication.order.includes('unexpected-locked-evidence'), false);
+  assert.ok(lockedPublication.order.includes('publication-gate:locked:activity_locked'));
+  assert.equal(lockedPublication.selector._initialized['physics:mechanics'], undefined);
+
+  const openPublication = createHarness();
+  configureStudentPublication(openPublication, {
+    available: true,
+    class_id: 12,
+    course_id: 23,
+    course_unit_id: 34,
+    activity_key: 'physics.mechanics'
+  });
+  openPublication.selector._initModule = (page, id) => openPublication.order.push(`guarded-init:${page}:${id}`);
+  assert.equal(openPublication.selector.openModule('physics', 'mechanics'), true);
+  assert.equal(openPublication.selector.activeModule.physics, null, 'owner must stay stopped while publication state is pending');
+  assert.equal(openPublication.order.includes('guarded-init:physics:mechanics'), false);
+  await settlePromises();
+  assert.equal(openPublication.selector.activeModule.physics, 'mechanics');
+  assert.equal(openPublication.sections.mechanics.classList.contains('module-active'), true);
+  assert.ok(openPublication.order.includes('guarded-init:physics:mechanics'), 'open publication state must preserve the teaching runtime path');
+
+  const hiddenPublication = createHarness();
+  configureStudentPublication(hiddenPublication, {
+    available: false,
+    error_code: 'course_unit_missing'
+  });
+  hiddenPublication.selector._initModule = () => hiddenPublication.order.push('unexpected-hidden-init');
+  assert.equal(hiddenPublication.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  assert.equal(hiddenPublication.selector.activeModule.physics, null);
+  assert.equal(hiddenPublication.order.includes('unexpected-hidden-init'), false);
+  assert.equal(hiddenPublication.sections.mechanics.classList.contains('module-active'), false);
+  assert.equal(hiddenPublication.gallery.style.display, '');
+  assert.equal(hiddenPublication.windowObject.location.hash, '#physics', 'hidden activity must normalize back to the undiscoverable gallery route');
+  assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('activity_hidden'), true);
+  assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_scope_missing'), true);
+  assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_unit_missing'), true);
+  assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_scope_ambiguous'), false);
+
+  let settlePendingAccess;
+  const pendingAccess = new Promise(resolve => { settlePendingAccess = resolve; });
+  const pendingSwitch = createHarness();
+  configureStudentPublication(pendingSwitch, pendingAccess);
+  pendingSwitch.selector._initModule = (page, id) => pendingSwitch.order.push(`pending-switch-init:${page}:${id}`);
+  assert.equal(pendingSwitch.selector.openModule('physics', 'mechanics'), true);
+  assert.ok(pendingSwitch.selector._publicationGatePending.physics);
+  assert.equal(pendingSwitch.selector._publicationGateNodes.physics.state, 'checking');
+  assert.equal(pendingSwitch.selector.openModule('physics', 'gas-laws'), true);
+  assert.equal(pendingSwitch.selector._publicationGatePending.physics, undefined);
+  assert.equal(pendingSwitch.selector._publicationGateNodes.physics, undefined);
+  assert.equal(pendingSwitch.selector.activeModule.physics, 'gas-laws');
+  assert.equal(pendingSwitch.sections['gas-laws'].classList.contains('module-active'), true);
+  settlePendingAccess({ available: false, error_code: 'activity_locked' });
+  await settlePromises();
+  assert.equal(pendingSwitch.selector.activeModule.physics, 'gas-laws');
+  assert.equal(pendingSwitch.selector._publicationGateNodes.physics, undefined);
+  assert.equal(
+    pendingSwitch.order.filter(item => item === 'publication-gate:locked:activity_locked').length,
+    0,
+    'a stale publication result must not reattach a gate over the newer module'
+  );
+
+  let settlePendingClose;
+  const pendingClose = createHarness();
+  configureStudentPublication(pendingClose, new Promise(resolve => { settlePendingClose = resolve; }));
+  assert.equal(pendingClose.selector.openModule('physics', 'mechanics'), true);
+  assert.equal(pendingClose.selector.openModule('physics', 'mechanics'), true);
+  assert.equal(
+    pendingClose.order.filter(item => item === 'publication-gate:checking:').length,
+    1,
+    'reopening the same pending module must not leak another gate'
+  );
+  assert.equal(pendingClose.selector.closeModule('physics'), true);
+  assert.equal(pendingClose.selector._publicationGatePending.physics, undefined);
+  assert.equal(pendingClose.selector._publicationGateNodes.physics, undefined);
+  settlePendingClose({ available: true });
+  await settlePromises();
+  assert.equal(pendingClose.selector.activeModule.physics, null);
+
+  let settlePendingReset;
+  const pendingReset = createHarness();
+  configureStudentPublication(pendingReset, new Promise(resolve => { settlePendingReset = resolve; }));
+  assert.equal(pendingReset.selector.openModule('physics', 'mechanics'), true);
+  pendingReset.selector.resetPage('physics');
+  assert.equal(pendingReset.selector._publicationGatePending.physics, undefined);
+  assert.equal(pendingReset.selector._publicationGateNodes.physics, undefined);
+  settlePendingReset({ available: true });
+  await settlePromises();
+  assert.equal(pendingReset.selector.activeModule.physics, null);
 
   const legacy = createHarness();
   activate(legacy, 'waves');
@@ -491,6 +629,8 @@ function activate(harness, id, initialized = true) {
   assert.equal(hiddenDismissTarget.focusCalls, 0, 'dismiss must cancel delayed focus on the hidden guide button');
   assert.equal(guideFocusTarget.focusCalls, 1, 'dismissing the guide must restore focus to the active module');
   assert.match(guideSource, /e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*this\._dismiss\(\{ restoreFocus: true \}\);/);
+  assert.match(source, /教师尚未开放“力学模拟”[\s\S]*实验画布与交互资源均未启动/);
+  assert.match(source, /data-module-access-return[\s\S]*安全返回物理实验列表/);
 
   console.log('module-switch-lifecycle-contract: ok');
 })().catch(error => {

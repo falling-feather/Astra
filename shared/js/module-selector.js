@@ -12,6 +12,8 @@ const ModuleSelector = {
     _scriptPromises: {},
     _transitionGeneration: {},
     _transitionTimers: {},
+    _publicationGateNodes: {},
+    _publicationGatePending: {},
     _pageEnhancementScripts: {
         physics: ['pages/physics/physics-zoom.js'],
         biology: ['pages/biology/biology.js?v=20260416b', 'pages/biology/biology-zoom.js?v=20260416b']
@@ -294,7 +296,7 @@ const ModuleSelector = {
         return id;
     },
 
-    openModule(page, moduleId) {
+    openModule(page, moduleId, options = {}) {
         const pageEl = document.getElementById(`page-${page}`);
         if (!pageEl) return false;
 
@@ -312,8 +314,13 @@ const ModuleSelector = {
             return false;
         }
 
+        if (options.authorityPrepared !== true && this._requiresPublicationGate(page, moduleId)) {
+            return this._openPublicationGuardedModule(page, moduleId, pageEl, sections);
+        }
+
         // If same module, just close sidebar
         if (this.activeModule[page] === moduleId) {
+            this._cancelPublicationGate(page);
             if (window.innerWidth <= 768) this._closeSidebar(page);
             return true;
         }
@@ -330,6 +337,7 @@ const ModuleSelector = {
                 s.classList.remove('module-active');
             });
         }
+        this._cancelPublicationGate(page);
         const generation = this._beginModuleTransition(page);
 
         // Hide gallery
@@ -393,6 +401,176 @@ const ModuleSelector = {
             );
         }
         return true;
+    },
+
+    _requiresPublicationGate(page, moduleId) {
+        if (page !== 'physics' || moduleId !== 'mechanics') return false;
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        return Boolean(user && user.role === 'student');
+    },
+
+    _openPublicationGuardedModule(page, moduleId, pageEl, sections) {
+        const pending = this._publicationGatePending[page];
+        if (
+            pending
+            && pending.moduleId === moduleId
+            && pending.generation === this._transitionGeneration[page]
+        ) {
+            this._closeSidebar(page);
+            return true;
+        }
+
+        const previousModule = this.activeModule[page];
+        if (previousModule) {
+            if (!this._releaseModuleRuntime(page, previousModule)) return false;
+            this._releaseEvidenceRuntime(page, previousModule, pageEl);
+            if (window.BackendContent && typeof BackendContent.destroyExperimentSchema === 'function') {
+                try { BackendContent.destroyExperimentSchema(page, previousModule); } catch (error) {}
+            }
+        }
+
+        this._cancelPublicationGate(page);
+        const generation = this._beginModuleTransition(page);
+        this.activeModule[page] = null;
+        pageEl.querySelectorAll('[data-module].module-active').forEach(section => {
+            section.classList.remove('module-active');
+        });
+        pageEl.querySelectorAll('.related-experiments').forEach(element => element.remove());
+        this._hideModuleTools();
+        this._closeSidebar(page);
+        if (this._swipeBackCtrls[page]) {
+            this._swipeBackCtrls[page].destroy();
+            this._swipeBackCtrls[page] = null;
+        }
+
+        const gallery = document.getElementById(`gallery-${page}`);
+        if (gallery) gallery.style.display = 'none';
+        pageEl.classList.remove('module-gallery-active');
+        const toggle = document.getElementById(`sidebar-toggle-${page}`);
+        if (toggle) toggle.style.display = 'none';
+        try {
+            const nextHash = `#${page}/${moduleId}`;
+            if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash);
+        } catch (error) {}
+
+        this._publicationGatePending[page] = { moduleId, generation };
+        this._renderPublicationGate(page, pageEl, 'checking');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        this._resolvePublicationAccess(page, moduleId).then(access => {
+            if (!this._isCurrentPublicationGate(page, moduleId, generation)) return;
+            delete this._publicationGatePending[page];
+            if (access && access.available === true) {
+                this._clearPublicationGate(page);
+                this.openModule(page, moduleId, { authorityPrepared: true });
+                return;
+            }
+            const code = access && access.error_code || 'publication_context_unavailable';
+            if (this._isUndiscoverablePublicationAccess(code)) {
+                this.closeModule(page);
+                return;
+            }
+            this._renderPublicationGate(page, pageEl, code === 'activity_locked' ? 'locked' : 'unavailable', code);
+        }).catch(() => {
+            if (!this._isCurrentPublicationGate(page, moduleId, generation)) return;
+            delete this._publicationGatePending[page];
+            this._renderPublicationGate(page, pageEl, 'unavailable', 'publication_context_unavailable');
+        });
+        return true;
+    },
+
+    _isUndiscoverablePublicationAccess(code) {
+        return code === 'activity_hidden'
+            || code === 'course_scope_missing'
+            || code === 'course_unit_missing';
+    },
+
+    _isCurrentPublicationGate(page, moduleId, generation) {
+        const pending = this._publicationGatePending[page];
+        return Boolean(
+            pending
+            && pending.moduleId === moduleId
+            && pending.generation === generation
+            && this._transitionGeneration[page] === generation
+            && !this.activeModule[page]
+        );
+    },
+
+    async _resolvePublicationAccess(page, moduleId) {
+        if (page !== 'physics' || moduleId !== 'mechanics') {
+            return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
+        }
+        const loader = window.AstraLearningEvidenceLoader;
+        if (!loader || typeof loader.ensure !== 'function') {
+            return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
+        }
+        await loader.ensure({ engineeringContext: true });
+        const context = window.AstraEngineeringLabPublicationContext;
+        if (!context || typeof context.resolve !== 'function') {
+            return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
+        }
+        const catalog = window.AstraLearningActivityCatalog;
+        const activity = catalog && typeof catalog.resolve === 'function'
+            ? catalog.resolve('englab', 'physics.mechanics')
+            : Object.freeze({
+                galaxy_key: 'englab',
+                course_key: 'physics',
+                activity_key: 'physics.mechanics'
+            });
+        if (!activity) return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
+        return context.resolve(activity);
+    },
+
+    _renderPublicationGate(page, pageEl, state, errorCode = '') {
+        this._clearPublicationGate(page);
+        const copy = {
+            checking: {
+                label: '正在确认课程发布状态',
+                message: '确认完成前不会启动实验画布或交互资源。'
+            },
+            locked: {
+                label: '该实验当前已锁定',
+                message: '教师尚未开放“力学模拟”。实验画布与交互资源均未启动。'
+            },
+            unavailable: {
+                label: '暂不能进入该实验',
+                message: errorCode === 'class_selection_required'
+                    ? '请返回学生工作台，选择本次学习所属班级后再进入。'
+                    : '无法确认当前班级的权威发布状态，已保持失败关闭。'
+            }
+        }[state] || {
+            label: '暂不能进入该实验',
+            message: '无法确认当前班级的权威发布状态，已保持失败关闭。'
+        };
+        const gate = document.createElement('section');
+        gate.className = 'physics-publication-gate';
+        gate.dataset.moduleAccessGate = page;
+        gate.dataset.moduleAccessState = state;
+        gate.setAttribute('role', state === 'checking' ? 'status' : 'alert');
+        gate.setAttribute('aria-live', 'polite');
+        gate.innerHTML = `
+            <span class="physics-publication-gate__eyebrow">课程发布状态</span>
+            <h2>${copy.label}</h2>
+            <p>${copy.message}</p>
+            <button type="button" data-module-access-return="${page}">安全返回物理实验列表</button>
+        `;
+        const returnButton = gate.querySelector('[data-module-access-return]');
+        if (returnButton) returnButton.addEventListener('click', () => this.closeModule(page));
+        pageEl.appendChild(gate);
+        this._publicationGateNodes[page] = gate;
+        if (state !== 'checking' && returnButton) returnButton.focus();
+    },
+
+    _clearPublicationGate(page) {
+        const gate = this._publicationGateNodes[page];
+        if (gate && typeof gate.remove === 'function') gate.remove();
+        delete this._publicationGateNodes[page];
+    },
+
+    _cancelPublicationGate(page) {
+        delete this._publicationGatePending[page];
+        this._clearPublicationGate(page);
     },
 
     _hideModuleTools() {
@@ -515,6 +693,7 @@ const ModuleSelector = {
             this._releaseEvidenceRuntime(page, activeModule, pageEl);
         }
         const generation = options.transitionGeneration || this._beginModuleTransition(page);
+        this._cancelPublicationGate(page);
         if (activeModule && window.BackendContent && typeof BackendContent.destroyExperimentSchema === 'function') {
             try { BackendContent.destroyExperimentSchema(page, activeModule); } catch (error) {}
         }
@@ -806,6 +985,7 @@ const ModuleSelector = {
     resetPage(page) {
         const experiments = CONFIG.experiments[page];
         if (!experiments) return;
+        this._cancelPublicationGate(page);
         if (window.BackendContent && typeof BackendContent.destroyPage === 'function') {
             try { BackendContent.destroyPage(page); } catch (error) { /* state reset must continue */ }
         }

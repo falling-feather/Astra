@@ -355,15 +355,16 @@ assert.match(leavePageSource, /try \{[\s\S]*this\.closeModule\(page, \{/);
 assert.match(leavePageSource, /skipExperimentCleanup: true/);
 assert.match(leavePageSource, /try \{[\s\S]*AstraExperimentRegistry\?\.cleanupPage\(page\)/);
 assert.match(leavePageSource, /try \{ this\.resetPage\(page\); \} catch/);
-const openModuleSource = moduleSelector.slice(
-    moduleSelector.indexOf('openModule(page, moduleId)'),
-    moduleSelector.indexOf('_hideModuleTools()')
-);
+const openModuleStart = moduleSelector.indexOf('openModule(page, moduleId, options = {})');
+const openModuleEnd = moduleSelector.indexOf('_hideModuleTools()');
+assert.ok(openModuleStart >= 0 && openModuleEnd > openModuleStart);
+const openModuleSource = moduleSelector.slice(openModuleStart, openModuleEnd);
 const closeModuleSource = moduleSelector.slice(
     moduleSelector.indexOf('closeModule(page, options = {})'),
     moduleSelector.indexOf('leavePage(page, options = {})')
 );
 assert.match(openModuleSource, /_releaseModuleRuntime\(page, prevModule\)/);
+assert.match(openModuleSource, /_releaseModuleRuntime\(page, previousModule\)/);
 assert.match(closeModuleSource, /_releaseModuleRuntime\(page, activeModule, options\)/);
 assert.doesNotMatch(openModuleSource, /cleanupPage|\.cleanup\.run/);
 assert.doesNotMatch(closeModuleSource, /cleanupPage|\.cleanup\.run/);
