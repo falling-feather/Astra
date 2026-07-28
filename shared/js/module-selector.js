@@ -322,6 +322,7 @@ const ModuleSelector = {
         const prevModule = this.activeModule[page];
         if (prevModule) {
             if (!this._releaseModuleRuntime(page, prevModule)) return false;
+            this._releaseEvidenceRuntime(page, prevModule, pageEl);
             if (window.BackendContent && typeof BackendContent.destroyExperimentSchema === 'function') {
                 try { BackendContent.destroyExperimentSchema(page, prevModule); } catch (error) {}
             }
@@ -363,13 +364,9 @@ const ModuleSelector = {
             }
         } catch (e) {}
 
-        // X-01: Track learning progress
-        if (typeof LearningProgress !== 'undefined') {
-            LearningProgress.markVisited(moduleId);
-        }
-
         // Lazy-initialize this specific module
         this._initModule(page, moduleId, generation);
+        this._mountEvidenceRuntime(page, moduleId, pageEl, sections, generation);
         const backendSchemaReady = this._applyBackendSchema(page, moduleId);
 
         // Scroll to top
@@ -458,11 +455,65 @@ const ModuleSelector = {
         return true;
     },
 
+    _releaseEvidenceRuntime(page, moduleId, pageEl) {
+        if (window.AstraLearningEvidenceActivity) {
+            window.AstraLearningEvidenceActivity.destroyWithin(pageEl);
+        }
+        if (
+            page === 'physics'
+            && moduleId === 'mechanics'
+            && window.AstraLearningEvidenceLoader
+        ) {
+            window.AstraLearningEvidenceLoader.clearDomainCommands('englab', 'physics.mechanics');
+        }
+    },
+
+    _ownerReleaseSucceeded(report) {
+        return Boolean(
+            report
+            && Number.isInteger(report.attempted)
+            && Number.isInteger(report.executed)
+            && Number.isInteger(report.failed)
+            && report.attempted > 0
+            && report.executed > 0
+            && report.executed <= report.attempted
+            && report.failed === 0
+        );
+    },
+
+    _mountEvidenceRuntime(page, moduleId, pageEl, sections, generation) {
+        if (
+            page !== 'physics'
+            || moduleId !== 'mechanics'
+            || !window.AstraLearningEvidenceLoader
+        ) return;
+        window.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true }).then(() => {
+            if (!this._isCurrentModuleTransition(page, moduleId, generation)) return;
+            const host = Array.from(sections).find(section => section.isConnected && section.classList.contains('module-active'));
+            if (!host || !pageEl.isConnected || !window.AstraLearningEvidenceActivity) return;
+            window.AstraLearningEvidenceActivity.mount({
+                host,
+                galaxy_key: 'englab',
+                activity_key: 'physics.mechanics',
+                title: '力学实验学习证据',
+                operationLabel: '调整参数或发射小球并观察一次力学响应'
+            });
+        }).catch(error => {
+            if (this._isCurrentModuleTransition(page, moduleId, generation)) {
+                window.AstraLearningEvidenceLoader.clearDomainCommands('englab', 'physics.mechanics');
+                console.warn('[ModuleSelector] learning evidence unavailable', error && (error.code || error.message));
+            }
+        });
+    },
+
     closeModule(page, options = {}) {
         const pageEl = document.getElementById(`page-${page}`);
         if (!pageEl) return false;
         const activeModule = this.activeModule[page];
         if (activeModule && !this._releaseModuleRuntime(page, activeModule, options)) return false;
+        if (activeModule && options.skipEvidenceCleanup !== true) {
+            this._releaseEvidenceRuntime(page, activeModule, pageEl);
+        }
         const generation = options.transitionGeneration || this._beginModuleTransition(page);
         if (activeModule && window.BackendContent && typeof BackendContent.destroyExperimentSchema === 'function') {
             try { BackendContent.destroyExperimentSchema(page, activeModule); } catch (error) {}
@@ -523,11 +574,13 @@ const ModuleSelector = {
 
     leavePage(page, options = {}) {
         const generation = this._beginModuleTransition(page);
+        const activeModule = this.activeModule[page];
         try {
-            if (this.activeModule[page]) {
+            if (activeModule) {
                 this.closeModule(page, {
                     ...options,
                     skipExperimentCleanup: true,
+                    skipEvidenceCleanup: true,
                     transitionGeneration: generation
                 });
             }
@@ -541,6 +594,12 @@ const ModuleSelector = {
             cleanupReport = window.AstraExperimentRegistry?.cleanupPage(page) || cleanupReport;
         } catch (error) {
             cleanupReport = Object.freeze({ attempted: 0, executed: 0, failed: 1 });
+        }
+        if (activeModule && this._ownerReleaseSucceeded(cleanupReport)) {
+            const pageEl = typeof document !== 'undefined'
+                ? document.getElementById(`page-${page}`)
+                : null;
+            if (pageEl) this._releaseEvidenceRuntime(page, activeModule, pageEl);
         }
         try { this.resetPage(page); } catch (error) { /* keep navigation moving */ }
         return cleanupReport;

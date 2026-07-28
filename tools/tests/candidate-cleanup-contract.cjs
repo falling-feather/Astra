@@ -83,11 +83,11 @@ const livePhysicsListeners = () => [fakeWindow, ...Object.values(physicsElements
   .reduce((count, target) => count + (typeof target.liveListeners === 'function' ? target.liveListeners() : 0), 0);
 
 physicsSim.init();
-assert.equal(physicsSim._listeners.length, 13, 'mechanics must track controls, pointer/touch, and fallback resize');
-assert.equal(livePhysicsListeners(), 13);
+assert.equal(physicsSim._listeners.length, 17, 'mechanics must track controls, evidence commits, pointer/touch, and fallback resize');
+assert.equal(livePhysicsListeners(), 17);
 physicsSim.init();
-assert.equal(physicsSim._listeners.length, 13, 're-init must replace rather than accumulate listeners');
-assert.equal(livePhysicsListeners(), 13);
+assert.equal(physicsSim._listeners.length, 17, 're-init must replace rather than accumulate listeners');
+assert.equal(livePhysicsListeners(), 17);
 physicsSim.running = true;
 physicsSim._raf = 777;
 physicsSim.destroy();

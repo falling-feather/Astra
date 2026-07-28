@@ -98,6 +98,7 @@ function createHarness() {
   };
   const cleanupOutcomes = { mechanics: 'cleaned', 'gas-laws': 'cleaned' };
   const cleanupCalls = [];
+  const pageCleanupReport = { attempted: 3, executed: 2, failed: 0 };
   let pageCleanupCalls = 0;
   let initCalls = 0;
   const registry = {
@@ -118,7 +119,7 @@ function createHarness() {
     cleanupPage: (subject) => {
       order.push(`cleanup-page:${subject}`);
       pageCleanupCalls += 1;
-      return Object.freeze({ attempted: 3, executed: 2, failed: 0 });
+      return Object.freeze({ ...pageCleanupReport });
     },
     init: (_page, id) => {
       order.push(`registry-init:${id}`);
@@ -142,7 +143,15 @@ function createHarness() {
     dispatchEvent(event) { order.push(`event:${event.type}`); },
     AstraExperimentRegistry: registry,
     BackendContent: backend,
-    PhysicsZoom: zoom
+    PhysicsZoom: zoom,
+    AstraLearningEvidenceActivity: {
+      mount() {},
+      destroyWithin() { order.push('evidence-destroy'); }
+    },
+    AstraLearningEvidenceLoader: {
+      ensure() { return Promise.resolve(); },
+      clearDomainCommands() { order.push('evidence-clear'); }
+    }
   };
   const context = {
     window: windowObject,
@@ -183,7 +192,7 @@ function createHarness() {
   selector._sidebarOpen.physics = false;
   return {
     selector, sections, page, gallery, toggle, registry, backend, zoom, windowObject, context,
-    cleanupOutcomes, cleanupCalls, timers, order, warnings,
+    cleanupOutcomes, cleanupCalls, pageCleanupReport, timers, order, warnings,
     getPageCleanupCalls: () => pageCleanupCalls,
     getInitCalls: () => initCalls
   };
@@ -205,6 +214,7 @@ function activate(harness, id, initialized = true) {
   success.selector._focusExperiment = () => {};
   assert.equal(success.selector.openModule('physics', 'gas-laws'), true);
   assert.ok(success.order.indexOf('zoom-close') < success.order.indexOf('cleanup:physics:mechanics'));
+  assert.ok(success.order.indexOf('cleanup:physics:mechanics') < success.order.indexOf('evidence-destroy'));
   assert.ok(success.order.indexOf('cleanup:physics:mechanics') < success.order.indexOf('schema-destroy:physics:mechanics'));
   assert.ok(success.order.indexOf('schema-destroy:physics:mechanics') < success.order.indexOf('init:physics:gas-laws'));
   assert.equal(success.selector._initialized['physics:mechanics'], undefined);
@@ -254,6 +264,7 @@ function activate(harness, id, initialized = true) {
   assert.equal(failed.sections.mechanics.classList.contains('module-active'), true);
   assert.equal(failed.sections['gas-laws'].classList.contains('module-active'), false);
   assert.equal(failed.selector._initialized['physics:mechanics'], true);
+  assert.equal(failed.order.includes('evidence-destroy'), false, 'failed owner cleanup must preserve the evidence controller');
   assert.equal(failed.order.some(item => item.startsWith('schema-destroy')), false);
   assert.equal(failed.order.includes('unexpected-init'), false);
   assert.equal(failed.selector._transitionGeneration.physics, 0, 'failed cleanup must not advance generation');
@@ -379,8 +390,22 @@ function activate(harness, id, initialized = true) {
   assert.equal(leave.order.filter(item => item === 'zoom-close').length, 1);
   assert.ok(leave.order.indexOf('schema-destroy:physics:mechanics') < leave.order.indexOf('zoom-close'));
   assert.ok(leave.order.indexOf('zoom-close') < leave.order.indexOf('cleanup-page:physics'));
+  assert.ok(leave.order.indexOf('cleanup-page:physics') < leave.order.indexOf('evidence-destroy'));
   assert.ok(leave.order.indexOf('cleanup-page:physics') < leave.order.indexOf('reset'));
   assert.equal(leaveReport.executed, 2);
+
+  const leaveFailed = createHarness();
+  activate(leaveFailed, 'mechanics');
+  leaveFailed.pageCleanupReport.executed = 1;
+  leaveFailed.pageCleanupReport.failed = 1;
+  leaveFailed.selector.resetPage = () => leaveFailed.order.push('reset');
+  const leaveFailedReport = leaveFailed.selector.leavePage('physics', { preserveHash: true });
+  assert.equal(leaveFailedReport.failed, 1);
+  assert.equal(
+    leaveFailed.order.includes('evidence-destroy'),
+    false,
+    'page cleanup failure must preserve the evidence controller instead of committing a half-state'
+  );
 
   const routeTimers = createTimers();
   const routeHistory = [];

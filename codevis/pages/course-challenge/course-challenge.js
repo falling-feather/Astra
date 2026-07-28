@@ -1,15 +1,23 @@
 (function (global) {
     'use strict';
 
-    const challenge = global.CvChallengeSession = global.CvChallengeSession || {
-        drafts: Object.create(null), predictions: Object.create(null), submissions: Object.create(null),
-        result: null, repairingKey: null, runGeneration: 0, submissionGeneration: 0, submissionAbort: null
-    };
-    challenge.drafts = challenge.drafts || Object.create(null);
-    challenge.predictions = challenge.predictions || Object.create(null);
-    challenge.submissions = challenge.submissions || Object.create(null);
+    const challenge = global.CvChallengeSession = global.CvChallengeSession || {};
+    if (challenge.scopeStorageVersion !== 2) {
+        challenge.drafts = Object.create(null);
+        challenge.predictions = Object.create(null);
+        challenge.result = Object.create(null);
+        challenge.submissions = Object.create(null);
+        challenge.lastRunSources = Object.create(null);
+        challenge.predictionRecorded = Object.create(null);
+        challenge.repairingKey = null;
+        challenge.scopeStorageVersion = 2;
+    }
     challenge.runGeneration = Number(challenge.runGeneration) || 0;
     challenge.submissionGeneration = Number(challenge.submissionGeneration) || 0;
+    challenge.evidenceController = challenge.evidenceController || null;
+    challenge.activeScopeKey = '';
+    challenge.evidenceScopeKey = '';
+    challenge.evidenceGeneration = Number(challenge.evidenceGeneration) || 0;
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -76,38 +84,181 @@
         if (target && typeof target.focus === 'function') target.focus();
     }
 
+    function scopeDescriptor(activity) {
+        const provider = global.AstraCodeSpaceStudentContext;
+        const resolved = provider && typeof provider.resolve === 'function'
+            ? provider.resolve(activity)
+            : null;
+        if (
+            resolved
+            && Number.isInteger(resolved.class_id)
+            && resolved.class_id > 0
+            && Number.isInteger(resolved.course_id)
+            && resolved.course_id > 0
+        ) {
+            return Object.freeze({
+                key: `${resolved.class_id}:${resolved.course_id}:${activity.activity_key}`,
+                class_id: resolved.class_id,
+                course_id: resolved.course_id,
+                activity_key: activity.activity_key,
+                authoritative: true
+            });
+        }
+        return Object.freeze({
+            key: `preview:0:0:${activity.activity_key}`,
+            class_id: 0,
+            course_id: 0,
+            activity_key: activity.activity_key,
+            authoritative: false
+        });
+    }
+
+    function localStateFor(scopeKey, template) {
+        const owns = (collection) => Object.prototype.hasOwnProperty.call(collection, scopeKey);
+        return Object.freeze({
+            draft: owns(challenge.drafts) ? challenge.drafts[scopeKey] : template.starter_code,
+            prediction: owns(challenge.predictions) ? challenge.predictions[scopeKey] : '',
+            result: owns(challenge.result) ? challenge.result[scopeKey] : null,
+            submission: owns(challenge.submissions) ? challenge.submissions[scopeKey] : null,
+            repairing: challenge.repairingKey === scopeKey
+        });
+    }
+
+    function clearEvidenceRuntime() {
+        const host = document.getElementById('cv-page-challenge');
+        challenge.evidenceGeneration += 1;
+        if (host && global.AstraLearningEvidenceActivity) {
+            global.AstraLearningEvidenceActivity.destroyWithin(host);
+        }
+        if (global.AstraLearningEvidenceLoader) {
+            global.AstraLearningEvidenceLoader.clearDomainCommands('code-space', 'control-flow.loop-boundary');
+        }
+        challenge.evidenceController = null;
+        challenge.evidenceScopeKey = '';
+    }
+
+    function transitionScope(nextScopeKey) {
+        const next = String(nextScopeKey || '');
+        if (challenge.activeScopeKey === next) return;
+        const previous = challenge.activeScopeKey;
+        challenge.runGeneration += 1;
+        challenge.submissionGeneration += 1;
+        if (challenge.submissionAbort) challenge.submissionAbort.abort();
+        challenge.submissionAbort = null;
+        if (previous && challenge.submissions[previous] && challenge.submissions[previous].pending) {
+            challenge.submissions[previous] = {
+                ok: false,
+                can_retry: false,
+                code: 'submission_scope_changed',
+                reason: '班级或课程已切换，旧作用域中的发送已取消。'
+            };
+        }
+        clearEvidenceRuntime();
+        challenge.activeScopeKey = next;
+    }
+
+    function syncEvidence(activity, descriptor) {
+        const host = document.getElementById('cv-page-challenge');
+        if (
+            !host
+            || !global.AstraLearningEvidenceLoader
+            || !activity
+            || activity.activity_key !== 'control-flow.loop-boundary'
+            || !descriptor
+            || !descriptor.authoritative
+        ) {
+            clearEvidenceRuntime();
+            return;
+        }
+        if (challenge.evidenceController && challenge.evidenceScopeKey === descriptor.key) return;
+        clearEvidenceRuntime();
+        const generation = challenge.evidenceGeneration;
+        const expectedScopeKey = descriptor.key;
+        global.AstraLearningEvidenceLoader.ensure({ activity: true }).then(() => {
+            const current = global.CvCourseSession && global.CvCourseSession.activityKey;
+            const currentScope = scopeDescriptor(activity);
+            if (
+                generation !== challenge.evidenceGeneration
+                || current !== activity.activity_key
+                || currentScope.key !== expectedScopeKey
+                || challenge.activeScopeKey !== expectedScopeKey
+                || !host.isConnected
+            ) return;
+            global.AstraLearningEvidenceActivity.destroyWithin(host);
+            challenge.evidenceController = global.AstraLearningEvidenceActivity.mount({
+                host,
+                galaxy_key: 'code-space',
+                activity_key: 'control-flow.loop-boundary',
+                title: '循环边界学习证据',
+                operationLabel: '运行浏览器预检',
+                integrated: true
+            });
+            challenge.evidenceScopeKey = challenge.evidenceController ? expectedScopeKey : '';
+        }).catch(error => {
+            if (generation === challenge.evidenceGeneration) clearEvidenceRuntime();
+            global.console && global.console.warn('[CodeSpace] learning evidence unavailable', error && (error.code || error.message));
+        });
+    }
+
+    function recordEvidence(activity, descriptor, eventType, evidence) {
+        if (
+            !activity
+            || activity.activity_key !== 'control-flow.loop-boundary'
+            || !descriptor
+            || !descriptor.authoritative
+            || descriptor.key !== challenge.activeScopeKey
+        ) return;
+        global.dispatchEvent(new CustomEvent('astra:learning-domain-command', {
+            detail: {
+                galaxy_key: 'code-space',
+                activity_key: activity.activity_key,
+                class_id: descriptor.class_id,
+                course_id: descriptor.course_id,
+                event_type: eventType,
+                evidence
+            }
+        }));
+    }
+
     function render() {
         const root = document.getElementById('course-challenge-root');
         const manifest = global.CvCourseManifest;
         if (!root) return;
         const gate = learningGate();
         if (gate.blocked) {
+            transitionScope('');
             root.innerHTML = '<div class="challenge-shell course-context-gate" role="status" aria-live="polite"><p class="course-eyebrow">代码空间</p><h1>' + esc(gate.title || '课程暂不可用') + '</h1><p class="course-lede">' + esc(gate.message || '请稍后重试。') + '</p></div>';
             return;
         }
         const routeKey = global.CvRouter && global.CvRouter.currentParams && global.CvRouter.currentParams.get('activity');
         const activity = manifest && manifest.getActivity(routeKey || (global.CvCourseSession || {}).activityKey || manifest.defaultActivityKey);
         if (!activity) {
+            transitionScope('');
             root.replaceChildren();
             global.CvRouter.navigateTo('catalog');
             return;
         }
         global.CvCourseSession.activityKey = activity.activity_key;
         global.CvCourseSession.courseKey = activity.course_key;
+        const descriptor = scopeDescriptor(activity);
+        const stateKey = descriptor.key;
+        transitionScope(stateKey);
         const state = global.CvCourseStateAdapter.resolve(activity);
         if (state.status === 'hidden' || state.status === 'locked' || state.status === 'unavailable') {
+            clearEvidenceRuntime();
             if (state.status === 'hidden') root.replaceChildren();
             global.CvRouter.navigateTo('lesson', { activity: activity.activity_key });
             return;
         }
         const template = manifest.getTemplate(activity);
-        const draft = challenge.drafts[activity.activity_key] || template.starter_code;
-        const prediction = challenge.predictions[activity.activity_key] || '';
-        const result = challenge.result && challenge.result.activity_key === activity.activity_key ? challenge.result.value : null;
+        const local = localStateFor(stateKey, template);
+        const draft = local.draft;
+        const prediction = local.prediction;
+        const result = local.result;
         const precheck = result && !result.error && outputOf(result) === template.expected_output;
         const submitState = submissionState(activity);
-        const submission = challenge.submissions[activity.activity_key] || null;
-        const repairing = challenge.repairingKey === activity.activity_key;
+        const submission = local.submission;
+        const repairing = local.repairing;
         const observation = !result ? '' : '<section class="challenge-compare"><div><span>你的预测</span><p>' + esc(prediction || '尚未写下预测') + '</p></div><div><span>观察结果</span><p>' + esc(result.error ? result.error : (outputOf(result) || '已完成运行，继续查看轨迹。')) + '</p></div><div><span>修正线索</span><p>' + esc(template.repair_hint) + '</p></div></section>';
         const formalDisabled = !submitState.available || (submission && submission.pending);
         root.innerHTML = '<div class="challenge-shell">' +
@@ -119,20 +270,51 @@
             observation +
             '<section class="challenge-checks"><div><p>浏览器预检</p><strong class="' + (result ? (precheck ? 'is-pass' : 'is-warn') : '') + '">' + (result ? (precheck ? '样例通过 · 仅用于学习反馈，不是正式判题' : '样例尚未通过 · 仅用于学习反馈，不是正式判题') : '请先运行公开样例 · 仅用于学习反馈，不是正式判题') + '</strong></div><div><p>正式提交</p><strong id="challenge-submission-status" class="' + formalStatusClass(submission) + '" aria-live="polite" tabindex="-1">' + esc(formalStatusCopy(submission, submitState)) + '</strong><button class="cv-btn" type="button" id="challenge-submit"' + (formalDisabled ? ' disabled aria-disabled="true"' : '') + '>' + formalButtonCopy(submission, submitState) + '</button></div></section>' +
             '</div>';
+        syncEvidence(activity, descriptor);
 
         const code = root.querySelector('#challenge-code');
         const predictionInput = root.querySelector('#challenge-prediction');
         const run = async () => {
-            challenge.drafts[activity.activity_key] = code.value;
-            challenge.predictions[activity.activity_key] = predictionInput.value;
+            const sourceCode = code.value;
+            const previousSource = challenge.lastRunSources[stateKey];
+            challenge.drafts[stateKey] = sourceCode;
+            challenge.predictions[stateKey] = predictionInput.value;
+            if (
+                predictionInput.value.trim()
+                && !challenge.predictionRecorded[stateKey]
+                && !result
+                && challenge.repairingKey !== stateKey
+            ) {
+                recordEvidence(activity, descriptor, 'predicted', {
+                    prediction: { choice: 'prediction-recorded' },
+                    cursor: { stage: 'before-browser-precheck' }
+                });
+                challenge.predictionRecorded[stateKey] = true;
+            }
             const runGeneration = ++challenge.runGeneration;
             const button = root.querySelector('#challenge-run');
             button.disabled = true;
             button.textContent = '正在运行…';
-            const value = await global.CvRuntime.trace({ language: template.language, code: code.value, maxSteps: 500 });
-            if (runGeneration !== challenge.runGeneration) return;
-            challenge.result = { activity_key: activity.activity_key, value };
-            challenge.repairingKey = null;
+            const value = await global.CvRuntime.trace({ language: template.language, code: sourceCode, maxSteps: 500 });
+            if (runGeneration !== challenge.runGeneration || challenge.activeScopeKey !== stateKey) return;
+            const localPass = !value.error && outputOf(value) === template.expected_output;
+            recordEvidence(activity, descriptor, 'attempted', {
+                operation: 'browser_precheck',
+                reported_correct: Boolean(localPass),
+                cursor: { runner: value.error ? 'runner_unavailable' : 'browser_precheck_finished' }
+            });
+            if (typeof previousSource === 'string' && previousSource !== sourceCode) {
+                recordEvidence(activity, descriptor, 'corrected', {
+                    correction: {
+                        kind: 'code-revision',
+                        result: localPass ? 'public-check-pass' : 'public-check-needs-review'
+                    },
+                    cursor: { stage: 'after-repair' }
+                });
+            }
+            challenge.lastRunSources[stateKey] = sourceCode;
+            challenge.result[stateKey] = value;
+            if (challenge.repairingKey === stateKey) challenge.repairingKey = null;
             render();
             restoreResultFocus('run', runGeneration);
         };
@@ -140,14 +322,14 @@
             const adapter = global.CvSubmissionAdapter;
             if (!adapter || typeof adapter.submit !== 'function') return;
             const sourceCode = code.value;
-            challenge.drafts[activity.activity_key] = sourceCode;
-            challenge.predictions[activity.activity_key] = predictionInput.value;
-            const previous = challenge.submissions[activity.activity_key] || null;
+            challenge.drafts[stateKey] = sourceCode;
+            challenge.predictions[stateKey] = predictionInput.value;
+            const previous = challenge.submissions[stateKey] || null;
             if (challenge.submissionAbort) challenge.submissionAbort.abort();
             const controller = new AbortController();
             challenge.submissionAbort = controller;
             const generation = ++challenge.submissionGeneration;
-            challenge.submissions[activity.activity_key] = { pending: true, reason: '正在发送正式提交…' };
+            challenge.submissions[stateKey] = { pending: true, reason: '正在发送正式提交…' };
             render();
             let response;
             try {
@@ -157,21 +339,29 @@
             } catch (_) {
                 response = { ok: false, reason: '提交结果尚未确认，未显示为成功。请刷新后核对。', code: 'submission_unconfirmed' };
             }
-            if (generation !== challenge.submissionGeneration) return;
+            if (generation !== challenge.submissionGeneration || challenge.activeScopeKey !== stateKey) return;
             challenge.submissionAbort = null;
-            challenge.submissions[activity.activity_key] = response;
+            challenge.submissions[stateKey] = response;
             render();
             restoreResultFocus('submit', generation);
+            recordEvidence(activity, descriptor, 'attempted', {
+                operation: 'formal_oj_submission',
+                cursor: {
+                    judge: response && response.ok
+                        ? 'judge_result_received'
+                        : 'judge_result_unconfirmed'
+                }
+            });
         };
         root.querySelector('#challenge-run').addEventListener('click', run);
         const submitButton = root.querySelector('#challenge-submit');
         if (!submitButton.disabled) submitButton.addEventListener('click', formalSubmit);
-        code.addEventListener('input', () => { challenge.drafts[activity.activity_key] = code.value; });
-        predictionInput.addEventListener('input', () => { challenge.predictions[activity.activity_key] = predictionInput.value; });
+        code.addEventListener('input', () => { challenge.drafts[stateKey] = code.value; });
+        predictionInput.addEventListener('input', () => { challenge.predictions[stateKey] = predictionInput.value; });
         root.querySelector('#challenge-repair').addEventListener('click', () => {
-            challenge.drafts[activity.activity_key] = code.value;
-            challenge.predictions[activity.activity_key] = predictionInput.value;
-            challenge.repairingKey = activity.activity_key;
+            challenge.drafts[stateKey] = code.value;
+            challenge.predictions[stateKey] = predictionInput.value;
+            challenge.repairingKey = stateKey;
             render();
             requestAnimationFrame(() => root.querySelector('#challenge-code').focus());
         });
@@ -182,10 +372,7 @@
         init: render,
         refresh: render,
         cancel() {
-            challenge.runGeneration++;
-            challenge.submissionGeneration++;
-            if (challenge.submissionAbort) challenge.submissionAbort.abort();
-            challenge.submissionAbort = null;
+            transitionScope('');
             global.CvRuntime && global.CvRuntime.cancel('cpp');
         }
     };

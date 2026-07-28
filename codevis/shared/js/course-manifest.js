@@ -100,7 +100,7 @@
     }
 
     const activityKeyPattern = /^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$/;
-    const httpState = { configured: false, phase: 'idle', courseIds: null, classId: null, fetcher: null, records: new Map(), generation: 0 };
+    const httpState = { configured: false, phase: 'idle', courseIds: null, classId: null, fetcher: null, records: new Map(), unitIds: new Map(), generation: 0 };
 
     function unavailable(source) {
         return { status: 'unavailable', source, detail: '' };
@@ -135,6 +135,7 @@
             httpState.classId = class_id == null ? null : String(class_id);
             httpState.fetcher = typeof fetcher === 'function' ? fetcher : global.fetch;
             httpState.records.clear();
+            httpState.unitIds.clear();
         },
         async refresh() {
             if (!httpState.configured || !httpState.courseIds || !httpState.classId || typeof httpState.fetcher !== 'function') {
@@ -158,15 +159,20 @@
                 }));
                 if (generation !== httpState.generation) return false;
                 httpState.records.clear();
+                httpState.unitIds.clear();
                 entries.forEach(([courseKey, units]) => units.forEach(unit => {
                     const activity = byActivity.get(unit.activity_key);
-                    if (activity && activity.course_key === courseKey) httpState.records.set(unit.activity_key, stateFromUnit(unit));
+                    if (activity && activity.course_key === courseKey) {
+                        httpState.records.set(unit.activity_key, stateFromUnit(unit));
+                        httpState.unitIds.set(unit.activity_key, Number(unit.id));
+                    }
                 }));
                 httpState.phase = 'ready';
                 return true;
             } catch (_) {
                 if (generation !== httpState.generation) return false;
                 httpState.records.clear();
+                httpState.unitIds.clear();
                 httpState.phase = 'unavailable';
                 return false;
             }
@@ -191,6 +197,11 @@
                 return httpState.records.get(activity.activity_key) || { status: 'hidden', source: 'be-004', detail: '' };
             }
             return defaultOpen(activity);
+        },
+        unitIdFor(activity) {
+            if (!activity || httpState.phase !== 'ready') return null;
+            const value = Number(httpState.unitIds.get(activity.activity_key));
+            return Number.isInteger(value) && value > 0 ? value : null;
         }
     };
 

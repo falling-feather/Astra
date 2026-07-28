@@ -29,6 +29,7 @@
         details: [],
         sessionHandler: null,
         actionHandler: null,
+        roleHomeGeneration: 0,
 
         init() {
             if (this.active) this.destroy();
@@ -64,6 +65,10 @@
             this.actionHandler = null;
             this.root = null;
             this.active = false;
+            this.roleHomeGeneration += 1;
+            if (global.AstraRoleHomeClient && typeof global.AstraRoleHomeClient.destroy === 'function') {
+                global.AstraRoleHomeClient.destroy();
+            }
         },
 
         syncDisclosure(detail) {
@@ -107,6 +112,24 @@
             if (routeCopy) routeCopy.textContent = roleView.copy;
 
             if (session && typeof session.applyRoleUI === 'function') session.applyRoleUI();
+            this.syncRoleHome(user);
+        },
+
+        async syncRoleHome(user) {
+            if (!user || !this.root || !global.AstraLearningEvidenceLoader) return;
+            const generation = ++this.roleHomeGeneration;
+            try {
+                await global.AstraLearningEvidenceLoader.ensure({ roleHome: true });
+                if (!this.active || generation !== this.roleHomeGeneration || !this.root) return;
+                const owner = global.AstraRoleHomeClient;
+                const mounted = this.root.querySelector('[data-astra-role-home]');
+                if (mounted && owner && typeof owner.setUser === 'function') owner.setUser(user);
+                else if (owner && typeof owner.mount === 'function') owner.mount(this.root, user);
+            } catch (error) {
+                if (generation === this.roleHomeGeneration) {
+                    console.warn('[PlanetsView] role home unavailable', error && (error.code || error.message));
+                }
+            }
         },
 
         refreshIcons() {

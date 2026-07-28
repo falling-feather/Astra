@@ -35,8 +35,8 @@ assert.equal((challenge.match(/\.focus\(/g) || []).length, 2,
     'only result completion and the explicit repair action may move challenge focus');
 assert.match(challenge, /#challenge-repair[\s\S]*requestAnimationFrame\(\(\) => root\.querySelector\('#challenge-code'\)\.focus\(\)\)/,
     'the existing repair action may keep its explicit editor focus behavior');
-assert.match(challenge, /if \(generation !== challenge\.submissionGeneration\) return;/,
-    'a prior formal submission must not overwrite a newer submission result');
+assert.match(challenge, /if \(generation !== challenge\.submissionGeneration \|\| challenge\.activeScopeKey !== stateKey\) return;/,
+    'a prior formal submission or prior class/course scope must not overwrite a newer result');
 assert.match(challenge, /previous && previous\.can_retry && typeof adapter\.refresh === 'function'/,
     'a budget-exhausted pending status must offer a direct formal re-query path');
 assert.match(submissionAdapter, /signal: options && options\.signal/, 'the formal adapter must receive the challenge cancellation signal');

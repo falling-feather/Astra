@@ -97,7 +97,7 @@ async function main() {
     assert.match(requestBranch, /adapter\.submit\(activity, sourceCode/, 'new formal submissions must submit inside the recoverable branch');
     const catchBranch = formalSubmitSource.slice(catchStart, formalSubmitSource.indexOf('if (generation !== challenge.submissionGeneration)', catchStart));
     assert.match(catchBranch, /response = \{ ok: false/, 'unexpected refresh or submit errors must produce an unconfirmed result');
-    assert.match(formalSubmitSource, /challenge\.submissions\[activity\.activity_key\] = response;\s*render\(\);/,
+    assert.match(formalSubmitSource, /challenge\.submissions\[stateKey\] = response;\s*render\(\);/,
         'every recovered formal-submit result must replace pending UI state and re-render');
 
     const single = createHarness(standardRoutes([{ id: 7, name: '一班' }]));
@@ -162,8 +162,31 @@ async function main() {
         assert.equal(pathname, '/api/users/me');
         throw { status: 401 };
     });
+    const unauthorizedClearReasons = [];
+    unauthorized.context.AstraLearningEvidenceLoader = {
+        async clearAuthority(reason) {
+            unauthorizedClearReasons.push(reason);
+        }
+    };
     assert.equal(await unauthorized.context.CvStudentContext.start(), false);
-    assert.deepEqual(unauthorized.redirected, ['../index.html'], 'real 401 must return to the login entry');
+    assert.deepEqual(unauthorizedClearReasons, ['unauthorized']);
+    assert.deepEqual(unauthorized.redirected, ['../index.html'], '401 may return to login only after authority clear succeeds');
+
+    const unauthorizedClearFailure = createHarness(({ pathname }) => {
+        assert.equal(pathname, '/api/users/me');
+        throw { status: 401 };
+    });
+    unauthorizedClearFailure.context.AstraLearningEvidenceLoader = {
+        async clearAuthority() {
+            const error = new Error('indexeddb clear failed');
+            error.code = 'indexeddb_transaction_failed';
+            throw error;
+        }
+    };
+    assert.equal(await unauthorizedClearFailure.context.CvStudentContext.start(), false);
+    assert.deepEqual(unauthorizedClearFailure.redirected, [], '401 must stay on Code Space when authority clear fails');
+    assert.equal(unauthorizedClearFailure.context.CvStudentContext.getState().phase, 'authority_clear_failed');
+    assert.equal(unauthorizedClearFailure.context.CvStudentContext.gate().blocked, true);
 
     const staticPreview = createHarness(({ pathname }) => {
         assert.equal(pathname, '/api/users/me');

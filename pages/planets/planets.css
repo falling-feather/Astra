@@ -312,6 +312,160 @@
     line-height: 1.85;
 }
 
+.planets-priority {
+    margin: 0 0 clamp(48px, 7vh, 76px);
+    padding: clamp(24px, 3.5vw, 38px);
+    border: 1px solid var(--atlas-line-strong);
+    background:
+        linear-gradient(135deg, rgba(110, 219, 255, .065), transparent 45%),
+        rgba(8, 14, 24, .72);
+}
+
+.planets-priority__scope {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.planets-priority__scope label {
+    display: grid;
+    gap: 7px;
+    color: var(--atlas-muted);
+    font-size: .68rem;
+}
+
+.planets-priority__scope select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 34px 0 12px;
+    border: 1px solid var(--atlas-line-strong);
+    border-radius: 2px;
+    color: var(--atlas-text);
+    background: #0a111d;
+}
+
+.planets-priority__scope select:focus-visible {
+    outline: 1px solid var(--atlas-cyan);
+    outline-offset: 2px;
+}
+
+.planets-priority__pending {
+    margin: 0 0 18px;
+    padding: 10px 12px;
+    border-left: 2px solid var(--atlas-amber);
+    color: #d5b98f;
+    background: rgba(242, 161, 74, .07);
+    font-size: .74rem;
+    line-height: 1.6;
+}
+
+.planets-priority__issue {
+    display: grid;
+    gap: .45rem;
+    padding: .9rem 1rem;
+    border: 1px solid color-mix(in srgb, var(--accent-gold, #f5c451) 42%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--accent-gold, #f5c451) 8%, transparent);
+}
+
+.planets-priority__issue strong {
+    font: 700 .72rem/1.2 var(--font-mono, monospace);
+    letter-spacing: .08em;
+}
+
+.planets-priority__issue p {
+    margin: 0;
+}
+
+.planets-priority__issue button {
+    min-height: 44px;
+    justify-self: start;
+}
+
+.planets-priority__task {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 28px;
+    align-items: end;
+}
+
+.planets-priority__task > span,
+.planets-priority__empty > strong {
+    grid-column: 1 / -1;
+    color: var(--atlas-cyan);
+    font: .6rem/1.4 'JetBrains Mono', monospace;
+    letter-spacing: .14em;
+}
+
+.planets-priority__task h3 {
+    margin: 4px 0 0;
+    color: var(--atlas-text);
+    font-size: clamp(1.45rem, 2.8vw, 2.35rem);
+    font-weight: 520;
+    letter-spacing: -.035em;
+}
+
+.planets-priority__task p {
+    grid-column: 1;
+    margin: 6px 0 0;
+    color: #a7b4c4;
+    line-height: 1.7;
+}
+
+.planets-priority__task small {
+    grid-column: 1;
+    color: #738298;
+    line-height: 1.55;
+}
+
+.planets-priority__task a,
+.planets-priority__empty button {
+    grid-column: 2;
+    grid-row: 2 / span 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 190px;
+    min-height: 48px;
+    padding: 0 16px;
+    border: 1px solid rgba(110, 219, 255, .42);
+    color: var(--atlas-text);
+    background: rgba(110, 219, 255, .07);
+    font-size: .78rem;
+}
+
+.planets-priority__task a:hover,
+.planets-priority__task a:focus-visible,
+.planets-priority__empty button:hover,
+.planets-priority__empty button:focus-visible {
+    color: var(--atlas-cyan);
+    outline: 1px solid var(--atlas-cyan);
+    outline-offset: 2px;
+}
+
+.planets-priority__empty {
+    display: grid;
+    gap: 10px;
+    min-height: 96px;
+    align-content: center;
+    color: #a7b4c4;
+}
+
+.planets-priority__empty p {
+    margin: 0;
+    line-height: 1.65;
+}
+
+.planets-priority__empty button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+    min-width: 120px;
+    cursor: pointer;
+}
+
 .planets-overview-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 31%);
@@ -654,6 +808,21 @@
         gap: 56px;
     }
 
+    .planets-priority__scope {
+        grid-template-columns: 1fr;
+    }
+
+    .planets-priority__task {
+        grid-template-columns: 1fr;
+    }
+
+    .planets-priority__task a {
+        grid-column: 1;
+        grid-row: auto;
+        width: 100%;
+        margin-top: 8px;
+    }
+
     .planets-route {
         position: static;
         min-height: 0;
@@ -709,6 +878,10 @@
 @media (max-width: 520px) {
     .planets-topbar p {
         font-size: 0.57rem;
+    }
+
+    .planets-priority {
+        padding: 20px 16px;
     }
 
     .planets-topbar__status {

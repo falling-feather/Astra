@@ -57,6 +57,8 @@
         errors: {},
         flash: null,
         data: emptyData(),
+        learningEvidenceResourceError: null,
+        learningEvidenceLoadGeneration: 0,
         onOnline: null,
         onOffline: null,
         onAuthRequired: null
@@ -73,6 +75,7 @@
         abortController(state.lifecycleController);
         state.lifecycleController = new AbortController();
         renderShell();
+        mountStudentLearningEvidence();
 
         if (!state.initialized) {
             bindEvents();
@@ -84,6 +87,8 @@
 
     function destroyStudent() {
         state.active = false;
+        state.learningEvidenceLoadGeneration += 1;
+        if (window.AstraStudentLearningEvidence) window.AstraStudentLearningEvidence.destroy();
         state.scopeGeneration += 1;
         abortController(state.scopeController);
         abortController(state.lifecycleController);
@@ -105,6 +110,7 @@
         state.errors = {};
         state.flash = null;
         state.data = emptyData();
+        state.learningEvidenceResourceError = null;
 
         if (state.root) {
             const authContainer = state.root.querySelector('[data-student-auth-state]');
@@ -115,6 +121,67 @@
                     <span>正在载入学生学习台</span>
                 </div>
             `;
+        }
+    }
+
+    function learningEvidenceResourceIssue(error) {
+        return Object.freeze({
+            code: String(error && error.code || 'learning_evidence_resource_failed'),
+            message: '共享学习证据资源加载失败或超时；页面不会继续显示为“正在读取”。请重试加载。'
+        });
+    }
+
+    function learningEvidenceResourceMarkup(issue, title) {
+        return `
+            <header class="astra-authority-summary__header"><div><span>RESOURCE FAIL-CLOSED</span><h3>${escapeHtml(title)}</h3></div></header>
+            <div class="astra-authority-summary__state" role="status">
+                <strong>${escapeHtml(issue.code)}</strong>
+                <p>${escapeHtml(issue.message)}</p>
+                <button type="button" class="astra-authority-summary__retry" data-student-evidence-resource-retry>重试加载学习证据</button>
+            </div>`;
+    }
+
+    function renderStudentLearningEvidenceResourceState() {
+        if (!state.root || !state.learningEvidenceResourceError) return;
+        const targets = [
+            ['progress', '权威学习投影'],
+            ['knowledge', '活动证据状态']
+        ];
+        targets.forEach(([name, title]) => {
+            const container = state.root.querySelector(`[data-student-panel="${name}"]`);
+            if (!container) return;
+            delete container.dataset.authoritySignature;
+            container.classList.add('astra-authority-summary');
+            container.innerHTML = learningEvidenceResourceMarkup(state.learningEvidenceResourceError, title);
+        });
+    }
+
+    async function mountStudentLearningEvidence() {
+        const generation = ++state.learningEvidenceLoadGeneration;
+        state.learningEvidenceResourceError = null;
+        if (window.AstraStudentLearningEvidence) window.AstraStudentLearningEvidence.destroy();
+        try {
+            const loader = window.AstraLearningEvidenceLoader;
+            if (!loader || typeof loader.ensure !== 'function') {
+                const error = new Error('learning evidence loader unavailable');
+                error.code = 'learning_evidence_loader_unavailable';
+                throw error;
+            }
+            await loader.ensure({ student: true });
+            if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
+            if (!window.AstraStudentLearningEvidence || typeof window.AstraStudentLearningEvidence.mount !== 'function') {
+                const error = new Error('student learning evidence owner unavailable');
+                error.code = 'student_evidence_owner_unavailable';
+                throw error;
+            }
+            window.AstraStudentLearningEvidence.mount(state.root);
+            return true;
+        } catch (error) {
+            if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
+            state.learningEvidenceResourceError = learningEvidenceResourceIssue(error);
+            renderStudentLearningEvidenceResourceState();
+            console.warn('[StudentWorkbench] learning evidence unavailable', error && (error.code || error.message));
+            return false;
         }
     }
 
@@ -166,6 +233,11 @@
         state.root.addEventListener('click', (event) => {
             const target = event.target;
             if (!(target instanceof Element)) return;
+
+            if (target.closest('[data-student-evidence-resource-retry]')) {
+                mountStudentLearningEvidence();
+                return;
+            }
 
             if (target.closest('[data-student-action="refresh"]')) {
                 refreshAll();
@@ -429,6 +501,9 @@
                 state.busy = false;
                 state.loadingScope = false;
                 renderWorkspace();
+                if (window.AstraStudentLearningEvidence && typeof window.AstraStudentLearningEvidence.refresh === 'function') {
+                    window.AstraStudentLearningEvidence.refresh();
+                }
             }
         }
     }
@@ -487,7 +562,7 @@
         }
 
         state.selected.courseId = normalizeEntityId(state.selected.courseId, state.data.courses);
-        if (!state.selected.courseId && state.data.courses.length) {
+        if (!state.selected.courseId && state.data.courses.length === 1) {
             state.selected.courseId = String(entityId(state.data.courses[0]));
         }
         await loadCourseScope(scope);
@@ -877,9 +952,9 @@
         }
         if (courseSelect) {
             courseSelect.innerHTML = state.data.courses.length
-                ? state.data.courses.map((item) => (
+                ? `${state.data.courses.length > 1 ? `<option value=""${state.selected.courseId ? '' : ' selected'}>请选择课程</option>` : ''}${state.data.courses.map((item) => (
                     `<option value="${escapeAttr(entityId(item))}"${String(entityId(item)) === state.selected.courseId ? ' selected' : ''}>${escapeHtml(item.title || `课程 ${entityId(item)}`)}</option>`
-                )).join('')
+                )).join('')}`
                 : '<option value="">暂无已发布课程</option>';
             courseSelect.disabled = locked || !state.data.courses.length;
         }
@@ -1077,35 +1152,13 @@
     function renderProgressPanel() {
         const container = panel('progress');
         if (!container) return;
-        const progress = state.data.progress;
-        const knowledge = state.data.knowledge;
-        const error = state.errors.progress || state.errors.knowledge;
-        const percent = clampNumber(
-            knowledge && knowledge.completion_percent !== undefined
-                ? knowledge.completion_percent
-                : progress && progress.completion_percent,
-            0,
-            100
-        );
-        container.innerHTML = panelHeader('学习进度', 'gauge') + (error && !progress && !knowledge
-            ? renderPanelError(error, '进度读取失败')
-            : state.loadingScope && !progress && !knowledge
-                ? renderLoading('正在汇总学习进度')
-                : `
-                    <div class="student-progress-summary">
-                        <div class="student-progress-ring" style="--student-progress:${percent}">
-                            <strong>${formatPercent(percent)}</strong>
-                            <span>完成率</span>
-                        </div>
-                        <dl>
-                            <div><dt>已提交</dt><dd>${formatNumber(progress && progress.submitted_assignments)}</dd></div>
-                            <div><dt>已评分</dt><dd>${formatNumber(progress && progress.graded_assignments)}</dd></div>
-                            <div><dt>学习事件</dt><dd>${formatNumber(progress && progress.learning_events)}</dd></div>
-                            <div><dt>当前积分</dt><dd>${formatNumber(progress && progress.total_points)}</dd></div>
-                        </dl>
-                    </div>
-                    <div class="student-progress-track"><span style="width:${percent}%"></span></div>
-                `);
+        delete container.dataset.authoritySignature;
+        if (state.learningEvidenceResourceError) {
+            container.classList.add('astra-authority-summary');
+            container.innerHTML = learningEvidenceResourceMarkup(state.learningEvidenceResourceError, '权威学习投影');
+            return;
+        }
+        container.innerHTML = renderLoading('正在读取 0051 权威学习投影');
     }
 
     function renderCoursePanel() {
@@ -1264,57 +1317,13 @@
     function renderKnowledgePanel() {
         const container = panel('knowledge');
         if (!container) return;
-        const knowledge = state.data.knowledge;
-        const stats = knowledge && Array.isArray(knowledge.knowledge_stats) ? knowledge.knowledge_stats : [];
-        const overallStats = stats.filter((item) => !item.dimension || item.dimension === 'overall');
-        const weakDimensions = stats
-            .filter((item) => item.dimension && item.dimension !== 'overall' && Number(item.sample_size || 0) > 0)
-            .slice()
-            .sort((a, b) => Number(a.percent || 0) - Number(b.percent || 0))
-            .slice(0, 3);
-        const suggestion = ruleSuggestion(stats);
-        const latestSnapshot = state.data.snapshots.items && state.data.snapshots.items[0];
-        container.innerHTML = panelHeader('知识状态', 'brain-circuit') + (state.errors.knowledge
-            ? renderPanelError(state.errors.knowledge, '知识状态读取失败')
-            : state.loadingScope && !knowledge
-                ? renderLoading('正在计算规则状态')
-                : stats.length
-                    ? `
-                        <div class="student-knowledge-list">
-                            ${overallStats.map((item) => {
-                                const percent = clampNumber(item.percent, 0, 100);
-                                const tone = percent >= 75 ? 'good' : percent >= 45 ? 'warn' : 'weak';
-                                return `
-                                    <div class="student-knowledge-row">
-                                        <span>${escapeHtml(ruleLabel(item.rule_code))}</span>
-                                        <div class="student-knowledge-bar"><span class="is-${tone}" style="width:${percent}%"></span></div>
-                                        <strong class="is-${tone}">${formatPercent(percent)}</strong>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                        ${weakDimensions.length ? `
-                            <div class="student-knowledge-list">
-                                ${weakDimensions.map((item) => {
-                                    const percent = clampNumber(item.percent, 0, 100);
-                                    const tone = percent >= 75 ? 'good' : percent >= 45 ? 'warn' : 'weak';
-                                    return `
-                                        <div class="student-knowledge-row">
-                                            <span>${escapeHtml(item.label || item.knowledge_code || ruleLabel(item.rule_code))}</span>
-                                            <div class="student-knowledge-bar"><span class="is-${tone}" style="width:${percent}%"></span></div>
-                                            <strong class="is-${tone}">${formatPercent(percent)}</strong>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        ` : ''}
-                        <div class="student-rule-suggestion">
-                            <span>规则建议 · ${escapeHtml((knowledge && knowledge.rule_version) || 'v1')}</span>
-                            <strong>${escapeHtml(suggestion)}</strong>
-                            ${latestSnapshot ? `<small>最近快照：${escapeHtml(formatDate(latestSnapshot.calculated_at || latestSnapshot.created_at))}</small>` : '<small>基于当前实时规则统计</small>'}
-                        </div>
-                    `
-                    : renderEmpty('完成首个学习任务后生成规则建议'));
+        delete container.dataset.authoritySignature;
+        if (state.learningEvidenceResourceError) {
+            container.classList.add('astra-authority-summary');
+            container.innerHTML = learningEvidenceResourceMarkup(state.learningEvidenceResourceError, '活动证据状态');
+            return;
+        }
+        container.innerHTML = renderLoading('正在读取服务端活动证据状态');
     }
 
     function renderPointsPanel() {
@@ -1559,34 +1568,6 @@
 
     function entityId(item) {
         return item && item.id !== undefined ? item.id : '';
-    }
-
-    function ruleSuggestion(stats) {
-        const eligible = stats
-            .filter((item) => Number(item.sample_size || 0) > 0)
-            .slice()
-            .sort((a, b) => Number(a.percent || 0) - Number(b.percent || 0));
-        if (!eligible.length) return '完成首个学习任务后再查看建议';
-        const weakest = eligible[0];
-        const label = weakest.label || weakest.knowledge_code || '';
-        if (weakest.dimension === 'knowledge_point') return `优先复习知识点：${label || '当前薄弱知识点'}`;
-        if (weakest.dimension === 'assignment') return `优先完成或复盘作业：${label || '当前薄弱作业'}`;
-        if (weakest.dimension === 'unit') return `优先补强单元：${label || '当前薄弱单元'}`;
-        if (weakest.dimension === 'course') return `优先补强课程：${label || '当前薄弱课程'}`;
-        const suggestions = {
-            assignment_completion: '优先完成仍开放的作业',
-            graded_score: '复盘已批改作业中的失分点',
-            learning_completion: '补齐课程内容的完成记录'
-        };
-        return suggestions[weakest.rule_code] || '从最低百分比规则开始补强';
-    }
-
-    function ruleLabel(code) {
-        return {
-            assignment_completion: '作业完成',
-            graded_score: '评分表现',
-            learning_completion: '学习完成'
-        }[code] || code || '规则状态';
     }
 
     function statusLabel(value) {
