@@ -224,6 +224,8 @@
 }
 
 .app-auth-status {
+    display: grid;
+    gap: 8px;
     margin-bottom: 20px;
     border: 1px solid rgba(126, 161, 213, 0.2);
     border-radius: 11px;
@@ -233,6 +235,11 @@
     font-size: 0.86rem;
     line-height: 1.6;
     overflow-wrap: anywhere;
+}
+
+.app-auth-status .app-auth-secondary {
+    width: 100%;
+    margin-top: 4px;
 }
 
 .app-auth-status--error {

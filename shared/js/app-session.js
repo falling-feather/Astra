@@ -2,6 +2,13 @@
     'use strict';
 
     const PROTECTED_PAGES = new Set(['student', 'teacher', 'admin']);
+    const learningEvidenceFreshProofs = new WeakSet();
+    const currentScriptUrl = document.currentScript && document.currentScript.src
+        ? document.currentScript.src
+        : new URL('shared/js/app-session.js', document.baseURI).href;
+    const learningEvidenceLoaderUrl = new URL('learning-evidence-loader.js', currentScriptUrl).href;
+    let learningEvidenceLoaderPromise = null;
+    let signedOutPromise = null;
     const ROLE_PAGE_ACCESS = Object.freeze({
         student: new Set(['student']),
         teacher: new Set(['teacher']),
@@ -21,7 +28,8 @@
         status: null,
         appStarted: false,
         explicitSignedOut: false,
-        reloadPending: false
+        reloadPending: false,
+        authorityClearRetry: null
     };
 
     function escapeHtml(value) {
@@ -56,6 +64,58 @@
             baseUrl: state.apiBase,
             dispatchAuthRequired: false
         }, options || {}));
+    }
+
+    function ensureLearningEvidenceLoader() {
+        if (global.AstraLearningEvidenceLoader) return Promise.resolve(global.AstraLearningEvidenceLoader);
+        if (learningEvidenceLoaderPromise) return learningEvidenceLoaderPromise;
+        learningEvidenceLoaderPromise = new Promise(function (resolve, reject) {
+            let script = Array.from(document.scripts).find(function (item) {
+                return item.src === learningEvidenceLoaderUrl;
+            });
+            const created = !script;
+            if (!script) {
+                script = document.createElement('script');
+                script.src = learningEvidenceLoaderUrl;
+                script.async = false;
+                script.dataset.learningEvidenceBootstrap = 'true';
+            }
+            let settled = false;
+            let timer = 0;
+            function cleanup() {
+                if (timer) global.clearTimeout(timer);
+                script.removeEventListener('load', onLoad);
+                script.removeEventListener('error', onError);
+            }
+            function finish(error) {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                if (error) {
+                    if (created) script.remove();
+                    learningEvidenceLoaderPromise = null;
+                    reject(error);
+                } else {
+                    resolve(global.AstraLearningEvidenceLoader);
+                }
+            }
+            function onLoad() {
+                if (global.AstraLearningEvidenceLoader) finish();
+                else finish(new Error('学习证据 loader 未安装运行时 owner'));
+            }
+            function onError() {
+                finish(new Error('学习证据 loader 加载失败'));
+            }
+            script.addEventListener('load', onLoad);
+            script.addEventListener('error', onError);
+            timer = global.setTimeout(function () {
+                if (global.AstraLearningEvidenceLoader) finish();
+                else finish(new Error('学习证据 loader 加载超时'));
+            }, 10000);
+            if (created) document.head.appendChild(script);
+            else if (global.AstraLearningEvidenceLoader) finish();
+        });
+        return learningEvidenceLoaderPromise;
     }
 
     function roleResourceRegistry() {
@@ -283,7 +343,11 @@
 
     function statusMarkup() {
         if (!state.status) return '';
-        return `<div class="app-auth-status app-auth-status--${escapeHtml(state.status.type || 'info')}" role="status">${escapeHtml(state.status.message)}</div>`;
+        const retry = state.authorityClearRetry
+            ? `<button type="button" class="app-auth-secondary" data-learning-authority-retry ${state.busy ? 'disabled' : ''}>重新清理本地证据</button>`
+            : '';
+        const code = state.status.code ? `<strong>${escapeHtml(state.status.code)}</strong>` : '';
+        return `<div class="app-auth-status app-auth-status--${escapeHtml(state.status.type || 'info')}" role="status">${code}<span>${escapeHtml(state.status.message)}</span>${retry}</div>`;
     }
 
     function loginForm() {
@@ -372,8 +436,13 @@
     }
 
     function handlePortalClick(event) {
+        const clearRetry = event.target instanceof Element ? event.target.closest('[data-learning-authority-retry]') : null;
+        if (clearRetry && !state.busy) {
+            retryLearningAuthorityClear();
+            return;
+        }
         const viewNode = event.target instanceof Element ? event.target.closest('[data-app-auth-view]') : null;
-        if (!viewNode || state.busy) return;
+        if (!viewNode || state.busy || state.authorityClearRetry) return;
         state.view = viewNode.dataset.appAuthView || 'login';
         state.status = null;
         renderPortal();
@@ -387,6 +456,10 @@
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || !form.dataset.appAuthForm || state.busy) return;
         event.preventDefault();
+        if (state.authorityClearRetry) {
+            retryLearningAuthorityClear();
+            return;
+        }
         if (!form.reportValidity()) return;
         state.busy = true;
         state.status = null;
@@ -405,11 +478,12 @@
     }
 
     async function submitLogin(form) {
+        if (!await prepareExplicitAuthentication()) return false;
         await request('/api/auth/login', {
             method: 'POST',
             body: { username: formValue(form, 'username'), password: formValue(form, 'password') }
         });
-        await reconcileSession();
+        return reconcileSession(true, true);
     }
 
     async function submitRegister(form) {
@@ -418,6 +492,7 @@
             throw Object.assign(new Error('两次输入的密码不一致'), { code: 'invalid_request' });
         }
         const username = formValue(form, 'username');
+        if (!await prepareExplicitAuthentication()) return false;
         await request('/api/auth/register', {
             method: 'POST',
             body: {
@@ -428,7 +503,7 @@
             }
         });
         await request('/api/auth/login', { method: 'POST', body: { username: username, password: password } });
-        await reconcileSession();
+        return reconcileSession(true, true);
     }
 
     async function submitResetRequest(form) {
@@ -452,44 +527,170 @@
         state.status = { type: 'success', message: '密码已更新，旧会话已撤销，请重新登录。' };
     }
 
-    async function reconcileSession() {
+    async function reconcileSession(explicitAuthentication, authorityPrepared) {
         const user = await request('/api/users/me', { method: 'GET' });
-        await completeAuthentication(user);
+        return completeAuthentication(user, Boolean(explicitAuthentication), Boolean(authorityPrepared));
     }
 
-    async function completeAuthentication(user) {
+    function issueLearningEvidenceFreshProof() {
+        const proof = Object.freeze({});
+        learningEvidenceFreshProofs.add(proof);
+        return proof;
+    }
+
+    function consumeLearningEvidenceFreshProof(proof) {
+        if (!proof || typeof proof !== 'object' || !learningEvidenceFreshProofs.has(proof)) return false;
+        learningEvidenceFreshProofs.delete(proof);
+        return true;
+    }
+
+    async function clearLearningAuthority(reason) {
+        const loader = global.AstraLearningEvidenceLoader || await ensureLearningEvidenceLoader();
+        if (!loader || typeof loader.clearAuthority !== 'function') {
+            const error = new Error('学习证据清理 owner 不可用。');
+            error.code = 'learning_evidence_clear_unavailable';
+            throw error;
+        }
+        await loader.clearAuthority(reason);
+    }
+
+    async function prepareExplicitAuthentication() {
+        try {
+            await clearLearningAuthority('explicit-authentication-before-login');
+            return true;
+        } catch (error) {
+            showLearningAuthorityClearFailure(error, {
+                reason: 'explicit-authentication-before-login'
+            });
+            return false;
+        }
+    }
+
+    function showLearningAuthorityClearFailure(error, retry) {
+        global.console && global.console.warn('[ApplicationSession] learning evidence authority clear failed', error && (error.code || error.message));
+        state.user = null;
+        state.authorityClearRetry = Object.freeze(Object.assign({}, retry || {}));
+        state.status = {
+            type: 'error',
+            code: 'learning_evidence_clear_failed',
+            message: '本地待同步学习证据尚未完成物理清理。应用保持锁定且不会重载或启用新身份；请重试清理。'
+        };
+        applyRoleUI();
+        ensurePortal();
+    }
+
+    async function retryLearningAuthorityClear() {
+        const retry = state.authorityClearRetry;
+        if (!retry || state.busy) return false;
+        state.busy = true;
+        state.status = {
+            type: 'info',
+            code: 'learning_evidence_clear_retrying',
+            message: '正在重新清理本地学习证据…'
+        };
+        renderPortal();
+        try {
+            await clearLearningAuthority(retry.reason || 'retry-after-clear-failure');
+            state.authorityClearRetry = null;
+            if (retry.user) {
+                await completeAuthentication(retry.user, Boolean(retry.explicitAuthentication), true);
+                return true;
+            }
+            if (retry.reloadAfter) {
+                await reloadAfterRoleResourceCleanup();
+                return true;
+            }
+            state.view = 'login';
+            state.status = {
+                type: 'success',
+                code: 'learning_evidence_clear_succeeded',
+                message: '本地学习证据已清理；现在可以重新登录。'
+            };
+            return true;
+        } catch (error) {
+            showLearningAuthorityClearFailure(error, retry);
+            return false;
+        } finally {
+            state.busy = false;
+            if (!state.reloadPending && !state.user) renderPortal();
+        }
+    }
+
+    async function completeAuthentication(user, explicitAuthentication, authorityPrepared) {
         if (!user || !ROLE_PAGE_ACCESS[user.role]) throw new Error('账号角色无效');
+        let recoveredPersistentAuthority = false;
+        if (!authorityPrepared) {
+            try {
+                if (explicitAuthentication) {
+                    await clearLearningAuthority('explicit-authentication');
+                } else {
+                    const loader = global.AstraLearningEvidenceLoader || await ensureLearningEvidenceLoader();
+                    if (!loader || typeof loader.recoverPendingAuthority !== 'function') {
+                        const error = new Error('学习证据持久清理 owner 不可用。');
+                        error.code = 'learning_evidence_clear_unavailable';
+                        throw error;
+                    }
+                    recoveredPersistentAuthority = Boolean(await loader.recoverPendingAuthority());
+                }
+            } catch (error) {
+                showLearningAuthorityClearFailure(error, {
+                    reason: explicitAuthentication
+                        ? 'explicit-authentication'
+                        : 'recover-persistent-authority-clear',
+                    user: Object.freeze(Object.assign({}, user)),
+                    explicitAuthentication: Boolean(explicitAuthentication)
+                });
+                return false;
+            }
+        }
+        state.authorityClearRetry = null;
         if (state.appStarted) {
             await reloadAfterRoleResourceCleanup();
-            return;
+            return true;
         }
         await prepareRoleResources(user.role);
+        await ensureLearningEvidenceLoader();
         state.user = Object.freeze(Object.assign({}, user));
         state.explicitSignedOut = false;
         applyRoleUI();
         renderSessionControl();
         hidePortal();
-        global.dispatchEvent(new CustomEvent('astra:session-ready', { detail: { user: state.user } }));
+        const detail = { user: state.user };
+        if (explicitAuthentication || authorityPrepared || recoveredPersistentAuthority) {
+            detail.learning_evidence_fresh_proof = issueLearningEvidenceFreshProof();
+        }
+        global.dispatchEvent(new CustomEvent('astra:session-ready', { detail }));
         if (state.resolveBoot) {
             state.resolveBoot(true);
             state.resolveBoot = null;
         }
+        return true;
     }
 
-    function requireAuthentication() {
+    async function requireAuthentication() {
         state.appStarted = Boolean(global.Router && global.Router._initialEnterFired);
         state.user = null;
-        if (state.appStarted) {
-            reloadAfterRoleResourceCleanup();
-            return;
+        try {
+            await clearLearningAuthority('unauthorized');
+        } catch (error) {
+            showLearningAuthorityClearFailure(error, {
+                reason: 'unauthorized',
+                reloadAfter: state.appStarted
+            });
+            return false;
         }
-        pruneRoleResourceCaches(null).catch(function () {});
+        if (state.appStarted) {
+            await reloadAfterRoleResourceCleanup();
+            return true;
+        }
+        await pruneRoleResourceCaches(null).catch(function () {});
         state.view = 'login';
         state.status = state.explicitSignedOut
             ? null
             : { type: 'error', message: '登录状态已失效，请重新登录。' };
         applyRoleUI();
         ensurePortal();
+        return true;
     }
 
     async function logout() {
@@ -501,12 +702,37 @@
                 return;
             }
         }
-        await reloadAfterRoleResourceCleanup();
+        global.dispatchEvent(new CustomEvent('astra:session-signed-out'));
+        await handleSignedOut();
     }
 
-    function handleSignedOut() {
-        state.explicitSignedOut = true;
-        reloadAfterRoleResourceCleanup();
+    async function handleSignedOut() {
+        if (signedOutPromise) return signedOutPromise;
+        const operation = (async function () {
+            state.explicitSignedOut = true;
+            state.user = null;
+            try {
+                await clearLearningAuthority('signed-out');
+            } catch (error) {
+                showLearningAuthorityClearFailure(error, {
+                    reason: 'signed-out',
+                    reloadAfter: true
+                });
+                return false;
+            }
+            await reloadAfterRoleResourceCleanup();
+            return true;
+        })();
+        signedOutPromise = operation;
+        operation.then(
+            function () {
+                if (signedOutPromise === operation) signedOutPromise = null;
+            },
+            function () {
+                if (signedOutPromise === operation) signedOutPromise = null;
+            }
+        );
+        return operation;
     }
 
     function bootstrap() {
@@ -517,10 +743,22 @@
         global.addEventListener('astra:session-signed-out', handleSignedOut);
         state.bootPromise = new Promise(function (resolve) {
             state.resolveBoot = resolve;
-            request('/api/users/me', { method: 'GET' })
+            ensureLearningEvidenceLoader()
+                .then(function () { return request('/api/users/me', { method: 'GET' }); })
                 .then(completeAuthentication)
                 .catch(async function (error) {
                     state.user = null;
+                    if (error && error.status === 401) {
+                        try {
+                            await clearLearningAuthority('unauthorized');
+                        } catch (clearError) {
+                            showLearningAuthorityClearFailure(clearError, {
+                                reason: 'unauthorized',
+                                reloadAfter: false
+                            });
+                            return;
+                        }
+                    }
                     await pruneRoleResourceCaches(null).catch(function () {});
                     state.view = 'login';
                     state.status = error && error.status === 401
@@ -543,6 +781,7 @@
         canAccessPage: canAccessPage,
         guardPage: guardPage,
         applyRoleUI: applyRoleUI,
+        consumeLearningEvidenceFreshProof: consumeLearningEvidenceFreshProof,
         requireAuthentication: requireAuthentication,
         logout: logout
     });

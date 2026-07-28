@@ -109,7 +109,9 @@
             codeSubmissionAttemptsPage: null
         },
         errors: {},
-        flash: null
+        flash: null,
+        learningEvidenceResourceError: null,
+        learningEvidenceLoadGeneration: 0
     };
 
     function initTeacher() {
@@ -120,6 +122,7 @@
         if (window.AstraApiClient) AstraApiClient.scrubLegacyTokens();
         state.apiBase = resolveApiBase();
         renderShell();
+        mountTeacherLearningEvidence();
         if (!state.initialized) {
             bindEvents();
             state.initialized = true;
@@ -135,11 +138,14 @@
 
     function destroyTeacher() {
         state.active = false;
+        state.learningEvidenceLoadGeneration += 1;
+        if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
         invalidateRequests();
         unbindRuntimeEvents();
         clearWorkspace();
         state.busy = false;
         state.flash = null;
+        state.learningEvidenceResourceError = null;
         if (state.root) {
             const authContainer = state.root.querySelector('[data-teacher-auth-state]');
             if (authContainer && window.AstraAuthUI) AstraAuthUI.unmount(authContainer);
@@ -149,6 +155,53 @@
                     <span>教师端已离开</span>
                 </div>
             `;
+        }
+    }
+
+    function learningEvidenceResourceIssue(error) {
+        return Object.freeze({ code: String(error && error.code || 'learning_evidence_resource_failed'),
+            message: '共享教师证据资源加载失败或超时；页面不会继续显示为“正在读取”。请重试加载。' });
+    }
+    function teacherLearningEvidenceResourceMarkup(issue) {
+        return `
+            <header class="astra-authority-summary__header"><div><span>RESOURCE FAIL-CLOSED</span><h3>权威学习证据汇总</h3></div></header>
+            <div class="astra-authority-summary__state" role="status"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p>
+            <button type="button" class="astra-authority-summary__retry" data-teacher-evidence-resource-retry>重试加载学习证据</button></div>`;
+    }
+
+    function renderTeacherLearningEvidenceResourceState() {
+        if (!state.root || !state.learningEvidenceResourceError) return;
+        state.root.querySelectorAll('[data-learning-evidence-teacher-aggregate]').forEach((container) => {
+            delete container.dataset.authoritySignature;
+            container.classList.add('astra-authority-summary');
+            container.innerHTML = teacherLearningEvidenceResourceMarkup(state.learningEvidenceResourceError);
+        });
+    }
+
+    async function mountTeacherLearningEvidence() {
+        const generation = ++state.learningEvidenceLoadGeneration;
+        state.learningEvidenceResourceError = null;
+        if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
+        try {
+            const loader = window.AstraLearningEvidenceLoader;
+            if (!loader || typeof loader.ensure !== 'function') {
+                const error = Object.assign(new Error('learning evidence loader unavailable'), { code: 'learning_evidence_loader_unavailable' });
+                throw error;
+            }
+            await loader.ensure({ teacher: true });
+            if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
+            if (!window.AstraTeacherLearningEvidence || typeof window.AstraTeacherLearningEvidence.mount !== 'function') {
+                const error = Object.assign(new Error('teacher learning evidence owner unavailable'), { code: 'teacher_evidence_owner_unavailable' });
+                throw error;
+            }
+            window.AstraTeacherLearningEvidence.mount(state.root);
+            return true;
+        } catch (error) {
+            if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
+            state.learningEvidenceResourceError = learningEvidenceResourceIssue(error);
+            renderTeacherLearningEvidenceResourceState();
+            console.warn('[TeacherWorkbench] learning evidence unavailable', error && (error.code || error.message));
+            return false;
         }
     }
 
@@ -236,6 +289,11 @@
         state.root.addEventListener('click', (event) => {
             const target = event.target;
             if (!(target instanceof Element)) return;
+            const evidenceRetry = target.closest('[data-teacher-evidence-resource-retry]');
+            if (evidenceRetry) {
+                mountTeacherLearningEvidence();
+                return;
+            }
             const refreshButton = target.closest('[data-teacher-action="refresh"]');
             if (refreshButton) {
                 if (state.busy) return;
@@ -424,7 +482,7 @@
         const visibleCourses = filteredCourses();
         state.selected.courseId = normalizeSelectedId(state.selected.courseId, visibleCourses);
         if (!state.selected.classId && state.data.classes.length) state.selected.classId = String(state.data.classes[0].id);
-        if (!state.selected.courseId && visibleCourses.length) state.selected.courseId = String(visibleCourses[0].id);
+        if (!state.selected.courseId && visibleCourses.length === 1) state.selected.courseId = String(visibleCourses[0].id);
         await Promise.all([loadClassScope(generation), loadCourseScope(generation)]);
         if (!isCurrentRequest(generation)) return;
         await loadCurriculumScope(generation);
@@ -832,6 +890,7 @@
                 <span>${escapeHtml(label)}</span>
                 <select data-teacher-scope="${escapeAttr(key)}" ${error ? 'disabled' : ''}>
                     ${items.length ? '' : '<option value="">--</option>'}
+                    ${items.length > 1 && !value ? `<option value="" selected>请选择${escapeHtml(label)}</option>` : ''}
                     ${items.map((item) => `<option value="${item.id}"${String(item.id) === String(value) ? ' selected' : ''}>${escapeHtml(labeler(item))}</option>`).join('')}
                 </select>
             </label>
@@ -1055,52 +1114,10 @@
     }
 
     function renderProgressMatrix() {
-        if (state.errors.courseProgress) return `<article class="teacher-curriculum-panel">${renderError(state.errors.courseProgress, '课程进度矩阵读取失败')}</article>`;
-        const page = state.data.courseProgress;
-        const planItems = state.data.releasePlan && Array.isArray(state.data.releasePlan.items) ? state.data.releasePlan.items : [];
-        if (!page || !Array.isArray(page.items) || !page.items.length) {
-            return `<article class="teacher-curriculum-panel teacher-curriculum-panel--progress"><header class="teacher-curriculum-panel__header"><div><span>LEARNING ORBITS</span><h3>学生分块进度</h3></div></header>${renderEmpty('当前班级暂无可统计学生')}</article>`;
-        }
-        const blockTotal = planItems.length;
-        const completed = page.items.reduce((total, student) => total + student.blocks.filter((block) => block.completed).length, 0);
-        const possible = page.items.length * blockTotal;
-        return `
-            <article class="teacher-curriculum-panel teacher-curriculum-panel--progress">
-                <header class="teacher-curriculum-panel__header">
-                    <div><span>LEARNING ORBITS</span><h3>学生分块进度</h3></div>
-                    <div class="teacher-progress-total"><strong>${possible ? Math.round(completed / possible * 100) : 0}%</strong><span>本页完成度</span></div>
-                </header>
-                <div class="teacher-progress-legend"><span><i data-state="completed"></i>完成</span><span><i data-state="started"></i>进行中</span><span><i data-state="idle"></i>未开始</span><span><i data-state="hidden"></i>当前隐藏</span></div>
-                <div class="teacher-progress-matrix-wrap">
-                    <table class="teacher-progress-matrix">
-                        <thead><tr><th>学生</th>${planItems.map((item) => {
-                            const unit = findById(state.data.units, item.course_unit_id);
-                            return `<th><span>${escapeHtml(unit ? unit.title : item.activity_key)}</span><small>${escapeHtml(RELEASE_MODE_LABELS[item.effective_release_state] || item.effective_release_state)}</small></th>`;
-                        }).join('')}</tr></thead>
-                        <tbody>${page.items.map((student) => renderStudentProgressRow(student, planItems)).join('')}</tbody>
-                    </table>
-                </div>
-                <footer class="teacher-progress-foot">
-                    <div><span>本页显示 ${formatNumber(page.items.length)} / 全班 ${formatNumber(page.total)} 名学生</span><small>完成度仅基于本页；完成、提交与评分只统计当前权威可见范围。</small></div>
-                    ${renderCurriculumPageControls(page, 'progress', '学生')}
-                </footer>
-            </article>
-        `;
-    }
-
-    function renderStudentProgressRow(student, planItems) {
-        const completedCount = student.blocks.filter((block) => block.completed).length;
-        return `
-            <tr>
-                <th><strong>${escapeHtml(student.display_name)}</strong><span>#${formatNumber(student.student_id)}</span><small>${formatNumber(completedCount)} / ${formatNumber(planItems.length)} 完成</small></th>
-                ${planItems.map((planItem) => {
-                    const block = student.blocks.find((candidate) => Number(candidate.course_unit_id) === Number(planItem.course_unit_id));
-                    const stateName = !block || block.effective_release_state === 'hidden' ? 'hidden' : block.completed ? 'completed' : block.started ? 'started' : 'idle';
-                    const label = stateName === 'completed' ? '已完成' : stateName === 'started' ? '进行中' : stateName === 'hidden' ? '当前隐藏' : '未开始';
-                    return `<td data-progress-state="${stateName}"><i data-lucide="${stateName === 'completed' ? 'circle-check' : stateName === 'started' ? 'loader-circle' : stateName === 'hidden' ? 'eye-off' : 'circle-dashed'}"></i><strong>${label}</strong><span>${block ? `${formatNumber(block.submitted)} 提交 · ${formatNumber(block.graded)} 评分` : '--'}</span></td>`;
-                }).join('')}
-            </tr>
-        `;
+        const content = state.learningEvidenceResourceError
+            ? teacherLearningEvidenceResourceMarkup(state.learningEvidenceResourceError)
+            : '<p>正在按明确班级与课程读取 0051 权威 aggregate。</p>';
+        return `<article class="teacher-curriculum-panel teacher-curriculum-panel--progress" data-learning-evidence-teacher-aggregate>${content}</article>`;
     }
 
     function renderCurriculumPageControls(page, kind, itemLabel) {
@@ -1583,30 +1600,13 @@
     }
 
     function renderInsightPanel() {
-        const knowledge = state.data.knowledge;
-        const progress = state.data.progress;
         return `
             <article class="teacher-panel">
                 <header class="teacher-panel__header">
-                    <h2><i data-lucide="chart-no-axes-combined"></i>学情</h2>
-                    ${state.errors.knowledge ? statusBadge('limited') : statusBadge('ready')}
+                    <h2><i data-lucide="chart-no-axes-combined"></i>学情口径</h2>
+                    ${statusBadge('partial')}
                 </header>
-                ${state.errors.knowledge ? renderError(state.errors.knowledge, '班级学情读取失败') : `
-                    <div class="teacher-metric-grid">
-                        ${metric('活跃学生', knowledge && knowledge.students_active)}
-                        ${metric('应交', knowledge && knowledge.expected_submissions)}
-                        ${metric('已交', knowledge && knowledge.submitted_assignments)}
-                        ${metric('已评分', knowledge && knowledge.graded_assignments)}
-                        ${metric('完成率', knowledge ? formatPercent(knowledge.completion_percent) : '--')}
-                        ${metric('平均分', knowledge ? formatPercent(knowledge.average_score_percent) : '--')}
-                    </div>
-                    ${renderKnowledgeStats(knowledge)}
-                `}
-                <div class="teacher-divider"></div>
-                <div class="teacher-filter-row">
-                    <label><span>学生</span><select data-teacher-scope="studentId">${studentOptions()}</select></label>
-                </div>
-                ${state.errors.progress ? renderError(state.errors.progress, '学生进度读取失败') : renderProgress(progress)}
+                <p class="teacher-muted">权威完成与迁移统一在“课程编排”的 0051 aggregate 区域按明确班级/课程读取；本区继续保留作业提交与教师反馈入口，不用旧访问或 knowledge 统计声明掌握。</p>
             </article>
         `;
     }
@@ -2211,7 +2211,7 @@
             resetPagination();
             const courses = filteredCourses();
             state.selected.courseId = normalizeSelectedId(state.selected.courseId, courses);
-            if (!state.selected.courseId && courses.length) state.selected.courseId = String(courses[0].id);
+            if (!state.selected.courseId && courses.length === 1) state.selected.courseId = String(courses[0].id);
             setBusy(true);
             try {
                 await loadCourseScope();

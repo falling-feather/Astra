@@ -7,6 +7,11 @@
 (function (global) {
     'use strict';
 
+    const currentScriptUrl = document.currentScript && document.currentScript.src
+        ? document.currentScript.src
+        : new URL('codevis/shared/js/student-context.js', document.baseURI || `${global.location.origin}/`).href;
+    const learningEvidenceLoaderUrl = new URL('../../../shared/js/learning-evidence-loader.js', currentScriptUrl).href;
+    let learningEvidenceLoaderPromise = null;
     const state = {
         phase: 'booting',
         role: null,
@@ -16,7 +21,8 @@
         generation: 0,
         controller: null,
         started: null,
-        redirecting: false
+        redirecting: false,
+        authorityClearFatal: false
     };
 
     function positiveInteger(value) {
@@ -27,6 +33,50 @@
         return global.AstraApiClient && typeof global.AstraApiClient.request === 'function'
             ? global.AstraApiClient
             : null;
+    }
+
+    function ensureLearningEvidenceLoader() {
+        if (global.AstraLearningEvidenceLoader) return Promise.resolve(global.AstraLearningEvidenceLoader);
+        if (!document.scripts || !document.head || typeof document.createElement !== 'function') return Promise.resolve(null);
+        if (learningEvidenceLoaderPromise) return learningEvidenceLoaderPromise;
+        learningEvidenceLoaderPromise = new Promise((resolve, reject) => {
+            let script = Array.from(document.scripts).find(item => item.src === learningEvidenceLoaderUrl);
+            const created = !script;
+            if (!script) {
+                script = document.createElement('script');
+                script.src = learningEvidenceLoaderUrl;
+                script.async = false;
+                script.dataset.learningEvidenceBootstrap = 'true';
+            }
+            let timer = 0;
+            const cleanup = () => {
+                if (timer) global.clearTimeout(timer);
+                script.removeEventListener('load', onLoad);
+                script.removeEventListener('error', onError);
+            };
+            const finish = error => {
+                cleanup();
+                if (error) {
+                    if (created) script.remove();
+                    learningEvidenceLoaderPromise = null;
+                    reject(error);
+                } else {
+                    resolve(global.AstraLearningEvidenceLoader);
+                }
+            };
+            const onLoad = () => global.AstraLearningEvidenceLoader
+                ? finish()
+                : finish(new Error('学习证据 loader 未安装运行时 owner'));
+            const onError = () => finish(new Error('学习证据 loader 加载失败'));
+            script.addEventListener('load', onLoad, { once: true });
+            script.addEventListener('error', onError, { once: true });
+            timer = global.setTimeout(() => global.AstraLearningEvidenceLoader
+                ? finish()
+                : finish(new Error('学习证据 loader 加载超时')), 10000);
+            if (created) document.head.appendChild(script);
+            else if (global.AstraLearningEvidenceLoader) finish();
+        });
+        return learningEvidenceLoaderPromise;
     }
 
     function isCurrent(scope) {
@@ -44,6 +94,17 @@
         state.courseIds = null;
         const adapter = global.CvCourseStateAdapter;
         if (adapter && typeof adapter.configureHttp === 'function') adapter.configureHttp({});
+    }
+
+    function enterAuthorityClearFailed() {
+        if (state.controller) state.controller.abort();
+        state.controller = null;
+        state.generation += 1;
+        state.authorityClearFatal = true;
+        state.phase = 'authority_clear_failed';
+        state.selectedClassId = null;
+        clearCourseScope();
+        refreshViews();
     }
 
     function classLabel(classItem) {
@@ -87,8 +148,21 @@
         catch (_) { global.location.href = '../index.html'; }
     }
 
-    function requestFailure(error) {
+    async function requestFailure(error) {
         if (Number(error && error.status || 0) === 401) {
+            try {
+                const loader = global.AstraLearningEvidenceLoader || await ensureLearningEvidenceLoader();
+                if (!loader || typeof loader.clearAuthority !== 'function') {
+                    const clearError = new Error('Learning evidence authority clear owner unavailable');
+                    clearError.code = 'learning_evidence_clear_unavailable';
+                    throw clearError;
+                }
+                await loader.clearAuthority('unauthorized');
+            } catch (clearError) {
+                enterAuthorityClearFailed();
+                global.console && global.console.warn('[CodeSpace] learning evidence authority clear failed', clearError && (clearError.code || clearError.message));
+                return true;
+            }
             redirectToLogin();
             return true;
         }
@@ -96,6 +170,13 @@
     }
 
     function gate() {
+        if (state.authorityClearFatal || state.phase === 'authority_clear_failed') {
+            return {
+                blocked: true,
+                title: '本地学习证据清理失败',
+                message: '代码空间保持锁定且不会跳转；请重新加载本页重试清理，或返回主入口处理。'
+            };
+        }
         if (state.role !== 'student') return { blocked: false };
         if (state.phase === 'ready') return { blocked: false };
         const copy = {
@@ -114,9 +195,14 @@
         const controls = document.getElementById('cv-class-context');
         const select = document.getElementById('cv-class-select');
         const status = document.getElementById('cv-class-status');
-        const showSelector = state.role === 'student' && state.classes.length > 1 && !state.redirecting;
+        const authorityLocked = state.authorityClearFatal || state.phase === 'authority_clear_failed';
+        const showSelector = state.role === 'student' && state.classes.length > 1 && !state.redirecting && !authorityLocked;
         if (controls) controls.hidden = !showSelector;
         document.body && document.body.classList.toggle('cv-has-class-selector', showSelector);
+        if (select && authorityLocked) {
+            select.disabled = true;
+            select.onchange = null;
+        }
         if (!showSelector || !select) return;
 
         const selected = state.selectedClassId == null ? '' : String(state.selectedClassId);
@@ -176,6 +262,7 @@
     }
 
     async function selectClass(classId) {
+        if (state.authorityClearFatal || state.phase === 'authority_clear_failed') return false;
         const selected = state.classes.find(item => item.id === classId);
         if (!selected || state.role !== 'student') return false;
         const scope = beginRequest();
@@ -214,7 +301,7 @@
             return true;
         } catch (error) {
             if (!isCurrent(scope)) return false;
-            if (requestFailure(error)) return false;
+            if (await requestFailure(error)) return false;
             state.phase = 'unavailable';
             clearCourseScope();
             refreshViews();
@@ -241,7 +328,7 @@
                 });
             } catch (error) {
                 if (!isCurrent(scope)) return false;
-                if (requestFailure(error)) return false;
+                if (await requestFailure(error)) return false;
                 if (Number(error && error.status || 0) === 404 || error && (error.code === 'network' || error.code === 'offline')) {
                     state.phase = 'static_preview';
                     refreshViews();
@@ -259,6 +346,17 @@
                 return false;
             }
             state.role = user.role;
+            try {
+                const loader = await ensureLearningEvidenceLoader();
+                if (!isCurrent(scope)) return false;
+                if (loader && typeof loader.configureIdentity === 'function') await loader.configureIdentity(user);
+            } catch (error) {
+                if (!isCurrent(scope)) return false;
+                state.phase = 'unavailable';
+                clearCourseScope();
+                refreshViews();
+                return false;
+            }
             if (user.role !== 'student') {
                 state.phase = 'nonstudent';
                 refreshViews();
@@ -290,7 +388,7 @@
                 return selectClass(classes[0].id);
             } catch (error) {
                 if (!isCurrent(scope)) return false;
-                if (requestFailure(error)) return false;
+                if (await requestFailure(error)) return false;
                 state.phase = 'unavailable';
                 clearCourseScope();
                 refreshViews();
@@ -303,7 +401,7 @@
     function resolve(activity) {
         const manifest = global.CvCourseManifest;
         if (
-            state.role !== 'student' || state.phase !== 'ready' || !state.courseIds ||
+            state.authorityClearFatal || state.role !== 'student' || state.phase !== 'ready' || !state.courseIds ||
             !activity || activity.galaxy_key !== (manifest && manifest.galaxy_key) ||
             !positiveInteger(state.selectedClassId) || !positiveInteger(state.courseIds[activity.course_key])
         ) return null;
@@ -315,7 +413,37 @@
         };
     }
 
-    global.AstraCodeSpaceStudentContext = Object.freeze({ resolve });
+    function resolveLearningEvidence(activity) {
+        const context = resolve(activity);
+        const adapter = global.CvCourseStateAdapter;
+        if (!context || !adapter || typeof adapter.resolve !== 'function' || typeof adapter.unitIdFor !== 'function') {
+            return Object.freeze({ available: false, error_code: 'scope_selection_required' });
+        }
+        const access = adapter.resolve(activity);
+        if (!access || access.status !== 'available') {
+            const errorCode = access && access.status === 'locked'
+                ? 'activity_locked'
+                : access && access.status === 'hidden'
+                    ? 'activity_hidden'
+                    : 'publication_context_unavailable';
+            return Object.freeze({ available: false, error_code: errorCode });
+        }
+        const unitId = adapter.unitIdFor(activity);
+        if (!positiveInteger(unitId)) {
+            return Object.freeze({ available: false, error_code: 'course_unit_missing' });
+        }
+        return Object.freeze({
+            available: true,
+            class_id: context.class_id,
+            course_id: context.course_id,
+            course_unit_id: unitId,
+            activity_key: activity.activity_key,
+            galaxy_key: activity.galaxy_key,
+            course_key: activity.course_key
+        });
+    }
+
+    global.AstraCodeSpaceStudentContext = Object.freeze({ resolve, resolveLearningEvidence });
     global.CvStudentContext = Object.freeze({
         start,
         selectClass,

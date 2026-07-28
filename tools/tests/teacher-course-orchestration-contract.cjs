@@ -32,8 +32,9 @@ assert.match(teacher, /limit:\s*COURSE_PROGRESS_PAGE_LIMIT,\s*offset:\s*state\.p
 assert.match(teacher, /limit:\s*CODE_SUBMISSION_PAGE_LIMIT,\s*offset:\s*state\.pagination\.codeSubmissionsOffset/);
 assert.match(teacher, /data-teacher-curriculum-page=/);
 assert.match(teacher, /page\.next_offset/);
-assert.match(teacher, /本页完成度/);
-assert.doesNotMatch(teacher, /全班完成度/);
+assert.match(teacher, /data-learning-evidence-teacher-aggregate/);
+assert.match(teacher, /0051 权威 aggregate/);
+assert.doesNotMatch(teacher, /(?:本页|全班)完成度/);
 
 assert.match(teacher, /data-teacher-form="release-plan"/);
 assert.match(teacher, /method:\s*'PATCH'[\s\S]*expected_version:\s*Number\(plan\.plan_version\)/);

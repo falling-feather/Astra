@@ -62,8 +62,8 @@
             roles: ['student', 'teacher', 'admin'],
             status: 'partial',
             route: '#student',
-            evidenceSource: '旧 LearningEvent 与 BE-006 待交付合同',
-            allowedClaim: '当前事件与提交记录',
+            evidenceSource: '0051 Learning Evidence API、共享证据客户端与显式 scope recovery',
+            allowedClaim: '显式班级/课程范围内的事件确认、待同步状态与服务端学习投影',
             prohibitedClaims: ['访问即完成', '单次答对即掌握', '跨设备已无损恢复']
         }),
         define({
@@ -72,8 +72,8 @@
             roles: ['teacher', 'admin'],
             status: 'partial',
             route: '#teacher',
-            evidenceSource: '课程进度矩阵与旧 complete 事件',
-            allowedClaim: '当前记录与提交口径',
+            evidenceSource: '0051 教师 aggregate 与共享证据客户端（显式 class/course scope）',
+            allowedClaim: '显式班级/课程范围内的服务端聚合状态；前端约每 4 秒发起轮询，显示时延另含接口耗时',
             prohibitedClaims: ['学生已掌握', '学习效果已证明']
         }),
         define({

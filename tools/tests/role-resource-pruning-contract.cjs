@@ -87,8 +87,8 @@ assert.match(session, /const cacheNames = await global\.caches\.keys\(\);[\s\S]*
 assert.doesNotMatch(session, /cacheNames\.filter\(/, 'legacy/custom same-origin caches must also be scanned for exact role paths');
 assert.match(session, /rolePaths\.has\(cachedUrl\.pathname\)/);
 assert.match(session, /async function reloadAfterRoleResourceCleanup\(\)[\s\S]*state\.reloadPending = true;[\s\S]*await pruneRoleResourceCaches\(null\)[\s\S]*state\.user = null;[\s\S]*global\.location\.reload\(\)/);
-assert.match(session, /if \(state\.appStarted\) \{[\s\S]*await reloadAfterRoleResourceCleanup\(\);[\s\S]*return;[\s\S]*\}[\s\S]*await prepareRoleResources\(user\.role\)/);
-assert.match(session, /function requireAuthentication\(\)[\s\S]*state\.appStarted = Boolean[\s\S]*if \(state\.appStarted\) \{[\s\S]*reloadAfterRoleResourceCleanup\(\);[\s\S]*return;[\s\S]*\}[\s\S]*ensurePortal\(\)/);
+assert.match(session, /if \(state\.appStarted\) \{[\s\S]*await reloadAfterRoleResourceCleanup\(\);[\s\S]*return true;[\s\S]*\}[\s\S]*await prepareRoleResources\(user\.role\)/);
+assert.match(session, /function requireAuthentication\(\)[\s\S]*state\.appStarted = Boolean[\s\S]*if \(state\.appStarted\) \{[\s\S]*reloadAfterRoleResourceCleanup\(\);[\s\S]*return true;[\s\S]*\}[\s\S]*ensurePortal\(\)/);
 assert.match(session, /function handleSignedOut\(\)[\s\S]*state\.explicitSignedOut = true;[\s\S]*reloadAfterRoleResourceCleanup\(\)/);
 assert.doesNotMatch(session, /function handleSignedOut\(\)[\s\S]*requireAuthentication\(\)/);
 assert.match(session, /request\('\/api\/users\/me'[\s\S]*\.catch\(async function \(error\)[\s\S]*await pruneRoleResourceCaches\(null\)[\s\S]*applyRoleUI\(\)[\s\S]*ensurePortal\(\)/);

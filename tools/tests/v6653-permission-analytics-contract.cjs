@@ -9,6 +9,7 @@ function read(relativePath) {
 function main() {
     const teacher = read('pages/teacher/teacher.js');
     const student = read('pages/student/student.js');
+    const studentEvidence = read('shared/js/student-learning-evidence.js');
     const admin = read('pages/admin/admin.js');
 
     for (const token of [
@@ -35,10 +36,11 @@ function main() {
     assert.match(teacher, /params:\s*\{\s*class_id:\s*classId\s*\}/);
     assert.match(teacher, /attachedCourses\.some/);
 
-    assert.match(student, /dimension === 'knowledge_point'/);
-    assert.match(student, /优先复习知识点/);
-    assert.match(student, /优先完成或复盘作业/);
-    assert.match(student, /knowledge\.rule_version/);
+    assert.match(student, /\/api\/knowledge\/me/);
+    assert.match(student, /data-student-panel="knowledge"/);
+    assert.doesNotMatch(student, /knowledge\.rule_version/);
+    assert.match(studentEvidence, /recovery\.rule_version/);
+    assert.match(studentEvidence, /旧 knowledge 统计仅属历史兼容数据/);
 
     assert.match(admin, /\/api\/admin\/class-join-requests\/\$\{joinRequestId\}/);
     assert.match(admin, /AstraApiClient\.isAmbiguousMutation/);

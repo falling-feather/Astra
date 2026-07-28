@@ -73,6 +73,17 @@ const PhysicsSim = {
         this._listeners.push({ el, event, handler, options });
     },
 
+    _recordEvidence(operation, cursor) {
+        window.dispatchEvent(new CustomEvent('astra:learning-domain-command', {
+            detail: {
+                galaxy_key: 'englab',
+                activity_key: 'physics.mechanics',
+                event_type: 'attempted',
+                evidence: { operation, cursor }
+            }
+        }));
+    },
+
     resizeCanvas() {
         if (!this.canvas) return;
         if (window.PhysicsZoom && window.PhysicsZoom.movedCanvas === this.canvas) return;
@@ -102,21 +113,37 @@ const PhysicsSim = {
             this.gravity = +gravSlider.value;
             document.getElementById('gravity-value').textContent = gravSlider.value;
         });
+        this._on(gravSlider, 'change', () => this._recordEvidence('gravity_adjustment', {
+            parameter: 'gravity',
+            band: this.gravity < 650 ? 'low' : this.gravity > 1300 ? 'high' : 'medium'
+        }));
 
         this._on(restSlider, 'input', () => {
             this.restitution = +restSlider.value / 100;
             document.getElementById('restitution-value').textContent = this.restitution.toFixed(2);
         });
+        this._on(restSlider, 'change', () => this._recordEvidence('restitution_adjustment', {
+            parameter: 'restitution',
+            band: this.restitution < .4 ? 'low' : this.restitution > .8 ? 'high' : 'medium'
+        }));
 
         this._on(fricSlider, 'input', () => {
             this.friction = +fricSlider.value / 100;
             document.getElementById('friction-value').textContent = this.friction.toFixed(2);
         });
+        this._on(fricSlider, 'change', () => this._recordEvidence('friction_adjustment', {
+            parameter: 'friction',
+            band: this.friction < .2 ? 'low' : this.friction > .65 ? 'high' : 'medium'
+        }));
 
         this._on(radSlider, 'input', () => {
             this.ballRadius = +radSlider.value;
             document.getElementById('radius-value').textContent = radSlider.value;
         });
+        this._on(radSlider, 'change', () => this._recordEvidence('radius_adjustment', {
+            parameter: 'radius',
+            band: this.ballRadius < 16 ? 'small' : this.ballRadius > 28 ? 'large' : 'medium'
+        }));
 
         this._on(clearBtn, 'click', () => {
             this.resetScene();
@@ -226,6 +253,10 @@ const PhysicsSim = {
             trail: []
         });
 
+        this._recordEvidence('simulation_launch', {
+            speed_band: speed < 240 ? 'low' : speed > 720 ? 'high' : 'medium',
+            radius_band: this.ballRadius < 16 ? 'small' : this.ballRadius > 28 ? 'large' : 'medium'
+        });
         this.updateStats();
     },
 
