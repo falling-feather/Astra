@@ -72,4 +72,34 @@
         right: 16px;
         justify-content: center;
     }
+
+}
+
+/*
+ * mechanics 的评分能力属于实验内容而非视口浮层。运行 owner 将卡片插入
+ * 力学 demo 文档流；真实占位保证页面滚动时不会覆盖教学控件或模块导航。
+ */
+.rating-card--mechanics-inline {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    width: fit-content;
+    margin: 0 auto var(--space-4, 16px);
+}
+
+.rating-star:focus-visible,
+.rating-card__close:focus-visible {
+    outline: 2px solid var(--accent-blue, #5b8dce);
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rating-card,
+    .rating-star,
+    .rating-card__close {
+        transition-duration: 0.01ms !important;
+    }
 }

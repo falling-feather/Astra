@@ -92,7 +92,16 @@ const ExperimentRating = {
             setTimeout(function() { if (card.parentNode) card.remove(); }, 300);
         });
 
-        document.body.appendChild(card);
+        var mechanicsHost = moduleId === 'mechanics'
+            ? document.querySelector('#page-physics.active [data-module="mechanics"].module-active > .demo-section')
+            : null;
+        if (mechanicsHost) {
+            card.classList.add('rating-card--mechanics-inline');
+            var mechanicsLayout = mechanicsHost.querySelector('.demo-layout');
+            mechanicsHost.insertBefore(card, mechanicsLayout || null);
+        } else {
+            document.body.appendChild(card);
+        }
         this._card = card;
 
         // Animate in

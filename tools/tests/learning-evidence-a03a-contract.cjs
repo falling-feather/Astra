@@ -10,6 +10,10 @@ const studentSource = read('pages/student/student.js');
 const publicationSource = read('shared/js/engineering-lab-publication-context.js');
 const moduleSelectorSource = read('shared/js/module-selector.js');
 const physicsCss = read('pages/physics/physics.css');
+const fabCss = read('shared/css/fab-trigger.css');
+const ratingCss = read('shared/css/experiment-rating.css');
+const ratingSource = read('shared/js/experiment-rating.js');
+const moduleSelectorCss = read('shared/css/module-selector.css');
 
 async function settlePromises(rounds = 16) {
   for (let index = 0; index < rounds; index += 1) await Promise.resolve();
@@ -454,8 +458,96 @@ function createPublicationModuleHarness(publication) {
     /\.physics-publication-gate button\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/,
     'the locked-state safe return action needs a 44px target'
   );
+  assert.match(
+    fabCss,
+    /body:has\(#page-physics\.active \[data-module="mechanics"\]\.module-active\) \.fab-scrim\s*\{[^}]*display:\s*none;/,
+    'the mechanics FAB must use a non-modal layout instead of a full-screen hit-test scrim'
+  );
+  assert.match(
+    fabCss,
+    /body:has\(#page-physics\.active \[data-module="mechanics"\]\.module-active\) \.fab-trigger,[\s\S]*?left:\s*calc\(224px \+ env\(safe-area-inset-left, 0px\)\);[\s\S]*?width:\s*44px;[\s\S]*?height:\s*44px;/,
+    'the mobile mechanics FAB trigger needs a safe-area-aware 44px dock position'
+  );
+  assert.match(
+    fabCss,
+    /body:has\(#page-physics\.active \[data-module="mechanics"\]\.module-active\) \.experiment-guide-help-btn,[\s\S]*?min-width:\s*44px;[\s\S]*?min-height:\s*44px;/,
+    'every expanded mechanics FAB action needs a 44px target'
+  );
+  assert.match(
+    fabCss,
+    /\[data-fab-expanded="false"\][\s\S]*?\.experiment-export-btn\s*\{[^}]*transform:\s*translateY\(12px\) scale\(1\) !important;/,
+    'the mobile mechanics dock transition must not shrink an action below its 44px box'
+  );
+  for (const left of [16, 68, 120, 172]) {
+    assert.match(
+      fabCss,
+      new RegExp(`left:\\s*calc\\(${left}px \\+ env\\(safe-area-inset-left, 0px\\)\\);`),
+      `the mechanics FAB dock needs its ${left}px non-overlapping column`
+    );
+  }
+  assert.match(
+    ratingCss,
+    /\.rating-card--mechanics-inline\s*\{[^}]*position:\s*relative;[^}]*top:\s*auto;[^}]*right:\s*auto;[^}]*bottom:\s*auto;[^}]*left:\s*auto;[^}]*z-index:\s*auto;[^}]*width:\s*fit-content;/,
+    'the mechanics rating card must occupy document flow instead of a viewport hit-test layer'
+  );
+  assert.match(
+    ratingSource,
+    /moduleId === 'mechanics'[\s\S]*?#page-physics\.active \[data-module="mechanics"\]\.module-active > \.demo-section[\s\S]*?card\.classList\.add\('rating-card--mechanics-inline'\)[\s\S]*?mechanicsHost\.insertBefore\(card, mechanicsLayout \|\| null\)/,
+    'the rating owner must mount mechanics scoring before its demo layout'
+  );
+  assert.match(
+    ratingSource,
+    /else\s*\{\s*document\.body\.appendChild\(card\);/,
+    'non-mechanics ratings must retain the body fallback'
+  );
+  assert.match(
+    moduleSelectorCss,
+    /\.module-sidebar-toggle\s*\{[^}]*top:\s*76px;[^}]*left:\s*var\(--space-3\);[^}]*z-index:\s*101;[^}]*width:\s*36px;[^}]*height:\s*36px;/,
+    'the reserved rating slot is tied to the current body-level module toggle geometry'
+  );
+  assert.match(moduleSelectorCss, /\.module-sidebar\s*\{[^}]*z-index:\s*100;/);
+  assert.match(moduleSelectorCss, /\.module-sidebar-backdrop\s*\{[^}]*z-index:\s*99;/);
+  const navigationLayerSelector =
+    'body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)';
+  const navigationLayerStart = fabCss.indexOf(navigationLayerSelector);
+  const navigationLayerEnd = fabCss.indexOf('}', navigationLayerStart);
+  assert.ok(navigationLayerStart >= 0 && navigationLayerEnd > navigationLayerStart);
+  const navigationLayerBlock = fabCss.slice(navigationLayerStart, navigationLayerEnd + 1);
+  for (const selector of [
+    '.fab-trigger',
+    '.fab-trigger-halo',
+    '.fab-trace',
+    '.experiment-guide-help-btn',
+    '.favorite-fab',
+    '.back-to-top-fab',
+    '.experiment-export-btn',
+    '.experiment-export-menu',
+  ]) {
+    assert.ok(
+      navigationLayerBlock.includes(selector),
+      `open module navigation must layer above ${selector}`
+    );
+  }
+  assert.match(navigationLayerBlock, /z-index:\s*98 !important;/);
+  const reducedMotionStart = fabCss.indexOf('@media (prefers-reduced-motion: reduce)');
+  const reducedMotionEnd = fabCss.indexOf('}', reducedMotionStart);
+  assert.ok(reducedMotionStart >= 0 && reducedMotionEnd > reducedMotionStart);
+  const reducedMotionBlock = fabCss.slice(reducedMotionStart, reducedMotionEnd + 1);
+  for (const selector of [
+    '.fab-trigger.is-rippling::before',
+    '.experiment-guide-help-btn.is-rippling::before',
+    '.favorite-fab.is-rippling::before',
+    '.back-to-top-fab.is-rippling::before',
+  ]) {
+    assert.ok(
+      reducedMotionBlock.includes(selector),
+      `reduced motion must suppress ${selector}`
+    );
+  }
+  assert.match(reducedMotionBlock, /animation:\s*none !important;/);
+  assert.match(ratingCss, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.rating-card/);
 
-  console.log('learning-evidence-a03a-contract: release states, guarded deep link, and 44px controls ok');
+  console.log('learning-evidence-a03a-contract: release states, guarded deep link, 44px controls, and non-overlap dock ok');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
