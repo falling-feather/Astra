@@ -184,8 +184,8 @@ body[data-fab-expanded="false"] .fab-trace .fab-trace-line { transition: stroke-
     .fab-trigger-halo {
         bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         right: 16px;
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
     }
 }
 
@@ -353,8 +353,8 @@ body[data-fab-collapsing="true"] .experiment-guide-help-btn  { transition-delay:
     .fab-trigger {
         bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         right: 16px;
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
     }
     .fab-trigger i { width: 18px; height: 18px; }
     .fab-trigger .fab-trigger-icon { width: 18px; height: 18px; margin: -9px 0 0 -9px; }
@@ -376,5 +376,132 @@ body[data-fab-collapsing="true"] .experiment-guide-help-btn  { transition-delay:
     body[data-fab-expanded="true"] .experiment-guide-help-btn {
         bottom: calc(198px + env(safe-area-inset-bottom, 0px)) !important;
         right: 18px !important;
+    }
+}
+
+/*
+ * FE-012：力学页的核心控制区必须始终拥有真实命中空间。
+ * 该页将 FAB 作为非模态工具列呈现，因此不渲染全屏 scrim；页面现有的
+ * document click owner 仍负责收起菜单，且不会以透明层截获实验控件。
+ */
+body:has(#page-physics.active [data-module="mechanics"].module-active) .fab-scrim {
+    display: none;
+}
+
+/*
+ * 模块侧栏是当前页面的导航模态层。打开时，全部 mechanics 浮动工具统一
+ * 降到 backdrop(99) 与 sidebar(100) 之下，避免主 FAB 或导出菜单截获
+ * 侧栏首尾项目；toggle(101) 仍由导航 owner 保持可关闭。
+ */
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .fab-trigger,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .fab-trigger-halo,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .fab-trace,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .experiment-guide-help-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .favorite-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .back-to-top-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .experiment-export-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .experiment-export-menu {
+    z-index: 98 !important;
+}
+
+body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-guide-help-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active) .favorite-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active) .back-to-top-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .experiment-guide-help-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .favorite-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .back-to-top-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .experiment-export-btn {
+    transform: translateY(12px) scale(1) !important;
+}
+
+@media (max-width: 768px) {
+    /*
+     * 390px 目标视口中，四个功能 FAB 与主触发器占据左侧连续工具列，
+     * 右侧为力学放大按钮保留独立的 44px 命中区。所有坐标均纳入 safe area。
+     */
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .fab-trigger,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .fab-trigger-halo {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        left: calc(224px + env(safe-area-inset-left, 0px));
+        right: auto;
+        width: 44px;
+        height: 44px;
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-guide-help-btn,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .favorite-fab,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .back-to-top-fab,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-btn {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+        right: auto !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-guide-help-btn {
+        left: calc(16px + env(safe-area-inset-left, 0px));
+    }
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .favorite-fab {
+        left: calc(68px + env(safe-area-inset-left, 0px));
+    }
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .back-to-top-fab {
+        left: calc(120px + env(safe-area-inset-left, 0px));
+    }
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-btn {
+        left: calc(172px + env(safe-area-inset-left, 0px));
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active)
+        [data-fab-expanded="true"] [data-tip]::after,
+    body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="true"]
+        [data-tip]::after {
+        display: none !important;
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-menu {
+        top: calc(120px + env(safe-area-inset-top, 0px));
+        bottom: auto;
+        left: calc(16px + env(safe-area-inset-left, 0px));
+        right: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fab-scrim,
+    .fab-trigger,
+    .fab-trigger.is-rippling::before,
+    .experiment-guide-help-btn.is-rippling::before,
+    .favorite-fab.is-rippling::before,
+    .back-to-top-fab.is-rippling::before,
+    .fab-trigger-halo,
+    .fab-trigger .fab-trigger-icon,
+    body[data-fab-expanded] .experiment-guide-help-btn,
+    body[data-fab-expanded] .favorite-fab,
+    body[data-fab-expanded] .back-to-top-fab,
+    body[data-fab-expanded] .experiment-export-btn {
+        animation: none !important;
+        transition-duration: 0.01ms !important;
+        transition-delay: 0s !important;
     }
 }
