@@ -30,6 +30,15 @@ powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
 
 脚本会自动创建仓库内忽略的 `.venv`、按 `backend/requirements.lock` 安装哈希锁依赖、执行 Alembic 迁移，并把前端与 API 同源启动在 `http://127.0.0.1:9001/`。数据默认保存在 `%LOCALAPPDATA%\Astra\local-preview`；再次执行会识别已经运行的星序站点，停止使用 `Ctrl+C`。
 
+需要保持仓库内不产生 `.venv` 时，可把托管虚拟环境显式放到仓库外；路径允许 Unicode 和空格，但规范化后不得等于仓库根目录或位于其子目录：
+
+```powershell
+$ExternalVenv = Join-Path $env:LOCALAPPDATA "Astra\Python 环境\preview venv"
+powershell -ExecutionPolicy Bypass -File .\astra-local.ps1 -VirtualEnvironmentPath "$ExternalVenv"
+```
+
+该模式拒绝 Windows device namespace；所选目录及其现存祖先、`Scripts/python.exe`、依赖标记和 `Lib/site-packages` 也不得经过 junction、symlink、volume mount 或 cloud reparse point。脚本在所选目录创建/复用 Python 3.12+ 环境，要求该解释器回报的 `sys.prefix` 精确归属所选目录，按同一哈希锁安装依赖，并把锁文件 SHA 标记保存在该环境内，不创建或修改仓库 `.venv`。已有的调用方自管 Python 则使用 `-PythonExecutable "<python.exe>" -SkipDependencyInstall`；两种参数互斥。自管模式不安装依赖、也不写依赖标记，而是在创建数据目录、审计盐、环境配置、迁移、初始化或 Uvicorn 之前，先用解析后的同一可执行文件执行离线哈希锁 dry-run 和 `pip check`，任一步失败即停止。后续 pip、Alembic、bootstrap、演示初始化和前台 Uvicorn 也始终使用选定的精确 Python。
+
 全新数据目录需要首个管理员时，使用交互式入口；密码只在隐藏输入和当前进程内短暂存在，不写入参数、脚本或仓库：
 
 ```powershell

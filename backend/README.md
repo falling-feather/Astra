@@ -4,7 +4,7 @@
 >
 > **当前基线**：FastAPI + SQLAlchemy + Alembic 0050；SQLite 为安全本地默认，MySQL 为发布目标。V7.5.3/0048 已增加稳定课程/活动键、班级发布计划三态、乐观并发和教师学生进度矩阵，V7.5.6/0049 又增加 provider-neutral 题目版本、代码提交、判题尝试/租约、稳定活动发现与授权分页查询。Review `re8`—`re13` 进一步用单事务锁定门禁关闭发布状态与学生写入竞态，显式要求多班级作业历史 `class_id`，为成员、作业提交、学习事件和判题尝试增加 `items/total/limit/offset/next_offset` 分页，并把旧数组端点限制为最多 200 项；超出时返回结构化 `409 legacy_list_limit_exceeded` 和对应分页入口。0050 为过期判题租约的有界恢复查询增加复合索引，每轮最多恢复 100 项；目标发布证据和 SQLite QA 账本均已同步当前 head。默认 runner 仍关闭，API 不执行、shell、动态求值或外呼学生源码。QA-010 已完成 V7.5 终验；当前 review 候选尚待 QA-011。0048—0050 已通过 SQLite 往返/迁移与条件式 MySQL DDL 门禁，真实 MySQL、隔离 runner、staging 和公网 R6 仍未补证，本机结果不得外推。
 >
-> **最后更新**：2026-07-19
+> **最后更新**：2026-07-30
 
 后端当前承担认证与会话、学校/班级/课程、作业/提交/批改、积分与知识状态、内容草稿/审核/发布/回滚、脚本隔离、管理治理、DB-backed 任务和审计链。`server/` 中的 Node/C++ 进程只承担显式白名单静态资源，不是业务 API。
 
@@ -38,6 +38,15 @@ powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
 ```
 
 入口自动准备 `.venv`、安装 `requirements.lock`、迁移 SQLite，并以前台 Uvicorn 进程从 `127.0.0.1:9001` 同源提供静态站和现有 FastAPI。`app.local_preview` 只挂载 `pages/`、`shared/`、`UI/`、`codevis/` 及三个根文件，不公开 `backend/`、`doc/`、`server/`、`.git/` 或仓库根目录。需要首管理员时只在全新/尚无管理员的本机数据库上增加 `-BootstrapAdmin`，凭据经交互式 stdin 进入权威 `/api/admin/bootstrap`。
+
+默认无新增参数时仍创建/复用仓库 `.venv`。若仓库必须保持无虚拟环境，可使用仓库外托管目录：
+
+```powershell
+$ExternalVenv = Join-Path $env:LOCALAPPDATA "Astra\Python 环境\preview venv"
+powershell -ExecutionPolicy Bypass -File .\astra-local.ps1 -VirtualEnvironmentPath "$ExternalVenv"
+```
+
+脚本先规范化路径并拒绝仓库根目录及其任何子目录、Windows device namespace，以及所选目录 / 现存祖先 / `Scripts/python.exe` / 依赖标记 / `Lib/site-packages` 上的 junction、symlink、volume mount 或 cloud reparse point。随后才在所选目录创建/复用 Python 3.12+，核对该解释器的 `sys.prefix` 精确等于所选 venv，从 `backend/requirements.lock` 使用 `--require-hashes` 安装，并把 `.astra-requirements.sha256` 留在该外置环境内；仓库 `.venv` 不会被创建或修改。调用方已经管理好解释器和精确依赖时，可改用 `-PythonExecutable "<python.exe>" -SkipDependencyInstall`。它与 `-VirtualEnvironmentPath` 互斥，只接受解析为 PowerShell `Application` 的 Python 3.12+；脚本不安装、不写标记，而是在数据目录、审计盐、环境变量、Alembic、bootstrap、演示初始化和 Uvicorn 之前依次执行离线哈希锁 dry-run 与 `pip check`。验证失败时以上副作用均不发生。路径可含 Unicode 和空格，所有 pip、Alembic、初始化与前台 Uvicorn 子命令都通过最终解析的同一 Python 执行。
 
 三角色本机证明不得再次调用已关闭的运行时 bootstrap。先由 `astra-local.ps1 -BootstrapAdmin` 预置临时管理员，再仅在证明 Node 进程中成对设置 `ASTRA_QA_ADMIN_USERNAME` 与 `ASTRA_QA_ADMIN_PASSWORD`；脚本只消费该账号登录，不把密码写入报告。缺少任一变量时立即失败，目标 staging 仍使用独立的 `ASTRA_ADMIN_BOOTSTRAP_TOKEN` 语义，二者不可混用。
 

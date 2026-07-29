@@ -11,11 +11,14 @@ const bootstrap = read('backend/scripts/local_preview_bootstrap_admin.py');
 const apiClient = read('shared/js/api-client.js');
 
 assert.match(launcher, /\[int\]\$Port = 9001/);
-assert.match(launcher, /\.venv/);
-assert.match(launcher, /existing \.venv does not use Python 3\.12\+/);
-assert.match(launcher, /--require-hashes -r \$RequirementsLock/);
-assert.match(launcher, /-m alembic -c alembic\.ini upgrade head/);
-assert.match(launcher, /-m uvicorn app\.local_preview:app --host 127\.0\.0\.1 --port \$Port/);
+assert.match(launcher, /\[string\]\$PythonExecutable = ""/);
+assert.match(launcher, /\[string\]\$VirtualEnvironmentPath = ""/);
+assert.match(launcher, /\$DefaultVirtualEnvironment = Join-Path \$RepoRoot "\.venv"/);
+assert.match(launcher, /Join-Path \$ManagedVirtualEnvironment "Scripts\\python\.exe"/);
+assert.match(launcher, /selected virtual environment does not use Python 3\.12\+/);
+assert.match(launcher, /& \$RuntimePython -m pip install --disable-pip-version-check --require-hashes -r \$RequirementsLock/);
+assert.match(launcher, /& \$RuntimePython -m alembic -c alembic\.ini upgrade head/);
+assert.match(launcher, /& \$RuntimePython -m uvicorn app\.local_preview:app --host 127\.0\.0\.1 --port \$Port/);
 assert.match(launcher, /ASTRA_DATABASE_URL = "sqlite\+pysqlite:\/\/\/\$databaseUrlPath"/);
 assert.match(launcher, /ASTRA_ADMIN_BOOTSTRAP_ENABLED = "false"/);
 assert.match(launcher, /ASTRA_ADMIN_BOOTSTRAP_TOKEN = ""/);
@@ -30,7 +33,7 @@ for (const disabledFlag of [
     assert.match(launcher, new RegExp(`${disabledFlag} = "false"`));
 }
 assert.match(launcher, /\[switch\]\$BootstrapAdmin/);
-assert.match(launcher, /\$VirtualPython -X utf8 -m scripts\.local_preview_bootstrap_admin/);
+assert.match(launcher, /\$RuntimePython -X utf8 -m scripts\.local_preview_bootstrap_admin/);
 assert.match(launcher, /\$OutputEncoding = \[Text\.UTF8Encoding\]::new\(\$false\)/);
 assert.match(launcher, /if \(\$BootstrapAdmin\)[\s\S]*Stop it with Ctrl\+C[\s\S]*-BootstrapAdmin/);
 assert.match(launcher, /Invoke-WebRequest[\s\S]*<title>\[\^<\]\*Astra/);
@@ -44,6 +47,9 @@ assert.match(launcher, /ReleaseMutex\(\)/);
 assert.match(launcher, /ASTRA_LOCAL_PREVIEW_INSTANCE_ID = \$instanceId/);
 assert.doesNotMatch(launcher, /deploy\.ps1|ASTRA_ENVIRONMENT\s*=\s*"(?:staging|production)"/);
 assert.doesNotMatch(launcher, /password\s*=\s*"[^"$]+"/i);
+assert.doesNotMatch(launcher, /\b(?:Start-Process|Invoke-Expression|mklink|uvicorn\.exe)\b/i);
+assert.doesNotMatch(launcher, /New-Item[\s\S]{0,120}-ItemType\s+(?:Junction|SymbolicLink)/i);
+assert.doesNotMatch(launcher, /\bCopy-Item\b/i);
 
 for (const directory of ['pages', 'shared', 'UI', 'codevis']) {
     assert.match(preview, new RegExp(`\\("/${directory}", "${directory}"\\)`));
