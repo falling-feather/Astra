@@ -104,6 +104,28 @@ def _login(client, username: str, role: str) -> dict:
     return {"id": me.json()["id"], "token": token, "username": username, "password": password}
 
 
+def _bootstrap_admin(client, username: str) -> dict:
+    password = "Learning-evidence-test-password-123"
+    created = client.post(
+        "/api/admin/bootstrap",
+        json={
+            "username": username,
+            "display_name": username,
+            "password": password,
+        },
+    )
+    assert created.status_code == 201, created.json()
+    logged_in = client.post(
+        "/api/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert logged_in.status_code == 200, logged_in.json()
+    token = logged_in.json()["access_token"]
+    me = client.get("/api/users/me", headers=_auth(token))
+    assert me.status_code == 200, me.json()
+    return {"id": me.json()["id"], "token": token}
+
+
 def _login_again(client, identity: dict) -> str:
     logged_in = client.post(
         "/api/auth/login",
@@ -5065,3 +5087,417 @@ def test_0051_mysql_schema_when_explicit_release_drill_is_configured(monkeypatch
             get_settings.cache_clear()
     finally:
         engine.dispose()
+
+
+def test_teacher_learning_evidence_discovery_is_scoped_bounded_and_correctable(client):
+    admin = _bootstrap_admin(client, "le_discovery_admin")
+    scope = _learning_scope(client, "discovery")
+    unjoined_student = _login(client, "le_discovery_unjoined", "student")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    now = datetime.now(UTC) - timedelta(seconds=10)
+    direct_source = (
+        "def solve_student_private(values):\n"
+        "    total = sum(values)\n"
+        "    return {'answer': total, 'steps': values}\n"
+    )
+
+    event_commands = [
+        _event_payload(
+            scope,
+            client_event_id="discovery:started:0001",
+            event_type="started",
+            occurred_at=now,
+        ),
+        _event_payload(
+            scope,
+            client_event_id="discovery:predicted:0001",
+            event_type="predicted",
+            occurred_at=now + timedelta(seconds=1),
+            evidence={
+                "prediction": direct_source,
+                "cursor": {"token": "cursor-must-not-leak"},
+            },
+        ),
+        _event_payload(
+            scope,
+            client_event_id="discovery:attempted:0001",
+            event_type="attempted",
+            occurred_at=now + timedelta(seconds=1),
+            evidence={"operation": "compare-momentum", "reported_correct": False},
+        ),
+        _event_payload(
+            scope,
+            client_event_id="discovery:explained:0001",
+            event_type="explained",
+            occurred_at=now + timedelta(seconds=2),
+            unit="unit_two",
+            evidence={
+                "artifact": {
+                    "arbitrary_raw": "student-private-value",
+                    "explanation": "x" * 400,
+                    "access_token": "leaked-token",
+                    "kind": "explanation",
+                    "note": "Bearer hidden-credential",
+                    "ref": "note-1",
+                    "source_code": "print('must not leak')",
+                    **{f"fact_{index:02d}": index for index in range(14)},
+                },
+                "cursor": {"page": 2},
+            },
+        ),
+    ]
+    receipts = []
+    for payload in event_commands:
+        response = client.post(
+            "/api/learning-evidence/events",
+            headers=_auth(scope["student"]["token"]),
+            json=payload,
+        )
+        assert response.status_code == 201, response.json()
+        receipts.append(response.json())
+    other_subject_event = client.post(
+        "/api/learning-evidence/events",
+        headers=_auth(scope["other_student"]["token"]),
+        json=_event_payload(
+            scope,
+            client_event_id="discovery:other-subject:0001",
+            event_type="started",
+            occurred_at=now + timedelta(seconds=3),
+        ),
+    )
+    assert other_subject_event.status_code == 201, other_subject_event.json()
+
+    path = (
+        f"/api/learning-evidence/classes/{scope['class_id']}/courses/"
+        f"{scope['course_id']}/events"
+    )
+    first_page = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": scope["student"]["id"], "limit": 2, "offset": 0},
+    )
+    assert first_page.status_code == 200, first_page.json()
+    assert first_page.json()["total"] == 4
+    assert first_page.json()["limit"] == 2
+    assert first_page.json()["offset"] == 0
+    assert first_page.json()["next_offset"] == 2
+    assert [item["event_type"] for item in first_page.json()["items"]] == [
+        "explained",
+        "attempted",
+    ]
+
+    second_page = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": scope["student"]["id"], "limit": 2, "offset": 2},
+    )
+    assert second_page.status_code == 200, second_page.json()
+    assert second_page.json()["next_offset"] is None
+    assert [item["event_type"] for item in second_page.json()["items"]] == [
+        "predicted",
+        "started",
+    ]
+    empty_page = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": scope["student"]["id"], "limit": 2, "offset": 8},
+    )
+    assert empty_page.status_code == 200, empty_page.json()
+    assert empty_page.json()["items"] == []
+    assert empty_page.json()["next_offset"] is None
+
+    explained_item = first_page.json()["items"][0]
+    assert explained_item["producer_type"] == "learner"
+    assert explained_item["corrects_event_id"] is None
+    assert explained_item["corrected_by_event_id"] is None
+    summary = explained_item["evidence_summary"]
+    assert summary["truncated"] is True
+    assert len(summary["facts"]) <= 12
+    assert set(summary["facts"]) == {
+        "artifact.value_type",
+        "artifact.value_size",
+        "artifact.kind.value_type",
+        "artifact.kind.value_size",
+        "artifact.ref.value_type",
+        "artifact.ref.value_size",
+    }
+    assert summary["facts"]["artifact.value_type"] == "object"
+    assert summary["facts"]["artifact.kind.value_type"] == "text"
+    assert summary["facts"]["artifact.kind.value_size"] == len("explanation")
+    assert summary["facts"]["artifact.ref.value_type"] == "text"
+    assert summary["facts"]["artifact.ref.value_size"] == len("note-1")
+    assert all(
+        not isinstance(value, str) or len(value) <= 240
+        for value in summary["facts"].values()
+    )
+    serialized_page = json.dumps(
+        {"first_page": first_page.json(), "second_page": second_page.json()},
+        ensure_ascii=False,
+    ).lower()
+    for forbidden in (
+        "client_event_id",
+        "request_sha256",
+        "evidence_json",
+        "cursor-must-not-leak",
+        "leaked-token",
+        "hidden-credential",
+        "source_code",
+        "print('must not leak')",
+        "student-private-value",
+        "solve_student_private",
+        "compare-momentum",
+        "explanation",
+        "note-1",
+    ):
+        assert forbidden not in serialized_page
+
+    attempted = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={
+            "subject_user_id": scope["student"]["id"],
+            "event_type": "attempted",
+            "limit": 10,
+            "offset": 0,
+        },
+    )
+    assert attempted.status_code == 200, attempted.json()
+    assert attempted.json()["total"] == 1
+    attempted_item = attempted.json()["items"][0]
+    assert attempted_item["evidence_summary"] == {
+        "facts": {
+            "operation.value_type": "text",
+            "operation.value_size": len("compare-momentum"),
+            "reported_correct": False,
+        },
+        "truncated": True,
+    }
+    predicted_item = next(
+        item for item in second_page.json()["items"]
+        if item["event_type"] == "predicted"
+    )
+    assert predicted_item["evidence_summary"] == {
+        "facts": {
+            "prediction.value_type": "text",
+            "prediction.value_size": len(direct_source.strip()),
+        },
+        "truncated": True,
+    }
+    activity_filtered = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={
+            "subject_user_id": scope["student"]["id"],
+            "activity_key": scope["unit_two"]["activity_key"],
+        },
+    )
+    assert activity_filtered.status_code == 200, activity_filtered.json()
+    assert [item["event_type"] for item in activity_filtered.json()["items"]] == [
+        "explained"
+    ]
+    no_matches = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={
+            "subject_user_id": scope["student"]["id"],
+            "event_type": "corrected",
+        },
+    )
+    assert no_matches.status_code == 200, no_matches.json()
+    assert no_matches.json()["total"] == 0
+    assert no_matches.json()["items"] == []
+
+    admin_page = client.get(
+        path,
+        headers=_auth(admin["token"]),
+        params={"subject_user_id": scope["student"]["id"]},
+    )
+    assert admin_page.status_code == 200, admin_page.json()
+    assert admin_page.json()["total"] == 4
+    for token in (
+        scope["student"]["token"],
+        scope["outsider_teacher"]["token"],
+    ):
+        forbidden = client.get(
+            path,
+            headers=_auth(token),
+            params={"subject_user_id": scope["student"]["id"]},
+        )
+        assert forbidden.status_code == 403, forbidden.json()
+    missing_subject = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": unjoined_student["id"]},
+    )
+    assert missing_subject.status_code == 404, missing_subject.json()
+
+    unattached_class = client.post(
+        "/api/classes",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "school_id": scope["school_id"],
+            "name": "Learning Evidence Unattached Class",
+        },
+    )
+    assert unattached_class.status_code == 201, unattached_class.json()
+    unattached = client.get(
+        (
+            f"/api/learning-evidence/classes/{unattached_class.json()['id']}/"
+            f"courses/{scope['course_id']}/events"
+        ),
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": scope["student"]["id"]},
+    )
+    assert unattached.status_code == 403, unattached.json()
+    other_school = client.post(
+        "/api/schools",
+        headers=_auth(scope["teacher"]["token"]),
+        json={"name": "Learning Evidence Cross Scope School"},
+    )
+    assert other_school.status_code == 201, other_school.json()
+    cross_class = client.post(
+        "/api/classes",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "school_id": other_school.json()["id"],
+            "name": "Learning Evidence Cross Scope Class",
+        },
+    )
+    assert cross_class.status_code == 201, cross_class.json()
+    cross_scope = client.get(
+        (
+            f"/api/learning-evidence/classes/{cross_class.json()['id']}/"
+            f"courses/{scope['course_id']}/events"
+        ),
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": scope["student"]["id"]},
+    )
+    assert cross_scope.status_code == 403, cross_scope.json()
+    for invalid_filter in (
+        {"event_type": "administrative_correction"},
+        {"activity_key": "invalid activity"},
+        {"limit": 101},
+        {"offset": -1},
+        {"offset": 100_001},
+    ):
+        invalid_query = client.get(
+            path,
+            headers=_auth(scope["teacher"]["token"]),
+            params={
+                "subject_user_id": scope["student"]["id"],
+                **invalid_filter,
+            },
+        )
+        assert invalid_query.status_code == 422, invalid_query.json()
+
+    correction = client.post(
+        (
+            f"/api/learning-evidence/events/"
+            f"{attempted_item['event_id']}/corrections"
+        ),
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "client_event_id": "discovery:correction:0001",
+            "reason": "The reported comparison was not authoritative.",
+            "occurred_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    assert correction.status_code == 201, correction.json()
+    corrected_page = client.get(
+        path,
+        headers=_auth(scope["teacher"]["token"]),
+        params={
+            "subject_user_id": scope["student"]["id"],
+            "event_type": "attempted",
+        },
+    )
+    assert corrected_page.status_code == 200, corrected_page.json()
+    assert (
+        corrected_page.json()["items"][0]["corrected_by_event_id"]
+        == correction.json()["event_id"]
+    )
+    with get_session_factory(get_settings().database_url)() as db:
+        stored_target = db.get(LearningEvidenceEvent, attempted_item["event_id"])
+        stored_correction = db.get(
+            LearningEvidenceEvent,
+            correction.json()["event_id"],
+        )
+        assert stored_target is not None
+        assert stored_correction is not None
+        assert stored_correction.corrects_event_id == stored_target.id
+        assert stored_correction.producer_type == "teacher_correction"
+
+
+def test_teacher_evidence_summary_never_echoes_user_controlled_strings():
+    direct_source = (
+        "def solve_student_private(values):\n"
+        "    return {'private': values}\n"
+    )
+    jwt = (
+        "eyJhbGciOiJIUzI1NiJ9."
+        "eyJzdWIiOiJzdHVkZW50LXByaXZhdGUifQ."
+        "student-private-signature"
+    )
+    stripe_secret = "sk_live_51_secret"
+    api_key = "api-key-live-private-123456"
+    pem = "-----BEGIN PRIVATE KEY-----\nstudent-private-pem\n-----END PRIVATE KEY-----"
+    summaries = [
+        learning_evidence_service._teacher_evidence_summary(
+            LearningEvidenceEvent(
+                event_type="predicted",
+                evidence_json={"prediction": direct_source},
+            )
+        ),
+        learning_evidence_service._teacher_evidence_summary(
+            LearningEvidenceEvent(
+                event_type="predicted",
+                evidence_json={
+                    "prediction": {
+                        "choice": jwt,
+                        "kind": stripe_secret,
+                        "option_id": api_key,
+                        "unit": pem,
+                    }
+                },
+            )
+        ),
+        learning_evidence_service._teacher_evidence_summary(
+            LearningEvidenceEvent(
+                event_type="explained",
+                evidence_json={
+                    "artifact": {
+                        "ref": stripe_secret,
+                        "kind": jwt,
+                        "format": api_key,
+                        "version": pem,
+                        "arbitrary_raw": "student-private-value",
+                    }
+                },
+            )
+        ),
+        learning_evidence_service._teacher_evidence_summary(
+            LearningEvidenceEvent(
+                event_type="completed",
+                evidence_json={"source_ref": stripe_secret},
+            )
+        ),
+    ]
+
+    assert all(summary["truncated"] is True for summary in summaries)
+    assert summaries[1]["facts"]["prediction.choice.value_type"] == "text"
+    assert summaries[2]["facts"]["artifact.ref.value_type"] == "text"
+    assert summaries[2]["facts"]["artifact.kind.value_type"] == "text"
+    assert summaries[3]["facts"]["source_ref.value_type"] == "text"
+    serialized = json.dumps(summaries, ensure_ascii=False).lower()
+    for forbidden_fragment in (
+        "solve_student_private",
+        "sk_live_",
+        "eyjhb",
+        "student-private-signature",
+        "api-key-live",
+        "begin private key",
+        "student-private-pem",
+        "student-private-value",
+    ):
+        assert forbidden_fragment not in serialized

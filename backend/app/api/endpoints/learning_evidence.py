@@ -9,6 +9,7 @@ from app.schemas.learning_evidence import (
     CompletionRuleActivationStateRead,
     CompletionRuleCreate,
     CompletionRuleRead,
+    DiscoverableEvidenceEventType,
     LearnerEvidenceBatchCreate,
     LearnerEvidenceEventCreate,
     LearningEvidenceBatchRead,
@@ -17,6 +18,7 @@ from app.schemas.learning_evidence import (
     StudentLearningRecoveryRead,
     TeacherEvidenceCorrectionCreate,
     TeacherLearningAggregateRead,
+    TeacherLearningEvidencePageRead,
 )
 from app.services import learning_evidence as learning_evidence_service
 
@@ -124,6 +126,40 @@ def append_learner_event_batch(
         db,
         actor=current_user,
         payload=payload,
+    )
+
+
+@router.get(
+    "/classes/{class_id}/courses/{course_id}/events",
+    response_model=TeacherLearningEvidencePageRead,
+)
+def teacher_learning_evidence_events(
+    class_id: int,
+    course_id: int,
+    subject_user_id: int = Query(ge=1),
+    activity_key: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=120,
+        pattern=r"^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$",
+    ),
+    event_type: DiscoverableEvidenceEventType | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100_000),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TeacherLearningEvidencePageRead:
+    return _service_call(
+        learning_evidence_service.teacher_learning_evidence_events,
+        db,
+        actor=current_user,
+        class_id=class_id,
+        course_id=course_id,
+        subject_user_id=subject_user_id,
+        activity_key=activity_key,
+        event_type=event_type,
+        limit=limit,
+        offset=offset,
     )
 
 

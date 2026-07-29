@@ -4,14 +4,15 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 import hashlib
 import json
+import math
 from threading import RLock
 from typing import Any
 
 from fastapi import HTTPException, Request
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.learning_evidence_contract import (
     MAX_RULE_WITNESS_EVENTS,
@@ -89,6 +90,52 @@ from app.services.learning_evidence_projection import (
 MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
 _SQLITE_EVENT_WRITE_LOCK = RLock()
 _SQLITE_RULE_ACTIVATION_LOCK = _SQLITE_EVENT_WRITE_LOCK
+_DISCOVERABLE_PRODUCER_TYPES = ("learner", "trusted_assessment")
+_DISCOVERABLE_EVENT_TYPES = (
+    "started",
+    "predicted",
+    "attempted",
+    "corrected",
+    "explained",
+    "completed",
+    "transferred",
+)
+_SUMMARY_LEAF_POLICIES_BY_EVENT_TYPE = {
+    "started": {},
+    "predicted": {
+        ("prediction", "choice"): "text_metadata",
+        ("prediction", "kind"): "text_metadata",
+        ("prediction", "option_id"): "text_metadata",
+        ("prediction", "unit"): "text_metadata",
+        ("prediction", "value"): "number",
+    },
+    "attempted": {
+        ("operation",): "text_metadata",
+        ("reported_correct",): "bool_or_none",
+    },
+    "corrected": {
+        ("correction", "kind"): "text_metadata",
+        ("correction", "reason_code"): "text_metadata",
+        ("correction", "revision_kind"): "text_metadata",
+    },
+    "explained": {
+        ("artifact", "format"): "text_metadata",
+        ("artifact", "kind"): "text_metadata",
+        ("artifact", "ref"): "text_metadata",
+        ("artifact", "status"): "text_metadata",
+        ("artifact", "version"): "text_metadata",
+    },
+    "completed": {("source_ref",): "text_metadata"},
+    "transferred": {("source_ref",): "text_metadata"},
+}
+_SUMMARY_REDACTED_ROOT_BY_EVENT_TYPE = {
+    "predicted": "prediction",
+    "corrected": "correction",
+    "explained": "artifact",
+}
+_MAX_SUMMARY_FACTS = 12
+_MAX_SUMMARY_NUMBER_ABS = 1_000_000_000_000
+_SUMMARY_MISSING = object()
 
 
 class LearningEvidenceError(Exception):
@@ -1238,6 +1285,121 @@ def teacher_learning_aggregate(
     }
 
 
+def teacher_learning_evidence_events(
+    db: Session,
+    *,
+    actor: User,
+    class_id: int,
+    course_id: int,
+    subject_user_id: int,
+    activity_key: str | None,
+    event_type: str | None,
+    limit: int,
+    offset: int,
+) -> dict:
+    class_group = get_class(db, class_id)
+    require_class_teacher_or_admin(
+        db,
+        actor,
+        class_group,
+        detail="Learning evidence discovery requires class teacher scope",
+    )
+    course = get_course(db, course_id)
+    if class_group.school_id != course.school_id:
+        _fail(403, "scope_mismatch", "Class is outside course scope")
+    if class_group.status != "active":
+        _fail(409, "class_inactive", "Class is not active")
+    if not course_attached_to_class(db, course.id, class_group.id):
+        _fail(403, "course_class_missing", "Course is not attached to this class")
+    subject_exists = db.scalar(
+        select(User.id)
+        .join(ClassMembership, ClassMembership.user_id == User.id)
+        .where(
+            User.id == subject_user_id,
+            User.role == "student",
+            User.status == "active",
+            ClassMembership.class_id == class_group.id,
+            ClassMembership.role == "student",
+            ClassMembership.status == "active",
+        )
+    )
+    if subject_exists is None:
+        _fail(404, "subject_not_found", "Active learner subject not found in class")
+
+    conditions = [
+        LearningEvidenceEvent.class_id == class_group.id,
+        LearningEvidenceEvent.course_id == course.id,
+        LearningEvidenceEvent.subject_user_id == subject_user_id,
+        LearningEvidenceEvent.producer_type.in_(_DISCOVERABLE_PRODUCER_TYPES),
+        LearningEvidenceEvent.event_type.in_(_DISCOVERABLE_EVENT_TYPES),
+        LearningEvidenceEvent.corrects_event_id.is_(None),
+    ]
+    if activity_key is not None:
+        conditions.append(LearningEvidenceEvent.activity_key == activity_key)
+    if event_type is not None:
+        conditions.append(LearningEvidenceEvent.event_type == event_type)
+
+    total = int(
+        db.scalar(
+            select(func.count())
+            .select_from(LearningEvidenceEvent)
+            .where(*conditions)
+        )
+        or 0
+    )
+    correction = aliased(LearningEvidenceEvent)
+    rows = list(
+        db.execute(
+            select(
+                LearningEvidenceEvent,
+                correction.id.label("corrected_by_event_id"),
+            )
+            .outerjoin(
+                correction,
+                and_(
+                    correction.corrects_event_id == LearningEvidenceEvent.id,
+                    correction.producer_type == "teacher_correction",
+                    correction.event_type == "administrative_correction",
+                ),
+            )
+            .where(*conditions)
+            .order_by(
+                LearningEvidenceEvent.occurred_at.desc(),
+                LearningEvidenceEvent.id.desc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        ).all()
+    )
+    items = [
+        {
+            "event_id": event.id,
+            "subject_user_id": event.subject_user_id,
+            "course_unit_id": event.course_unit_id,
+            "assignment_id": event.assignment_id,
+            "activity_key": event.activity_key,
+            "event_type": event.event_type,
+            "producer_type": event.producer_type,
+            "occurred_at": _as_utc(event.occurred_at),
+            "evidence_summary": _teacher_evidence_summary(event),
+            "corrects_event_id": event.corrects_event_id,
+            "corrected_by_event_id": corrected_by_event_id,
+        }
+        for event, corrected_by_event_id in rows
+    ]
+    next_offset = offset + len(items)
+    return {
+        "class_id": class_group.id,
+        "course_id": course.id,
+        "subject_user_id": subject_user_id,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "next_offset": next_offset if next_offset < total else None,
+        "items": items,
+    }
+
+
 def rebuild_learning_projections(
     db: Session,
     *,
@@ -1817,6 +1979,113 @@ def _receipt(event: LearningEvidenceEvent, outcome: str) -> dict:
         "outcome": outcome,
         "received_at": _as_utc(event.received_at),
     }
+
+
+def _teacher_evidence_summary(event: LearningEvidenceEvent) -> dict:
+    evidence = dict(event.evidence_json or {})
+    policies = _SUMMARY_LEAF_POLICIES_BY_EVENT_TYPE.get(event.event_type, {})
+    observed_paths = _summary_leaf_paths(evidence)
+    allowed_paths = set(policies)
+    facts: dict[str, Any] = {}
+    truncated = any(path not in allowed_paths for path in observed_paths)
+
+    def append_fact(key: str, value: Any) -> None:
+        nonlocal truncated
+        if len(facts) >= _MAX_SUMMARY_FACTS:
+            truncated = True
+            return
+        facts[key] = value
+
+    redacted_root = _SUMMARY_REDACTED_ROOT_BY_EVENT_TYPE.get(event.event_type)
+    if redacted_root in evidence:
+        redacted_value = evidence[redacted_root]
+        value_type, value_size = _summary_structure_metadata(redacted_value)
+        append_fact(f"{redacted_root}.value_type", value_type)
+        append_fact(f"{redacted_root}.value_size", value_size)
+
+    for path, policy in policies.items():
+        value = _summary_value_at_path(evidence, path)
+        if value is _SUMMARY_MISSING:
+            continue
+        if policy == "text_metadata":
+            if not isinstance(value, str):
+                truncated = True
+                continue
+            value_type, value_size = _summary_structure_metadata(value)
+            fact_key = ".".join(path)
+            append_fact(f"{fact_key}.value_type", value_type)
+            append_fact(f"{fact_key}.value_size", value_size)
+            truncated = True
+            continue
+        accepted, projected = _project_summary_scalar(value, policy)
+        if not accepted:
+            truncated = True
+            continue
+        append_fact(".".join(path), projected)
+    return {"facts": facts, "truncated": truncated}
+
+
+def _summary_leaf_paths(
+    value: Any,
+    path: tuple[str, ...] = (),
+) -> set[tuple[str, ...]]:
+    if isinstance(value, dict):
+        if not value:
+            return {path} if path else set()
+        paths: set[tuple[str, ...]] = set()
+        for key, item in value.items():
+            paths.update(_summary_leaf_paths(item, (*path, str(key))))
+        return paths
+    if isinstance(value, list):
+        if not value:
+            return {path}
+        paths = set()
+        for index, item in enumerate(value):
+            paths.update(_summary_leaf_paths(item, (*path, str(index))))
+        return paths
+    return {path}
+
+
+def _summary_value_at_path(
+    evidence: dict[str, Any],
+    path: tuple[str, ...],
+) -> Any:
+    value: Any = evidence
+    for component in path:
+        if not isinstance(value, dict) or component not in value:
+            return _SUMMARY_MISSING
+        value = value[component]
+    return value
+
+
+def _project_summary_scalar(value: Any, policy: str) -> tuple[bool, Any]:
+    if policy == "bool_or_none":
+        return (
+            (True, value)
+            if value is None or isinstance(value, bool)
+            else (False, None)
+        )
+    if policy == "number":
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False, None
+        if isinstance(value, float) and not math.isfinite(value):
+            return False, None
+        return (
+            (True, value)
+            if abs(value) <= _MAX_SUMMARY_NUMBER_ABS
+            else (False, None)
+        )
+    raise RuntimeError(f"Unsupported evidence summary policy: {policy}")
+
+
+def _summary_structure_metadata(value: Any) -> tuple[str, int]:
+    if isinstance(value, dict):
+        return "object", len(value)
+    if isinstance(value, list):
+        return "array", len(value)
+    if isinstance(value, str):
+        return "text", len(value)
+    return "scalar", 1
 
 
 def _rule_read(rule: LearningCompletionRule) -> dict:

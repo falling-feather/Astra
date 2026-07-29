@@ -20,8 +20,18 @@ from app.core.learning_evidence_contract import (
 
 LearnerEvidenceEventType = Literal["started", "predicted", "attempted", "corrected", "explained"]
 DerivedEvidenceEventType = Literal["completed", "transferred"]
+DiscoverableEvidenceEventType = Literal[
+    "started",
+    "predicted",
+    "attempted",
+    "corrected",
+    "explained",
+    "completed",
+    "transferred",
+]
 LearningProjectionStatus = Literal["not_started", "in_progress", "completed", "transferred"]
 LearningWriteOutcome = Literal["accepted", "duplicate", "rejected", "conflict"]
+EvidenceSummaryScalar = str | int | float | bool | None
 
 _ACTIVITY_KEY_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*")
 _CLIENT_EVENT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}")
@@ -427,6 +437,36 @@ class TeacherEvidenceCorrectionCreate(StrictLearningEvidenceWriteModel):
         if len(normalized) > 1000:
             raise ValueError("reason must contain at most 1000 characters")
         return _unicode_scalar_text(normalized, field_name="reason")
+
+
+class LearningEvidenceSummaryRead(BaseModel):
+    facts: dict[str, EvidenceSummaryScalar] = Field(default_factory=dict, max_length=12)
+    truncated: bool = False
+
+
+class TeacherLearningEvidenceEventRead(BaseModel):
+    event_id: int
+    subject_user_id: int
+    course_unit_id: int
+    assignment_id: int | None = None
+    activity_key: str
+    event_type: DiscoverableEvidenceEventType
+    producer_type: Literal["learner", "trusted_assessment"]
+    occurred_at: datetime
+    evidence_summary: LearningEvidenceSummaryRead
+    corrects_event_id: int | None = None
+    corrected_by_event_id: int | None = None
+
+
+class TeacherLearningEvidencePageRead(BaseModel):
+    class_id: int
+    course_id: int
+    subject_user_id: int
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0, le=100_000)
+    next_offset: int | None = Field(default=None, ge=0)
+    items: list[TeacherLearningEvidenceEventRead]
 
 
 class LearningActivityProjectionRead(BaseModel):
