@@ -9,6 +9,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const studentSource = read('pages/student/student.js');
 const publicationSource = read('shared/js/engineering-lab-publication-context.js');
 const moduleSelectorSource = read('shared/js/module-selector.js');
+const physicsSource = read('pages/physics/physics.js');
+const physicsZoomSource = read('pages/physics/physics-zoom.js');
 const physicsCss = read('pages/physics/physics.css');
 const fabCss = read('shared/css/fab-trigger.css');
 const ratingCss = read('shared/css/experiment-rating.css');
@@ -173,7 +175,297 @@ function createPublicationModuleHarness(publication) {
   };
 }
 
+function runMechanicsZoomRestoreContract() {
+  function createEventTarget(properties = {}) {
+    const listeners = new Map();
+    return Object.assign(properties, {
+      listeners,
+      addEventListener(type, handler) {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type).add(handler);
+      },
+      removeEventListener(type, handler) {
+        listeners.get(type)?.delete(handler);
+      },
+      dispatchEvent(event) {
+        for (const handler of listeners.get(event.type) || []) handler(event);
+        return true;
+      }
+    });
+  }
+
+  let parentWidth = 863;
+  const parent = {
+    getBoundingClientRect: () => ({ width: parentWidth })
+  };
+  const context2d = {
+    setTransform() {}
+  };
+  const canvas = createEventTarget({
+    id: 'physics-canvas',
+    parentElement: parent,
+    style: {},
+    width: 0,
+    height: 0,
+    getContext: () => context2d
+  });
+  const windowTarget = createEventTarget({
+    devicePixelRatio: 2,
+    PhysicsZoom: { movedCanvas: null },
+    dispatchEvent() {}
+  });
+  const resizeObservers = [];
+  class FakeResizeObserver {
+    constructor(callback) {
+      this.callback = callback;
+      this.disconnected = false;
+      resizeObservers.push(this);
+    }
+    observe(target) {
+      this.target = target;
+    }
+    disconnect() {
+      this.disconnected = true;
+    }
+  }
+  const physicsContext = {
+    window: windowTarget,
+    document: {
+      getElementById: (id) => id === 'physics-canvas' ? canvas : null
+    },
+    ResizeObserver: FakeResizeObserver,
+    cancelAnimationFrame() {},
+    requestAnimationFrame() {},
+    CustomEvent: class {
+      constructor(type, options) {
+        this.type = type;
+        this.detail = options?.detail;
+      }
+    },
+    console
+  };
+  vm.createContext(physicsContext);
+  vm.runInContext(physicsSource, physicsContext, { filename: 'pages/physics/physics.js' });
+  const physics = windowTarget.PhysicsSim;
+  physics.init();
+  assert.equal(canvas.style.width, '863px');
+  assert.equal(canvas.width, 1726, 'the mechanics bitmap must include DPR at its initial width');
+  assert.equal(resizeObservers[0].target, parent);
+
+  windowTarget.PhysicsZoom.movedCanvas = canvas;
+  parentWidth = 318;
+  for (const handler of windowTarget.listeners.get('resize') || []) handler({ type: 'resize' });
+  assert.equal(canvas.width, 1726, 'viewport resize must not rewrite a canvas while zoom owns it');
+
+  windowTarget.PhysicsZoom.movedCanvas = null;
+  canvas.dispatchEvent({ type: 'astra:physics-zoom-restored' });
+  assert.equal(canvas.style.width, '318px');
+  assert.equal(canvas.width, 636, 'zoom restoration must immediately realign bitmap width with DPR');
+  assert.equal(physics.W, 318);
+
+  parentWidth = 500;
+  for (const handler of windowTarget.listeners.get('resize') || []) handler({ type: 'resize' });
+  assert.equal(canvas.style.width, '500px');
+  assert.equal(canvas.width, 1000, 'a later viewport resize must keep the restored canvas aligned');
+  physics.destroy();
+  assert.equal(resizeObservers[0].disconnected, true);
+  assert.equal(windowTarget.listeners.get('resize').size, 0);
+  assert.equal(canvas.listeners.get('astra:physics-zoom-restored').size, 0);
+
+  let zoomActiveElement = null;
+  function createZoomTarget(properties = {}) {
+    const target = createEventTarget(properties);
+    target.isConnected = properties.isConnected ?? true;
+    target.hidden = properties.hidden ?? false;
+    target.disabled = properties.disabled ?? false;
+    target.attributes = properties.attributes || new Map();
+    target.focusCalls = 0;
+    target.focus = () => {
+      target.focusCalls += 1;
+      zoomActiveElement = target;
+    };
+    target.getAttribute = properties.getAttribute || ((name) => target.attributes.get(name) || null);
+    target.setAttribute = properties.setAttribute || ((name, value) => target.attributes.set(name, value));
+    target.removeAttribute = properties.removeAttribute || ((name) => target.attributes.delete(name));
+    target.closest = properties.closest || (() => null);
+    target.getClientRects = properties.getClientRects || (() => [{}]);
+    return target;
+  }
+
+  const zoomWindow = createEventTarget({});
+  const modalClasses = new Set();
+  const closeBtn = createZoomTarget();
+  const zoomHost = createZoomTarget({
+    getBoundingClientRect: () => ({ width: 1000, height: 600 }),
+    appendChild(node) {
+      this.child = node;
+      node.parentElement = this;
+    }
+  });
+  const zoomTitle = createZoomTarget({ textContent: '' });
+  let zoomCanvas = null;
+  const zoomModal = createZoomTarget({
+    classList: {
+      add(name) { modalClasses.add(name); },
+      remove(name) { modalClasses.delete(name); },
+      contains(name) { return modalClasses.has(name); }
+    },
+    querySelectorAll() {
+      return [closeBtn];
+    },
+    contains(node) {
+      return node === this || node === closeBtn || node === zoomHost || node === zoomCanvas;
+    }
+  });
+  const zoomElements = new Map([
+    ['physics-zoom-modal', zoomModal],
+    ['physics-zoom-host', zoomHost],
+    ['physics-zoom-title', zoomTitle],
+    ['physics-zoom-close', closeBtn]
+  ]);
+  const zoomDocument = createEventTarget({
+    getElementById: (id) => zoomElements.get(id) || null,
+    querySelectorAll: () => [],
+    createComment: () => ({ nodeType: 8 }),
+    body: { appendChild() {} }
+  });
+  Object.defineProperty(zoomDocument, 'activeElement', {
+    get: () => zoomActiveElement
+  });
+  const zoomContext = {
+    window: zoomWindow,
+    document: zoomDocument,
+    Event: class {
+      constructor(type) { this.type = type; }
+    },
+    console
+  };
+  vm.createContext(zoomContext);
+  vm.runInContext(physicsZoomSource, zoomContext, { filename: 'pages/physics/physics-zoom.js' });
+  const zoom = zoomWindow.PhysicsZoom;
+  const restoredEvents = [];
+  const zoomTrigger = createZoomTarget();
+  const secondZoomTrigger = createZoomTarget();
+  zoomCanvas = createZoomTarget({
+    parentElement: null,
+    style: {},
+    getBoundingClientRect: () => ({ width: 863, height: 483.28 }),
+    attributes: new Map([['style', 'width: 863px; height: 483.28px;']]),
+  });
+  const originalParent = {
+    placeholderInsertions: 0,
+    canvasRestorations: 0,
+    placeholderRemovals: 0,
+    insertBefore(node, placeholder) {
+      if (node === zoomCanvas) {
+        assert.equal(placeholder, zoom.movedPlaceholder);
+        this.canvasRestorations += 1;
+        zoomCanvas.parentElement = this;
+      } else {
+        assert.equal(placeholder, zoomCanvas);
+        this.placeholderInsertions += 1;
+      }
+    },
+    removeChild(placeholder) {
+      assert.equal(placeholder, zoom.movedPlaceholder);
+      this.placeholderRemovals += 1;
+    }
+  };
+  zoomCanvas.parentElement = originalParent;
+  zoomCanvas.addEventListener('astra:physics-zoom-restored', (event) => {
+    restoredEvents.push({
+      type: event.type,
+      movedCanvas: zoom.movedCanvas
+    });
+  });
+
+  const countListener = (target, type) => target.listeners.get(type)?.size || 0;
+  const assertModalListenerCount = (expected) => {
+    assert.equal(countListener(closeBtn, 'click'), expected);
+    assert.equal(countListener(zoomModal, 'click'), expected);
+    assert.equal(countListener(zoomDocument, 'keydown'), expected);
+    assert.equal(countListener(zoomWindow, 'resize'), expected);
+  };
+  const keyEvent = (key, shiftKey = false) => ({
+    type: 'keydown',
+    key,
+    shiftKey,
+    prevented: false,
+    stopped: false,
+    preventDefault() { this.prevented = true; },
+    stopImmediatePropagation() { this.stopped = true; }
+  });
+
+  zoom.init();
+  zoom.init();
+  assertModalListenerCount(1);
+  zoomActiveElement = zoomTrigger;
+  zoom.open(zoomCanvas, 'Mechanics', zoomTrigger);
+  assert.equal(modalClasses.has('open'), true);
+  assert.equal(zoomActiveElement, closeBtn, 'opening zoom must move focus into the dialog');
+  assertModalListenerCount(1);
+
+  const tab = keyEvent('Tab');
+  zoomDocument.dispatchEvent(tab);
+  assert.equal(tab.prevented, true);
+  assert.equal(tab.stopped, true);
+  assert.equal(zoomActiveElement, closeBtn, 'Tab must stay within the one-control dialog');
+  const shiftTab = keyEvent('Tab', true);
+  zoomActiveElement = zoomTrigger;
+  zoomDocument.dispatchEvent(shiftTab);
+  assert.equal(shiftTab.prevented, true);
+  assert.equal(shiftTab.stopped, true);
+  assert.equal(zoomActiveElement, closeBtn, 'Shift+Tab from outside must return to the dialog');
+
+  const escape = keyEvent('Escape');
+  zoomDocument.dispatchEvent(escape);
+  assert.equal(escape.prevented, true);
+  assert.equal(escape.stopped, true);
+  assert.equal(modalClasses.has('open'), false);
+  assert.equal(zoomActiveElement, zoomTrigger, 'Escape close must restore the initiating zoom button');
+  assertModalListenerCount(0);
+  assert.deepEqual(restoredEvents, [{
+    type: 'astra:physics-zoom-restored',
+    movedCanvas: null
+  }]);
+
+  zoom.init();
+  assertModalListenerCount(1);
+  zoom.close();
+  assertModalListenerCount(0);
+  assert.equal(modalClasses.has('open'), false, 'page leave close must tear down listeners even without an open canvas');
+
+  zoom.init();
+  zoomActiveElement = secondZoomTrigger;
+  zoom.open(zoomCanvas, 'Mechanics', secondZoomTrigger);
+  closeBtn.dispatchEvent({ type: 'click', target: closeBtn });
+  assert.equal(zoomActiveElement, secondZoomTrigger, 'close button must restore its initiating trigger');
+  assertModalListenerCount(0);
+
+  zoom.init();
+  const disconnectedTrigger = createZoomTarget({ isConnected: false });
+  zoom.open(zoomCanvas, 'Mechanics', disconnectedTrigger);
+  zoom.destroy();
+  assertModalListenerCount(0);
+  assert.equal(disconnectedTrigger.focusCalls, 0, 'destroy must not focus a detached trigger');
+  assert.doesNotThrow(() => zoom.destroy());
+  assertModalListenerCount(0);
+  assert.equal(zoom.movedCanvas, null);
+
+  zoom.init();
+  const cssHiddenTrigger = createZoomTarget({ getClientRects: () => [] });
+  zoom.open(zoomCanvas, 'Mechanics', cssHiddenTrigger);
+  zoom.destroy();
+  assert.equal(cssHiddenTrigger.focusCalls, 0, 'destroy must not focus a trigger hidden by route layout');
+  assertModalListenerCount(0);
+  assert.equal(originalParent.placeholderInsertions, 4);
+  assert.equal(originalParent.canvasRestorations, 4);
+  assert.equal(originalParent.placeholderRemovals, 4);
+}
+
 (async () => {
+  runMechanicsZoomRestoreContract();
+
   const publicationWindow = {
     addEventListener() {},
     location: { hash: '' },
@@ -449,6 +741,21 @@ function createPublicationModuleHarness(publication) {
     physicsCss,
     /\.physics-zoom-btn\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/,
     'the injected mechanics zoom button needs a 44px target'
+  );
+  assert.match(
+    physicsCss,
+    /@media \(max-width: 1024px\)\s*\{[\s\S]*?#page-physics \[data-module="mechanics"\] \.demo-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/,
+    'the single-column mechanics grid must permit real track shrinkage'
+  );
+  assert.match(
+    physicsCss,
+    /@media \(max-width: 1024px\)\s*\{[\s\S]*?#page-physics \[data-module="mechanics"\] \.demo-controls-panel,[\s\S]*?#page-physics \[data-module="mechanics"\] \.demo-visualization\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/,
+    'the mechanics controls and visualization must not preserve desktop min-content width'
+  );
+  assert.match(
+    physicsCss,
+    /@media \(max-width: 1024px\)\s*\{[\s\S]*?#page-physics \[data-module="mechanics"\] \.physics-canvas\s*\{[^}]*display:\s*block;[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/,
+    'the mechanics canvas display box must stay inside the shrinkable track'
   );
   assert.match(physicsCss, /\.range::-webkit-slider-runnable-track\s*\{[^}]*height:\s*4px;/);
   assert.match(physicsCss, /\.range::-moz-range-track\s*\{[^}]*height:\s*4px;/);

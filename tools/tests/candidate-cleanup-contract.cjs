@@ -83,11 +83,21 @@ const livePhysicsListeners = () => [fakeWindow, ...Object.values(physicsElements
   .reduce((count, target) => count + (typeof target.liveListeners === 'function' ? target.liveListeners() : 0), 0);
 
 physicsSim.init();
-assert.equal(physicsSim._listeners.length, 17, 'mechanics must track controls, evidence commits, pointer/touch, and fallback resize');
-assert.equal(livePhysicsListeners(), 17);
+assert.equal(physicsSim._listeners.length, 18, 'mechanics must track controls, evidence commits, pointer/touch, viewport resize, and zoom restoration');
+assert.equal(livePhysicsListeners(), 18);
+assert.equal(
+  fakeWindow._listeners.filter(item => item.event === 'resize').length,
+  1,
+  'mechanics must own exactly one viewport resize listener'
+);
+assert.equal(
+  physicsCanvas._listeners.filter(item => item.event === 'astra:physics-zoom-restored').length,
+  1,
+  'mechanics must own exactly one zoom restoration listener'
+);
 physicsSim.init();
-assert.equal(physicsSim._listeners.length, 17, 're-init must replace rather than accumulate listeners');
-assert.equal(livePhysicsListeners(), 17);
+assert.equal(physicsSim._listeners.length, 18, 're-init must replace rather than accumulate listeners');
+assert.equal(livePhysicsListeners(), 18);
 physicsSim.running = true;
 physicsSim._raf = 777;
 physicsSim.destroy();
