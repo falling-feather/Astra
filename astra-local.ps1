@@ -7,6 +7,8 @@ param(
 
     [switch]$BootstrapAdmin,
 
+    [switch]$InitializeDemoData,
+
     [switch]$SkipDependencyInstall
 )
 
@@ -19,6 +21,10 @@ $VirtualEnvironment = Join-Path $RepoRoot ".venv"
 $VirtualPython = Join-Path $VirtualEnvironment "Scripts\python.exe"
 $RequirementsLock = Join-Path $BackendRoot "requirements.lock"
 $RequirementsMarker = Join-Path $VirtualEnvironment ".astra-requirements.sha256"
+
+if ($BootstrapAdmin -and $InitializeDemoData) {
+    throw "Use either -BootstrapAdmin or -InitializeDemoData, not both."
+}
 
 function Test-CommandPython {
     param([string]$Command, [string[]]$PrefixArguments)
@@ -101,6 +107,23 @@ function Get-AstraLocalInstanceId {
     }
 }
 
+function Assert-LocalDataDirectory {
+    param([string]$ResolvedDataDirectory)
+    if ($ResolvedDataDirectory.StartsWith("\\")) {
+        throw "-InitializeDemoData requires a local data directory; UNC paths are rejected before side effects."
+    }
+    $root = [IO.Path]::GetPathRoot($ResolvedDataDirectory)
+    if (-not $root -or $root.StartsWith("\\")) {
+        throw "-InitializeDemoData requires a local filesystem data directory."
+    }
+    if ($root -match "^[A-Za-z]:\\$") {
+        $drive = Get-PSDrive -Name $root.Substring(0, 1) -PSProvider FileSystem -ErrorAction SilentlyContinue
+        if ($drive -and $drive.DisplayRoot -and ([string]$drive.DisplayRoot).StartsWith("\\")) {
+            throw "-InitializeDemoData rejects mapped network drives; use a local data directory."
+        }
+    }
+}
+
 function Invoke-AstraLocalPreview {
     if (-not $DataDirectory) {
         $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
@@ -114,6 +137,9 @@ function Invoke-AstraLocalPreview {
             [IO.Path]::DirectorySeparatorChar,
             [IO.Path]::AltDirectorySeparatorChar
         )
+    }
+    if ($InitializeDemoData) {
+        Assert-LocalDataDirectory -ResolvedDataDirectory $DataDirectory
     }
     $instanceId = Get-AstraLocalInstanceId -ResolvedDataDirectory $DataDirectory
     $instanceMutex = [Threading.Mutex]::new($false, "Local\AstraLocalPreviewData-$($instanceId.Substring(0, 32))")
@@ -129,16 +155,22 @@ function Invoke-AstraLocalPreview {
                 if ($BootstrapAdmin) {
                     throw "Astra is already running. Stop it with Ctrl+C, then re-run with -BootstrapAdmin."
                 }
+                if ($InitializeDemoData) {
+                    throw "Astra is already running. Stop it with Ctrl+C, then re-run with -InitializeDemoData (the requested initialization switch)."
+                }
                 Write-Host "Astra is already running at http://127.0.0.1:$Port/" -ForegroundColor Green
                 return
             }
             throw "Another Astra local-preview startup for port $Port is already in progress."
         }
 
-if (Test-LocalPort -TargetPort $Port) {
+    if (Test-LocalPort -TargetPort $Port) {
     if (Test-ExistingAstra -TargetPort $Port -ExpectedInstanceId $instanceId) {
         if ($BootstrapAdmin) {
             throw "Astra is already running. Stop it with Ctrl+C, then re-run with -BootstrapAdmin."
+        }
+        if ($InitializeDemoData) {
+            throw "Astra is already running. Stop it with Ctrl+C, then re-run with -InitializeDemoData (the requested initialization switch)."
         }
         Write-Host "Astra is already running at http://127.0.0.1:$Port/" -ForegroundColor Green
         return
@@ -240,6 +272,17 @@ try {
                 [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
             }
             $plainPassword = $null
+        }
+    }
+
+    if ($InitializeDemoData) {
+        Write-Host "Initializing the local synthetic demo through the authoritative API..." -ForegroundColor Cyan
+        $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "true"
+        try {
+            & $VirtualPython -X utf8 -m scripts.initialize_demo_data --confirm-local-preview
+            if ($LASTEXITCODE -ne 0) { throw "Demo data initialization failed" }
+        } finally {
+            $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "false"
         }
     }
 
