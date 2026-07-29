@@ -173,6 +173,7 @@ function createHarness() {
       }
     },
     Event: class { constructor(type) { this.type = type; } },
+    AbortController,
     CONFIG: { experiments: { physics: Object.keys(sections).map(id => ({ id })) } },
     BackendContent: backend,
     setTimeout: (callback, delay) => timers.setTimeout(callback, delay),
@@ -212,11 +213,15 @@ async function settlePromises(rounds = 8) {
 }
 
 function configureStudentPublication(harness, access) {
+  harness.publicationSignals = [];
   harness.windowObject.AstraApplicationSession = {
     getUser: () => ({ id: 7, role: 'student' })
   };
   harness.windowObject.AstraEngineeringLabPublicationContext = {
-    resolve: () => Promise.resolve(access)
+    resolve: (_activity, options = {}) => {
+      harness.publicationSignals.push(options.signal);
+      return Promise.resolve(access);
+    }
   };
   harness.selector._renderPublicationGate = (page, _pageEl, state, code = '') => {
     delete harness.selector._publicationGateNodes[page];
@@ -307,7 +312,7 @@ function configureStudentPublication(harness, access) {
   const hiddenPublication = createHarness();
   configureStudentPublication(hiddenPublication, {
     available: false,
-    error_code: 'course_unit_missing'
+    error_code: 'activity_hidden'
   });
   hiddenPublication.selector._initModule = () => hiddenPublication.order.push('unexpected-hidden-init');
   assert.equal(hiddenPublication.selector.openModule('physics', 'mechanics'), true);
@@ -319,8 +324,25 @@ function configureStudentPublication(harness, access) {
   assert.equal(hiddenPublication.windowObject.location.hash, '#physics', 'hidden activity must normalize back to the undiscoverable gallery route');
   assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('activity_hidden'), true);
   assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_scope_missing'), true);
-  assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_unit_missing'), true);
+  assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_unit_missing'), false);
   assert.equal(hiddenPublication.selector._isUndiscoverablePublicationAccess('course_scope_ambiguous'), false);
+
+  const missingPublication = createHarness();
+  configureStudentPublication(missingPublication, {
+    available: false,
+    error_code: 'course_unit_missing'
+  });
+  missingPublication.selector._initModule = () => missingPublication.order.push('unexpected-missing-init');
+  assert.equal(missingPublication.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  assert.equal(missingPublication.selector.activeModule.physics, null);
+  assert.equal(missingPublication.order.includes('unexpected-missing-init'), false);
+  assert.equal(missingPublication.windowObject.location.hash, '#physics');
+  assert.deepEqual(
+    missingPublication.warnings,
+    [['[ModuleSelector] refusing transition to unknown module']],
+    'a real missing unit must retain one fixed safe diagnostic'
+  );
 
   let settlePendingAccess;
   const pendingAccess = new Promise(resolve => { settlePendingAccess = resolve; });
@@ -330,7 +352,10 @@ function configureStudentPublication(harness, access) {
   assert.equal(pendingSwitch.selector.openModule('physics', 'mechanics'), true);
   assert.ok(pendingSwitch.selector._publicationGatePending.physics);
   assert.equal(pendingSwitch.selector._publicationGateNodes.physics.state, 'checking');
+  const pendingSwitchSignal = pendingSwitch.selector._publicationGatePending.physics.controller.signal;
+  assert.equal(pendingSwitchSignal.aborted, false);
   assert.equal(pendingSwitch.selector.openModule('physics', 'gas-laws'), true);
+  assert.equal(pendingSwitchSignal.aborted, true);
   assert.equal(pendingSwitch.selector._publicationGatePending.physics, undefined);
   assert.equal(pendingSwitch.selector._publicationGateNodes.physics, undefined);
   assert.equal(pendingSwitch.selector.activeModule.physics, 'gas-laws');
@@ -355,7 +380,10 @@ function configureStudentPublication(harness, access) {
     1,
     'reopening the same pending module must not leak another gate'
   );
+  const pendingCloseSignal = pendingClose.selector._publicationGatePending.physics.controller.signal;
+  assert.equal(pendingCloseSignal.aborted, false);
   assert.equal(pendingClose.selector.closeModule('physics'), true);
+  assert.equal(pendingCloseSignal.aborted, true, 'close must abort known publication work');
   assert.equal(pendingClose.selector._publicationGatePending.physics, undefined);
   assert.equal(pendingClose.selector._publicationGateNodes.physics, undefined);
   settlePendingClose({ available: true });
@@ -366,12 +394,30 @@ function configureStudentPublication(harness, access) {
   const pendingReset = createHarness();
   configureStudentPublication(pendingReset, new Promise(resolve => { settlePendingReset = resolve; }));
   assert.equal(pendingReset.selector.openModule('physics', 'mechanics'), true);
+  const pendingResetSignal = pendingReset.selector._publicationGatePending.physics.controller.signal;
+  assert.equal(pendingResetSignal.aborted, false);
   pendingReset.selector.resetPage('physics');
+  assert.equal(pendingResetSignal.aborted, true, 'reset must abort known publication work');
   assert.equal(pendingReset.selector._publicationGatePending.physics, undefined);
   assert.equal(pendingReset.selector._publicationGateNodes.physics, undefined);
   settlePendingReset({ available: true });
   await settlePromises();
   assert.equal(pendingReset.selector.activeModule.physics, null);
+
+  let settlePendingLeave;
+  const pendingLeave = createHarness();
+  configureStudentPublication(pendingLeave, new Promise(resolve => { settlePendingLeave = resolve; }));
+  assert.equal(pendingLeave.selector.openModule('physics', 'mechanics'), true);
+  const pendingLeaveSignal = pendingLeave.selector._publicationGatePending.physics.controller.signal;
+  assert.equal(pendingLeaveSignal.aborted, false);
+  pendingLeave.selector.leavePage('physics', { preserveHash: true });
+  assert.equal(pendingLeaveSignal.aborted, true, 'leave must abort known publication work');
+  assert.equal(pendingLeave.selector._publicationGatePending.physics, undefined);
+  assert.equal(pendingLeave.selector._publicationGateNodes.physics, undefined);
+  settlePendingLeave({ available: true });
+  await settlePromises();
+  assert.equal(pendingLeave.selector.activeModule.physics, null);
+  assert.deepEqual(pendingLeave.warnings, []);
 
   const legacy = createHarness();
   activate(legacy, 'waves');

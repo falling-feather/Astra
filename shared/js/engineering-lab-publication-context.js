@@ -12,6 +12,11 @@
         navigationGeneration: 0,
         navigationController: null
     };
+    const UNIT_ACCESS_ERROR_CODES = new Set([
+        'activity_hidden',
+        'activity_locked',
+        'course_unit_missing'
+    ]);
 
     function api() {
         if (!global.AstraApiClient) throw new Error('AstraApiClient unavailable');
@@ -26,6 +31,30 @@
     function id(value) {
         const parsed = Number(value);
         return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    function validPhysicsActivity(activity) {
+        if (!activity || activity.galaxy_key !== 'englab' || activity.course_key !== 'physics') return false;
+        const activityKey = String(activity.activity_key || '');
+        return activityKey.length <= 120
+            && /^physics\.[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$/.test(activityKey);
+    }
+
+    function unitAccessDisposition(payload) {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+        const keys = Object.keys(payload).sort();
+        if (keys.length !== 2 || keys[0] !== 'available' || keys[1] !== 'error_code') return null;
+        if (payload.available === true && payload.error_code === null) {
+            return Object.freeze({ available: true, error_code: null });
+        }
+        if (payload.available === false && UNIT_ACCESS_ERROR_CODES.has(payload.error_code)) {
+            return Object.freeze({ available: false, error_code: payload.error_code });
+        }
+        return null;
+    }
+
+    function unavailablePublication() {
+        return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
     }
 
     function begin() {
@@ -179,7 +208,7 @@
         } catch (error) {
             return Object.freeze({
                 available: false,
-                error_code: error && error.code || 'publication_context_unavailable',
+                error_code: 'publication_context_unavailable',
                 classes: state.classes.slice(),
                 class_id: null
             });
@@ -221,11 +250,30 @@
         }
     }
 
-    async function resolve(activity) {
-        if (!activity || activity.galaxy_key !== 'englab') {
+    async function resolve(activity, options = {}) {
+        const externalSignal = options && options.signal;
+        if (externalSignal && externalSignal.aborted) {
+            return Object.freeze({ available: false, error_code: 'cancelled' });
+        }
+        if (!validPhysicsActivity(activity)) {
             return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
         }
-        if (!state.user || state.user.role !== 'student' || !state.classes.length) await prepare(state.user);
+        try {
+            if (!state.user || state.user.role !== 'student' || !state.classes.length) {
+                const prepared = await prepare(state.user, { signal: externalSignal });
+                if (prepared.error_code === 'cancelled') {
+                    return Object.freeze({ available: false, error_code: 'cancelled' });
+                }
+                if (prepared.error_code === 'student_role_required') {
+                    return Object.freeze({ available: false, error_code: 'student_role_required' });
+                }
+            }
+        } catch (error) {
+            return unavailablePublication();
+        }
+        if (!state.user || state.user.role !== 'student') {
+            return Object.freeze({ available: false, error_code: 'student_role_required' });
+        }
         if (!state.selectedClassId) {
             return Object.freeze({
                 available: false,
@@ -233,46 +281,85 @@
                 classes: state.classes.slice()
             });
         }
+        if (externalSignal && externalSignal.aborted) {
+            return Object.freeze({ available: false, error_code: 'cancelled' });
+        }
         const scope = begin();
+        const abortScope = () => scope.controller.abort();
+        if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+            if (externalSignal.aborted) abortScope();
+            else externalSignal.addEventListener('abort', abortScope, { once: true });
+        }
         try {
+            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
             const courses = list(await api().request('/api/courses', {
                 params: { class_id: state.selectedClassId },
                 signal: scope.signal
             }));
             if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
-            const matches = courses.filter(course => course.galaxy_key === 'englab' && course.course_key === activity.course_key);
+            const matches = courses.filter(course => course.galaxy_key === 'englab' && course.course_key === 'physics');
             if (matches.length !== 1) {
                 return Object.freeze({ available: false, error_code: matches.length ? 'course_scope_ambiguous' : 'course_scope_missing' });
             }
             const courseId = id(matches[0].id);
+            if (!courseId) return unavailablePublication();
             const units = list(await api().request(`/api/courses/${courseId}/units`, {
                 params: { class_id: state.selectedClassId },
                 signal: scope.signal
             }));
             if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
             const matchesUnits = units.filter(unit => unit.activity_key === activity.activity_key);
-            if (matchesUnits.length !== 1) {
-                return Object.freeze({ available: false, error_code: matchesUnits.length ? 'course_unit_ambiguous' : 'course_unit_missing' });
+            if (matchesUnits.length > 1) {
+                return Object.freeze({ available: false, error_code: 'course_unit_ambiguous' });
             }
-            const unit = matchesUnits[0];
-            if (unit.effective_release_state !== 'open') {
+            if (matchesUnits.length === 1) {
+                const unit = matchesUnits[0];
+                if (unit.effective_release_state === 'locked') {
+                    return Object.freeze({ available: false, error_code: 'activity_locked' });
+                }
+                if (unit.effective_release_state === 'hidden') {
+                    return Object.freeze({ available: false, error_code: 'activity_hidden' });
+                }
+                if (unit.effective_release_state !== 'open' || !id(unit.id)) {
+                    return unavailablePublication();
+                }
                 return Object.freeze({
-                    available: false,
-                    error_code: unit.effective_release_state === 'locked' ? 'activity_locked' : 'activity_hidden'
+                    available: true,
+                    class_id: state.selectedClassId,
+                    course_id: courseId,
+                    course_unit_id: id(unit.id),
+                    activity_key: activity.activity_key,
+                    galaxy_key: 'englab',
+                    course_key: 'physics'
                 });
             }
-            return Object.freeze({
-                available: true,
-                class_id: state.selectedClassId,
-                course_id: courseId,
-                course_unit_id: id(unit.id),
-                activity_key: activity.activity_key,
-                galaxy_key: 'englab',
-                course_key: activity.course_key
-            });
+
+            const disposition = unitAccessDisposition(await api().request(
+                `/api/courses/${courseId}/unit-access`,
+                {
+                    params: {
+                        class_id: state.selectedClassId,
+                        activity_key: activity.activity_key
+                    },
+                    signal: scope.signal
+                }
+            ));
+            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
+            if (!disposition || disposition.available === true) return unavailablePublication();
+            return disposition;
         } catch (error) {
-            if (api().isCancelled && api().isCancelled(error)) return Object.freeze({ available: false, error_code: 'cancelled' });
-            return Object.freeze({ available: false, error_code: error && error.code || 'publication_context_unavailable' });
+            const client = global.AstraApiClient;
+            if (
+                scope.signal.aborted
+                || (client && typeof client.isCancelled === 'function' && client.isCancelled(error))
+            ) {
+                return Object.freeze({ available: false, error_code: 'cancelled' });
+            }
+            return unavailablePublication();
+        } finally {
+            if (externalSignal && typeof externalSignal.removeEventListener === 'function') {
+                externalSignal.removeEventListener('abort', abortScope);
+            }
         }
     }
 

@@ -4,6 +4,10 @@
 
 const EXPERIMENT_REGISTRY_UNAVAILABLE_WARNING =
     '[ModuleSelector] experiment registry unavailable; transition refused';
+const UNKNOWN_MODULE_WARNING =
+    '[ModuleSelector] refusing transition to unknown module';
+const PUBLICATION_CLASSIFICATION_WARNING =
+    '[ModuleSelector] publication classification failed; transition refused';
 
 const ModuleSelector = {
     activeModule: {},   // { pageName: 'module-id' | null }
@@ -328,7 +332,7 @@ const ModuleSelector = {
             ) {
                 return this._openUnknownPublicationTarget(page, moduleId);
             }
-            console.warn('[ModuleSelector] refusing transition to unknown module:', `${page}:${moduleId}`);
+            console.warn(UNKNOWN_MODULE_WARNING);
             return false;
         }
         const sections = pageEl.querySelectorAll(`[data-module="${moduleId}"]`);
@@ -456,31 +460,40 @@ const ModuleSelector = {
         }
 
         this._cancelPublicationGate(page);
-        const generation = this._transitionGeneration[page] || 0;
-        this._publicationGatePending[page] = { moduleId, generation, unknownTarget: true };
-        this._resolvePublicationAccess(page, moduleId).then(access => {
-            if (!this._isCurrentUnknownPublicationTarget(page, moduleId, generation)) return;
+        const generation = this._beginModuleTransition(page);
+        const controller = new AbortController();
+        this._publicationGatePending[page] = {
+            moduleId,
+            generation,
+            unknownTarget: true,
+            controller
+        };
+        this._resolvePublicationAccess(page, moduleId, controller.signal).then(access => {
+            if (!this._isCurrentUnknownPublicationTarget(page, moduleId, controller, generation)) return;
             delete this._publicationGatePending[page];
             const code = access && access.error_code || 'publication_context_unavailable';
             if (code === 'activity_hidden' || code === 'activity_locked') {
                 this.closeModule(page);
                 return;
             }
-            console.warn('[ModuleSelector] refusing transition to unknown module:', `${page}:${moduleId}`);
+            console.warn(code === 'course_unit_missing'
+                ? UNKNOWN_MODULE_WARNING
+                : PUBLICATION_CLASSIFICATION_WARNING);
             this.closeModule(page);
         }).catch(() => {
-            if (!this._isCurrentUnknownPublicationTarget(page, moduleId, generation)) return;
+            if (!this._isCurrentUnknownPublicationTarget(page, moduleId, controller, generation)) return;
             delete this._publicationGatePending[page];
-            console.warn('[ModuleSelector] publication classification failed; transition refused');
+            console.warn(PUBLICATION_CLASSIFICATION_WARNING);
             this.closeModule(page);
         });
         return true;
     },
 
-    _isCurrentUnknownPublicationTarget(page, moduleId, generation) {
+    _isCurrentUnknownPublicationTarget(page, moduleId, controller, generation) {
         const pending = this._publicationGatePending[page];
         return Boolean(
             pending
+            && pending.controller === controller
             && pending.unknownTarget === true
             && pending.moduleId === moduleId
             && pending.generation === generation
@@ -540,11 +553,12 @@ const ModuleSelector = {
             if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash);
         } catch (error) {}
 
-        this._publicationGatePending[page] = { moduleId, generation };
+        const controller = new AbortController();
+        this._publicationGatePending[page] = { moduleId, generation, controller };
         this._renderPublicationGate(page, pageEl, 'checking');
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        this._resolvePublicationAccess(page, moduleId).then(access => {
+        this._resolvePublicationAccess(page, moduleId, controller.signal).then(access => {
             if (!this._isCurrentPublicationGate(page, moduleId, generation)) return;
             delete this._publicationGatePending[page];
             if (access && access.available === true) {
@@ -553,6 +567,11 @@ const ModuleSelector = {
                 return;
             }
             const code = access && access.error_code || 'publication_context_unavailable';
+            if (code === 'course_unit_missing') {
+                console.warn(UNKNOWN_MODULE_WARNING);
+                this.closeModule(page);
+                return;
+            }
             if (this._isUndiscoverablePublicationAccess(code)) {
                 this.closeModule(page);
                 return;
@@ -568,8 +587,7 @@ const ModuleSelector = {
 
     _isUndiscoverablePublicationAccess(code) {
         return code === 'activity_hidden'
-            || code === 'course_scope_missing'
-            || code === 'course_unit_missing';
+            || code === 'course_scope_missing';
     },
 
     _isCurrentPublicationGate(page, moduleId, generation) {
@@ -583,15 +601,21 @@ const ModuleSelector = {
         );
     },
 
-    async _resolvePublicationAccess(page, moduleId) {
+    async _resolvePublicationAccess(page, moduleId, signal) {
         if (page !== 'physics' || !this._isStableModuleId(page, moduleId)) {
             return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
+        }
+        if (signal && signal.aborted) {
+            return Object.freeze({ available: false, error_code: 'cancelled' });
         }
         const loader = window.AstraLearningEvidenceLoader;
         if (!loader || typeof loader.ensure !== 'function') {
             return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
         }
         await loader.ensure({ engineeringContext: true });
+        if (signal && signal.aborted) {
+            return Object.freeze({ available: false, error_code: 'cancelled' });
+        }
         const context = window.AstraEngineeringLabPublicationContext;
         if (!context || typeof context.resolve !== 'function') {
             return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
@@ -611,7 +635,7 @@ const ModuleSelector = {
                 activity_key: `physics.${moduleId}`
             });
         if (!activity) return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
-        return context.resolve(activity);
+        return context.resolve(activity, { signal });
     },
 
     _renderPublicationGate(page, pageEl, state, errorCode = '') {
@@ -661,6 +685,10 @@ const ModuleSelector = {
     },
 
     _cancelPublicationGate(page) {
+        const pending = this._publicationGatePending[page];
+        if (pending && pending.controller && typeof pending.controller.abort === 'function') {
+            try { pending.controller.abort(); } catch (error) {}
+        }
         delete this._publicationGatePending[page];
         this._clearPublicationGate(page);
     },

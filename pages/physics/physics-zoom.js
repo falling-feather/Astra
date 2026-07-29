@@ -72,7 +72,7 @@ const PhysicsZoom = {
                 if (e.key === 'Tab') this._trapFocus(e);
             };
         }
-        if (!this._resizeHandlerBound) this._resizeHandlerBound = () => this._syncScale();
+        if (!this._resizeHandlerBound) this._resizeHandlerBound = () => this._handleResize();
 
         this.closeBtn.addEventListener('click', this._closeHandlerBound);
         this.modal.addEventListener('click', this._backdropHandlerBound);
@@ -199,6 +199,33 @@ const PhysicsZoom = {
         } else {
             this.movedCanvas.style.transform = `scale(${scale})`;
         }
+    },
+
+    _handleResize() {
+        if (this.movedCanvas && this.originalParent) {
+            let metrics = null;
+            try {
+                const physics = window.PhysicsSim;
+                if (
+                    physics
+                    && physics.canvas === this.movedCanvas
+                    && typeof physics.resizeForZoom === 'function'
+                ) {
+                    metrics = physics.resizeForZoom(this.originalParent);
+                }
+            } catch (error) {
+                metrics = null;
+            }
+            if (metrics) {
+                this.originalRect = {
+                    width: metrics.width,
+                    height: metrics.height
+                };
+                this.movedCanvas.style.width = metrics.width + 'px';
+                this.movedCanvas.style.height = metrics.height + 'px';
+            }
+        }
+        this._syncScale();
     },
 
     close() {
