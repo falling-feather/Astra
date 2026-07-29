@@ -170,6 +170,16 @@ DEMO_ASSIGNMENTS = (
         "audience_mode": "all_attached_classes",
         "desired_status": "pending",
     },
+    {
+        "course_key": "control-flow",
+        "activity_key": "control-flow.loop-boundary",
+        "title": "Loop boundary review",
+        "description": "Synthetic loop trace awaiting teacher feedback.",
+        "max_score": 100,
+        "status": "active",
+        "audience_mode": "all_attached_classes",
+        "desired_status": "pending",
+    },
 )
 DEMO_CODE_PROBLEM = {
     "course_key": "control-flow",

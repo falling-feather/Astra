@@ -40,6 +40,8 @@ for (const endpoint of [
 assert.match(initializer, /runner_unavailable/);
 assert.match(initializer, /getpass\.getpass/);
 assert.match(initializer, /secret-free report/);
+assert.match(initializer, /for declaration in DEMO_ASSIGNMENTS:/);
+assert.match(initializer, /result\[course_key\] =/);
 assert.doesNotMatch(initializer, /from app\.core\.config import get_settings/);
 assert.doesNotMatch(initializer, /^\s*(?:from|import)\s+(?:sqlalchemy|sqlite3|alembic)\b/m);
 assert.doesNotMatch(initializer, /^\s*from\s+app\.(?:models|services)\b/m);
@@ -53,11 +55,53 @@ assert.doesNotMatch(manifest, /hello-world|engineering-systems\.load-path|challe
 assert.match(initializer, /本数据为合成演示证据，用于复验产品闭环，不代表真实学生学习时长、掌握程度或课堂试点。/);
 assert.match(manifest, /DEMO_ASSIGNMENTS = \(/);
 assert.match(manifest, /DEMO_CODE_PROBLEM = \{/);
-assert.match(manifest, /"course_key": "control-flow"[\s\S]*"activity_key": "control-flow\.loop-boundary"/);
 assert.match(manifest, /astra_demo_admin/);
 assert.match(manifest, /astra_demo_teacher/);
 assert.match(manifest, /astra_demo_student/);
 assert.doesNotMatch(manifest, /password|token/i);
+
+const assignmentSection = manifest.match(/DEMO_ASSIGNMENTS = \(([\s\S]*?)\r?\n\)\r?\nDEMO_CODE_PROBLEM =/);
+assert.ok(assignmentSection, 'DEMO_ASSIGNMENTS must remain a declarative manifest section');
+const assignmentDeclarations = [...assignmentSection[1].matchAll(
+  /\{\s*"course_key": "([^"]+)",\s*"activity_key": "([^"]+)",\s*"title": "([^"]+)",\s*"description": "([^"]+)",[\s\S]*?"desired_status": "([^"]+)",\s*\}/g,
+)].map((match) => ({
+  course_key: match[1],
+  activity_key: match[2],
+  title: match[3],
+  description: match[4],
+  desired_status: match[5],
+}));
+assert.deepEqual(assignmentDeclarations, [
+  {
+    course_key: 'physics',
+    activity_key: 'physics.mechanics',
+    title: 'Physics evidence review',
+    description: 'Synthetic local-preview evidence for the review loop.',
+    desired_status: 'graded',
+  },
+  {
+    course_key: 'humanities-futures',
+    activity_key: 'humanities.claim-review',
+    title: 'Humanities claim review',
+    description: 'Synthetic local-preview evidence for the review loop.',
+    desired_status: 'pending',
+  },
+  {
+    course_key: 'control-flow',
+    activity_key: 'control-flow.loop-boundary',
+    title: 'Loop boundary review',
+    description: 'Synthetic loop trace awaiting teacher feedback.',
+    desired_status: 'pending',
+  },
+]);
+const codeProblemScope = manifest.match(
+  /DEMO_CODE_PROBLEM = \{\s*"course_key": "([^"]+)",\s*"activity_key": "([^"]+)"/,
+);
+assert.ok(codeProblemScope, 'DEMO_CODE_PROBLEM must declare a stable course/activity scope');
+assert.deepEqual(
+  [assignmentDeclarations[2].course_key, assignmentDeclarations[2].activity_key],
+  [codeProblemScope[1], codeProblemScope[2]],
+);
 
 const expectedCode = {
   'program-start': ['program-start.first-output', 'program-start.variable-box', 'program-start.input-response'],
