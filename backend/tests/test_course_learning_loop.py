@@ -7,7 +7,9 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.models import (
     Assignment,
+    AuditLog,
     ClassKnowledgeSnapshot,
+    Course,
     KnowledgeSnapshotRun,
     SchoolMembership,
     Submission,
@@ -1622,3 +1624,202 @@ def test_assignment_class_policy_controls_audience_status_events_and_point_overr
     )
     assert audience_audits.status_code == 200
     assert audience_audits.json()["total"] == 2
+
+
+def test_admin_course_status_governance_is_constrained_audited_and_authoritative(client):
+    admin_token = _bootstrap_admin(client, "course_status_admin")
+    teacher_token = _register_and_login(client, "course_status_teacher", "teacher")
+    student_token = _register_and_login(client, "course_status_student", "student")
+
+    school = client.post(
+        "/api/schools",
+        headers=_auth_header(teacher_token),
+        json={"name": "Course Status Governance School"},
+    )
+    assert school.status_code == 201, school.json()
+    class_group = client.post(
+        "/api/classes",
+        headers=_auth_header(teacher_token),
+        json={
+            "school_id": school.json()["id"],
+            "name": "Course Status Governance Class",
+        },
+    )
+    assert class_group.status_code == 201, class_group.json()
+    course = client.post(
+        "/api/courses",
+        headers=_auth_header(teacher_token),
+        json={
+            "school_id": school.json()["id"],
+            "galaxy_key": "englab",
+            "course_key": "course-status-governance",
+            "title": "Course Status Governance",
+            "status": "draft",
+        },
+    )
+    assert course.status_code == 201, course.json()
+    course_id = course.json()["id"]
+    attached = client.post(
+        f"/api/courses/{course_id}/classes",
+        headers=_auth_header(teacher_token),
+        json={"class_id": class_group.json()["id"]},
+    )
+    assert attached.status_code == 201, attached.json()
+    unit = client.post(
+        f"/api/courses/{course_id}/units",
+        headers=_auth_header(teacher_token),
+        json={
+            "activity_key": "governance.status",
+            "title": "Governed Unit",
+            "position": 1,
+            "status": "published",
+        },
+    )
+    assert unit.status_code == 201, unit.json()
+    assignment = client.post(
+        f"/api/courses/{course_id}/units/{unit.json()['id']}/assignments",
+        headers=_auth_header(teacher_token),
+        json={"title": "Governed Assignment"},
+    )
+    assert assignment.status_code == 201, assignment.json()
+
+    status_path = f"/api/courses/{course_id}/status"
+    publish_payload = {
+        "expected_status": "draft",
+        "status": "published",
+        "reason": "Open the approved course for the demonstration.",
+    }
+    for token in (teacher_token, student_token):
+        forbidden = client.patch(
+            status_path,
+            headers=_auth_header(token),
+            json=publish_payload,
+        )
+        assert forbidden.status_code == 403, forbidden.json()
+
+    invalid_status = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "draft",
+            "status": "deleted",
+            "reason": "Unsupported state.",
+        },
+    )
+    assert invalid_status.status_code == 422, invalid_status.json()
+    blank_reason = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "draft",
+            "status": "published",
+            "reason": "   ",
+        },
+    )
+    assert blank_reason.status_code == 422, blank_reason.json()
+    injected_field = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={**publish_payload, "title": "Injected title"},
+    )
+    assert injected_field.status_code == 422, injected_field.json()
+
+    published = client.patch(
+        status_path,
+        headers={**_auth_header(admin_token), "X-Request-ID": "course-status-publish"},
+        json=publish_payload,
+    )
+    assert published.status_code == 200, published.json()
+    assert published.json()["course"]["id"] == course_id
+    assert published.json()["course"]["status"] == "published"
+    assert published.json()["impact"] == {
+        "attached_class_count": 1,
+        "course_unit_count": 1,
+        "assignment_count": 1,
+    }
+
+    stale = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "draft",
+            "status": "archived",
+            "reason": "This command is stale.",
+        },
+    )
+    assert stale.status_code == 409, stale.json()
+    no_op = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "published",
+            "status": "published",
+            "reason": "No state change.",
+        },
+    )
+    assert no_op.status_code == 409, no_op.json()
+
+    archived = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "published",
+            "status": "archived",
+            "reason": "Archive the course after the demonstration.",
+        },
+    )
+    assert archived.status_code == 200, archived.json()
+    assert archived.json()["course"]["status"] == "archived"
+    assert archived.json()["impact"]["attached_class_count"] == 1
+    invalid_jump = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "archived",
+            "status": "published",
+            "reason": "Archived courses must return to draft first.",
+        },
+    )
+    assert invalid_jump.status_code == 409, invalid_jump.json()
+
+    restored = client.patch(
+        status_path,
+        headers=_auth_header(admin_token),
+        json={
+            "expected_status": "archived",
+            "status": "draft",
+            "reason": "Restore the course for controlled editing.",
+        },
+    )
+    assert restored.status_code == 200, restored.json()
+    assert restored.json()["course"]["status"] == "draft"
+    assert restored.json()["impact"] == published.json()["impact"]
+
+    with get_session_factory(get_settings().database_url)() as db:
+        stored_course = db.get(Course, course_id)
+        assert stored_course is not None
+        assert stored_course.status == "draft"
+        audits = list(
+            db.scalars(
+                select(AuditLog)
+                .where(
+                    AuditLog.action == "course.status.patch",
+                    AuditLog.resource_id == str(course_id),
+                )
+                .order_by(AuditLog.id)
+            ).all()
+        )
+        assert len(audits) == 3
+        assert [audit.actor_role for audit in audits] == ["admin", "admin", "admin"]
+        assert [audit.snapshot_json["before"]["status"] for audit in audits] == [
+            "draft",
+            "published",
+            "archived",
+        ]
+        assert [audit.snapshot_json["after"]["status"] for audit in audits] == [
+            "published",
+            "archived",
+            "draft",
+        ]
+        assert audits[0].snapshot_json["reason"] == publish_payload["reason"]
+        assert audits[0].snapshot_json["impact"] == published.json()["impact"]
