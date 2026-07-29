@@ -344,12 +344,15 @@
 
     function eventProjection(payload) {
         if (!payload) return null;
+        const eventType = String(payload.event_type || '');
+        if (!EVENT_TYPES.has(eventType)) return null;
         return Object.freeze({
             class_id: payload.class_id,
             course_id: payload.course_id,
             course_unit_id: payload.course_unit_id,
             activity_key: payload.activity_key,
-            rule_version: payload.rule_version
+            rule_version: payload.rule_version,
+            event_type: eventType
         });
     }
 
@@ -364,12 +367,14 @@
         if (!['enqueued', 'state-changed', 'confirmed'].includes(detail.type) || !detail.projection) {
             return null;
         }
+        const projection = eventProjection(detail.projection);
+        if (!projection) return null;
         return Object.freeze({
             type: detail.type,
             namespace: String(detail.namespace || ''),
             client_event_id: String(detail.client_event_id || ''),
             state: detail.state,
-            projection: eventProjection(detail.projection)
+            projection
         });
     }
 
@@ -390,6 +395,7 @@
     }
 
     function receivePeerChange(detail) {
+        detail = peerChange(detail);
         if (!detail) return;
         const authorityClear = detail.type === 'authority-cleared';
         if (

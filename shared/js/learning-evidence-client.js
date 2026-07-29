@@ -240,13 +240,16 @@
     }
 
     function eventScope(payload) {
-        return {
+        const scope = {
             class_id: payload.class_id,
             course_id: payload.course_id,
             course_unit_id: payload.course_unit_id,
             activity_key: payload.activity_key,
             rule_version: payload.rule_version
         };
+        const eventType = payload.event_type || payload.last_event_type;
+        if (eventType) scope.event_type = eventType;
+        return scope;
     }
 
     function emit(change) {
@@ -437,6 +440,16 @@
                 emit({ type: 'authority-cleared', reason: 'peer-tab' });
                 return;
             }
+            if (
+                configured
+                && change
+                && ['confirmed', 'removed', 'expired-pruned'].includes(change.type)
+            ) {
+                emit({
+                    type: 'queue-capacity-released',
+                    reason: change.type
+                });
+            }
             if (!configured || !change || change.source !== 'peer-tab') return;
             const projection = change && change.projection;
             if (!projection) return;
@@ -578,9 +591,11 @@
             state: 'local-pending',
             reason: reason || 'offline'
         }, eventScope(payload)));
+        scheduleFlush(1500);
         return Object.freeze({
             outcome: 'queued',
             client_event_id: payload.client_event_id,
+            event_type: payload.event_type,
             state: record.state
         });
     }
@@ -606,7 +621,13 @@
             if (!isCurrentAuthority(generation)) return cancelledOutcome();
             rememberConfirmed(payload, receipt, generation);
             scheduleFlush(0);
-            return Object.freeze({ outcome: 'confirmed', receipt, state: 'confirmed' });
+            return Object.freeze({
+                outcome: 'confirmed',
+                client_event_id: payload.client_event_id,
+                event_type: payload.event_type,
+                receipt,
+                state: 'confirmed'
+            });
         } catch (rawError) {
             if (!isCurrentAuthority(generation)) return cancelledOutcome();
             let error = normalizeError(rawError);
@@ -619,7 +640,13 @@
                     const receipt = await reconcileAmbiguous(payload, requestAuthority.signal);
                     if (!isCurrentAuthority(generation)) return cancelledOutcome();
                     rememberConfirmed(payload, receipt, generation);
-                    return Object.freeze({ outcome: 'reconciled', receipt, state: 'confirmed' });
+                    return Object.freeze({
+                        outcome: 'reconciled',
+                        client_event_id: payload.client_event_id,
+                        event_type: payload.event_type,
+                        receipt,
+                        state: 'confirmed'
+                    });
                 } catch (reconcileError) {
                     if (!isCurrentAuthority(generation)) return cancelledOutcome();
                     error = reconcileError;
@@ -645,7 +672,13 @@
                     state: 'manual-intervention',
                     reason: error.code
                 }, eventScope(payload)));
-                return Object.freeze({ outcome: 'manual-intervention', state: 'manual-intervention', record: pending });
+                return Object.freeze({
+                    outcome: 'manual-intervention',
+                    client_event_id: payload.client_event_id,
+                    event_type: payload.event_type,
+                    state: 'manual-intervention',
+                    record: pending
+                });
             }
             if (isQueueableFailure(error)) return storePending(payload, error.code, generation);
             throw error;
