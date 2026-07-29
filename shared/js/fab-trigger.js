@@ -5,6 +5,21 @@
 (function() {
     'use strict';
 
+    const ACTION_SELECTOR = [
+        '.favorite-fab',
+        '.experiment-guide-help-btn',
+        '.back-to-top-fab',
+        '.experiment-export-btn'
+    ].join(', ');
+    const EXPORT_MENU_SELECTOR = '.experiment-export-menu';
+    const EXPORT_MENU_ITEM_SELECTOR = '.experiment-export-menu__item';
+    const EXPORT_MENU_ID = 'experiment-export-menu';
+    const FOCUS_STRUCTURE_SELECTOR = [
+        ACTION_SELECTOR,
+        EXPORT_MENU_SELECTOR,
+        EXPORT_MENU_ITEM_SELECTOR
+    ].join(', ');
+
     const FabTrigger = {
         _btn: null,
         _scrim: null,
@@ -12,9 +27,191 @@
         _expanded: false,
         _onDocClick: null,
         _onKeyDown: null,
+        _focusObserver: null,
+        _exportMenuObserver: null,
+        _observedExportMenu: null,
+        _focusRestore: new WeakMap(),
+        _collapseTimer: 0,
+
+        _rememberFocusState(element) {
+            if (!element || this._focusRestore.has(element)) return;
+            this._focusRestore.set(element, {
+                hadTabIndex: element.hasAttribute('tabindex'),
+                tabIndex: element.getAttribute('tabindex'),
+                hadAriaHidden: element.hasAttribute('aria-hidden'),
+                ariaHidden: element.getAttribute('aria-hidden'),
+                hadInert: element.hasAttribute('inert'),
+                inert: Boolean(element.inert)
+            });
+        },
+
+        _makeFocusUnavailable(element) {
+            if (!element) return;
+            this._rememberFocusState(element);
+            element.setAttribute('tabindex', '-1');
+            element.setAttribute('aria-hidden', 'true');
+            element.setAttribute('inert', '');
+            if ('inert' in element) element.inert = true;
+        },
+
+        _restoreFocusState(element) {
+            const previous = element && this._focusRestore.get(element);
+            if (!previous) return;
+            if (previous.hadTabIndex) element.setAttribute('tabindex', previous.tabIndex);
+            else element.removeAttribute('tabindex');
+            if (previous.hadAriaHidden) element.setAttribute('aria-hidden', previous.ariaHidden);
+            else element.removeAttribute('aria-hidden');
+            if (previous.hadInert) element.setAttribute('inert', '');
+            else element.removeAttribute('inert');
+            if ('inert' in element) element.inert = previous.inert;
+            this._focusRestore.delete(element);
+        },
+
+        _focusElement(element) {
+            if (!element || typeof element.focus !== 'function') return;
+            try {
+                element.focus({ preventScroll: true });
+            } catch (_) {
+                element.focus();
+            }
+        },
+
+        _focusPrimaryIfNeeded() {
+            const active = document.activeElement;
+            if (!active || !this._btn) return;
+            const action = active.closest && active.closest(ACTION_SELECTOR);
+            const menu = document.querySelector(EXPORT_MENU_SELECTOR);
+            if (action || menu && menu.contains(active)) this._focusElement(this._btn);
+        },
+
+        _closeExportMenu() {
+            const menu = document.querySelector(EXPORT_MENU_SELECTOR);
+            if (!menu || !menu.classList.contains('open')) return;
+            const owner = window.ExperimentExport;
+            if (owner && typeof owner._closeMenu === 'function') owner._closeMenu();
+            else menu.classList.remove('open');
+        },
+
+        _observeExportMenu(menu) {
+            if (this._observedExportMenu === menu && this._exportMenuObserver) return;
+            if (this._exportMenuObserver) this._exportMenuObserver.disconnect();
+            this._exportMenuObserver = null;
+            this._observedExportMenu = menu || null;
+            if (!menu || !this._btn) return;
+            this._exportMenuObserver = new MutationObserver(mutations => {
+                if (
+                    !this._btn
+                    || this._observedExportMenu !== menu
+                    || !mutations.some(mutation => (
+                        mutation.type === 'attributes'
+                        && mutation.target === menu
+                        && mutation.attributeName === 'class'
+                    ))
+                ) return;
+                this._syncExportFocusState(menu);
+            });
+            this._exportMenuObserver.observe(menu, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        },
+
+        _syncExportFocusState(menu) {
+            const currentMenu = menu || document.querySelector(EXPORT_MENU_SELECTOR);
+            this._observeExportMenu(currentMenu);
+            const exportButton = document.querySelector('.experiment-export-btn');
+            if (!currentMenu) {
+                if (exportButton) exportButton.setAttribute('aria-expanded', 'false');
+                return;
+            }
+            if (!currentMenu.id) currentMenu.id = EXPORT_MENU_ID;
+            const items = Array.from(currentMenu.querySelectorAll(EXPORT_MENU_ITEM_SELECTOR));
+            const menuAvailable = Boolean(
+                this._expanded
+                && this._btn
+                && currentMenu.classList.contains('open')
+            );
+            if (exportButton) {
+                exportButton.setAttribute('aria-controls', currentMenu.id);
+                exportButton.setAttribute('aria-expanded', menuAvailable ? 'true' : 'false');
+            }
+            if (menuAvailable) {
+                this._restoreFocusState(currentMenu);
+                items.forEach(element => this._restoreFocusState(element));
+                return;
+            }
+            const active = document.activeElement;
+            if (active && currentMenu.contains(active)) {
+                const fallback = this._expanded
+                    ? document.querySelector('.experiment-export-btn')
+                    : this._btn;
+                this._focusElement(fallback || this._btn);
+            }
+            this._makeFocusUnavailable(currentMenu);
+            items.forEach(element => this._makeFocusUnavailable(element));
+        },
+
+        _syncFocusState() {
+            const actions = Array.from(document.querySelectorAll(ACTION_SELECTOR));
+            if (this._expanded && this._btn) {
+                actions.forEach(element => this._restoreFocusState(element));
+            } else {
+                this._focusPrimaryIfNeeded();
+                actions.forEach(element => this._makeFocusUnavailable(element));
+            }
+            this._syncExportFocusState(document.querySelector(EXPORT_MENU_SELECTOR));
+        },
+
+        _startFocusObserver() {
+            if (this._focusObserver) this._focusObserver.disconnect();
+            if (this._exportMenuObserver) this._exportMenuObserver.disconnect();
+            this._exportMenuObserver = null;
+            this._observedExportMenu = null;
+            this._focusObserver = new MutationObserver(mutations => {
+                if (!this._btn) return;
+                const changedNodes = mutations.flatMap(mutation => (
+                    mutation.type === 'childList'
+                        ? Array.from(mutation.addedNodes).concat(Array.from(mutation.removedNodes))
+                        : []
+                ));
+                const relevantStructureChanged = changedNodes.some(node => (
+                    node.nodeType === 1
+                    && (
+                        node.matches(FOCUS_STRUCTURE_SELECTOR)
+                        || node.querySelector(FOCUS_STRUCTURE_SELECTOR)
+                    )
+                ));
+                if (!relevantStructureChanged) return;
+                const actionCountChanged = changedNodes.some(node => (
+                    node.nodeType === 1
+                    && (
+                        node.matches(ACTION_SELECTOR)
+                        || node.querySelector(ACTION_SELECTOR)
+                    )
+                ));
+                this._syncFocusState();
+                if (actionCountChanged && this._refreshBadge) this._refreshBadge();
+            });
+            this._focusObserver.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            this._syncFocusState();
+        },
+
+        _stopFocusObservers() {
+            if (this._focusObserver) this._focusObserver.disconnect();
+            this._focusObserver = null;
+            if (this._exportMenuObserver) this._exportMenuObserver.disconnect();
+            this._exportMenuObserver = null;
+            this._observedExportMenu = null;
+        },
 
         show() {
-            if (this._btn) return;
+            if (this._btn) {
+                this._syncFocusState();
+                return;
+            }
             // 默认折叠
             document.body.setAttribute('data-fab-expanded', 'false');
             this._expanded = false;
@@ -22,6 +219,7 @@
             const btn = document.createElement('button');
             btn.className = 'fab-trigger';
             btn.setAttribute('aria-label', '展开/收起浮动按钮');
+            btn.setAttribute('aria-expanded', 'false');
             btn.setAttribute('data-tip', '更多操作');
             btn.innerHTML = '<i class="fab-trigger-icon fab-trigger-icon--menu" data-lucide="more-vertical"></i><i class="fab-trigger-icon fab-trigger-icon--close" data-lucide="x"></i><span class="fab-trigger-badge" title="折叠中的快捷操作数量">0</span>';
             btn.addEventListener('click', (e) => {
@@ -133,9 +331,17 @@
                 }
             };
             document.addEventListener('keydown', this._onKeyDown);
+            this._startFocusObserver();
         },
 
         hide() {
+            this._focusPrimaryIfNeeded();
+            this._closeExportMenu();
+            this._expanded = false;
+            this._syncFocusState();
+            if (this._collapseTimer) clearTimeout(this._collapseTimer);
+            this._collapseTimer = 0;
+            this._stopFocusObservers();
             if (this._btn && this._btn.parentNode) this._btn.parentNode.removeChild(this._btn);
             this._btn = null;
             if (this._scrim && this._scrim.parentNode) this._scrim.parentNode.removeChild(this._scrim);
@@ -143,7 +349,7 @@
             if (this._trace && this._trace.parentNode) this._trace.parentNode.removeChild(this._trace);
             this._trace = null;
             document.body.removeAttribute('data-fab-expanded');
-            this._expanded = false;
+            document.body.removeAttribute('data-fab-collapsing');
             if (this._onDocClick) {
                 document.removeEventListener('click', this._onDocClick, true);
                 this._onDocClick = null;
@@ -155,20 +361,31 @@
         },
 
         collapse() {
-            if (!this._expanded) return;
+            if (!this._expanded) {
+                this._closeExportMenu();
+                if (this._btn) this._btn.setAttribute('aria-expanded', 'false');
+                this._syncFocusState();
+                return;
+            }
+            this._focusPrimaryIfNeeded();
+            this._closeExportMenu();
             this._expanded = false;
             document.body.setAttribute('data-fab-expanded', 'false');
             // v4.2.33：收起时反向错峰（远端先归位 → 近端最后）
             document.body.setAttribute('data-fab-collapsing', 'true');
-            setTimeout(() => {
+            if (this._collapseTimer) clearTimeout(this._collapseTimer);
+            this._collapseTimer = setTimeout(() => {
+                this._collapseTimer = 0;
                 // 仅当此刻仍是收起状态才清除（防止用户瞬间再次展开）
                 if (!this._expanded) document.body.removeAttribute('data-fab-collapsing');
             }, 450);
             if (this._btn) {
                 this._btn.classList.remove('fab-trigger--open');
+                this._btn.setAttribute('aria-expanded', 'false');
                 this._btn.setAttribute('data-tip', '更多操作');
             }
             if (this._scrim) this._scrim.classList.remove('fab-scrim--visible');
+            this._syncFocusState();
         },
 
         toggle() {
@@ -178,15 +395,19 @@
                 return;
             }
             this._expanded = true;
+            if (this._collapseTimer) clearTimeout(this._collapseTimer);
+            this._collapseTimer = 0;
             document.body.setAttribute('data-fab-expanded', 'true');
             document.body.removeAttribute('data-fab-collapsing');
             // v5.0：展开前再次刷新徒章数量，保证与实际弹出的 FAB 匹配
             if (this._refreshBadge) this._refreshBadge();
             if (this._btn) {
                 this._btn.classList.toggle('fab-trigger--open', this._expanded);
+                this._btn.setAttribute('aria-expanded', 'true');
                 this._btn.setAttribute('data-tip', this._expanded ? '收起菜单' : '更多操作');
             }
             if (this._scrim) this._scrim.classList.toggle('fab-scrim--visible', this._expanded);
+            this._syncFocusState();
             // v4.2.29：展开瞬间发出青色光环
             if (this._expanded) {
                 const halo = document.createElement('span');

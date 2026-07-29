@@ -4,6 +4,8 @@
     if (global.AstraLearningEvidenceActivity) return;
 
     const mounted = new WeakMap();
+    const DOMAIN_COMMAND_CAPACITY = 16;
+    const PEER_IDENTITY_CAPACITY = 256;
 
     function client() {
         if (!global.AstraLearningEvidenceClient) throw new Error('AstraLearningEvidenceClient unavailable');
@@ -56,7 +58,9 @@
             identity_required: '登录身份或角色已变化，本次操作未保存，请重新登录后继续。',
             cancelled: '登录身份或角色已变化，本次操作未保存，请重新登录后继续。',
             online_required: '自由文本解释不会保存在本机，请联网后重试。',
-            evidence_memory_buffer_full: '活动初始化期间的操作暂存已满，请等待范围确认后再继续。'
+            evidence_memory_buffer_full: '活动操作暂存已满，请等待当前事件写入完成后重试本次操作。',
+            evidence_peer_identity_full: '本活动等待跨标签确认的证据身份已达上限，请等待已有事件同步后重试。',
+            queue_limit_reached: '共享待同步证据队列已满；本次操作仍保留在当前页面，请等待真实队列容量释放后重试。'
         };
         return messages[code] || '学习证据暂不可用，请稍后重试。';
     }
@@ -82,6 +86,7 @@
         return `<div class="astra-evidence-panel__heading"><div><span>LEARNING EVIDENCE</span><h3>${escapeHtml(options.title || '学习证据')}</h3></div><small>完成与迁移仅显示服务端投影</small></div>
             <div data-evidence-scope></div>
             <div class="astra-evidence-status" data-evidence-status hidden></div>
+            <div class="astra-evidence-status" data-evidence-domain-status hidden></div>
             <p class="astra-evidence-panel__projection" data-evidence-projection hidden></p>
             ${steps}
             <details class="astra-evidence-panel__online">
@@ -107,12 +112,22 @@
             initializeGeneration: 0,
             pendingCommands: [],
             draining: false,
+            domainInFlight: false,
+            domainBlockReason: '',
+            domainGeneration: 0,
             recoveryTimer: 0,
             recoveryController: null,
             recoveryGeneration: 0,
             releaseDomainCommands: null,
             initializationError: null,
-            authorityInvalidated: false
+            authorityInvalidated: false,
+            activeCommand: null,
+            recentUntrackedCommand: null,
+            recentDomainCommand: null,
+            recordOperations: new Map(),
+            commandGeneration: 0,
+            commandInFlight: false,
+            recordGeneration: 0
         };
 
         function statusNode() {
@@ -128,6 +143,36 @@
             });
         }
 
+        function renderDomainStatus(value, message) {
+            const node = host.querySelector('[data-evidence-domain-status]');
+            if (!node) return;
+            if (!message) {
+                node.hidden = true;
+                node.textContent = '';
+                node.className = 'astra-evidence-status';
+                delete node.dataset.evidenceState;
+                delete node.dataset.evidenceDomainState;
+                node.removeAttribute('role');
+                return;
+            }
+            const component = global.AstraLearningEvidenceStatus;
+            if (component) {
+                component.render(node, value, { message });
+                node.dataset.evidenceDomainState = value;
+                return;
+            }
+            node.hidden = false;
+            node.textContent = message;
+            node.dataset.evidenceDomainState = value;
+            node.setAttribute('role', value === 'manual-intervention' ? 'alert' : 'status');
+        }
+
+        function showDomainError(error) {
+            const normalized = normalizeError(error);
+            renderDomainStatus('manual-intervention', stateMessage(normalized.code));
+            if (!state.activeCommand) showError(normalized);
+        }
+
         function showError(error, settings) {
             const normalized = normalizeError(error);
             const node = statusNode();
@@ -138,7 +183,7 @@
             signal.className = 'astra-evidence-status__signal';
             signal.setAttribute('aria-hidden', 'true');
             label.textContent = '需要处理';
-            message.textContent = stateMessage(normalized.code);
+            message.textContent = settings && settings.message || stateMessage(normalized.code);
             node.hidden = false;
             node.className = 'astra-evidence-status astra-evidence-status--manual-intervention';
             node.dataset.evidenceState = 'manual-intervention';
@@ -184,6 +229,7 @@
             if (!projection || !projection.status) {
                 node.hidden = true;
                 node.textContent = '';
+                delete node.dataset.projectionStatus;
                 return;
             }
             const labels = {
@@ -194,6 +240,20 @@
             };
             node.textContent = `服务端学习投影：${labels[projection.status] || projection.status}（规则版本 ${projection.rule_version}）`;
             node.dataset.projectionStatus = projection.status;
+            node.hidden = false;
+        }
+
+        function clearProjection() {
+            state.projection = null;
+            renderProjection();
+        }
+
+        function renderProjectionRefreshFailure(error) {
+            const node = host.querySelector('[data-evidence-projection]');
+            if (!node) return;
+            const normalized = normalizeError(error);
+            node.textContent = `本次事件已确认；服务端投影暂不可刷新（${normalized.code}），可稍后重试。`;
+            node.dataset.projectionStatus = 'refresh-failed';
             node.hidden = false;
         }
 
@@ -214,11 +274,16 @@
         }
 
         async function resolveRule(context, signal) {
+            const operationSignal = signal || abort.signal;
             const recovery = await client().recovery({
                 class_id: context.class_id,
                 course_id: context.course_id
-            }, { signal: signal || abort.signal });
-            if (abort.signal.aborted || context !== state.context) {
+            }, { signal: operationSignal });
+            if (
+                operationSignal.aborted
+                || abort.signal.aborted
+                || context !== state.context
+            ) {
                 const cancelled = new Error('Learning evidence recovery superseded');
                 cancelled.code = 'cancelled';
                 throw cancelled;
@@ -246,40 +311,436 @@
             });
         }
 
+        function createClientEventId(eventType) {
+            if (global.crypto && typeof global.crypto.randomUUID === 'function') {
+                return global.crypto.randomUUID();
+            }
+            return [
+                'activity',
+                eventType,
+                Date.now().toString(36),
+                Math.random().toString(16).slice(2)
+            ].join('-');
+        }
+
+        function commandLabel(eventType) {
+            return {
+                predicted: '预测',
+                explained: '解释'
+            }[eventType] || '证据';
+        }
+
+        function changeEventType(change) {
+            return change && (
+                change.event_type
+                || change.projection && change.projection.last_event_type
+            ) || '';
+        }
+
+        function matchesActiveCommand(value) {
+            const active = state.activeCommand;
+            return Boolean(
+                active
+                && value
+                && value.client_event_id === active.client_event_id
+                && changeEventType(value) === active.event_type
+            );
+        }
+
+        function hasEventIdentity(value) {
+            return Boolean(value && value.client_event_id && changeEventType(value));
+        }
+
+        function recordOperationKey(value) {
+            return hasEventIdentity(value)
+                ? `${changeEventType(value)}:${value.client_event_id}`
+                : '';
+        }
+
+        function operationScope(value) {
+            return value && (value.projection || value) || {};
+        }
+
+        function operationMatchesScope(operation, value) {
+            const scope = operationScope(value);
+            return Boolean(
+                operation
+                && Number(scope.class_id) === operation.class_id
+                && Number(scope.course_id) === operation.course_id
+                && Number(scope.course_unit_id) === operation.course_unit_id
+                && scope.activity_key === operation.activity_key
+            );
+        }
+
+        function isKnownRecordOperation(value) {
+            const operation = state.recordOperations.get(recordOperationKey(value));
+            return Boolean(
+                operation
+                && operation.record_generation === state.recordGeneration
+                && operationMatchesScope(operation, value)
+            );
+        }
+
+        function releaseRecordOperation(value, expectedOperation) {
+            const operationKey = recordOperationKey(value);
+            const operation = state.recordOperations.get(operationKey);
+            if (!operation || expectedOperation && operation !== expectedOperation) return false;
+            state.recordOperations.delete(operationKey);
+            if (
+                state.domainBlockReason === 'local-identity-full'
+                && state.recordOperations.size < PEER_IDENTITY_CAPACITY
+            ) {
+                state.domainBlockReason = '';
+            }
+            if (
+                state.initialized
+                && state.pendingCommands.length
+                && !state.draining
+                && !state.authorityInvalidated
+                && !abort.signal.aborted
+            ) drainDomainCommands();
+            return true;
+        }
+
+        function waitsForPeerTerminal(result) {
+            return Boolean(
+                result
+                && (
+                    result.outcome === 'queued'
+                    || result.state === 'local-pending'
+                )
+            );
+        }
+
+        function peerIdentityCapacityError() {
+            const error = new Error(stateMessage('evidence_peer_identity_full'));
+            error.code = 'evidence_peer_identity_full';
+            return error;
+        }
+
+        function matchesRecentUntrackedCommand(value) {
+            const recent = state.recentUntrackedCommand;
+            return Boolean(
+                !state.activeCommand
+                && recent
+                && recent.record_generation === state.recordGeneration
+                && value
+                && value.client_event_id === recent.client_event_id
+                && changeEventType(value) === recent.event_type
+            );
+        }
+
+        function matchesRecentDomainCommand(value) {
+            const recent = state.recentDomainCommand;
+            return Boolean(
+                recent
+                && recent.record_generation === state.recordGeneration
+                && value
+                && value.client_event_id === recent.client_event_id
+                && changeEventType(value) === recent.event_type
+                && operationMatchesScope(recent, value)
+            );
+        }
+
+        function isCurrentCommand(command) {
+            return Boolean(
+                command
+                && state.activeCommand
+                && command.record_generation === state.recordGeneration
+                && command.generation === state.activeCommand.generation
+                && command.client_event_id === state.activeCommand.client_event_id
+                && command.event_type === state.activeCommand.event_type
+            );
+        }
+
+        function isCurrentRecord(operation) {
+            return Boolean(
+                operation
+                && operation.record_generation === state.recordGeneration
+                && !abort.signal.aborted
+            );
+        }
+
+        function isCurrentUntrackedCommand(command) {
+            return Boolean(
+                isCurrentRecord(command)
+                && matchesRecentUntrackedCommand(command)
+            );
+        }
+
+        function isCurrentDomainCommand(command) {
+            return Boolean(
+                command
+                && state.recentDomainCommand === command
+                && command.record_generation === state.recordGeneration
+                && !abort.signal.aborted
+            );
+        }
+
+        function canRenderRecordResult(trackedCommand, untrackedCommand) {
+            return trackedCommand
+                ? isCurrentCommand(trackedCommand)
+                : isCurrentUntrackedCommand(untrackedCommand);
+        }
+
+        function invalidateActiveCommand() {
+            state.recordGeneration += 1;
+            state.commandGeneration += 1;
+            state.activeCommand = null;
+            state.recentUntrackedCommand = null;
+            state.recentDomainCommand = null;
+            state.recordOperations.clear();
+            state.commandInFlight = false;
+        }
+
+        function syncCommandButtons() {
+            const disabled = Boolean(
+                !state.initialized
+                || state.authorityInvalidated
+                || abort.signal.aborted
+                || state.commandInFlight
+            );
+            host.querySelectorAll('[data-evidence-command]').forEach(button => {
+                button.disabled = disabled;
+            });
+        }
+
+        function renderCommandResult(command, result) {
+            if (!isCurrentCommand(command)) return;
+            if (command.state === 'confirmed' && result.state !== 'confirmed') return;
+            command.state = result.state || 'manual-intervention';
+            const label = commandLabel(command.event_type);
+            if (result.state === 'syncing') {
+                renderStatus('syncing', `正在提交本次${label}。`);
+                return;
+            }
+            if (result.state === 'confirmed') {
+                renderStatus('confirmed', `本次${label}已由服务端确认。完成状态仍以服务端投影为准。`);
+                return;
+            }
+            if (result.state === 'local-pending') {
+                renderStatus('local-pending', `本次${label}已安全保存在本机，将使用同一事件编号自动重试同步。`);
+                return;
+            }
+            renderStatus('manual-intervention', `本次${label}尚未获得权威确认，已保留原事件编号等待人工核对。`);
+        }
+
+        function renderUntrackedCommandResult(command, result) {
+            if (!isCurrentUntrackedCommand(command)) return;
+            const recent = state.recentUntrackedCommand;
+            const nextState = result.state
+                || (result.outcome === 'confirmed' ? 'confirmed' : 'local-pending');
+            if (recent.state === 'confirmed' && nextState !== 'confirmed') return;
+            recent.state = nextState;
+            if (nextState === 'confirmed') {
+                renderStatus('confirmed', `本次${commandLabel(command.event_type)}已由服务端确认。完成状态仍以服务端投影为准。`);
+                return;
+            }
+            if (nextState === 'syncing' && recent.domain_command) {
+                renderStatus('syncing', '正在按顺序保存操作证据；后续操作已在当前页面内有界排队。');
+                return;
+            }
+            renderStatus(nextState);
+        }
+
+        function renderDomainRecordResult(command, result) {
+            if (!isCurrentDomainCommand(command)) return;
+            const nextState = result && result.state
+                || (result && result.outcome === 'confirmed' ? 'confirmed' : 'manual-intervention');
+            if (command.state === 'confirmed' && nextState !== 'confirmed') return;
+            command.state = nextState;
+            if (nextState === 'confirmed') {
+                renderDomainStatus('confirmed', '操作证据已由服务端确认。');
+                return;
+            }
+            if (nextState === 'local-pending') {
+                renderDomainStatus('local-pending', '操作证据已安全保存在本机，正在等待自动同步。');
+                return;
+            }
+            renderDomainStatus('manual-intervention', '操作证据尚未获得权威确认，请稍后重试或人工核对。');
+        }
+
+        function shouldWarnCommandError(error) {
+            const code = error && error.code || '';
+            return Boolean(
+                error
+                && !abort.signal.aborted
+                && ![
+                    'cancelled',
+                    'identity_required',
+                    'evidence_peer_identity_full',
+                    'queue_limit_reached'
+                ].includes(code)
+            );
+        }
+
+        function setCommandAvailability(available) {
+            const controls = host.querySelector('[data-evidence-controls]');
+            if (controls) controls.hidden = !available;
+            if (!available) {
+                host.querySelectorAll('[data-evidence-command]').forEach(button => {
+                    button.disabled = true;
+                });
+                return;
+            }
+            syncCommandButtons();
+        }
+
         async function record(eventType, evidence, settings) {
             if (!state.context || !state.ruleVersion) {
                 const error = new Error('Activity evidence context unavailable');
                 error.code = 'publication_context_unavailable';
                 throw error;
             }
-            renderStatus('syncing');
+            const commandSettings = settings || {};
+            const clientEventId = commandSettings.client_event_id || createClientEventId(eventType);
+            const recordOperation = {
+                client_event_id: clientEventId,
+                event_type: eventType,
+                domain_command: Boolean(commandSettings.domainCommand),
+                class_id: Number(state.context.class_id),
+                course_id: Number(state.context.course_id),
+                course_unit_id: Number(state.context.course_unit_id),
+                activity_key: state.context.activity_key,
+                record_generation: state.recordGeneration
+            };
+            const operationKey = recordOperationKey(recordOperation);
+            if (
+                !state.recordOperations.has(operationKey)
+                && state.recordOperations.size >= PEER_IDENTITY_CAPACITY
+            ) {
+                const error = peerIdentityCapacityError();
+                if (recordOperation.domain_command) showDomainError(error);
+                else showError(error);
+                throw error;
+            }
+            state.recordOperations.set(operationKey, recordOperation);
+            if (recordOperation.domain_command) {
+                recordOperation.state = 'syncing';
+                state.recentDomainCommand = recordOperation;
+            }
+            let retainRecordOperation = false;
+            const trackedCommand = commandSettings.trackStatus ? {
+                client_event_id: clientEventId,
+                event_type: eventType,
+                generation: ++state.commandGeneration,
+                record_generation: recordOperation.record_generation,
+                state: 'syncing'
+            } : null;
+            const untrackedCommand = trackedCommand || state.activeCommand
+                ? null
+                : recordOperation;
+            if (trackedCommand) {
+                state.activeCommand = trackedCommand;
+                state.recentUntrackedCommand = null;
+                state.commandInFlight = true;
+                syncCommandButtons();
+            } else if (untrackedCommand) {
+                state.recentUntrackedCommand = Object.assign({
+                    state: 'syncing'
+                }, untrackedCommand);
+            }
+            if (!state.activeCommand || trackedCommand) {
+                renderStatus('syncing', trackedCommand
+                    ? `正在提交本次${commandLabel(eventType)}。`
+                    : commandSettings.domainCommand
+                        ? '正在按顺序保存操作证据；后续操作已在当前页面内有界排队。'
+                        : undefined);
+            }
             try {
-                const result = await client().record(commandPayload(eventType, evidence, settings && settings.occurred_at), settings);
+                const payload = Object.assign(
+                    commandPayload(eventType, evidence, commandSettings.occurred_at),
+                    { client_event_id: clientEventId }
+                );
+                const result = await client().record(payload, commandSettings);
+                if (!isCurrentRecord(recordOperation)) return result;
                 if (result.outcome === 'cancelled') {
                     const error = new Error(stateMessage('identity_required'));
                     error.code = 'identity_required';
-                    showError(error);
-                    return result;
+                    if (recordOperation.domain_command) {
+                        showDomainError(error);
+                    } else if (canRenderRecordResult(trackedCommand, untrackedCommand)) {
+                        showError(error, trackedCommand ? {
+                            message: `本次${commandLabel(eventType)}未保存：${stateMessage('identity_required')}`
+                        } : undefined);
+                    }
+                    throw error;
                 }
-                renderStatus(result.state || (result.outcome === 'confirmed' ? 'confirmed' : 'local-pending'));
+                retainRecordOperation = Boolean(
+                    waitsForPeerTerminal(result)
+                    && state.recordOperations.get(operationKey) === recordOperation
+                );
+                if (trackedCommand) {
+                    renderCommandResult(trackedCommand, result);
+                } else if (untrackedCommand) {
+                    renderUntrackedCommandResult(untrackedCommand, result);
+                }
+                if (recordOperation.domain_command) {
+                    renderDomainRecordResult(recordOperation, result);
+                }
                 if (eventType === 'explained' && result.state === 'confirmed') {
-                    cancelProjectionRecovery();
-                    state.ruleVersion = await resolveRule(state.context);
-                    renderStatus('confirmed', `证据已确认；服务端投影为${state.projection && state.projection.status ? `“${state.projection.status}”` : '当前规则状态'}。`);
+                    const context = state.context;
+                    if (context && canRenderRecordResult(trackedCommand, untrackedCommand)) {
+                        cancelProjectionRecovery();
+                        try {
+                            const ruleVersion = await resolveRule(context);
+                            if (
+                                state.context === context
+                                && canRenderRecordResult(trackedCommand, untrackedCommand)
+                            ) state.ruleVersion = ruleVersion;
+                        } catch (error) {
+                            if (canRenderRecordResult(trackedCommand, untrackedCommand)) {
+                                renderProjectionRefreshFailure(error);
+                            }
+                        }
+                    }
+                    if (canRenderRecordResult(trackedCommand, untrackedCommand)) {
+                        renderStatus('confirmed', `本次解释已确认；服务端投影为${state.projection && state.projection.status ? `“${state.projection.status}”` : '当前规则状态'}。`);
+                    }
+                }
+                if (!retainRecordOperation) {
+                    releaseRecordOperation(recordOperation, recordOperation);
                 }
                 return result;
             } catch (error) {
-                showError(error && error.code === 'cancelled'
+                if (!isCurrentRecord(recordOperation)) {
+                    return Object.freeze({ outcome: 'cancelled', state: '' });
+                }
+                const normalized = error && error.code === 'cancelled'
                     ? Object.assign(new Error(stateMessage('identity_required')), { code: 'identity_required' })
-                    : error);
+                    : normalizeError(error);
+                if (
+                    recordOperation.domain_command
+                    && normalized.code === 'queue_limit_reached'
+                ) {
+                    retainRecordOperation = true;
+                    showDomainError(normalized);
+                    throw error;
+                }
+                releaseRecordOperation(recordOperation, recordOperation);
+                if (recordOperation.domain_command) {
+                    showDomainError(normalized);
+                } else if (canRenderRecordResult(trackedCommand, untrackedCommand)) {
+                    showError(normalized, trackedCommand ? {
+                        message: `本次${commandLabel(eventType)}未保存：${stateMessage(normalizeError(normalized).code)}`
+                    } : undefined);
+                }
                 throw error;
+            } finally {
+                if (!retainRecordOperation) {
+                    releaseRecordOperation(recordOperation, recordOperation);
+                }
+                if (trackedCommand && isCurrentCommand(trackedCommand)) {
+                    state.commandInFlight = false;
+                }
+                syncCommandButtons();
             }
         }
 
         async function refreshStatus() {
             if (!state.context) return;
             const current = await client().stateFor(state.context);
-            if (current && current.state) renderStatus(current.state);
+            if (current && current.state && !state.activeCommand) renderStatus(current.state);
         }
 
         function cancelProjectionRecovery() {
@@ -290,7 +751,7 @@
             state.recoveryGeneration += 1;
         }
 
-        function scheduleProjectionRecovery() {
+        function scheduleProjectionRecovery(change) {
             if (!state.context || abort.signal.aborted) return;
             if (state.recoveryTimer) global.clearTimeout(state.recoveryTimer);
             state.recoveryTimer = global.setTimeout(async () => {
@@ -305,10 +766,34 @@
                     const ruleVersion = await resolveRule(context, controller.signal);
                     if (generation !== state.recoveryGeneration || controller.signal.aborted) return;
                     state.ruleVersion = ruleVersion;
-                    renderStatus('confirmed', `证据已确认；服务端投影为${state.projection && state.projection.status ? `“${state.projection.status}”` : '当前规则状态'}。`);
+                    if (state.activeCommand && matchesActiveCommand(change)) {
+                        renderCommandResult(state.activeCommand, { state: 'confirmed' });
+                    } else if (matchesRecentUntrackedCommand(change)) {
+                        renderUntrackedCommandResult(state.recentUntrackedCommand, {
+                            state: 'confirmed'
+                        });
+                    } else if (
+                        !state.activeCommand
+                        && !state.recentUntrackedCommand
+                        && !hasEventIdentity(change)
+                    ) {
+                        renderStatus('confirmed', `证据已确认；服务端投影为${state.projection && state.projection.status ? `“${state.projection.status}”` : '当前规则状态'}。`);
+                    }
                 } catch (error) {
                     const normalized = normalizeError(error);
-                    if (!abort.signal.aborted && normalized.code !== 'cancelled') showError(normalized);
+                    if (abort.signal.aborted || normalized.code === 'cancelled') return;
+                    if (
+                        state.activeCommand && matchesActiveCommand(change)
+                        || matchesRecentUntrackedCommand(change)
+                    ) {
+                        renderProjectionRefreshFailure(normalized);
+                        return;
+                    }
+                    if (
+                        !state.activeCommand
+                        && !state.recentUntrackedCommand
+                        && !hasEventIdentity(change)
+                    ) showError(normalized);
                 } finally {
                     if (state.recoveryController === controller) state.recoveryController = null;
                 }
@@ -329,14 +814,16 @@
         }
 
         function bufferDomainCommand(eventType, evidence, occurredAt, scope) {
-            if (state.pendingCommands.length >= 16) {
+            const retainedCount = state.pendingCommands.length;
+            if (retainedCount >= DOMAIN_COMMAND_CAPACITY) {
                 const error = new Error(stateMessage('evidence_memory_buffer_full'));
                 error.code = 'evidence_memory_buffer_full';
-                showError(error);
+                showDomainError(error);
                 return false;
             }
             try {
                 state.pendingCommands.push({
+                    client_event_id: createClientEventId(eventType),
                     eventType,
                     evidence: cloneDomainEvidence(evidence),
                     class_id: Number(scope && scope.class_id || 0),
@@ -347,38 +834,92 @@
                 });
                 if (state.initializationError) {
                     showError(state.initializationError, { initializeRetry: true });
+                } else if (state.initialized) {
+                    const message = '正在按顺序保存操作证据；后续操作已在当前页面内有界排队。';
+                    renderDomainStatus('syncing', message);
+                    if (!state.activeCommand) renderStatus('syncing', message);
                 } else {
-                    renderStatus('syncing', '活动范围正在确认；首批真实操作已在当前页面内暂存。');
+                    const message = '活动范围正在确认；首批真实操作已在当前页面内暂存。';
+                    renderDomainStatus('syncing', message);
+                    renderStatus('syncing', message);
                 }
                 return true;
             } catch (error) {
-                showError(error);
+                showDomainError(error);
                 return false;
             }
         }
 
         async function drainDomainCommands() {
-            if (state.draining || !state.initialized) return;
+            if (state.draining || !state.initialized || state.domainBlockReason) return;
+            const generation = state.domainGeneration;
             state.draining = true;
             try {
-                while (state.pendingCommands.length && state.initialized && !abort.signal.aborted) {
-                    const command = state.pendingCommands.shift();
+                while (
+                    state.pendingCommands.length
+                    && state.initialized
+                    && !abort.signal.aborted
+                    && generation === state.domainGeneration
+                ) {
+                    const command = state.pendingCommands[0];
                     if (
                         command.class_id
                         && (
                             command.class_id !== Number(state.context && state.context.class_id)
                             || command.course_id !== Number(state.context && state.context.course_id)
                         )
-                    ) continue;
+                    ) {
+                        state.pendingCommands.shift();
+                        continue;
+                    }
+                    if (state.recordOperations.size >= PEER_IDENTITY_CAPACITY) {
+                        state.domainBlockReason = 'local-identity-full';
+                        showDomainError(peerIdentityCapacityError());
+                        break;
+                    }
+                    state.domainInFlight = true;
                     try {
-                        await record(command.eventType, command.evidence, { occurred_at: command.occurred_at });
+                        await record(command.eventType, command.evidence, {
+                            client_event_id: command.client_event_id,
+                            occurred_at: command.occurred_at,
+                            domainCommand: true,
+                            signal: abort.signal
+                        });
+                        if (state.pendingCommands[0] === command) {
+                            state.pendingCommands.shift();
+                        }
                     } catch (error) {
-                        global.console && global.console.warn('[LearningEvidenceActivity] buffered domain command rejected', error.code || error.message);
+                        const normalized = normalizeError(error);
+                        if (normalized.code === 'queue_limit_reached') {
+                            state.domainBlockReason = 'shared-queue-full';
+                            showDomainError(normalized);
+                            break;
+                        }
+                        if (state.pendingCommands[0] === command) {
+                            state.pendingCommands.shift();
+                        }
+                        if (shouldWarnCommandError(normalized)) {
+                            global.console && global.console.warn('[LearningEvidenceActivity] buffered domain command rejected', error.code || error.message);
+                        }
+                    } finally {
+                        if (generation === state.domainGeneration) state.domainInFlight = false;
                     }
                 }
             } finally {
-                state.draining = false;
+                if (generation === state.domainGeneration) {
+                    state.draining = false;
+                    state.domainInFlight = false;
+                }
             }
+        }
+
+        function resetDomainCommands() {
+            state.domainGeneration += 1;
+            state.pendingCommands.length = 0;
+            state.draining = false;
+            state.domainInFlight = false;
+            state.domainBlockReason = '';
+            renderDomainStatus('', '');
         }
 
         function initialize() {
@@ -393,7 +934,7 @@
             state.initialized = false;
             state.initializationError = null;
             const operation = (async () => {
-                host.querySelector('[data-evidence-controls]').hidden = true;
+                setCommandAvailability(false);
                 renderStatus('syncing', '正在确认活动发布范围与规则绑定。');
                 try {
                     const context = await resolveContext();
@@ -401,19 +942,33 @@
                     state.context = context;
                     state.ruleVersion = await resolveRule(context);
                     if (generation !== state.initializeGeneration || abort.signal.aborted) return;
-                    host.querySelector('[data-evidence-controls]').hidden = false;
                     const startedAt = earliestPendingOccurredAt(state.pendingCommands);
-                    await record('started', {
+                    const started = await record('started', {
                         cursor: {
                             surface: mapping.galaxy_key,
                             stage: 'entered'
                         }
                     }, startedAt ? { occurred_at: startedAt } : undefined);
+                    if (generation !== state.initializeGeneration || abort.signal.aborted) return;
+                    if (
+                        !started
+                        || !['confirmed', 'reconciled', 'queued'].includes(started.outcome)
+                    ) {
+                        const error = new Error('Initial learning evidence event is not durable');
+                        error.code = 'learning_evidence_failed';
+                        throw error;
+                    }
                     state.initialized = true;
                     await drainDomainCommands();
                     await refreshStatus();
+                    if (generation !== state.initializeGeneration || abort.signal.aborted) return;
+                    setCommandAvailability(true);
                 } catch (error) {
-                    if (!abort.signal.aborted) {
+                    if (
+                        generation === state.initializeGeneration
+                        && !abort.signal.aborted
+                        && !state.authorityInvalidated
+                    ) {
                         state.initializationError = error;
                         showError(error && error.code === 'cancelled'
                             ? Object.assign(new Error(stateMessage('identity_required')), { code: 'identity_required' })
@@ -440,20 +995,25 @@
 
         host.addEventListener('click', async event => {
             const button = event.target instanceof Element && event.target.closest('[data-evidence-command]');
-            if (!button || button.disabled) return;
+            if (
+                !button
+                || button.disabled
+                || !state.initialized
+                || state.authorityInvalidated
+                || state.commandInFlight
+            ) return;
             const command = button.dataset.evidenceCommand;
-            button.disabled = true;
             try {
                 if (command === 'predicted') {
                     await record('predicted', {
                         prediction: { choice: controlValue('prediction') },
                         cursor: { stage: 'predicted' }
-                    });
+                    }, { trackStatus: true });
                 } else if (command === 'explained') {
                     await record('explained', {
                         artifact: { kind: 'claim-evidence-link', value: controlValue('explanation') },
                         cursor: { stage: 'explained' }
-                    });
+                    }, { trackStatus: true });
                 } else if (command === 'explained-text') {
                     const textarea = host.querySelector('[data-evidence-free-text]');
                     const value = String(textarea && textarea.value || '').trim();
@@ -461,28 +1021,29 @@
                     await record('explained', {
                         artifact: { kind: 'free-text', text: value },
                         cursor: { stage: 'explained-online' }
-                    }, { onlineOnly: true });
+                    }, { onlineOnly: true, trackStatus: true });
                     textarea.value = '';
                 }
             } catch (error) {
-                if (error && error.code !== 'online_required') global.console && global.console.warn('[LearningEvidenceActivity] command failed', error.code || error.message);
+                if (shouldWarnCommandError(error) && error.code !== 'online_required') {
+                    global.console && global.console.warn('[LearningEvidenceActivity] command failed', error.code || error.message);
+                }
             } finally {
-                button.disabled = false;
+                syncCommandButtons();
             }
         }, { signal: abort.signal });
 
         function acceptDomainCommand(detail, occurredAt) {
-            if (!detail || detail.galaxy_key !== mapping.galaxy_key || detail.activity_key !== mapping.activity_key) return;
-            if (!['predicted', 'attempted', 'corrected'].includes(detail.event_type)) return;
+            if (!detail || detail.galaxy_key !== mapping.galaxy_key || detail.activity_key !== mapping.activity_key) return false;
+            if (!['predicted', 'attempted', 'corrected'].includes(detail.event_type)) return false;
             if (state.authorityInvalidated) {
                 const error = new Error(stateMessage('identity_required'));
                 error.code = 'identity_required';
                 showError(error);
-                return;
+                return false;
             }
             if (!state.initialized) {
-                bufferDomainCommand(detail.event_type, detail.evidence, occurredAt, detail);
-                return;
+                return bufferDomainCommand(detail.event_type, detail.evidence, occurredAt, detail);
             }
             if (
                 detail.class_id
@@ -490,10 +1051,10 @@
                     Number(detail.class_id) !== Number(state.context && state.context.class_id)
                     || Number(detail.course_id) !== Number(state.context && state.context.course_id)
                 )
-            ) return;
-            record(detail.event_type, detail.evidence, { occurred_at: occurredAt }).catch(error => {
-                global.console && global.console.warn('[LearningEvidenceActivity] domain command rejected', error.code || error.message);
-            });
+            ) return false;
+            const accepted = bufferDomainCommand(detail.event_type, detail.evidence, occurredAt, detail);
+            if (accepted) drainDomainCommands();
+            return accepted;
         }
 
         const loader = global.AstraLearningEvidenceLoader;
@@ -511,24 +1072,49 @@
         state.unsubscribe = client().subscribe(change => {
             if (change && change.type === 'authority-cleared') {
                 state.authorityInvalidated = true;
+                invalidateActiveCommand();
                 state.initializeGeneration += 1;
                 state.initialized = false;
                 state.context = null;
                 state.ruleVersion = 0;
                 state.initializationError = null;
-                state.pendingCommands.length = 0;
+                resetDomainCommands();
+                clearProjection();
                 cancelProjectionRecovery();
-                host.querySelector('[data-evidence-controls]').hidden = true;
+                setCommandAvailability(false);
                 showError(Object.assign(new Error(stateMessage('identity_required')), { code: 'identity_required' }));
                 return;
             }
             if (change && change.type === 'identity-configured') {
+                invalidateActiveCommand();
                 state.authorityInvalidated = false;
+                state.initializeGeneration += 1;
+                state.initialized = false;
+                state.context = null;
+                state.ruleVersion = 0;
+                state.initializationError = null;
+                resetDomainCommands();
+                clearProjection();
+                cancelProjectionRecovery();
+                setCommandAvailability(false);
                 const restart = () => {
                     if (!abort.signal.aborted && !state.authorityInvalidated) initialize();
                 };
                 if (state.initializing) state.initializing.then(restart, restart);
                 else restart();
+                return;
+            }
+            if (change && change.type === 'queue-capacity-released') {
+                if (
+                    state.domainBlockReason === 'shared-queue-full'
+                    && state.initialized
+                    && state.pendingCommands.length
+                    && !state.authorityInvalidated
+                    && !abort.signal.aborted
+                ) {
+                    state.domainBlockReason = '';
+                    drainDomainCommands();
+                }
                 return;
             }
             const scope = change && (change.projection || change);
@@ -539,8 +1125,42 @@
                 || Number(scope.course_unit_id) !== Number(state.context.course_unit_id)
                 || scope.activity_key !== state.context.activity_key
             ) return;
-            if (change.state) renderStatus(change.state);
-            if (change.type === 'confirmed') scheduleProjectionRecovery();
+            const knownRecordChange = isKnownRecordOperation(change);
+            const currentRecordChange = Boolean(
+                knownRecordChange
+                || matchesActiveCommand(change)
+                || matchesRecentUntrackedCommand(change)
+            );
+            if (change.state && state.activeCommand && matchesActiveCommand(change)) {
+                renderCommandResult(state.activeCommand, {
+                    state: change.state
+                });
+            } else if (change.state && matchesRecentUntrackedCommand(change)) {
+                renderUntrackedCommandResult(state.recentUntrackedCommand, {
+                    state: change.state
+                });
+            }
+            if (
+                (change.state || change.type === 'confirmed')
+                && matchesRecentDomainCommand(change)
+            ) {
+                renderDomainRecordResult(state.recentDomainCommand, {
+                    state: change.state || 'confirmed'
+                });
+            }
+            if (
+                change.type === 'confirmed'
+                && (!hasEventIdentity(change) || currentRecordChange)
+            ) {
+                scheduleProjectionRecovery(change);
+                releaseRecordOperation(change);
+            } else if (
+                currentRecordChange
+                && change.state
+                && !['local-pending', 'syncing'].includes(change.state)
+            ) {
+                releaseRecordOperation(change);
+            }
         });
         initialize();
 
@@ -555,7 +1175,9 @@
                 state.initialized = false;
                 state.initializationError = null;
                 state.authorityInvalidated = true;
-                state.pendingCommands.length = 0;
+                invalidateActiveCommand();
+                resetDomainCommands();
+                clearProjection();
                 if (state.releaseDomainCommands) state.releaseDomainCommands();
                 state.releaseDomainCommands = null;
                 if (state.unsubscribe) state.unsubscribe();
