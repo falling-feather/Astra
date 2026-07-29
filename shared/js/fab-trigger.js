@@ -84,6 +84,16 @@
             if (action || menu && menu.contains(active)) this._focusElement(this._btn);
         },
 
+        _hasHigherPriorityEscapeOwner() {
+            const zoomModal = document.querySelector(
+                '.physics-zoom-modal.open, .biology-zoom-modal.open'
+            );
+            if (zoomModal) return true;
+            const guideOverlay = document.getElementById('experiment-guide-overlay');
+            if (guideOverlay && guideOverlay.classList.contains('active')) return true;
+            return Boolean(window.ExperimentExport && window.ExperimentExport._menuOpen);
+        },
+
         _closeExportMenu() {
             const menu = document.querySelector(EXPORT_MENU_SELECTOR);
             if (!menu || !menu.classList.contains('open')) return;
@@ -326,11 +336,17 @@
 
             // v4.2.21：ESC 键收起菜单（键盘友好）
             this._onKeyDown = (e) => {
-                if (e.key === 'Escape' && this._expanded) {
+                if (
+                    e.key === 'Escape'
+                    && this._expanded
+                    && !this._hasHigherPriorityEscapeOwner()
+                ) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
                     this.collapse();
                 }
             };
-            document.addEventListener('keydown', this._onKeyDown);
+            document.addEventListener('keydown', this._onKeyDown, true);
             this._startFocusObserver();
         },
 
@@ -355,7 +371,7 @@
                 this._onDocClick = null;
             }
             if (this._onKeyDown) {
-                document.removeEventListener('keydown', this._onKeyDown);
+                document.removeEventListener('keydown', this._onKeyDown, true);
                 this._onKeyDown = null;
             }
         },

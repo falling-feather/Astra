@@ -10,6 +10,8 @@ const activitySource = read('shared/js/learning-evidence-activity.js');
 const clientSource = read('shared/js/learning-evidence-client.js');
 const queueSource = read('shared/js/learning-evidence-queue.js');
 const fabSource = read('shared/js/fab-trigger.js');
+const moduleSelectorSource = read('shared/js/module-selector.js');
+const physicsZoomSource = read('pages/physics/physics-zoom.js');
 
 function deferred() {
   let resolve;
@@ -374,7 +376,12 @@ class MiniElement {
     const normalized = String(selector || '').trim();
     if (!normalized) return false;
     if (normalized.includes(',')) return normalized.split(',').some((part) => this.matches(part));
-    if (normalized.startsWith('.')) return this.classList.contains(normalized.slice(1));
+    if (normalized.startsWith('.')) {
+      return normalized
+        .slice(1)
+        .split('.')
+        .every((className) => this.classList.contains(className));
+    }
     if (normalized.startsWith('#')) return this.id === normalized.slice(1);
     const attribute = normalized.match(/^\[([^\]=]+)(?:="([^"]*)")?\]$/);
     if (attribute) {
@@ -432,19 +439,27 @@ class MiniElement {
     if (!actual.type) throw new Error('event type required');
     if (!actual.target) actual.target = this;
     if (!actual.stopPropagation) actual.stopPropagation = () => { actual.propagationStopped = true; };
+    if (!actual.stopImmediatePropagation) {
+      actual.stopImmediatePropagation = () => {
+        actual.immediatePropagationStopped = true;
+        actual.propagationStopped = true;
+      };
+    }
     if (!actual.preventDefault) actual.preventDefault = () => { actual.defaultPrevented = true; };
+    if (this.ownerDocument) this.ownerDocument._dispatch(actual.type, actual, true);
     let current = this;
-    while (current) {
+    while (current && !actual.propagationStopped) {
       const values = (current.listeners.get(actual.type) || []).slice();
-      values.forEach((item) => {
+      for (const item of values) {
         item.listener(actual);
         if (item.once) current.removeEventListener(actual.type, item.listener);
-      });
+        if (actual.immediatePropagationStopped) break;
+      }
       if (actual.propagationStopped) break;
       current = current.parentNode;
     }
     if (!actual.propagationStopped && this.ownerDocument) {
-      this.ownerDocument._dispatch(actual.type, actual);
+      this.ownerDocument._dispatch(actual.type, actual, false);
     }
     return !actual.defaultPrevented;
   }
@@ -464,6 +479,7 @@ class MiniDocument {
   constructor() {
     this.activeElement = null;
     this.listeners = new Map();
+    this.listenerOperations = [];
     this.observers = new Set();
     this.body = new MiniElement('body', this);
     this.body.isConnected = true;
@@ -486,18 +502,28 @@ class MiniDocument {
     return this.querySelector(`#${id}`);
   }
 
-  addEventListener(type, listener) {
+  addEventListener(type, listener, options = false) {
+    const capture = options === true || Boolean(options && options.capture);
     if (!this.listeners.has(type)) this.listeners.set(type, []);
-    this.listeners.get(type).push(listener);
+    this.listeners.get(type).push({ listener, capture });
+    this.listenerOperations.push({ action: 'add', type, listener, capture });
   }
 
-  removeEventListener(type, listener) {
+  removeEventListener(type, listener, options = false) {
+    const capture = options === true || Boolean(options && options.capture);
     const values = this.listeners.get(type) || [];
-    this.listeners.set(type, values.filter((value) => value !== listener));
+    this.listeners.set(type, values.filter((value) => (
+      value.listener !== listener || value.capture !== capture
+    )));
+    this.listenerOperations.push({ action: 'remove', type, listener, capture });
   }
 
-  _dispatch(type, event) {
-    (this.listeners.get(type) || []).slice().forEach((listener) => listener(event));
+  _dispatch(type, event, capture) {
+    for (const item of (this.listeners.get(type) || []).slice()) {
+      if (item.capture !== capture) continue;
+      item.listener(event);
+      if (event.immediatePropagationStopped) break;
+    }
   }
 
   _notifyMutation(record) {
@@ -2802,6 +2828,7 @@ async function testClientTransientFailureQueuesAndAutoFlushesExactEvent() {
 function createFabHarness() {
   const document = new MiniDocument();
   const timers = new Map();
+  const windowListeners = new Map();
   let timerId = 0;
   const storage = new Map([['englab-fab-discovered', '1']]);
   const MutationObserver = createMutationObserverClass(document);
@@ -2823,6 +2850,14 @@ function createFabHarness() {
       const timer = timers.get(id);
       if (timer) timer.cleared = true;
     },
+    addEventListener(type, listener) {
+      if (!windowListeners.has(type)) windowListeners.set(type, []);
+      windowListeners.get(type).push(listener);
+    },
+    removeEventListener(type, listener) {
+      const values = windowListeners.get(type) || [];
+      windowListeners.set(type, values.filter((value) => value !== listener));
+    },
   };
   context.window = context;
   vm.createContext(context);
@@ -2832,6 +2867,7 @@ function createFabHarness() {
     document,
     fab: context.FabTrigger,
     timers,
+    windowListeners,
     create(tag, className) {
       const element = document.createElement(tag);
       element.className = className;
@@ -3049,6 +3085,239 @@ function testFabFocusLifecycle() {
   fab.hide();
 }
 
+function testFabEscapeStopsModuleOwnerOnSameDocumentTarget() {
+  const harness = createFabHarness();
+  const { context, document, fab } = harness;
+  const page = harness.create('section', 'page page-physics');
+  page.id = 'page-physics';
+  const module = harness.create('section', 'content-section module-active');
+  module.setAttribute('data-module', 'mechanics');
+  page.appendChild(module);
+  document.body.appendChild(page);
+  const gallery = harness.create('div', 'module-gallery');
+  gallery.id = 'gallery-physics';
+  gallery.style.display = 'none';
+  document.body.appendChild(gallery);
+  const sidebarToggle = harness.create('button', 'module-sidebar-toggle');
+  sidebarToggle.id = 'sidebar-toggle-physics';
+  document.body.appendChild(sidebarToggle);
+  const favorite = harness.create('button', 'favorite-fab');
+  document.body.appendChild(favorite);
+  const exportButton = harness.create('button', 'experiment-export-btn');
+  document.body.appendChild(exportButton);
+  const exportMenu = harness.create('div', 'experiment-export-menu');
+  const exportMenuItem = harness.create('button', 'experiment-export-menu__item');
+  exportMenu.appendChild(exportMenuItem);
+  document.body.appendChild(exportMenu);
+
+  context.location = { hash: '#physics/mechanics' };
+  context.history = {
+    replaceState(_state, _title, hash) {
+      context.location.hash = hash;
+    },
+  };
+  context.Router = { currentPage: 'physics' };
+  context.AstraExperimentRegistry = {
+    get(pageName, moduleId) {
+      return pageName === 'physics' && moduleId === 'mechanics'
+        ? { cleanup: { verified: false } }
+        : null;
+    },
+  };
+  context.scrollTo = () => {};
+  vm.runInContext(moduleSelectorSource, context, { filename: 'shared/js/module-selector.js' });
+  const moduleSelector = vm.runInContext('ModuleSelector', context);
+  moduleSelector.activeModule.physics = 'mechanics';
+  moduleSelector._transitionGeneration.physics = 0;
+  moduleSelector._transitionTimers.physics = [];
+  moduleSelector._sidebarOpen.physics = false;
+  moduleSelector._sidebars.physics = null;
+
+  fab.show();
+  const firstFabKeydown = fab._onKeyDown;
+  moduleSelector._initKeyboardNav();
+  fab.hide();
+  assert.equal(
+    (document.listeners.get('keydown') || []).length,
+    1,
+    'hide removes only the first FAB lifetime and leaves the module owner registered',
+  );
+  const firstFabRemove = document.listenerOperations.find((operation) => (
+    operation.action === 'remove'
+    && operation.type === 'keydown'
+    && operation.listener === firstFabKeydown
+  ));
+  assert.equal(firstFabRemove?.capture, true, 'the first FAB lifetime removes its capture listener symmetrically');
+
+  fab.show();
+  fab.show();
+  assert.equal(
+    (document.listeners.get('keydown') || []).length,
+    2,
+    're-show registers one FAB owner alongside the already-registered module owner',
+  );
+  const keydownOwners = document.listeners.get('keydown') || [];
+  assert.equal(
+    keydownOwners.filter((owner) => owner.capture).length,
+    1,
+    'the FAB owner arbitrates Escape in capture phase regardless of registration order',
+  );
+  assert.equal(
+    keydownOwners.filter((owner) => !owner.capture).length,
+    1,
+    'the real module owner remains a bubble listener',
+  );
+  const main = document.querySelector('.fab-trigger');
+  main.click();
+
+  let exportCloseCalls = 0;
+  context.ExperimentExport = {
+    _menuOpen: true,
+    _closeMenu() {
+      exportCloseCalls += 1;
+      this._menuOpen = false;
+      exportMenu.classList.remove('open');
+    },
+  };
+  exportMenu.classList.add('open');
+  document.flushMutations();
+  exportMenuItem.focus();
+  const exportEscape = {
+    type: 'keydown',
+    key: 'Escape',
+    target: exportMenuItem,
+  };
+  exportMenuItem.dispatchEvent(exportEscape);
+  assert.equal(exportCloseCalls, 1, 'the export owner keeps first priority over dock collapse');
+  assert.equal(document.body.getAttribute('data-fab-expanded'), 'true');
+  assert.equal(context.location.hash, '#physics/mechanics');
+  assert.equal(moduleSelector.activeModule.physics, 'mechanics');
+  assert.equal(exportEscape.defaultPrevented, true);
+  assert.equal(Boolean(exportEscape.immediatePropagationStopped), false);
+  document.flushMutations();
+
+  const guideOverlay = harness.create('div', 'experiment-guide-overlay active');
+  guideOverlay.id = 'experiment-guide-overlay';
+  const guideAction = harness.create('button', 'experiment-guide-action');
+  guideOverlay.appendChild(guideAction);
+  document.body.appendChild(guideOverlay);
+  let guideDismissCalls = 0;
+  guideOverlay.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    guideDismissCalls += 1;
+    event.preventDefault();
+    event.stopPropagation();
+    guideOverlay.classList.remove('active');
+  });
+  guideAction.focus();
+  const guideEscape = {
+    type: 'keydown',
+    key: 'Escape',
+    target: guideAction,
+  };
+  guideAction.dispatchEvent(guideEscape);
+  assert.equal(guideDismissCalls, 1, 'the guide overlay keeps first priority over dock collapse');
+  assert.equal(document.body.getAttribute('data-fab-expanded'), 'true');
+  assert.equal(context.location.hash, '#physics/mechanics');
+  assert.equal(moduleSelector.activeModule.physics, 'mechanics');
+  assert.equal(guideEscape.defaultPrevented, true);
+  guideOverlay.remove();
+
+  vm.runInContext(physicsZoomSource, context, { filename: 'pages/physics/physics-zoom.js' });
+  const physicsZoom = context.PhysicsZoom;
+  const zoomModal = harness.create('div', 'physics-zoom-modal open');
+  zoomModal.id = 'physics-zoom-modal';
+  const zoomClose = harness.create('button', 'physics-zoom-modal__close');
+  zoomModal.appendChild(zoomClose);
+  document.body.appendChild(zoomModal);
+  physicsZoom.modal = zoomModal;
+  physicsZoom.closeBtn = zoomClose;
+  let zoomCloseCalls = 0;
+  physicsZoom.close = function closeForContract() {
+    zoomCloseCalls += 1;
+    this.modal.classList.remove('open');
+    this._detachModalListeners();
+  };
+  physicsZoom._attachModalListeners();
+  zoomClose.focus();
+  const zoomEscape = {
+    type: 'keydown',
+    key: 'Escape',
+    target: zoomClose,
+  };
+  zoomClose.dispatchEvent(zoomEscape);
+  assert.equal(zoomCloseCalls, 1, 'the real zoom key owner keeps first priority over dock collapse');
+  assert.equal(document.body.getAttribute('data-fab-expanded'), 'true');
+  assert.equal(context.location.hash, '#physics/mechanics');
+  assert.equal(moduleSelector.activeModule.physics, 'mechanics');
+  assert.equal(zoomEscape.defaultPrevented, true);
+  assert.equal(zoomEscape.immediatePropagationStopped, true);
+
+  favorite.focus();
+  const collapseEscape = {
+    type: 'keydown',
+    key: 'Escape',
+    target: favorite,
+  };
+  favorite.dispatchEvent(collapseEscape);
+
+  assert.equal(document.body.getAttribute('data-fab-expanded'), 'false');
+  assert.equal(document.activeElement, main, 'consumed Escape returns focus to the main FAB');
+  assert.equal(context.location.hash, '#physics/mechanics', 'the same Escape must not escape the course route');
+  assert.equal(moduleSelector.activeModule.physics, 'mechanics', 'the same Escape keeps the active module');
+  assert.equal(collapseEscape.defaultPrevented, true, 'the FAB owner marks its Escape as consumed');
+  assert.equal(
+    collapseEscape.immediatePropagationStopped,
+    true,
+    'the FAB owner blocks later listeners registered on the same document target',
+  );
+
+  const moduleEscape = {
+    type: 'keydown',
+    key: 'Escape',
+    target: main,
+  };
+  main.dispatchEvent(moduleEscape);
+  assert.equal(context.location.hash, '#physics', 'a later Escape still executes the real module close path');
+  assert.equal(moduleSelector.activeModule.physics, null, 'the module owner remains registered and functional');
+  assert.equal(moduleEscape.defaultPrevented, true);
+  assert.equal(Boolean(moduleEscape.immediatePropagationStopped), false);
+
+  const secondFabKeydown = fab._onKeyDown;
+  fab.hide();
+  const secondFabRemove = document.listenerOperations.find((operation) => (
+    operation.action === 'remove'
+    && operation.type === 'keydown'
+    && operation.listener === secondFabKeydown
+  ));
+  assert.equal(secondFabRemove?.capture, true, 'the re-shown FAB removes the same capture registration');
+  assert.equal(
+    (document.listeners.get('keydown') || []).length,
+    1,
+    'hiding the re-shown FAB leaves no leaked FAB key owner',
+  );
+  fab.show();
+  const thirdFabKeydown = fab._onKeyDown;
+  fab.show();
+  assert.equal(
+    (document.listeners.get('keydown') || []).filter((owner) => owner.capture).length,
+    1,
+    'repeated show does not duplicate the capture owner',
+  );
+  fab.hide();
+  const thirdFabRemove = document.listenerOperations.find((operation) => (
+    operation.action === 'remove'
+    && operation.type === 'keydown'
+    && operation.listener === thirdFabKeydown
+  ));
+  assert.equal(thirdFabRemove?.capture, true, 'the repeated lifecycle keeps add/remove capture options symmetric');
+  assert.equal(
+    (document.listeners.get('keydown') || []).length,
+    1,
+    'repeated show/hide does not leak a document key owner',
+  );
+}
+
 (async () => {
   await testActivityClickUsesExactPredictedCommand();
   await testActivityOutcomesAndLeaveAreHonest();
@@ -3069,6 +3338,7 @@ function testFabFocusLifecycle() {
   await testAuthorityClearsProjectionImmediately();
   await testClientTransientFailureQueuesAndAutoFlushesExactEvent();
   testFabFocusLifecycle();
+  testFabEscapeStopsModuleOwnerOnSameDocumentTarget();
   console.log('learning evidence V7.7.10 interaction contract passed');
 })().catch((error) => {
   console.error(error);
