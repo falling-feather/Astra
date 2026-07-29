@@ -42,14 +42,19 @@ function main() {
     assert.match(studentEvidence, /recovery\.rule_version/);
     assert.match(studentEvidence, /旧 knowledge 统计仅属历史兼容数据/);
 
-    assert.match(admin, /\/api\/admin\/class-join-requests\/\$\{joinRequestId\}/);
+    assert.match(admin, /\/api\/admin\/class-join-requests\/\$\{Number\(authority\.id\)\}/);
     assert.match(admin, /AstraApiClient\.isAmbiguousMutation/);
-    assert.match(admin, /系统未自动重试/);
+    assert.match(admin, /系统不会自动重发/);
     assert.match(admin, /state\.writeLock/);
     assert.match(admin, /state\.pendingJoinReview/);
     assert.match(admin, /再次点击同一按钮以确认/);
     assert.match(admin, /rerenderJoinRequestsPanel/);
-    assert.match(admin, /Promise\.all\(\[\s*refreshPanel\('join-requests'\),\s*refreshStats\(\)/);
+    assert.match(admin, /createConfirmedJoinReviewExecutor/);
+    assert.match(admin, /\/api\/classes\/\$\{Number\(authority\.class_id\)\}\/members\/page/);
+    assert.match(admin, /\/api\/admin\/stats/);
+    assert.match(admin, /class\.join\.request\.approve/);
+    assert.match(admin, /class\.join\.request\.reject/);
+    assert.match(admin, /request_id:\s*requestId/);
     assert.doesNotMatch(admin, /Authorization\s*:/i, 'admin mutations must remain cookie-only');
 
     process.stdout.write('v6653-permission-analytics-contract: ok\n');

@@ -16,6 +16,26 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_WORKFLOW_TIMEOUT_MS = 15 * 60_000;
 const TARGET_BROWSER_EVIDENCE_FILENAME = 'target-browser-smoke.json';
 const EXAMPLE_DOMAIN_ROOTS = Object.freeze(['example.com', 'example.net', 'example.org', 'example.edu']);
+const ADMIN_DOMAINS = Object.freeze([
+  'overview',
+  'organizations',
+  'identity',
+  'classes',
+  'courses',
+  'audit',
+]);
+const ADMIN_OWNER_SCRIPT_PATHS = Object.freeze([
+  '/pages/admin/admin-course-governance.js',
+  '/pages/admin/admin-secondary-governance.js',
+]);
+const ADMIN_DIAGNOSTIC_PATHS = Object.freeze([
+  '/api/health',
+  '/api/admin/content/script-assets',
+  '/api/admin/content/script-host-policies',
+  '/api/admin/knowledge-snapshot-runs',
+  '/api/admin/alert-outbox',
+  '/api/admin/bugs',
+]);
 const ROLE_RESOURCE_PATHS = Object.freeze([
   '/pages/student/student.css',
   '/pages/student/student.js',
@@ -368,7 +388,11 @@ function attachDiagnostics(page, bucket, label) {
       || resource.pathname === '/api/admin/class-join-requests'
       || /^\/api\/assignments\/\d+\/review$/.test(resource.pathname)
     );
-    if (expectedAuthChallenge || expectedPermissionDenial) return;
+    const expectedUnboundLearningEvidence = response.status() === 409 && (
+      /^\/api\/learning-evidence\/classes\/\d+\/courses\/\d+\/aggregate$/.test(resource.pathname)
+      || resource.pathname === '/api/learning-evidence/me/recovery'
+    );
+    if (expectedAuthChallenge || expectedPermissionDenial || expectedUnboundLearningEvidence) return;
     bucket.push({ kind: 'http', label, status: response.status(), url: response.url() });
   });
 }
@@ -548,6 +572,69 @@ async function pageApi(page, apiBase, apiPath, options = {}) {
   });
 }
 
+async function createAdminCourseFixture(page, apiBase, schoolId, classId, runId) {
+  const course = await pageApi(page, apiBase, '/api/courses', {
+    method: 'POST',
+    body: {
+      school_id: Number(schoolId),
+      galaxy_key: 'englab',
+      course_key: `admin-governance-${runId}`,
+      title: `Admin Governance ${runId}`,
+      summary: 'Created through the formal teacher API for isolated admin governance proof.',
+      status: 'draft',
+    },
+  });
+  assert(course.status === 201 && course.body && course.body.id, `admin governance course creation failed: ${JSON.stringify(course)}`);
+  const courseId = String(course.body.id);
+  const attached = await pageApi(page, apiBase, `/api/courses/${courseId}/classes`, {
+    method: 'POST',
+    body: { class_id: Number(classId) },
+  });
+  assert(attached.status === 201, `admin governance class attachment failed: ${JSON.stringify(attached)}`);
+
+  const unitIds = [];
+  for (const [position, suffix] of [[1, 'one'], [2, 'two']]) {
+    const unit = await pageApi(page, apiBase, `/api/courses/${courseId}/units`, {
+      method: 'POST',
+      body: {
+        activity_key: `admin.governance.${runId}.${suffix}`,
+        title: `Governed Unit ${position} ${runId}`,
+        position,
+        status: 'published',
+      },
+    });
+    assert(unit.status === 201 && unit.body && unit.body.id, `admin governance unit ${position} creation failed: ${JSON.stringify(unit)}`);
+    unitIds.push(String(unit.body.id));
+  }
+
+  const assignment = await pageApi(page, apiBase, `/api/courses/${courseId}/units/${unitIds[0]}/assignments`, {
+    method: 'POST',
+    body: {
+      title: `Governed Assignment ${runId}`,
+      description: 'Formal API fixture for the course status impact count.',
+      max_score: 100,
+      status: 'active',
+      audience_mode: 'all_attached_classes',
+    },
+  });
+  assert(assignment.status === 201 && assignment.body && assignment.body.id, `admin governance assignment creation failed: ${JSON.stringify(assignment)}`);
+  const releasePlan = await pageApi(page, apiBase, `/api/courses/${courseId}/classes/${classId}/release-plan`);
+  assert(releasePlan.status === 200 && releasePlan.body, `admin governance release plan read failed: ${JSON.stringify(releasePlan)}`);
+  assert(releasePlan.body.items.length === 2, `admin governance release plan expected two units: ${JSON.stringify(releasePlan.body)}`);
+  return {
+    courseId,
+    classId: String(classId),
+    unitIds,
+    assignmentId: String(assignment.body.id),
+    releasePlan: releasePlan.body,
+    expectedImpact: {
+      attached_class_count: 1,
+      course_unit_count: 2,
+      assignment_count: 1,
+    },
+  };
+}
+
 async function serviceWorkerRoleEvidence(page, role, options = {}) {
   const expectation = ROLE_RESOURCE_EXPECTATIONS[role];
   assert(expectation, `Unknown role resource expectation: ${role}`);
@@ -598,7 +685,8 @@ async function serviceWorkerRoleEvidence(page, role, options = {}) {
       loadedStyles: Array.from(document.querySelectorAll('link[data-astra-role-resource]'))
         .map((node) => new URL(node.href).pathname),
       loadedScripts: Array.from(document.querySelectorAll('script[data-router-page-script]'))
-        .map((node) => new URL(node.src).pathname),
+        .map((node) => new URL(node.src).pathname)
+        .filter((resourcePath) => rolePaths.includes(resourcePath)),
     };
   }, { rolePaths: ROLE_RESOURCE_PATHS });
   const responses = (page.__astraRoleResponses || []).map((item) => ({ ...item }));
@@ -795,6 +883,107 @@ async function responsiveEvidence(page, role, outDir, options = {}) {
   return { ...layout, interaction, stableUi, screenshot };
 }
 
+async function adminDomainKeyboardEvidence(page) {
+  await selectAdminSection(page, 'overview', '[data-admin-overview]');
+  const overview = page.locator('[data-admin-section-button="overview"]');
+  await overview.focus();
+  const trace = [];
+  for (const [key, expected] of [
+    ['ArrowRight', 'organizations'],
+    ['ArrowLeft', 'overview'],
+    ['End', 'audit'],
+    ['Home', 'overview'],
+    ['ArrowLeft', 'audit'],
+    ['ArrowRight', 'overview'],
+  ]) {
+    await page.keyboard.press(key);
+    const active = await page.evaluate(() => document.activeElement?.getAttribute('data-admin-section-button'));
+    assert(active === expected, `admin ${key} expected focused domain ${expected}, got ${active}`);
+    const selected = await page.locator(`[data-admin-section-button="${expected}"]`).getAttribute('aria-selected');
+    assert(selected === 'true', `admin ${key} expected selected domain ${expected}`);
+    trace.push({ key, expected, active });
+  }
+  return trace;
+}
+
+async function adminGovernanceLayoutEvidence(page, outDir, width, height) {
+  await page.setViewportSize({ width, height });
+  await page.locator('[data-admin-dashboard]:not([hidden])').waitFor({ state: 'visible' });
+  const domainNavigation = page.locator('.admin-section-nav');
+  if (width <= 820) {
+    await domainNavigation.evaluate((element) => {
+      element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+    });
+  } else {
+    await domainNavigation.scrollIntoViewIfNeeded();
+  }
+  const targets = [];
+  for (const domain of ADMIN_DOMAINS) {
+    const button = page.locator(`[data-admin-section-button="${domain}"]`);
+    await button.scrollIntoViewIfNeeded();
+    const evidence = await button.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const points = [
+        [rect.left + rect.width / 2, rect.top + rect.height / 2],
+        [rect.left + 2, rect.top + 2],
+        [rect.right - 2, rect.bottom - 2],
+      ];
+      return {
+        domain: element.getAttribute('data-admin-section-button'),
+        width: rect.width,
+        height: rect.height,
+        completeHit: points.every(([x, y]) => {
+          const hit = document.elementFromPoint(x, y);
+          return Boolean(hit && element.contains(hit));
+        }),
+      };
+    });
+    assert(evidence.width >= 44 && evidence.height >= 44, `admin ${domain} target is smaller than 44px at ${width}x${height}: ${JSON.stringify(evidence)}`);
+    assert(evidence.completeHit, `admin ${domain} target is not fully hittable at ${width}x${height}`);
+    targets.push(evidence);
+  }
+  const keyboard = await adminDomainKeyboardEvidence(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const layout = await page.evaluate(({ domains }) => {
+    const root = document.querySelector('[data-admin-dashboard]:not([hidden])');
+    const rootRect = root && root.getBoundingClientRect();
+    const tabIds = domains.map((domain) => {
+      const tab = document.querySelector(`[data-admin-section-button="${domain}"]`);
+      const panelId = tab && tab.getAttribute('aria-controls');
+      return {
+        domain,
+        panelId,
+        matches: panelId ? document.querySelectorAll(`#${CSS.escape(panelId)}`).length : 0,
+      };
+    });
+    const motionSample = getComputedStyle(document.querySelector('[data-admin-section-button="overview"]'));
+    return {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      bodyScrollWidth: document.body.scrollWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      rootLeft: rootRect && rootRect.left,
+      rootRight: rootRect && rootRect.right,
+      rootWidth: rootRect && rootRect.width,
+      tabIds,
+      transitionDuration: motionSample.transitionDuration,
+      animationDuration: motionSample.animationDuration,
+      animationIterationCount: motionSample.animationIterationCount,
+    };
+  }, { domains: ADMIN_DOMAINS });
+  assert(layout.bodyScrollWidth <= layout.innerWidth, `admin body overflows ${width}x${height}`);
+  assert(layout.documentScrollWidth <= layout.innerWidth, `admin document overflows ${width}x${height}`);
+  assert(layout.rootLeft >= 0 && layout.rootRight <= layout.innerWidth + 1, `admin root exceeds ${width}px viewport: ${JSON.stringify(layout)}`);
+  assert(layout.tabIds.every((item) => item.matches === 1), `admin tab aria-controls mismatch: ${JSON.stringify(layout.tabIds)}`);
+  assert(parseFloat(layout.transitionDuration) <= 0.001, `admin reduced-motion transition remains active: ${layout.transitionDuration}`);
+  assert(parseFloat(layout.animationDuration) <= 0.001, `admin reduced-motion animation remains active: ${layout.animationDuration}`);
+  assert(layout.animationIterationCount === '1', `admin reduced-motion iteration count mismatch: ${layout.animationIterationCount}`);
+  const screenshot = path.join(outDir, `admin-governance-${width}x${height}.png`);
+  await page.screenshot({ path: screenshot, fullPage: true });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  return { ...layout, targets, keyboard, screenshot };
+}
+
 async function adminOrganizationResponsiveEvidence(page, outDir) {
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = page.locator('[data-admin-organization-dialog]');
@@ -872,7 +1061,8 @@ async function organizationFocusEvidence(page, label, expectedSelector = '') {
 }
 
 async function openOrganizationEditor(page, panelId, entityName) {
-  await selectAdminSection(page, 'organizations', `[data-admin-panel="${panelId}"]`);
+  const sectionId = panelId === 'classes' ? 'classes' : 'organizations';
+  await selectAdminSection(page, sectionId, `[data-admin-panel="${panelId}"]`);
   const row = page.locator(`[data-admin-panel="${panelId}"] tbody tr`).filter({ hasText: entityName }).first();
   await row.waitFor({ state: 'visible' });
   await row.locator('[data-admin-organization-edit]').click();
@@ -888,6 +1078,313 @@ async function selectAdminSection(page, sectionId, visibleSelector) {
   await button.waitFor({ state: 'visible' });
   if (await button.getAttribute('aria-current') !== 'page') await button.click();
   if (visibleSelector) await page.locator(visibleSelector).first().waitFor({ state: 'visible' });
+}
+
+async function exerciseAdminCourseGovernance(page, apiBase, fixture, outDir) {
+  const coursePath = `/api/courses/${fixture.courseId}/status`;
+  const patchRequests = [];
+  const capturePatch = (request) => {
+    const resource = new URL(request.url());
+    if (request.method() !== 'PATCH' || resource.pathname !== coursePath) return;
+    let body = null;
+    try { body = request.postDataJSON(); } catch {}
+    patchRequests.push({
+      base: resource.origin,
+      path: resource.pathname,
+      requestId: request.headers()['x-request-id'] || '',
+      body,
+    });
+  };
+  page.on('request', capturePatch);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await selectAdminSection(page, 'courses', '[data-admin-course-workbench]');
+  const filter = page.locator('[data-admin-course-filters] [name="q"]');
+  await filter.fill(fixture.courseId);
+  const courseTrigger = page.locator(`[data-admin-course-select="${fixture.courseId}"]`);
+  await courseTrigger.waitFor({ state: 'visible' });
+  await courseTrigger.click();
+  const compactDialog = page.locator('[data-admin-course-dialog]');
+  await compactDialog.waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.activeElement?.matches('[data-admin-course-dialog] [data-admin-course-title]'));
+  const compactLayout = await compactDialog.evaluate((dialog) => {
+    const rect = dialog.getBoundingClientRect();
+    const actionBoxes = Array.from(dialog.querySelectorAll('[data-admin-course-close], [data-admin-course-confirm]'))
+      .filter((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0;
+      })
+      .map((element) => {
+        const box = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return {
+          width: box.width,
+          height: box.height,
+          centerHit: Boolean(hit && element.contains(hit)),
+        };
+      });
+    return {
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      scrollWidth: dialog.scrollWidth,
+      clientWidth: dialog.clientWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      actionBoxes,
+    };
+  });
+  assert(compactLayout.left >= 0 && compactLayout.right <= 390, `admin course dialog exceeds 390px viewport: ${JSON.stringify(compactLayout)}`);
+  assert(compactLayout.scrollWidth <= compactLayout.clientWidth + 1, 'admin course dialog has horizontal overflow');
+  assert(compactLayout.bodyScrollWidth <= 390 && compactLayout.documentScrollWidth <= 390, 'admin course dialog causes root horizontal overflow');
+  assert(
+    compactLayout.actionBoxes.length >= 2
+      && compactLayout.actionBoxes.every((box) => box.width >= 44 && box.height >= 44 && box.centerHit),
+    `admin course dialog actions fail 44px center-hit contract: ${JSON.stringify(compactLayout.actionBoxes)}`
+  );
+  const dialogScreenshot = path.join(outDir, 'admin-course-dialog-390x844.png');
+  await page.screenshot({ path: dialogScreenshot, fullPage: true });
+  await page.keyboard.press('Escape');
+  await compactDialog.waitFor({ state: 'hidden' });
+  await page.waitForFunction((courseId) => (
+    document.activeElement?.getAttribute('data-admin-course-select') === String(courseId)
+  ), fixture.courseId);
+
+  await page.setViewportSize({ width: 1015, height: 898 });
+  await courseTrigger.click();
+  let form = page.locator('[data-admin-course-inspector] [data-admin-course-form]');
+  await form.waitFor({ state: 'visible' });
+  await form.locator('[name="status"]').selectOption('published');
+  const reason = `Publish isolated admin governance fixture ${fixture.courseId}.`;
+  await form.locator('[data-admin-course-reason]').fill(reason);
+  await form.locator('[data-admin-course-confirm]').click();
+  await page.locator('[data-admin-course-inspector] [data-admin-course-preview]').waitFor({ state: 'visible' });
+  assert(patchRequests.length === 0, `first course confirmation sent PATCH: ${JSON.stringify(patchRequests)}`);
+
+  const patchResponse = page.waitForResponse((response) => {
+    const resource = new URL(response.url());
+    return response.request().method() === 'PATCH'
+      && resource.pathname === coursePath
+      && response.status() === 200;
+  }, { timeout: DEFAULT_REQUEST_TIMEOUT_MS });
+  form = page.locator('[data-admin-course-inspector] [data-admin-course-form]');
+  await form.locator('[data-admin-course-confirm]').click();
+  await patchResponse;
+  const result = page.locator('[data-admin-course-inspector] [data-admin-course-result]');
+  await result.waitFor({ state: 'visible' });
+  await waitForNetworkQuiet(page, 300);
+  assert(patchRequests.length === 1, `course publish expected exactly one PATCH, got ${patchRequests.length}`);
+  assert(patchRequests[0].base === new URL(apiBase).origin, `course PATCH base mismatch: ${JSON.stringify(patchRequests[0])}`);
+  assert(
+    JSON.stringify(patchRequests[0].body) === JSON.stringify({
+      expected_status: 'draft',
+      status: 'published',
+      reason,
+    }),
+    `course PATCH body mismatch: ${JSON.stringify(patchRequests[0].body)}`
+  );
+  assert(/^admin-course-[a-z0-9-]+$/u.test(patchRequests[0].requestId), `course Request ID missing or invalid: ${patchRequests[0].requestId}`);
+  const resultEvidence = await result.evaluate((element) => ({
+    requestId: String(element.querySelector('code')?.textContent || '').replace(/^Request ID:\s*/u, ''),
+    impact: Array.from(element.querySelectorAll('[data-admin-course-impact] dd')).map((item) => Number(item.textContent)),
+    text: String(element.textContent || '').trim(),
+  }));
+  assert(resultEvidence.requestId === patchRequests[0].requestId, `course UI Request ID mismatch: ${JSON.stringify(resultEvidence)}`);
+  assert(
+    JSON.stringify(resultEvidence.impact) === JSON.stringify(Object.values(fixture.expectedImpact)),
+    `course impact UI mismatch: ${JSON.stringify(resultEvidence.impact)}`
+  );
+
+  const auditPath = `/api/admin/audit-logs?action=course.status.patch&resource_type=course&resource_id=${fixture.courseId}&request_id=${encodeURIComponent(resultEvidence.requestId)}&limit=25&offset=0`;
+  const audit = await pageApi(page, apiBase, auditPath);
+  assert(audit.status === 200 && audit.body && audit.body.total === 1, `course exact audit reread failed: ${JSON.stringify(audit)}`);
+  const auditRow = audit.body.items[0];
+  const snapshot = typeof auditRow.snapshot_json === 'string'
+    ? JSON.parse(auditRow.snapshot_json)
+    : auditRow.snapshot_json;
+  assert(
+    auditRow.action === 'course.status.patch'
+      && auditRow.resource_type === 'course'
+      && String(auditRow.resource_id) === fixture.courseId
+      && auditRow.request_id === resultEvidence.requestId
+      && auditRow.event_result === 'success'
+      && snapshot && snapshot.after && snapshot.after.status === 'published',
+    `course exact audit evidence mismatch: ${JSON.stringify(auditRow)}`
+  );
+
+  const createdAt = Date.parse(auditRow.created_at);
+  assert(Number.isFinite(createdAt), `course audit timestamp is invalid: ${auditRow.created_at}`);
+  const from = new Date(createdAt - 60_000).toISOString();
+  const to = new Date(createdAt + 60_000).toISOString();
+  await selectAdminSection(page, 'audit', '[data-admin-panel="audit-logs"]');
+  const auditForm = page.locator('[data-admin-panel-form="audit-logs"]');
+  await auditForm.locator('[name="action"]').fill('course.status.patch');
+  await auditForm.locator('[name="resource_type"]').fill('course');
+  await auditForm.locator('[name="resource_id"]').fill(fixture.courseId);
+  await auditForm.locator('[name="request_id"]').fill(resultEvidence.requestId);
+  await auditForm.locator('[name="from"]').fill(from);
+  await auditForm.locator('[name="to"]').fill(to);
+  const filteredAuditResponse = page.waitForResponse((response) => {
+    const resource = new URL(response.url());
+    return response.request().method() === 'GET'
+      && resource.pathname === '/api/admin/audit-logs'
+      && resource.searchParams.get('action') === 'course.status.patch'
+      && resource.searchParams.get('resource_type') === 'course'
+      && resource.searchParams.get('resource_id') === fixture.courseId
+      && resource.searchParams.get('request_id') === resultEvidence.requestId
+      && resource.searchParams.get('from') === from
+      && resource.searchParams.get('to') === to
+      && response.status() === 200;
+  }, { timeout: DEFAULT_REQUEST_TIMEOUT_MS });
+  await auditForm.locator('button[type="submit"]').click();
+  const filteredResponse = await filteredAuditResponse;
+  const filteredBody = await filteredResponse.json();
+  assert(filteredBody.total === 1, `course audit UI filter expected one row: ${JSON.stringify(filteredBody)}`);
+  await page.locator('[data-admin-panel="audit-logs"] tbody tr')
+    .filter({ hasText: resultEvidence.requestId })
+    .filter({ hasText: 'course.status.patch' })
+    .waitFor({ state: 'visible' });
+
+  const releasePlanAfter = await pageApi(page, apiBase, `/api/courses/${fixture.courseId}/classes/${fixture.classId}/release-plan`);
+  assert(releasePlanAfter.status === 200, `course release plan reread failed: ${JSON.stringify(releasePlanAfter)}`);
+  assert(
+    JSON.stringify(releasePlanAfter.body) === JSON.stringify(fixture.releasePlan),
+    `course status governance changed Unit release plan: ${JSON.stringify({ before: fixture.releasePlan, after: releasePlanAfter.body })}`
+  );
+
+  await selectAdminSection(page, 'courses', '[data-admin-course-workbench]');
+  await page.locator(`[data-admin-course-select="${fixture.courseId}"]`).click();
+  form = page.locator('[data-admin-course-inspector] [data-admin-course-form]');
+  await form.locator('[name="status"]').selectOption('archived');
+  await form.locator('[data-admin-course-reason]').fill(`Leave-page ambiguity proof for ${fixture.courseId}.`);
+  await form.locator('[data-admin-course-confirm]').click();
+  assert(patchRequests.length === 1, 'unknown-lock preview must not send a second course PATCH');
+
+  let releaseIntercept;
+  const interceptGate = new Promise((resolve) => { releaseIntercept = resolve; });
+  let markIntercepted;
+  const intercepted = new Promise((resolve) => { markIntercepted = resolve; });
+  await page.route(`**${coursePath}`, async (route) => {
+    markIntercepted();
+    await interceptGate;
+    await route.abort('connectionreset');
+  });
+  page.__astraExpectedRequestFailurePaths = [{ method: 'PATCH', path: coursePath }];
+  form = page.locator('[data-admin-course-inspector] [data-admin-course-form]');
+  await form.locator('[data-admin-course-confirm]').click();
+  await intercepted;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { window.location.hash = 'planets'; });
+  await page.waitForURL(/#planets$/);
+  releaseIntercept();
+  await page.locator('[data-astra-role-home]').waitFor({ state: 'visible' });
+  await page.unroute(`**${coursePath}`);
+  await page.evaluate(() => { window.location.hash = 'admin'; });
+  await page.waitForURL(/#admin$/);
+  await page.locator('[data-admin-dashboard]:not([hidden])').waitFor({ state: 'visible' });
+  await selectAdminSection(page, 'courses', '[data-admin-course-workbench]');
+  const lockedCourseTrigger = page.locator(`[data-admin-course-select="${fixture.courseId}"]`);
+  const courseFilter = page.locator('[data-admin-course-filters] [name="q"]');
+  await courseFilter.fill('__locked_course_filter_miss__');
+  await lockedCourseTrigger.waitFor({ state: 'visible' });
+  assert(await lockedCourseTrigger.getAttribute('aria-pressed') === 'true', 'locked course A must stay pinned when the current filter would otherwise hide it');
+  await courseFilter.fill('');
+  const otherCourseTrigger = page.locator(
+    `[data-admin-course-select]:not([data-admin-course-select="${fixture.courseId}"])`
+  ).first();
+  await lockedCourseTrigger.waitFor({ state: 'visible' });
+  await otherCourseTrigger.waitFor({ state: 'visible' });
+  assert(await lockedCourseTrigger.getAttribute('aria-pressed') === 'true', 'course A lock must be auto-selected after mobile re-entry');
+  assert(!(await lockedCourseTrigger.isDisabled()), 'selected locked course A must remain a read-only reconciliation entry');
+  assert(await otherCourseTrigger.isDisabled(), 'course B must remain disabled while course A owns the global lock');
+  const lockPatchCount = patchRequests.length;
+  await otherCourseTrigger.evaluate((element) => element.click());
+  assert(await lockedCourseTrigger.getAttribute('aria-pressed') === 'true', 'disabled course B click must not change locked course A selection');
+  assert(patchRequests.length === lockPatchCount, 'course B click while A is locked must send zero PATCH requests');
+  await lockedCourseTrigger.focus();
+  await page.keyboard.press('Enter');
+  const compactLockDialog = page.locator('[data-admin-course-dialog]');
+  const lock = compactLockDialog.locator('[data-admin-course-lock="unchanged"]');
+  await compactLockDialog.waitFor({ state: 'visible' });
+  await lock.waitFor({ state: 'visible' });
+  assert(patchRequests.length === lockPatchCount, 'opening locked course A details must send zero PATCH requests');
+  await page.keyboard.press('Escape');
+  await compactLockDialog.waitFor({ state: 'hidden' });
+  await page.waitForFunction((courseId) => (
+    document.activeElement?.getAttribute('data-admin-course-select') === String(courseId)
+  ), fixture.courseId);
+  await page.keyboard.press('Enter');
+  await compactLockDialog.waitFor({ state: 'visible' });
+  await lock.waitFor({ state: 'visible' });
+  assert(patchRequests.length === lockPatchCount, 'reopening locked course A with keyboard must send zero PATCH requests');
+  assert(await page.locator('[data-admin-action="refresh"]').isDisabled(), 'admin top refresh must remain disabled while course unknown lock exists');
+  assert(await page.locator('[data-admin-api-base]').isDisabled(), 'admin API Base must remain disabled while course unknown lock exists');
+  assert(patchRequests.length === 2, `unknown-lock action expected one sent PATCH, got ${patchRequests.length - 1}`);
+  await lock.locator('[data-admin-course-reconcile]').click();
+  await lock.locator('[data-admin-course-unlock]').waitFor({ state: 'visible' });
+  assert(patchRequests.length === lockPatchCount, 'read-only course reconciliation must not resend PATCH');
+  await lock.locator('[data-admin-course-unlock]').click();
+  await lock.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Escape');
+  await compactLockDialog.waitFor({ state: 'hidden' });
+  await page.waitForFunction((courseId) => (
+    document.activeElement?.getAttribute('data-admin-course-select') === String(courseId)
+  ), fixture.courseId);
+  assert(!(await otherCourseTrigger.isDisabled()), 'course B must become selectable only after explicit reconciliation and unlock');
+  await page.setViewportSize({ width: 1015, height: 898 });
+  page.__astraExpectedRequestFailurePaths = [];
+  page.off('request', capturePatch);
+  return {
+    patchRequests,
+    requestId: resultEvidence.requestId,
+    impact: resultEvidence.impact,
+    audit: {
+      id: auditRow.id,
+      action: auditRow.action,
+      resourceType: auditRow.resource_type,
+      resourceId: auditRow.resource_id,
+      requestId: auditRow.request_id,
+      eventResult: auditRow.event_result,
+      afterStatus: snapshot.after.status,
+      filter: { from, to },
+    },
+    releasePlanUnchanged: true,
+    dialog: { ...compactLayout, screenshot: dialogScreenshot, escapeFocusReturned: true },
+    unknownLeaveLock: {
+      requestCount: patchRequests.length,
+      outcome: 'unchanged',
+      refreshBlocked: true,
+      apiBaseBlocked: true,
+      selectedLockRowReopened: true,
+      otherCourseBlockedUntilUnlock: true,
+      closeReopenKeyboard: true,
+      reconciliationPatchCount: 0,
+      focusReturned: true,
+      manuallyUnlocked: true,
+    },
+  };
+}
+
+async function exerciseAdvancedLazyLoading(page, diagnosticRequests) {
+  assert(diagnosticRequests.length === 0, `advanced diagnostics were prefetched: ${JSON.stringify(diagnosticRequests)}`);
+  const trigger = page.locator('[data-admin-secondary-open="advanced"]');
+  await trigger.click();
+  const dialog = page.locator('[data-admin-secondary-dialog]');
+  await dialog.waitFor({ state: 'visible' });
+  await waitForNetworkQuiet(page, 300);
+  assert(
+    JSON.stringify(diagnosticRequests.slice().sort()) === JSON.stringify(ADMIN_DIAGNOSTIC_PATHS.slice().sort()),
+    `advanced diagnostic request ledger mismatch: ${JSON.stringify(diagnosticRequests)}`
+  );
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.activeElement?.matches('[data-admin-secondary-open="advanced"]'));
+  return {
+    beforeEntry: 0,
+    afterEntry: diagnosticRequests.length,
+    paths: diagnosticRequests.slice(),
+    escapeFocusReturned: true,
+  };
 }
 
 async function closeOrganizationEditor(dialog) {
@@ -1166,12 +1663,38 @@ async function main() {
       description: '提交能量守恒推导过程。',
     }, '作业已创建');
     const assignmentId = await selectedValue(teacherRuntime.page, '[data-teacher-scope="assignmentId"]');
-    const initialPolicyForm = teacherRuntime.page.locator('[data-teacher-form="assignment-class-policy"]');
-    await initialPolicyForm.locator('button[type="submit"]').click();
-    await teacherRuntime.page.locator('[data-teacher-flash]').filter({ hasText: '当前班级作业与积分覆盖策略已保存' }).waitFor({ state: 'visible' });
-    await teacherRuntime.page.locator('[data-teacher-class-policy-reset]:not([disabled])').waitFor({ state: 'visible' });
+    await teacherForm(
+      teacherRuntime.page,
+      'assignment-class-policy',
+      {},
+      '当前班级作业与积分覆盖策略已保存'
+    );
+    await teacherRuntime.page.waitForFunction(() => {
+      const reset = document.querySelector('[data-teacher-class-policy-reset]');
+      return reset instanceof HTMLButtonElement && !reset.disabled;
+    });
     report.entities = { schoolId, classId, courseId, unitId, assignmentId };
     record('teacher creates published course workflow and persisted class policy', { ...report.entities });
+    const adminCourseFixture = await createAdminCourseFixture(
+      teacherRuntime.page,
+      apiBase,
+      schoolId,
+      classId,
+      runId
+    );
+    Object.assign(report.entities, {
+      adminCourseId: adminCourseFixture.courseId,
+      adminCourseUnitIds: adminCourseFixture.unitIds,
+      adminCourseAssignmentId: adminCourseFixture.assignmentId,
+    });
+    record('teacher creates isolated draft course governance fixture through formal APIs', {
+      courseId: adminCourseFixture.courseId,
+      classId: adminCourseFixture.classId,
+      unitIds: adminCourseFixture.unitIds,
+      assignmentId: adminCourseFixture.assignmentId,
+      expectedImpact: adminCourseFixture.expectedImpact,
+      releasePlanVersion: adminCourseFixture.releasePlan.plan_version,
+    });
 
     const eligibilityClass = await pageApi(teacherRuntime.page, apiBase, '/api/classes', {
       method: 'POST',
@@ -1288,6 +1811,7 @@ async function main() {
 
     const teacherRefresh = teacherRuntime.page.locator('[data-teacher-action="refresh"]');
     await teacherRefresh.click();
+    await teacherRuntime.page.locator('[data-teacher-view="grading"]').click();
     const gradeForm = teacherRuntime.page.locator('[data-teacher-form="grade"]');
     await gradeForm.locator('[name="submission_id"]:not([disabled])').waitFor({ state: 'visible' });
     const submissionId = await gradeForm.locator('[name="submission_id"]').inputValue();
@@ -1310,10 +1834,12 @@ async function main() {
     studentRuntime.page.__astraExpectedHttpResponses = [
       { method: 'GET', status: 403, path: `/api/admin/schools/${schoolId}` },
       { method: 'PATCH', status: 403, path: `/api/admin/schools/${schoolId}` },
+      { method: 'PATCH', status: 403, path: `/api/courses/${adminCourseFixture.courseId}/status` },
     ];
     teacherRuntime.page.__astraExpectedHttpResponses = [
       { method: 'GET', status: 403, path: `/api/admin/classes/${classId}` },
       { method: 'PATCH', status: 403, path: `/api/admin/classes/${classId}` },
+      { method: 'PATCH', status: 403, path: `/api/courses/${adminCourseFixture.courseId}/status` },
     ];
     const studentSchoolReadDenied = await pageApi(studentRuntime.page, apiBase, `/api/admin/schools/${schoolId}`);
     const studentSchoolPatchDenied = await pageApi(studentRuntime.page, apiBase, `/api/admin/schools/${schoolId}`, {
@@ -1325,8 +1851,32 @@ async function main() {
       method: 'PATCH',
       body: { expected_version: 1, reason: 'teacher denial proof', name: 'denied' },
     });
+    const forbiddenCourseStatusBody = {
+      expected_status: 'draft',
+      status: 'published',
+      reason: 'Non-admin course governance denial proof.',
+    };
+    const studentCourseStatusDenied = await pageApi(
+      studentRuntime.page,
+      apiBase,
+      `/api/courses/${adminCourseFixture.courseId}/status`,
+      { method: 'PATCH', body: forbiddenCourseStatusBody }
+    );
+    const teacherCourseStatusDenied = await pageApi(
+      teacherRuntime.page,
+      apiBase,
+      `/api/courses/${adminCourseFixture.courseId}/status`,
+      { method: 'PATCH', body: forbiddenCourseStatusBody }
+    );
     assert(studentSchoolReadDenied.status === 403 && studentSchoolPatchDenied.status === 403, 'student organization governance must be denied');
     assert(teacherClassReadDenied.status === 403 && teacherClassPatchDenied.status === 403, 'teacher organization governance must be denied');
+    assert(
+      studentCourseStatusDenied.status === 403 && teacherCourseStatusDenied.status === 403,
+      `student/teacher course status governance must be denied: ${JSON.stringify({
+        student: studentCourseStatusDenied.status,
+        teacher: teacherCourseStatusDenied.status,
+      })}`
+    );
     studentRuntime.page.__astraExpectedHttpResponses = [];
     teacherRuntime.page.__astraExpectedHttpResponses = [];
     record('role permission denials', {
@@ -1334,6 +1884,7 @@ async function main() {
       teacherAdminQueue: 403,
       studentOrganization: [403, 403],
       teacherOrganization: [403, 403],
+      courseStatus: { student: 403, teacher: 403 },
     });
     await teacherRuntime.page.goto(roleUrl(webBase, apiBase, 'admin'), { waitUntil: 'domcontentloaded' });
     await teacherRuntime.page.waitForURL(/#planets$/);
@@ -1385,11 +1936,56 @@ async function main() {
 
     const adminRuntime = await createRolePage(browser, report, webBase, apiBase, 'admin');
     contexts.push(adminRuntime.context);
+    const adminDiagnosticRequests = [];
+    const adminOwnerLoads = [];
+    let adminAuthorityConfirmed = false;
+    adminRuntime.page.on('response', (response) => {
+      const resource = new URL(response.url());
+      if (resource.pathname === '/api/users/me' && response.status() === 200) {
+        adminAuthorityConfirmed = true;
+      }
+    });
+    adminRuntime.page.on('request', (request) => {
+      const resource = new URL(request.url());
+      if (ADMIN_DIAGNOSTIC_PATHS.includes(resource.pathname)) {
+        adminDiagnosticRequests.push(resource.pathname);
+      }
+      if (ADMIN_OWNER_SCRIPT_PATHS.includes(resource.pathname)) {
+        adminOwnerLoads.push({ path: resource.pathname, authorityConfirmed: adminAuthorityConfirmed });
+      }
+    });
+    assert(
+      await adminRuntime.page.locator('script[data-admin-owner]').count() === 0,
+      'anonymous admin route must not preload admin owner scripts'
+    );
     await loginFromUi(adminRuntime.page, 'admin', accounts.admin);
     await adminRuntime.page.locator('[data-admin-dashboard]:not([hidden])').waitFor({ state: 'visible' });
+    await adminRuntime.page.waitForFunction(() => document.querySelectorAll('script[data-admin-owner]').length === 2);
+    assert(
+      adminOwnerLoads.length === 2
+        && adminOwnerLoads.every((item) => item.authorityConfirmed)
+        && JSON.stringify(adminOwnerLoads.map((item) => item.path).sort()) === JSON.stringify(ADMIN_OWNER_SCRIPT_PATHS.slice().sort()),
+      `admin owners must load exactly once after authoritative admin identity: ${JSON.stringify(adminOwnerLoads)}`
+    );
     const adminIdentity = await pageApi(adminRuntime.page, apiBase, '/api/users/me');
     assert(adminIdentity.status === 200 && adminIdentity.body.role === 'admin', 'admin login identity mismatch');
     report.accounts.admin.id = String(adminIdentity.body.id);
+    await adminRuntime.page.evaluate(() => { window.location.hash = 'planets'; });
+    await adminRuntime.page.waitForURL(/#planets$/);
+    const adminBusinessTask = adminRuntime.page.locator('[data-astra-role-home] .planets-priority__task');
+    await adminBusinessTask.waitFor({ state: 'visible' });
+    const adminBusinessTaskEvidence = await adminBusinessTask.evaluate((element) => ({
+      text: String(element.textContent || '').trim(),
+      href: element.querySelector('a')?.getAttribute('href') || '',
+    }));
+    assert(adminBusinessTaskEvidence.href === '#admin', `admin business task href must remain #admin: ${JSON.stringify(adminBusinessTaskEvidence)}`);
+    assert(
+      adminBusinessTaskEvidence.text.includes(joinRequestId),
+      `admin business home must prioritize the real pending join request: ${JSON.stringify(adminBusinessTaskEvidence)}`
+    );
+    await adminBusinessTask.locator('a[href="#admin"]').click();
+    await adminRuntime.page.locator('[data-admin-dashboard]:not([hidden])').waitFor({ state: 'visible' });
+    record('admin business home prioritizes the authoritative pending join request', adminBusinessTaskEvidence);
     await adminRuntime.page.locator('a[href="#teacher"]:visible').first().click();
     await adminRuntime.page.locator('[data-teacher-dashboard]:not([hidden])').waitFor({ state: 'visible' });
     await adminRuntime.page.locator('a[href="#admin"]:visible').first().click();
@@ -1408,18 +2004,157 @@ async function main() {
     record('admin reaches teacher workspace and returns to global governance', {
       loadedScripts: report.serviceWorker.admin.loadedScripts,
       cookieSession: report.cookieSession,
+      ownerLoads: adminOwnerLoads,
     });
-    await selectAdminSection(adminRuntime.page, 'organizations', '[data-admin-panel="join-requests"]');
+    report.responsive.adminGovernance1015 = await adminGovernanceLayoutEvidence(
+      adminRuntime.page,
+      outDir,
+      1015,
+      898
+    );
+    report.responsive.adminGovernance390 = await adminGovernanceLayoutEvidence(
+      adminRuntime.page,
+      outDir,
+      390,
+      844
+    );
+    record('admin six-domain roving navigation, reduced motion, 44px hit targets and root width', {
+      desktop: report.responsive.adminGovernance1015,
+      mobile: report.responsive.adminGovernance390,
+    });
+    const joinReviewPatches = [];
+    adminRuntime.page.on('request', (request) => {
+      const resource = new URL(request.url());
+      if (request.method() !== 'PATCH' || resource.pathname !== `/api/admin/class-join-requests/${joinRequestId}`) return;
+      let body = null;
+      try { body = request.postDataJSON(); } catch {}
+      joinReviewPatches.push({
+        path: resource.pathname,
+        base: resource.origin,
+        requestId: request.headers()['x-request-id'] || '',
+        body,
+      });
+    });
+    await selectAdminSection(adminRuntime.page, 'identity', '[data-admin-panel="join-requests"]');
     const approve = adminRuntime.page.locator(`[data-admin-join-review="approved"][data-join-request-id="${joinRequestId}"]`);
     await approve.waitFor({ state: 'visible' });
     await approve.click();
-    const confirmApprove = adminRuntime.page.locator(`[data-admin-join-review="approved"][data-join-request-id="${joinRequestId}"][aria-label="再次点击确认批准加入请求"]`);
-    await confirmApprove.waitFor({ state: 'visible' });
-    await confirmApprove.click();
-    await adminRuntime.page.locator('[data-admin-notice]').filter({ hasText: '加入请求已批准并完成权威列表核对' }).waitFor({ state: 'visible' });
-    const audit = await pageApi(adminRuntime.page, apiBase, `/api/admin/audit-logs?action=class.join.request.approve&resource_id=${joinRequestId}`);
-    assert(audit.status === 200 && audit.body && audit.body.total === 1, 'Admin approval audit reconciliation failed');
-    record('admin approves join request and reconciles audit', { joinRequestId, auditTotal: audit.body.total });
+    assert(joinReviewPatches.length === 0, 'first join approval confirmation must not send PATCH');
+    const joinPatchResponse = adminRuntime.page.waitForResponse((response) => {
+      const resource = new URL(response.url());
+      return response.request().method() === 'PATCH'
+        && resource.pathname === `/api/admin/class-join-requests/${joinRequestId}`
+        && response.status() === 200;
+    }, { timeout: DEFAULT_REQUEST_TIMEOUT_MS });
+    await approve.click();
+    await joinPatchResponse;
+    const joinNotice = adminRuntime.page.locator('[data-admin-notice]').filter({ hasText: /Request ID/u });
+    await joinNotice.waitFor({ state: 'visible' });
+    await waitForNetworkQuiet(adminRuntime.page, 300);
+    assert(joinReviewPatches.length === 1, `join approval expected exactly one PATCH, got ${joinReviewPatches.length}`);
+    const joinNoticeText = String(await joinNotice.textContent() || '');
+    const joinRequestIdMatch = joinNoticeText.match(/Request ID\s+([a-z0-9-]+)/iu);
+    assert(joinRequestIdMatch, `join approval notice did not expose Request ID: ${joinNoticeText}`);
+    const joinAuditRequestId = joinRequestIdMatch[1];
+    assert(
+      joinReviewPatches[0].base === new URL(apiBase).origin
+        && joinReviewPatches[0].requestId === joinAuditRequestId
+        && JSON.stringify(joinReviewPatches[0].body) === JSON.stringify({
+          status: 'approved',
+          note: 'reviewed from admin governance UI',
+        }),
+      `join approval request mismatch: ${JSON.stringify(joinReviewPatches[0])}`
+    );
+
+    const approvedPage = await pageApi(
+      adminRuntime.page,
+      apiBase,
+      `/api/admin/class-join-requests?status=approved&class_id=${classId}&user_id=${applicantIdentity.body.id}&role=student&limit=200&offset=0`
+    );
+    const approvedRow = approvedPage.body && approvedPage.body.items
+      && approvedPage.body.items.find((item) => String(item.id) === joinRequestId);
+    assert(
+      approvedPage.status === 200
+        && approvedRow
+        && Number(approvedRow.school_id) === Number(schoolId)
+        && Number(approvedRow.class_id) === Number(classId)
+        && Number(approvedRow.user_id) === Number(applicantIdentity.body.id)
+        && approvedRow.role === 'student'
+        && approvedRow.status === 'approved',
+      `approved join request authority mismatch: ${JSON.stringify(approvedPage)}`
+    );
+    const approvedMembers = await pageApi(
+      adminRuntime.page,
+      apiBase,
+      `/api/classes/${classId}/members/page?role=student&status=active&limit=200&offset=0`
+    );
+    const approvedMember = approvedMembers.body && approvedMembers.body.items
+      && approvedMembers.body.items.find((item) => (
+        Number(item.class_id) === Number(classId)
+        && Number(item.user_id) === Number(applicantIdentity.body.id)
+        && item.role === 'student'
+        && item.status === 'active'
+      ));
+    assert(approvedMembers.status === 200 && approvedMember, `approved membership authority mismatch: ${JSON.stringify(approvedMembers)}`);
+    const joinStats = await pageApi(adminRuntime.page, apiBase, '/api/admin/stats');
+    assert(
+      joinStats.status === 200
+        && Number.isInteger(joinStats.body && joinStats.body.pending_class_join_requests)
+        && joinStats.body.pending_class_join_requests >= 0,
+      `join approval stats reread failed: ${JSON.stringify(joinStats)}`
+    );
+    const audit = await pageApi(
+      adminRuntime.page,
+      apiBase,
+      `/api/admin/audit-logs?action=class.join.request.approve&resource_type=class_join_request&resource_id=${joinRequestId}&request_id=${encodeURIComponent(joinAuditRequestId)}&limit=25&offset=0`
+    );
+    const joinAuditRow = audit.body && audit.body.items && audit.body.items[0];
+    const joinAuditSnapshot = joinAuditRow && (
+      typeof joinAuditRow.snapshot_json === 'string'
+        ? JSON.parse(joinAuditRow.snapshot_json)
+        : joinAuditRow.snapshot_json
+    );
+    assert(
+      audit.status === 200
+        && audit.body.total === 1
+        && joinAuditRow.action === 'class.join.request.approve'
+        && joinAuditRow.resource_type === 'class_join_request'
+        && String(joinAuditRow.resource_id) === joinRequestId
+        && joinAuditRow.request_id === joinAuditRequestId
+        && joinAuditRow.event_result === 'success'
+        && Number(joinAuditSnapshot.after.class_id) === Number(classId)
+        && Number(joinAuditSnapshot.after.user_id) === Number(applicantIdentity.body.id)
+        && joinAuditSnapshot.after.role === 'student'
+        && joinAuditSnapshot.after.status === 'approved',
+      `Admin approval exact audit reconciliation failed: ${JSON.stringify(audit)}`
+    );
+    const joinFilter = adminRuntime.page.locator('[data-admin-panel-form="join-requests"]');
+    await joinFilter.locator('[name="status"]').selectOption('approved');
+    await adminRuntime.page.locator('[data-admin-panel="join-requests"] tbody tr')
+      .filter({ hasText: joinRequestId })
+      .waitFor({ state: 'visible' });
+    await selectAdminSection(adminRuntime.page, 'overview', '[data-admin-overview]');
+    const pendingStatText = await adminRuntime.page.locator('[data-admin-stats] .admin-kpi').first().locator('strong').textContent();
+    assert(
+      Number(String(pendingStatText || '').replace(/[^0-9]/gu, '')) === joinStats.body.pending_class_join_requests,
+      `join approval stats UI mismatch: ${JSON.stringify({ ui: pendingStatText, api: joinStats.body.pending_class_join_requests })}`
+    );
+    record('admin double-confirms one join PATCH and reconciles request, member page, stats and exact audit', {
+      joinRequestId,
+      requestId: joinAuditRequestId,
+      patchCount: joinReviewPatches.length,
+      approvedUserId: String(approvedMember.user_id),
+      pendingCount: joinStats.body.pending_class_join_requests,
+      auditTotal: audit.body.total,
+    });
+    report.adminCourseGovernance = await exerciseAdminCourseGovernance(
+      adminRuntime.page,
+      apiBase,
+      adminCourseFixture,
+      outDir
+    );
+    assert(adminDiagnosticRequests.length === 0, `normal governance prefetched advanced diagnostics: ${JSON.stringify(adminDiagnosticRequests)}`);
+    record('admin course draft-to-published governance, exact audit filters and leave-page unknown lock', report.adminCourseGovernance);
 
     const batchAudit = await pageApi(adminRuntime.page, apiBase, `/api/admin/audit-logs?action=class.student.batch_import&resource_id=${classId}`);
     assert(batchAudit.status === 200 && batchAudit.body && batchAudit.body.total === 1, 'Teacher batch import audit reconciliation failed');
@@ -1474,7 +2209,7 @@ async function main() {
       `/api/admin/audit-logs?action=admin.user.update&resource_id=${governedUserId}`
     );
     assert(governedAudit.status === 200 && governedAudit.body.total === 1, 'admin user governance audit reconciliation failed');
-    await selectAdminSection(adminRuntime.page, 'operations', '[data-admin-panel="audit-logs"]');
+    await selectAdminSection(adminRuntime.page, 'audit', '[data-admin-panel="audit-logs"]');
     await adminRuntime.page.locator('[data-admin-panel="audit-logs"] tbody tr')
       .filter({ hasText: 'admin.user.update' })
       .filter({ hasText: governedUserId })
@@ -1505,8 +2240,61 @@ async function main() {
     const activeClassPage = await pageApi(adminRuntime.page, apiBase, '/api/admin/classes?status=active&limit=1&offset=0');
     const archivedClassPage = await pageApi(adminRuntime.page, apiBase, '/api/admin/classes?status=archived&limit=1&offset=0');
     const authoritativeStats = await pageApi(adminRuntime.page, apiBase, '/api/admin/stats');
+    const pendingRelationshipPage = await pageApi(adminRuntime.page, apiBase, '/api/admin/class-join-requests?status=pending&limit=1&offset=0');
+    const disabledAccountPage = await pageApi(adminRuntime.page, apiBase, '/api/admin/users?status=disabled&limit=1&offset=0');
+    const overviewCourses = await pageApi(adminRuntime.page, apiBase, '/api/courses');
+    const overviewAudit = await pageApi(adminRuntime.page, apiBase, '/api/admin/audit-logs?limit=10&offset=0');
     assert(authoritativeStats.status === 200, `admin stats reread failed with ${authoritativeStats.status}`);
+    assert(
+      [pendingRelationshipPage, disabledAccountPage, overviewCourses, overviewAudit].every((response) => response.status === 200),
+      'admin business overview authority reread failed'
+    );
     await selectAdminSection(adminRuntime.page, 'overview', '[data-admin-overview]');
+    await adminRuntime.page.locator('[data-admin-business-overview-state="ready"]').waitFor({ state: 'visible' });
+    const businessResources = new Set([
+      'class_join_request', 'course', 'user', 'school', 'class',
+      'class_member', 'assignment', 'submission',
+    ]);
+    const expectedRecentBusinessAudits = overviewAudit.body.items.filter((item) => (
+      businessResources.has(String(item.resource_type || ''))
+      && /^(class\.join\.request\.|course\.status\.|admin\.user\.|admin\.(?:school|class)\.|school\.|class\.|assignment\.|submission\.)/.test(String(item.action || ''))
+    )).slice(0, 3);
+    const expectedCourseStatuses = overviewCourses.body.reduce((counts, course) => {
+      if (Object.prototype.hasOwnProperty.call(counts, course.status)) counts[course.status] += 1;
+      return counts;
+    }, { draft: 0, published: 0, archived: 0 });
+    const businessOverview = await adminRuntime.page.evaluate(() => {
+      const numberAt = (selector) => Number(String(document.querySelector(selector)?.textContent || '').replace(/[^0-9]/g, '')) || 0;
+      const business = document.querySelector('[data-admin-business-overview]');
+      const dataMap = document.querySelector('[data-admin-database-map]');
+      return {
+        pending: numberAt('[data-admin-overview-kind="pending-relationships"] [data-admin-overview-total]'),
+        disabled: numberAt('[data-admin-overview-kind="disabled-accounts"] [data-admin-overview-total]'),
+        courses: Object.fromEntries(['draft', 'published', 'archived'].map((status) => [
+          status,
+          numberAt(`[data-admin-course-status="${status}"]`),
+        ])),
+        recentAuditActions: Array.from(document.querySelectorAll('[data-admin-recent-audit] strong'))
+          .map((element) => String(element.textContent || '').trim()),
+        beforeDataMap: Boolean(
+          business
+          && dataMap
+          && (business.compareDocumentPosition(dataMap) & Node.DOCUMENT_POSITION_FOLLOWING)
+        ),
+      };
+    });
+    assert(businessOverview.pending === pendingRelationshipPage.body.total, 'pending relationship overview must match authoritative total');
+    assert(businessOverview.disabled === disabledAccountPage.body.total, 'disabled account overview must match authoritative total');
+    assert(
+      JSON.stringify(businessOverview.courses) === JSON.stringify(expectedCourseStatuses),
+      `course status overview mismatch: ${JSON.stringify({ actual: businessOverview.courses, expected: expectedCourseStatuses })}`
+    );
+    assert(
+      JSON.stringify(businessOverview.recentAuditActions) === JSON.stringify(expectedRecentBusinessAudits.map((item) => item.action)),
+      'recent business audit overview must match the authoritative filtered order'
+    );
+    assert(businessOverview.beforeDataMap, 'business governance summary must precede the data map');
+    record('admin frozen business overview matches pending, disabled, organization, course and audit authority', businessOverview);
     const entityCounts = await adminRuntime.page.evaluate(() => Object.fromEntries(
       Array.from(document.querySelectorAll('[data-admin-database-map] [data-entity]')).map((item) => [
         item.getAttribute('data-entity'),
@@ -1952,6 +2740,11 @@ async function main() {
     });
     await closeOrganizationEditor(organizationDialog);
     await adminRuntime.page.setViewportSize({ width: 1440, height: 1000 });
+    report.advancedDiagnostics = await exerciseAdvancedLazyLoading(
+      adminRuntime.page,
+      adminDiagnosticRequests
+    );
+    record('admin advanced diagnostics remain zero before first entry and release focus on Escape', report.advancedDiagnostics);
 
     const outsiderRuntime = await createRolePage(browser, report, webBase, apiBase, 'student');
     contexts.push(outsiderRuntime.context);
