@@ -49,6 +49,7 @@ assert.equal(registry.galaxyFor('cosmos'), 'frontier');
 assert.equal(registry.galaxyFor('unknown-page'), 'englab');
 assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260719v75ReviewTeacherLayersP0');
 assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260719v7437AstraWorkspaceP0');
+assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260729v794AdminGovernanceP0');
 assert.equal(registry.isReady('teacher'), false);
 
 let entered = 0;

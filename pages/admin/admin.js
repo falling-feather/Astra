@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const ADMIN_ASSET_VERSION = '20260718v7432UnifiedAtlasP0';
+    const ADMIN_ASSET_VERSION = '20260729v794AdminGovernanceP0';
     const API_BASE_STORAGE_KEY = 'astra-admin-api-base';
 
     const state = {
@@ -9,8 +9,8 @@
         apiBase: '',
         user: null,
         busy: false,
-        initialized: false,
         active: false,
+        ownersMounted: false,
         activeSection: 'overview',
         online: navigator.onLine !== false,
         runtimeBound: false,
@@ -19,104 +19,39 @@
         panelGenerations: Object.create(null),
         writeLock: null,
         pendingJoinReview: null,
+        joinReviewExecutor: null,
         pendingUserUpdate: null,
         pendingOrganizationUpdate: null,
         organizationEditor: null,
         organizationEditorTrigger: null,
         organizationGeneration: 0,
-        organizationSummary: null,
         onOnline: null,
         onOffline: null,
         onAuthRequired: null,
+        eventController: null,
+        modulePromise: null,
+        sectionLoaded: Object.create(null),
+        rafIds: new Set(),
         panels: {},
-        panelData: {},
-        summaryData: {}
+        panelData: {}
     };
 
     const GOVERNANCE_SECTIONS = Object.freeze([
         Object.freeze({ id: 'overview', label: '治理总览', meta: 'OVERVIEW', icon: 'radar' }),
-        Object.freeze({ id: 'identity', label: '账号与权限', meta: 'IDENTITY', icon: 'users-round' }),
-        Object.freeze({ id: 'organizations', label: '组织与班级', meta: 'ORGANIZATION', icon: 'landmark' }),
-        Object.freeze({ id: 'content', label: '内容与脚本', meta: 'CONTENT', icon: 'file-code-2' }),
-        Object.freeze({ id: 'operations', label: '运行与审计', meta: 'OPERATIONS', icon: 'activity' })
+        Object.freeze({ id: 'organizations', label: '组织', meta: 'ORGANIZATION', icon: 'landmark' }),
+        Object.freeze({ id: 'identity', label: '人员', meta: 'PEOPLE', icon: 'users-round' }),
+        Object.freeze({ id: 'classes', label: '班级', meta: 'CLASSES', icon: 'school' }),
+        Object.freeze({ id: 'courses', label: '课程', meta: 'COURSES', icon: 'book-open-check' }),
+        Object.freeze({ id: 'audit', label: '审计', meta: 'AUDIT', icon: 'scroll-text' })
     ]);
 
     const PANEL_SECTIONS = Object.freeze({
         users: 'identity',
         schools: 'organizations',
-        classes: 'organizations',
-        'join-requests': 'organizations',
-        'content-drafts': 'content',
-        'script-assets': 'content',
-        'script-hosts': 'content',
-        'snapshot-runs': 'operations',
-        outbox: 'operations',
-        'audit-logs': 'operations',
-        bugs: 'operations'
+        classes: 'classes',
+        'join-requests': 'identity',
+        'audit-logs': 'audit'
     });
-
-    const SUMMARY_CONFIGS = [
-        {
-            id: 'script-health',
-            title: '脚本漂移',
-            icon: 'shield-check',
-            path: '/api/admin/content/script-assets/remote-drift-scan-runs/health',
-            fields: [
-                ['health_status', '健康'],
-                ['total', '运行'],
-                ['problem_count', '问题'],
-                ['needs_attention_count', '关注']
-            ]
-        },
-        {
-            id: 'script-queue',
-            title: '脚本队列',
-            icon: 'list-checks',
-            path: '/api/admin/content/script-assets/remote-drift-scan-runs/queue',
-            fields: [
-                ['queue_status', '状态'],
-                ['backlog_count', '积压'],
-                ['ready_count', '就绪'],
-                ['blocked_count', '阻塞']
-            ]
-        },
-        {
-            id: 'snapshot-health',
-            title: '快照运行',
-            icon: 'activity',
-            path: '/api/admin/knowledge-snapshot-runs/health',
-            fields: [
-                ['health_status', '健康'],
-                ['total', '运行'],
-                ['problem_count', '问题'],
-                ['pending_count', '待处理']
-            ]
-        },
-        {
-            id: 'snapshot-queue',
-            title: '快照队列',
-            icon: 'clock',
-            path: '/api/admin/knowledge-snapshot-runs/queue',
-            fields: [
-                ['queue_status', '状态'],
-                ['backlog_count', '积压'],
-                ['ready_count', '就绪'],
-                ['blocked_count', '阻塞']
-            ]
-        },
-        {
-            id: 'outbox-queue',
-            title: 'Outbox',
-            icon: 'inbox',
-            path: '/api/admin/alert-outbox/queue',
-            fields: [
-                ['queue_status', '状态'],
-                ['pending_review_count', '待审'],
-                ['ready_count', '就绪'],
-                ['stale_count', '过期']
-            ]
-        }
-    ];
 
     const ORGANIZATION_CONFIGS = Object.freeze({
         school: Object.freeze({
@@ -235,147 +170,6 @@
             actions: 'join-request-review'
         },
         {
-            id: 'content-drafts',
-            title: '内容草稿',
-            icon: 'file-pen-line',
-            path: '/api/admin/content/drafts',
-            filters: [
-                selectFilter('status', '状态', [
-                    ['', '全部'],
-                    ['draft', 'draft'],
-                    ['submitted', 'submitted'],
-                    ['changes_requested', 'changes_requested'],
-                    ['published', 'published'],
-                    ['withdrawn', 'withdrawn']
-                ]),
-                selectFilter('script_review_status', '脚本审查', [
-                    ['', '全部'],
-                    ['pending', 'pending'],
-                    ['approved', 'approved'],
-                    ['rejected', 'rejected'],
-                    ['not_required', 'not_required']
-                ]),
-                textFilter('q', '搜索')
-            ],
-            columns: [
-                col('id', 'ID'),
-                col('target_slug', 'Slug'),
-                col('title', '标题'),
-                col('author_username', '作者'),
-                badgeCol('status', '状态'),
-                badgeCol('script_review_status', '脚本审查'),
-                badgeCol('script_risk_level', '风险'),
-                dateCol('updated_at', '更新')
-            ],
-            details: ['schema_hash', 'base_version_id', 'allow_script', 'script_analysis', 'change_request_note']
-        },
-        {
-            id: 'script-assets',
-            title: '脚本资产',
-            icon: 'file-code-2',
-            path: '/api/admin/content/script-assets',
-            filters: [
-                textFilter('source_host', 'Host'),
-                textFilter('q', '搜索')
-            ],
-            columns: [
-                col('id', 'ID'),
-                col('slug', 'Slug'),
-                col('sandbox_id', '沙箱'),
-                col('source_host', 'Host'),
-                bytesCol('asset_size_bytes', '体积'),
-                col('policy_version', '策略'),
-                dateCol('published_at', '发布')
-            ],
-            details: ['reference_key', 'reference_value_sha256', 'source_url_sha256', 'asset_sha256', 'policy_context_hash']
-        },
-        {
-            id: 'script-hosts',
-            title: '脚本 Host 策略',
-            icon: 'server-cog',
-            path: '/api/admin/content/script-host-policies',
-            filters: [
-                selectFilter('status', '状态', [
-                    ['', '全部'],
-                    ['trusted', 'trusted'],
-                    ['watch', 'watch'],
-                    ['blocked', 'blocked']
-                ]),
-                textFilter('q', '搜索')
-            ],
-            columns: [
-                col('source_host', 'Host'),
-                badgeCol('status', '状态'),
-                boolCol('configured_allowed', '配置允许'),
-                col('observed_asset_count', '资产'),
-                col('observed_page_count', '页面'),
-                dateCol('last_observed_at', '最近发现')
-            ],
-            details: ['reason', 'reviewed_by_user_id', 'reviewed_at', 'created_at', 'updated_at']
-        },
-        {
-            id: 'snapshot-runs',
-            title: '知识快照运行',
-            icon: 'database',
-            path: '/api/admin/knowledge-snapshot-runs',
-            filters: [
-                selectFilter('status', '状态', [
-                    ['', '全部'],
-                    ['pending', 'pending'],
-                    ['running', 'running'],
-                    ['success', 'success'],
-                    ['failed', 'failed'],
-                    ['cancelled', 'cancelled']
-                ]),
-                selectFilter('granularity', '粒度', [
-                    ['', '全部'],
-                    ['daily', 'daily'],
-                    ['weekly', 'weekly'],
-                    ['monthly', 'monthly']
-                ])
-            ],
-            columns: [
-                col('id', 'ID'),
-                col('run_key', 'Run Key'),
-                badgeCol('granularity', '粒度'),
-                badgeCol('status', '状态'),
-                col('trigger_source', '触发'),
-                col('user_snapshot_count', '用户快照'),
-                col('class_snapshot_count', '班级快照'),
-                dateCol('started_at', '开始')
-            ],
-            details: ['error_message', 'metadata_summary', 'scheduler_lease_owner', 'scheduler_lease_expires_at']
-        },
-        {
-            id: 'outbox',
-            title: '告警 Outbox',
-            icon: 'send',
-            path: '/api/admin/alert-outbox',
-            filters: [
-                selectFilter('status', '状态', [
-                    ['', '全部'],
-                    ['pending_review', 'pending_review'],
-                    ['planned', 'planned'],
-                    ['queued', 'queued'],
-                    ['suppressed', 'suppressed'],
-                    ['cancelled', 'cancelled']
-                ]),
-                textFilter('source_type', '来源'),
-                textFilter('event_code', '事件')
-            ],
-            columns: [
-                col('id', 'ID'),
-                col('source_type', '来源'),
-                col('event_code', '事件'),
-                badgeCol('severity', '等级'),
-                badgeCol('action_hint', '动作'),
-                badgeCol('status', '状态'),
-                col('seen_count', '次数'),
-                dateCol('last_seen_at', '最近')
-            ],
-            details: ['source_key', 'delivery_target', 'external_delivery', 'payload_hash_prefix', 'review_note_present']
-        },
-        {
             id: 'audit-logs',
             title: '审计日志',
             icon: 'scroll-text',
@@ -387,7 +181,11 @@
                     ['failure', 'failure']
                 ]),
                 textFilter('action', 'Action'),
-                textFilter('resource_type', '资源')
+                textFilter('resource_type', '资源类型'),
+                textFilter('resource_id', '资源 ID'),
+                textFilter('request_id', 'Request ID'),
+                textFilter('from', '开始时间'),
+                textFilter('to', '结束时间')
             ],
             columns: [
                 col('id', 'ID'),
@@ -400,61 +198,108 @@
                 dateCol('created_at', '时间')
             ],
             details: ['resource_id', 'failure_reason', 'request_method', 'request_path', 'snapshot_json']
-        },
-        {
-            id: 'bugs',
-            title: 'Bug 台账',
-            icon: 'bug',
-            path: '/api/admin/bugs',
-            filters: [
-                selectFilter('status', '状态', [
-                    ['', '全部'],
-                    ['open', 'open'],
-                    ['triaged', 'triaged'],
-                    ['in_progress', 'in_progress'],
-                    ['closed', 'closed']
-                ], 'open'),
-                textFilter('q', '搜索')
-            ],
-            columns: [
-                col('id', 'ID'),
-                col('title', '标题'),
-                col('category', '分类'),
-                badgeCol('severity', '等级'),
-                badgeCol('status', '状态'),
-                col('source', '来源'),
-                dateCol('updated_at', '更新')
-            ],
-            details: ['external_issue_provider', 'external_issue_id', 'external_issue_url', 'evidence', 'notes']
         }
     ];
-
-    function col(key, label) {
-        return { key, label };
-    }
-
-    function badgeCol(key, label) {
-        return { key, label, badge: true };
-    }
-
-    function dateCol(key, label) {
-        return { key, label, type: 'date' };
-    }
-
-    function bytesCol(key, label) {
-        return { key, label, type: 'bytes' };
-    }
-
-    function boolCol(key, label) {
-        return { key, label, type: 'boolean', badge: true };
-    }
-
+    const BUSINESS_PANEL_IDS = new Set(['users', 'schools', 'classes', 'join-requests', 'audit-logs']);
+    const OWNER_MODULES = Object.freeze([
+        Object.freeze({ path: 'pages/admin/admin-course-governance.js', ready: 'AdminCourseGovernance' }),
+        Object.freeze({ path: 'pages/admin/admin-secondary-governance.js', ready: 'AdminSecondaryGovernance' })
+    ]);
+    function col(key, label) { return { key, label }; }
+    function badgeCol(key, label) { return { key, label, badge: true }; }
+    function dateCol(key, label) { return { key, label, type: 'date' }; }
     function selectFilter(name, label, options, value) {
         return { type: 'select', name, label, options, value: value || '' };
     }
-
     function textFilter(name, label) {
         return { type: 'text', name, label };
+    }
+
+    function loadOwnerModule(config) {
+        if (window[config.ready]) return Promise.resolve();
+        const source = `${config.path}?v=${ADMIN_ASSET_VERSION}`;
+        return new Promise((resolve, reject) => {
+            let script = Array.from(document.scripts).find((candidate) => {
+                const current = candidate.getAttribute('src') || '';
+                return current === source || current.split('?')[0] === config.path;
+            });
+            if (script && script.dataset.adminOwnerState === 'failed') { script.remove(); script = null; }
+            if (!script) {
+                script = document.createElement('script');
+                script.src = source;
+                script.async = true;
+                script.dataset.adminOwner = config.ready;
+                script.dataset.adminOwnerState = 'loading';
+            }
+            let settled = false;
+            script.dataset.adminOwner = config.ready;
+            const cleanup = () => { script.removeEventListener('load', onLoad); script.removeEventListener('error', onError); script.__adminOwnerCleanup = null; };
+            const fail = (message) => {
+                if (settled) return;
+                settled = true; cleanup();
+                script.dataset.adminOwnerState = 'failed'; script.remove();
+                reject(new Error(message));
+            };
+            const onLoad = () => {
+                if (!window[config.ready]) { fail(`${config.ready} 未完成注册`); return; }
+                settled = true; cleanup();
+                script.dataset.adminOwnerState = 'loaded'; resolve();
+            };
+            const onError = () => fail(`治理模块加载失败：${config.path}`);
+            script.__adminOwnerCleanup = cleanup;
+            script.addEventListener('load', onLoad);
+            script.addEventListener('error', onError);
+            if (!script.isConnected) document.body.appendChild(script);
+        });
+    }
+
+    function ensureOwnerModules() {
+        if (!state.modulePromise) {
+            state.modulePromise = Promise.all(OWNER_MODULES.map(loadOwnerModule)).catch((error) => {
+                Array.from(document.scripts)
+                    .filter((script) => OWNER_MODULES.some((config) => script.dataset.adminOwner === config.ready))
+                    .forEach((script) => { if (typeof script.__adminOwnerCleanup === 'function') script.__adminOwnerCleanup(); script.remove(); });
+                state.modulePromise = null;
+                throw error;
+            });
+        }
+        return state.modulePromise;
+    }
+
+    function mountOwnerModules() {
+        if (state.ownersMounted) return true;
+        if (!state.active || !state.root || !state.user || state.user.role !== 'admin') return false;
+        const courseHost = state.root.querySelector('[data-admin-course-host]');
+        const secondaryHost = state.root.querySelector('[data-admin-secondary-host]');
+        if (!courseHost || !secondaryHost || !window.AdminCourseGovernance || !window.AdminSecondaryGovernance) return false;
+        const courseMounted = AdminCourseGovernance.mount(courseHost, {
+            getApiBase: () => state.apiBase, notify: setNotice, refreshIcons,
+            onMutation: async () => Promise.all([refreshStats(), refreshPanel('audit-logs')]),
+            onWriteStateChange: applyAdminWriteAvailability
+        });
+        const secondaryMounted = AdminSecondaryGovernance.mount(secondaryHost, {
+            getApiBase: () => state.apiBase, notify: setNotice, refreshIcons, overviewHost: state.root.querySelector('[data-admin-business-overview]'), healthPath: '/api/health'
+        });
+        state.ownersMounted = Boolean(courseMounted && secondaryMounted);
+        if (!state.ownersMounted) unmountOwnerModules();
+        return state.ownersMounted;
+    }
+    function unmountOwnerModules() {
+        if (window.AdminCourseGovernance) AdminCourseGovernance.destroy();
+        if (window.AdminSecondaryGovernance) AdminSecondaryGovernance.destroy();
+        state.ownersMounted = false;
+    }
+    function courseWriteState() { try { return window.AdminCourseGovernance ? AdminCourseGovernance.snapshot() : {}; } catch (error) { return {}; } }
+    function courseWriteBlocked(snapshot) { const current = snapshot || courseWriteState(); return Boolean(Number(current.mutationCourseId) || Number(current.lockCount) || (current.lockedCourseIds || []).length); }
+    function initializeJoinReviewExecutor() {
+        state.joinReviewExecutor = createConfirmedJoinReviewExecutor(commitJoinReview, (snapshot) => {
+            state.pendingJoinReview = snapshot.pending ? snapshot.pending.key : null;
+            if (state.root) { rerenderJoinRequestsPanel(); refreshIcons(); }
+        });
+    }
+    function invalidateJoinReviewConfirmation() {
+        if (state.joinReviewExecutor) state.joinReviewExecutor.invalidate();
+        else state.pendingJoinReview = null;
     }
 
     function initAdmin() {
@@ -465,11 +310,9 @@
         if (window.AstraApiClient) AstraApiClient.scrubLegacyTokens();
         state.apiBase = resolveApiBase();
         initializePanelState();
+        initializeJoinReviewExecutor();
         renderShell();
-        if (!state.initialized) {
-            bindEvents();
-            state.initialized = true;
-        }
+        bindEvents();
         bindRuntimeEvents();
         if (!state.online) {
             renderAuthError(AstraApiClient.offlineError());
@@ -478,16 +321,20 @@
         }
         refreshAll();
     }
-
     function destroyAdmin() {
         state.active = false;
         invalidateRequests();
         unbindRuntimeEvents();
+        if (state.eventController) state.eventController.abort();
+        state.eventController = null;
+        state.rafIds.forEach((id) => window.cancelAnimationFrame(id));
+        state.rafIds.clear();
+        unmountOwnerModules();
         state.user = null;
         state.busy = false;
         state.panelData = {};
-        state.summaryData = {};
-        state.organizationSummary = null;
+        state.joinReviewExecutor = null;
+        state.pendingJoinReview = null;
         resetOrganizationEditor(false);
         const dashboard = getDashboard();
         if (dashboard) dashboard.hidden = true;
@@ -515,8 +362,7 @@
             setBusy(false);
             state.user = null;
             state.panelData = {};
-            state.summaryData = {};
-            state.organizationSummary = null;
+            unmountOwnerModules();
             resetOrganizationEditor(false);
             clearDashboardDom();
             const dashboard = getDashboard();
@@ -531,8 +377,7 @@
             setBusy(false);
             state.user = null;
             state.panelData = {};
-            state.summaryData = {};
-            state.organizationSummary = null;
+            unmountOwnerModules();
             resetOrganizationEditor(false);
             clearDashboardDom();
             const dashboard = getDashboard();
@@ -547,7 +392,6 @@
         window.addEventListener('astra:api-auth-required', state.onAuthRequired);
         state.runtimeBound = true;
     }
-
     function unbindRuntimeEvents() {
         if (!state.runtimeBound) return;
         window.removeEventListener('online', state.onOnline);
@@ -560,7 +404,7 @@
     }
 
     function initializePanelState() {
-        PANEL_CONFIGS.forEach((config) => {
+        PANEL_CONFIGS.filter((config) => BUSINESS_PANEL_IDS.has(config.id)).forEach((config) => {
             if (!state.panels[config.id]) {
                 state.panels[config.id] = { limit: 10, offset: 0, filters: {} };
             }
@@ -571,12 +415,10 @@
             });
         });
     }
-
     function sectionLabel(sectionId) {
         const section = GOVERNANCE_SECTIONS.find((item) => item.id === sectionId);
         return section ? section.label : GOVERNANCE_SECTIONS[0].label;
     }
-
     function applyActiveSection(options) {
         if (!state.root) return;
         const activeSection = GOVERNANCE_SECTIONS.some((item) => item.id === state.activeSection)
@@ -592,6 +434,8 @@
             const selected = button.dataset.adminSectionButton === activeSection;
             if (selected) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
+            button.setAttribute('aria-selected', selected ? 'true' : 'false');
+            button.tabIndex = selected ? 0 : -1;
         });
         const title = state.root.querySelector('[data-admin-current-section-title]');
         if (title) title.textContent = sectionLabel(activeSection);
@@ -600,7 +444,8 @@
                 ? state.root.querySelector('[data-admin-overview]')
                 : state.root.querySelector(`[data-admin-section="${activeSection}"]`);
             if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
                 try { target.focus({ preventScroll: true }); } catch (error) { target.focus(); }
             }
         }
@@ -610,10 +455,12 @@
         if (!GOVERNANCE_SECTIONS.some((item) => item.id === sectionId)) return;
         state.activeSection = sectionId;
         applyActiveSection(options);
+        if (state.user && state.user.role === 'admin') refreshActiveSection(sectionId);
     }
 
-    function renderShell() {
-        state.root.innerHTML = `
+    function governanceShellMarkup() {
+        initializePanelState();
+        return `
             <header class="admin-governance__header">
                 <div class="admin-governance__title">
                     <span class="admin-governance__eyebrow">
@@ -652,43 +499,55 @@
                             </ol>
                             <p>统一账号、组织、内容与审计边界；不再维护星系内的独立管理页。</p>
                         </section>
-                        <nav class="admin-section-nav" aria-label="治理领域">
+                        <nav class="admin-section-nav" aria-label="治理领域" role="tablist" aria-orientation="vertical">
                             ${GOVERNANCE_SECTIONS.map((section) => `
-                                <button type="button" data-admin-section-button="${section.id}"${state.activeSection === section.id ? ' aria-current="page"' : ''}>
+                                <button type="button" role="tab" aria-controls="admin-domain-${section.id}" aria-selected="${state.activeSection === section.id ? 'true' : 'false'}" tabindex="${state.activeSection === section.id ? '0' : '-1'}" data-admin-section-button="${section.id}"${state.activeSection === section.id ? ' aria-current="page"' : ''}>
                                     <i data-lucide="${section.icon}"></i>
                                     <span>${escapeHtml(section.label)}<small>${escapeHtml(section.meta)}</small></span>
                                 </button>
                             `).join('')}
                         </nav>
+                        <section class="admin-secondary-entry" aria-label="次级治理入口">
+                            <button type="button" class="admin-text-button" data-admin-secondary-open="more"><i data-lucide="library"></i>更多治理</button>
+                            <button type="button" class="admin-text-button" data-admin-secondary-open="advanced"><i data-lucide="wrench"></i>高级诊断</button>
+                        </section>
                     </aside>
                     <div class="admin-governance-workspace">
                         <header class="admin-workspace-heading">
                             <span>GOVERNED DOMAIN</span>
                             <h2 data-admin-current-section-title>${escapeHtml(sectionLabel(state.activeSection))}</h2>
                         </header>
-                        <section class="admin-overview" data-admin-overview tabindex="-1"${state.activeSection === 'overview' ? '' : ' hidden'}>
-                            <section class="admin-kpi-grid" data-admin-stats></section>
+                        <section id="admin-domain-overview" role="tabpanel" class="admin-overview" data-admin-overview tabindex="-1"${state.activeSection === 'overview' ? '' : ' hidden'}>
+                            <section data-admin-business-overview aria-label="真实业务治理摘要"></section><section class="admin-kpi-grid" data-admin-stats></section>
                             <section class="admin-database-map" data-admin-database-map></section>
-                            <section class="admin-summary-grid" data-admin-summary></section>
                         </section>
                         <section class="admin-panel-grid" data-admin-panels>
-                            ${PANEL_CONFIGS.map(renderPanelShell).join('')}
+                            ${['organizations', 'identity', 'classes', 'audit'].map(renderDomainShell).join('')}
+                            <article id="admin-domain-courses" role="tabpanel" class="admin-panel admin-course-domain" data-admin-section="courses" data-admin-course-host tabindex="-1"${state.activeSection === 'courses' ? '' : ' hidden'}></article>
                         </section>
                     </div>
                 </div>
                 <dialog class="admin-organization-dialog" data-admin-organization-dialog aria-labelledby="admin-organization-dialog-title" aria-describedby="admin-organization-dialog-description">
                     <div data-admin-organization-editor></div>
                 </dialog>
+                <div data-admin-secondary-host></div>
             </div>
         `;
+    }
+
+    function renderShell() {
+        state.root.innerHTML = governanceShellMarkup();
         applyActiveSection();
         refreshIcons();
     }
 
+    function renderDomainShell(sectionId) {
+        return `<section id="admin-domain-${sectionId}" role="tabpanel" class="admin-domain-panel" data-admin-section="${sectionId}" tabindex="-1"${state.activeSection === sectionId ? '' : ' hidden'}>${PANEL_CONFIGS.filter((config) => BUSINESS_PANEL_IDS.has(config.id) && PANEL_SECTIONS[config.id] === sectionId).map(renderPanelShell).join('')}</section>`;
+    }
+
     function renderPanelShell(config) {
-        const sectionId = PANEL_SECTIONS[config.id] || 'operations';
         return `
-            <article class="admin-panel" data-admin-panel="${config.id}" data-admin-section="${sectionId}" tabindex="-1"${state.activeSection === sectionId ? '' : ' hidden'}>
+            <article id="admin-panel-${config.id}" class="admin-panel" data-admin-panel="${config.id}">
                 <header class="admin-panel__header">
                     <div>
                         <h2><i data-lucide="${config.icon}"></i>${escapeHtml(config.title)}</h2>
@@ -738,6 +597,9 @@
     }
 
     function bindEvents() {
+        if (state.eventController && !state.eventController.signal.aborted) return;
+        state.eventController = new AbortController();
+        const eventOptions = { signal: state.eventController.signal };
         state.root.addEventListener('click', (event) => {
             const sectionButton = event.target.closest('[data-admin-section-button]');
             if (sectionButton) {
@@ -745,11 +607,22 @@
                 return;
             }
 
+            const secondaryButton = event.target.closest('[data-admin-secondary-open]');
+            if (secondaryButton && window.AdminSecondaryGovernance) {
+                AdminSecondaryGovernance.open(secondaryButton.dataset.adminSecondaryOpen, secondaryButton);
+                return;
+            }
+
             const refreshAllButton = event.target.closest('[data-admin-action="refresh"]');
             if (refreshAllButton) {
                 if (state.busy) return;
+                const courseState = courseWriteState();
+                if (courseWriteBlocked(courseState)) {
+                    setNotice('warning', `课程写入或对账锁未解除（${courseState.mutationCourseId || courseState.lockedCourseIds?.join(', ') || 'locked'}）；不能刷新或切换 API Base。`);
+                    return;
+                }
                 if (!state.writeLock) resetOrganizationEditor(false);
-                state.pendingJoinReview = null;
+                invalidateJoinReviewConfirmation();
                 state.pendingUserUpdate = null;
                 state.pendingOrganizationUpdate = null;
                 setNotice('', '');
@@ -807,7 +680,9 @@
 
             const refreshPanelButton = event.target.closest('[data-admin-panel-refresh]');
             if (refreshPanelButton) {
-                refreshPanel(refreshPanelButton.dataset.adminPanelRefresh);
+                const panelId = refreshPanelButton.dataset.adminPanelRefresh;
+                if (panelId === 'join-requests') invalidateJoinReviewConfirmation();
+                refreshPanel(panelId);
                 return;
             }
 
@@ -825,34 +700,55 @@
                 }
                 refreshPanel(panelId);
             }
-        });
+        }, eventOptions);
+
+        state.root.addEventListener('keydown', (event) => {
+            const current = event.target.closest('[data-admin-section-button]');
+            if (!current || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+            const buttons = Array.from(state.root.querySelectorAll('[data-admin-section-button]'));
+            const currentIndex = buttons.indexOf(current);
+            let nextIndex = currentIndex;
+            if (event.key === 'Home') nextIndex = 0;
+            else if (event.key === 'End') nextIndex = buttons.length - 1;
+            else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+            else nextIndex = (currentIndex + 1) % buttons.length;
+            event.preventDefault();
+            const next = buttons[nextIndex];
+            if (next) {
+                setActiveSection(next.dataset.adminSectionButton);
+                next.focus();
+            }
+        }, eventOptions);
 
         state.root.addEventListener('submit', (event) => {
             const form = event.target.closest('[data-admin-panel-form]');
             if (!form) return;
             event.preventDefault();
             applyPanelForm(form.dataset.adminPanelForm, form);
-        });
+        }, eventOptions);
 
         state.root.addEventListener('change', (event) => {
             const apiInput = event.target.closest('[data-admin-api-base]');
             if (apiInput) {
-                if (state.busy || state.writeLock) {
+                if (state.busy || state.writeLock || courseWriteBlocked()) {
                     apiInput.value = state.apiBase;
+                    setNotice('warning', '课程写入或对账锁未解除；API Base 保持不变。');
                     return;
                 }
+                if (window.AdminCourseGovernance && !AdminCourseGovernance.invalidateContext()) { apiInput.value = state.apiBase; return; }
+                if (window.AdminSecondaryGovernance) AdminSecondaryGovernance.invalidateContext();
+                invalidateJoinReviewConfirmation();
                 state.apiBase = normalizeApiBase(apiInput.value);
                 localStorage.setItem(API_BASE_STORAGE_KEY, state.apiBase);
                 apiInput.value = state.apiBase;
                 refreshAll();
                 return;
             }
-
             const form = event.target.closest('[data-admin-panel-form]');
             if (form && event.target.tagName === 'SELECT') {
                 applyPanelForm(form.dataset.adminPanelForm, form);
             }
-        });
+        }, eventOptions);
 
         state.root.addEventListener('input', (event) => {
             const form = event.target.closest('[data-admin-organization-form]');
@@ -876,19 +772,20 @@
                 inlineNotice.className = 'admin-organization-form__notice admin-organization-form__notice--warning';
                 inlineNotice.textContent = '输入已变化，上一次确认已失效；请重新预览。';
             }
-        });
+        }, eventOptions);
 
         state.root.addEventListener('cancel', (event) => {
             const dialog = event.target.closest('[data-admin-organization-dialog]');
             if (!dialog) return;
             event.preventDefault();
             if (!state.busy) closeOrganizationEditor();
-        }, true);
+        }, { capture: true, signal: state.eventController.signal });
     }
 
     function applyPanelForm(panelId, form) {
         const panelState = state.panels[panelId];
         if (!panelState) return;
+        if (panelId === 'join-requests') invalidateJoinReviewConfirmation();
         const data = new FormData(form);
         panelState.limit = Number(data.get('limit')) || 10;
         panelState.offset = 0;
@@ -900,20 +797,49 @@
         refreshPanel(panelId);
     }
 
+    async function refreshActiveSection(sectionId, generation, options) {
+        const section = String(sectionId || state.activeSection || 'overview');
+        const force = Boolean(options && options.force);
+        if (section !== 'overview' && state.sectionLoaded[section] && !force) return true;
+        let results = [];
+        if (section === 'overview') {
+            results = await Promise.all([refreshStats(generation), AdminSecondaryGovernance.loadOverview({ force })]);
+        } else if (section === 'organizations') {
+            results = await Promise.all([refreshPanel('schools', generation)]);
+        } else if (section === 'identity') {
+            results = await Promise.all([
+                refreshPanel('users', generation),
+                refreshPanel('join-requests', generation)
+            ]);
+        } else if (section === 'classes') {
+            results = await Promise.all([refreshPanel('classes', generation)]);
+        } else if (section === 'courses') {
+            results = [window.AdminCourseGovernance
+                ? await AdminCourseGovernance.activate({ force })
+                : false];
+        } else if (section === 'audit') {
+            results = await Promise.all([refreshPanel('audit-logs', generation)]);
+        }
+        const complete = results.length > 0 && results.every((result) => result === true);
+        if (complete) state.sectionLoaded[section] = true;
+        return complete;
+    }
+
     async function refreshAll(options) {
         if (!state.root || !state.active) return;
         const releaseWriteLock = Boolean(options && options.releaseWriteLock);
+        invalidateJoinReviewConfirmation();
         const generation = beginRequestGeneration();
         setBusy(true);
         state.user = null;
         state.panelData = {};
-        state.summaryData = {};
-        state.organizationSummary = null;
+        state.sectionLoaded = Object.create(null);
         clearDashboardDom();
         renderAuthState('checking');
         const dashboard = getDashboard();
         if (dashboard) dashboard.hidden = true;
         if (!state.online) {
+            unmountOwnerModules();
             renderAuthError(AstraApiClient.offlineError());
             setBusy(false);
             refreshIcons();
@@ -924,20 +850,21 @@
             if (!isCurrentRequest(generation)) return;
             state.user = user;
             if (user.role !== 'admin') {
+                unmountOwnerModules();
                 renderAuthState('forbidden', user);
                 return;
             }
+            await ensureOwnerModules();
+            if (!isCurrentRequest(generation)) return;
+            if (!mountOwnerModules()) throw new Error('管理员治理 owner 挂载失败');
             renderAuthState('ready', user);
             if (dashboard) dashboard.hidden = false;
-            const results = await Promise.all([
-                refreshStats(generation),
-                refreshSummaries(generation),
-                ...PANEL_CONFIGS.map((config) => refreshPanel(config.id, generation))
-            ]);
-            const reconciled = results.every((result) => result === true);
+            const reconciled = await refreshActiveSection(state.activeSection, generation, { force: true });
             if (releaseWriteLock && state.writeLock) {
                 if (state.writeLock.action === 'organization-governance') {
                     await reconcileOrganizationWrite(false);
+                } else if (state.writeLock.action === 'join-request-review') {
+                    await reconcileJoinReviewWrite(state.writeLock);
                 } else if (reconciled) {
                     setWriteLock(null);
                     setNotice('success', '权威列表、统计与审计已重新读取，治理写锁已解除。');
@@ -948,6 +875,7 @@
             return reconciled;
         } catch (error) {
             if (AstraApiClient.isCancelled(error) || !isCurrentRequest(generation)) return;
+            unmountOwnerModules();
             renderAuthError(error);
         } finally {
             if (isCurrentRequest(generation)) {
@@ -962,53 +890,22 @@
     async function refreshStats(generation) {
         const requestGeneration = generation || state.requestGeneration;
         const container = state.root.querySelector('[data-admin-stats]');
+        const databaseMap = state.root.querySelector('[data-admin-database-map]');
         if (!container) return;
         container.innerHTML = renderLoading('统计加载中');
+        if (databaseMap) databaseMap.innerHTML = renderLoading('数据地图加载中');
         try {
-            const [stats, health, activeSchools, archivedSchools, activeClasses, archivedClasses] = await Promise.all([
-                fetchJson('/api/admin/stats'),
-                fetchJson('/api/health'),
-                fetchJson('/api/admin/schools', { status: 'active', limit: 1, offset: 0 }),
-                fetchJson('/api/admin/schools', { status: 'archived', limit: 1, offset: 0 }),
-                fetchJson('/api/admin/classes', { status: 'active', limit: 1, offset: 0 }),
-                fetchJson('/api/admin/classes', { status: 'archived', limit: 1, offset: 0 })
-            ]);
+            const stats = AdminSecondaryGovernance.validateStatsPayload(await fetchJson('/api/admin/stats'));
             if (!isCurrentRequest(requestGeneration)) return;
-            state.organizationSummary = {
-                schools: { active: Number(activeSchools.total || 0), archived: Number(archivedSchools.total || 0) },
-                classes: { active: Number(activeClasses.total || 0), archived: Number(archivedClasses.total || 0) }
-            };
             container.innerHTML = renderStats(stats);
-            const databaseMap = state.root.querySelector('[data-admin-database-map]');
-            if (databaseMap) databaseMap.innerHTML = renderDatabaseMap(stats, health, state.organizationSummary);
+            if (databaseMap) databaseMap.innerHTML = renderDatabaseMap(stats, null, null);
             return true;
         } catch (error) {
             if (AstraApiClient.isCancelled(error) || !isCurrentRequest(requestGeneration)) return;
             container.innerHTML = renderError(error, '统计读取失败');
+            if (databaseMap) databaseMap.innerHTML = renderError(error, '数据地图读取失败');
             return false;
         }
-    }
-
-    async function refreshSummaries(generation) {
-        const requestGeneration = generation || state.requestGeneration;
-        const container = state.root.querySelector('[data-admin-summary]');
-        if (!container) return;
-        container.innerHTML = SUMMARY_CONFIGS.map((config) => renderSummaryCard(config, null, true)).join('');
-        const settled = await Promise.allSettled(
-            SUMMARY_CONFIGS.map((config) => fetchJson(config.path))
-        );
-        if (!isCurrentRequest(requestGeneration)) return;
-        settled.forEach((result, index) => {
-            state.summaryData[SUMMARY_CONFIGS[index].id] = result;
-        });
-        container.innerHTML = SUMMARY_CONFIGS.map((config) => {
-            const result = state.summaryData[config.id];
-            if (!result || result.status !== 'fulfilled') {
-                return renderSummaryCard(config, result && result.reason, false);
-            }
-            return renderSummaryCard(config, result.value, false);
-        }).join('');
-        return settled.every((result) => result.status === 'fulfilled');
     }
 
     async function refreshPanel(panelId, generation) {
@@ -1126,13 +1023,13 @@
     function renderStats(stats) {
         const items = [
             ['pending_class_join_requests', '待审加入', 'user-plus'],
-            ['total_content_drafts', '内容草稿', 'file-pen-line'],
-            ['pending_script_reviews', '脚本待审', 'file-code-2'],
-            ['open_bug_records', '开放 Bug', 'bug'],
-            ['total_audit_logs', '审计日志', 'scroll-text'],
             ['total_users', '用户', 'users'],
-            ['total_content_pages', '内容页', 'files'],
-            ['total_learning_events', '学习事件', 'activity']
+            ['total_schools', '学校', 'landmark'],
+            ['total_classes', '班级', 'school'],
+            ['total_courses', '课程', 'book-open'],
+            ['total_assignments', '作业', 'clipboard-list'],
+            ['total_submissions', '提交', 'send'],
+            ['total_audit_logs', '审计日志', 'scroll-text']
         ];
         const roleText = stats.users_by_role
             ? Object.entries(stats.users_by_role).map(([role, total]) => `${role}:${total}`).join(' / ')
@@ -1148,11 +1045,7 @@
     }
 
     function renderDatabaseMap(stats, health, organizationSummary) {
-        const databaseOk = Boolean(health && health.database && health.database.ok);
-        const organizations = organizationSummary || {
-            schools: { active: 0, archived: 0 },
-            classes: { active: 0, archived: 0 }
-        };
+        const databaseOk = health ? Boolean(health.database && health.database.ok) : true;
         const entities = [
             ['users', '用户', stats.total_users, 'users'],
             ['schools', '学校', stats.total_schools, 'landmark'],
@@ -1171,7 +1064,7 @@
                     <p>展示业务实体与规模；写入只能通过带校验、审计和权限控制的领域操作完成，不开放任意 SQL。</p>
                 </div>
                 <div class="admin-database-map__actions">
-                    <span class="admin-status-pill admin-status-pill--${databaseOk ? 'good' : 'bad'}">数据库 ${databaseOk ? '已连接' : '异常'}</span>
+                    <span class="admin-status-pill admin-status-pill--${databaseOk ? 'good' : 'bad'}">${health ? `数据库 ${databaseOk ? '已连接' : '异常'}` : '业务统计已读取'}</span>
                     <button type="button" class="admin-icon-button" data-admin-open-panel="schools">
                         <i data-lucide="workflow"></i><span>进入受限组织治理</span>
                     </button>
@@ -1193,64 +1086,6 @@
                     return `<div><span>${escapeHtml(label)}</span><b><i style="width:${width}%"></i></b><strong>${formatNumber(total)}</strong></div>`;
                 }).join('')}
             </div>
-            <div class="admin-database-map__organizations" data-admin-organization-summary aria-label="学校与班级状态分布">
-                ${[
-                    ['schools', '学校', organizations.schools, 'landmark'],
-                    ['classes', '班级', organizations.classes, 'school']
-                ].map(([panelId, label, counts, icon]) => {
-                    const active = Number(counts.active || 0);
-                    const archived = Number(counts.archived || 0);
-                    const total = Math.max(1, active + archived);
-                    const activeWidth = Math.round(active / total * 100);
-                    return `
-                        <article data-admin-organization-summary-kind="${panelId}">
-                            <header>
-                                <span><i data-lucide="${icon}"></i>${escapeHtml(label)}治理状态</span>
-                                <button type="button" class="admin-text-button" data-admin-open-panel="${panelId}">查看与治理</button>
-                            </header>
-                            <div class="admin-organization-distribution" aria-label="${escapeAttr(label)}启用 ${active}，已归档 ${archived}">
-                                <i style="width:${activeWidth}%"></i>
-                            </div>
-                            <dl>
-                                <div><dt>启用</dt><dd>${formatNumber(active)}</dd></div>
-                                <div><dt>已归档（历史只读）</dt><dd>${formatNumber(archived)}</dd></div>
-                            </dl>
-                        </article>
-                    `;
-                }).join('')}
-            </div>
-        `;
-    }
-
-    function renderSummaryCard(config, data, loading) {
-        if (loading) {
-            return `
-                <article class="admin-summary">
-                    <h2><i data-lucide="${config.icon}"></i>${escapeHtml(config.title)}</h2>
-                    ${renderLoading('加载中')}
-                </article>
-            `;
-        }
-        if (data instanceof Error || (data && data.status && data.message)) {
-            return `
-                <article class="admin-summary admin-summary--error">
-                    <h2><i data-lucide="${config.icon}"></i>${escapeHtml(config.title)}</h2>
-                    <p>${escapeHtml(errorMessage(data))}</p>
-                </article>
-            `;
-        }
-        return `
-            <article class="admin-summary">
-                <h2><i data-lucide="${config.icon}"></i>${escapeHtml(config.title)}</h2>
-                <dl>
-                    ${config.fields.map(([key, label]) => `
-                        <div>
-                            <dt>${escapeHtml(label)}</dt>
-                            <dd>${formatSummaryValue(data && data[key])}</dd>
-                        </div>
-                    `).join('')}
-                </dl>
-            </article>
         `;
     }
 
@@ -1321,9 +1156,13 @@
             ${config.actions === 'organization-governance'
                 ? renderOrganizationReadOnlyDetails(details)
                 : `
-                    <details class="admin-row-detail">
+                    <details class="admin-row-detail admin-row-detail--business">
                         <summary>查看</summary>
-                        <pre>${escapeHtml(JSON.stringify(details, null, 2))}</pre>
+                        <dl>
+                            ${Object.entries(details).map(([key, value]) => `
+                                <div><dt>${escapeHtml(organizationFieldLabel(key))}</dt><dd>${escapeHtml(formatValue(value, {}))}</dd></div>
+                            `).join('')}
+                        </dl>
                     </details>
                 `}
         `;
@@ -1399,10 +1238,11 @@
 
     function focusOrganizationPanel(panelId) {
         if (!['schools', 'classes'].includes(panelId)) return;
-        setActiveSection('organizations');
+        setActiveSection(panelId === 'classes' ? 'classes' : 'organizations');
         const panel = state.root && state.root.querySelector(`[data-admin-panel="${panelId}"]`);
         if (!panel) return;
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        panel.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
         try { panel.focus({ preventScroll: true }); } catch (error) { panel.focus(); }
     }
 
@@ -1493,7 +1333,8 @@
         applyAdminWriteAvailability();
         refreshIcons();
         if (openDialog || dialog.open) {
-            window.requestAnimationFrame(() => {
+            const rafId = window.requestAnimationFrame(() => {
+                state.rafIds.delete(rafId);
                 if (!dialog.open && !dialog.hasAttribute('open')) return;
                 let target = nextFocusSelector && dialog.querySelector(nextFocusSelector);
                 if (!target || target.disabled) {
@@ -1502,6 +1343,7 @@
                 if (!target) return;
                 try { target.focus({ preventScroll: true }); } catch (error) { target.focus(); }
             });
+            state.rafIds.add(rafId);
         }
     }
 
@@ -2159,60 +2001,228 @@
         }
     }
 
-    async function reviewJoinRequest(button) {
-        if (state.busy || state.writeLock) return;
-        if (!state.online) {
-            setNotice('warning', '当前离线，审批写入已停用');
-            return;
+    function adminItems(payload) {
+        return Array.isArray(payload) ? payload : payload && Array.isArray(payload.items) ? payload.items : [];
+    }
+
+    function joinRequestMatches(item, authority, nextStatus) {
+        return Boolean(item && authority
+            && ['id', 'school_id', 'class_id', 'user_id'].every((key) => Number(item[key]) === Number(authority[key]))
+            && String(item.role) === String(authority.role)
+            && String(item.status) === String(nextStatus));
+    }
+
+    function parseAuditSnapshot(value) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+        try { return typeof value === 'string' ? JSON.parse(value) : null; } catch (error) { return null; }
+    }
+
+    function joinReviewAuditMatches(payload, authority, nextStatus, requestId) {
+        const action = nextStatus === 'approved' ? 'class.join.request.approve' : 'class.join.request.reject';
+        return adminItems(payload).some((item) => {
+            const after = (parseAuditSnapshot(item.snapshot_json) || {}).after || {};
+            return item.action === action && item.resource_type === 'class_join_request'
+                && Number(item.resource_id) === Number(authority.id) && item.request_id === requestId
+                && item.event_result === 'success'
+                && Number(after.class_id) === Number(authority.class_id)
+                && Number(after.user_id) === Number(authority.user_id)
+                && String(after.role) === String(authority.role)
+                && String(after.status) === String(nextStatus);
+        });
+    }
+
+    function createConfirmedJoinReviewExecutor(execute, onChange) {
+        let pending = null;
+        let inFlight = null;
+        const snapshot = () => Object.freeze({ pending, busy: Boolean(inFlight) });
+        const emit = () => { if (typeof onChange === 'function') onChange(snapshot()); };
+        return Object.freeze({
+            submit: async (authority, nextStatus) => {
+                if (inFlight) return { kind: 'busy', sent: false };
+                const signature = JSON.stringify([authority.id, authority.school_id, authority.class_id, authority.user_id, authority.role, nextStatus]);
+                if (!pending || pending.signature !== signature) {
+                    pending = { signature, key: `${authority.id}:${nextStatus}` };
+                    emit();
+                    return { kind: 'confirmation', sent: false };
+                }
+                pending = null;
+                inFlight = Promise.resolve().then(() => execute(authority, nextStatus));
+                emit();
+                try { return { kind: 'sent', sent: true, value: await inFlight }; }
+                finally { inFlight = null; emit(); }
+            },
+            invalidate: () => { pending = null; emit(); },
+            snapshot
+        });
+    }
+
+    function joinReviewRequestId() {
+        const random = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 18)
+            : Math.random().toString(36).slice(2, 20);
+        return `admin-join-${Date.now().toString(36)}-${random}`.slice(0, 64);
+    }
+
+    async function findApprovedMember(authority, options) {
+        if (options.nextStatus !== 'approved') return null;
+        let offset = 0;
+        const seen = new Set();
+        while (!seen.has(offset)) {
+            seen.add(offset);
+            const page = await options.request(`/api/classes/${Number(authority.class_id)}/members/page`, {
+                baseUrl: options.baseUrl,
+                params: { role: authority.role, status: 'active', limit: 200, offset },
+                signal: options.signal
+            });
+            if (!page || !Array.isArray(page.items)) throw new Error('班级成员分页响应无效');
+            const member = page.items.find((item) => Number(item.class_id) === Number(authority.class_id)
+                && Number(item.user_id) === Number(authority.user_id)
+                && item.role === authority.role && item.status === 'active');
+            if (member) return { page, member };
+            if (page.next_offset === null || page.next_offset === undefined) break;
+            offset = Number(page.next_offset);
+            if (!Number.isInteger(offset) || offset < 0) break;
         }
-        const joinRequestId = Number(button.dataset.joinRequestId);
-        const nextStatus = button.dataset.adminJoinReview;
-        if (!joinRequestId || !['approved', 'rejected'].includes(nextStatus)) return;
-        const actionLabel = nextStatus === 'approved' ? '批准' : '拒绝';
-        const confirmationKey = `${joinRequestId}:${nextStatus}`;
-        if (state.pendingJoinReview !== confirmationKey) {
-            state.pendingJoinReview = confirmationKey;
-            setNotice('warning', `再次点击同一按钮以确认${actionLabel}加入请求 #${joinRequestId}；未发送任何写入`);
-            rerenderJoinRequestsPanel();
-            refreshIcons();
-            return;
+        throw new Error('批准后未在权威成员分页中找到对应关系');
+    }
+
+    async function readJoinReviewAuthority(authority, nextStatus, requestId, options) {
+        const common = { baseUrl: options.baseUrl, signal: options.signal };
+        const action = nextStatus === 'approved' ? 'class.join.request.approve' : 'class.join.request.reject';
+        const [exactPage, joinList, stats, audit, member] = await Promise.all([
+            options.request('/api/admin/class-join-requests', {
+                ...common, params: { status: nextStatus, class_id: authority.class_id, user_id: authority.user_id, role: authority.role, limit: 200, offset: 0 }
+            }),
+            options.request('/api/admin/class-join-requests', { ...common, params: options.listParams }),
+            options.request('/api/admin/stats', common),
+            options.request('/api/admin/audit-logs', {
+                ...common, params: { action, resource_type: 'class_join_request', resource_id: authority.id, request_id: requestId, limit: 25, offset: 0 }
+            }),
+            findApprovedMember(authority, { ...options, nextStatus })
+        ]);
+        const reviewed = adminItems(exactPage).find((item) => Number(item.id) === Number(authority.id));
+        if (!joinRequestMatches(reviewed, authority, nextStatus)) throw new Error('加入申请权威回读不匹配');
+        if (!joinList || !Array.isArray(joinList.items)) throw new Error('加入申请列表刷新无效');
+        const checkedStats = AdminSecondaryGovernance.validateStatsPayload(stats);
+        if (!joinReviewAuditMatches(audit, authority, nextStatus, requestId)) throw new Error('加入审批精确审计回读不匹配');
+        return Object.freeze({ reviewed, joinList, stats: checkedStats, audit, member });
+    }
+
+    function joinReviewUnknown(message, authority, nextStatus, requestId, baseUrl, cause) {
+        return Object.assign(new Error(message), {
+            joinReviewUnknown: true, authority, nextStatus, requestId, baseUrl, cause
+        });
+    }
+
+    async function executeJoinReviewTransaction(authority, nextStatus, options) {
+        const requestId = options.requestId || joinReviewRequestId();
+        let response;
+        try {
+            response = await options.request(`/api/admin/class-join-requests/${Number(authority.id)}`, {
+                baseUrl: options.baseUrl, method: 'PATCH', headers: { 'X-Request-ID': requestId },
+                body: { status: nextStatus, note: 'reviewed from admin governance UI' }, signal: options.signal
+            });
+        } catch (error) {
+            if (typeof options.isAmbiguous === 'function' && options.isAmbiguous(error)) {
+                throw joinReviewUnknown('加入审批结果未知', authority, nextStatus, requestId, options.baseUrl, error);
+            }
+            throw error;
         }
-        state.pendingJoinReview = null;
+        if (!joinRequestMatches(response, authority, nextStatus)) {
+            throw joinReviewUnknown('加入审批响应与原申请不匹配', authority, nextStatus, requestId, options.baseUrl);
+        }
+        try {
+            const readback = await readJoinReviewAuthority(authority, nextStatus, requestId, options);
+            return Object.freeze({ response, readback, requestId, baseUrl: options.baseUrl });
+        } catch (error) {
+            throw joinReviewUnknown('加入审批必要回读未完整通过', authority, nextStatus, requestId, options.baseUrl, error);
+        }
+    }
+
+    function currentJoinListParams() { const panel = state.panels['join-requests']; return Object.assign({}, panel.filters, { limit: panel.limit, offset: panel.offset }); }
+
+    function applyJoinReviewReadback(readback) {
+        state.panelData['join-requests'] = readback.joinList;
+        state.panelData['audit-logs'] = readback.audit;
+        state.sectionLoaded.audit = false;
+        rerenderJoinRequestsPanel();
+        rerenderPanel('audit-logs');
+        const meta = state.root && state.root.querySelector('[data-admin-panel-meta="join-requests"]');
+        if (meta) meta.textContent = `共 ${formatNumber(readback.joinList.total || 0)} 条`;
+        const stats = state.root && state.root.querySelector('[data-admin-stats]');
+        const map = state.root && state.root.querySelector('[data-admin-database-map]');
+        if (stats) stats.innerHTML = renderStats(readback.stats);
+        if (map) map.innerHTML = renderDatabaseMap(readback.stats, null, null);
+    }
+
+    function joinReviewLock(error) {
+        return {
+            action: 'join-request-review', resourceId: Number(error.authority.id),
+            authority: error.authority, nextStatus: error.nextStatus,
+            requestId: error.requestId, baseUrl: error.baseUrl
+        };
+    }
+
+    async function reconcileJoinReviewWrite(lock) {
+        if (!lock || lock.action !== 'join-request-review') return false;
+        try {
+            const readback = await readJoinReviewAuthority(lock.authority, lock.nextStatus, lock.requestId, {
+                request: AstraApiClient.request.bind(AstraApiClient), baseUrl: lock.baseUrl,
+                signal: state.lifecycleController && state.lifecycleController.signal,
+                listParams: currentJoinListParams()
+            });
+            applyJoinReviewReadback(readback);
+            setWriteLock(null);
+            setNotice('success', `加入申请 #${lock.resourceId} 已由申请、成员/拒绝边界、统计与精确审计共同确认；未重发 PATCH。`);
+            return true;
+        } catch (error) {
+            setNotice('warning', '加入审批权威回读仍未完整通过；写锁保持，系统不会自动重发 PATCH。');
+            return false;
+        }
+    }
+
+    async function commitJoinReview(authority, nextStatus) {
         setBusy(true);
         try {
-            await AstraApiClient.request(`/api/admin/class-join-requests/${joinRequestId}`, {
-                baseUrl: state.apiBase,
-                method: 'PATCH',
-                body: { status: nextStatus, note: 'reviewed from admin governance UI' },
-                signal: state.lifecycleController && state.lifecycleController.signal
+            const result = await executeJoinReviewTransaction(authority, nextStatus, {
+                request: AstraApiClient.request.bind(AstraApiClient), baseUrl: state.apiBase,
+                signal: state.lifecycleController && state.lifecycleController.signal,
+                listParams: currentJoinListParams(),
+                isAmbiguous: (error) => Boolean(error && (error.confirmed || AstraApiClient.isAmbiguousMutation(error)))
             });
-            const [panelReconciled, statsReconciled] = await Promise.all([
-                refreshPanel('join-requests'),
-                refreshStats()
-            ]);
-            if (!panelReconciled || !statsReconciled) {
-                setWriteLock({ action: 'join-request-review', resourceId: joinRequestId });
-                setNotice('warning', '审批已由服务器确认，但列表或统计刷新失败；系统不会重复发送，请点击顶部刷新完成核对');
-            } else {
-                setNotice('success', nextStatus === 'approved' ? '加入请求已批准并完成权威列表核对' : '加入请求已拒绝并完成权威列表核对');
-            }
+            applyJoinReviewReadback(result.readback);
+            setNotice('success', `${nextStatus === 'approved' ? '批准' : '拒绝'}加入申请 #${authority.id} 已完成权威回读；Request ID ${result.requestId}`);
+            return result;
         } catch (error) {
-            if (error && (error.confirmed || AstraApiClient.isAmbiguousMutation(error))) {
-                setWriteLock({
-                    action: 'join-request-review',
-                    resourceId: joinRequestId,
-                    requestId: String(error.requestId || '')
-                });
-                await Promise.all([refreshPanel('join-requests'), refreshStats()]);
-                setNotice('warning', '审批结果尚未确认，系统未自动重试；写入已锁定，请点击顶部刷新并核对请求状态');
+            if (error && error.joinReviewUnknown) {
+                const lock = joinReviewLock(error);
+                setWriteLock(lock);
+                if (state.active && error.cause && AstraApiClient.isAmbiguousMutation(error.cause)) await reconcileJoinReviewWrite(lock);
+                if (state.writeLock) setNotice('warning', '审批结果未决；申请、成员/拒绝边界、统计或精确审计未能共同证明结果，写锁保持且不会自动重发。');
             } else {
                 setNotice('error', errorMessage(error));
             }
+            throw error;
         } finally {
             setBusy(false);
             rerenderJoinRequestsPanel();
             refreshIcons();
         }
+    }
+
+    async function reviewJoinRequest(button) {
+        if (state.busy || state.writeLock || !state.online || !state.joinReviewExecutor) return;
+        const joinRequestId = Number(button.dataset.joinRequestId);
+        const nextStatus = button.dataset.adminJoinReview;
+        const authority = adminItems(state.panelData['join-requests'])
+            .find((item) => Number(item.id) === joinRequestId && item.status === 'pending');
+        if (!authority || !['approved', 'rejected'].includes(nextStatus)) return;
+        try {
+            const result = await state.joinReviewExecutor.submit(authority, nextStatus);
+            if (result.kind === 'confirmation') {
+                setNotice('warning', `再次点击同一按钮以确认${nextStatus === 'approved' ? '批准' : '拒绝'}加入请求 #${joinRequestId}；未发送任何写入。`);
+            }
+        } catch (error) {}
     }
 
     function rerenderJoinRequestsPanel() {
@@ -2343,32 +2353,16 @@
     function formatValue(value, column) {
         if (value === null || value === undefined || value === '') return '--';
         if (column.type === 'date') return formatDate(value);
-        if (column.type === 'bytes') return formatBytes(value);
-        if (column.type === 'boolean') return value ? 'yes' : 'no';
         if (typeof value === 'number') return formatNumber(value);
         if (typeof value === 'boolean') return value ? 'true' : 'false';
         if (typeof value === 'object') return JSON.stringify(value);
         return String(value);
     }
 
-    function formatSummaryValue(value) {
-        if (value === null || value === undefined || value === '') return '--';
-        if (typeof value === 'number') return escapeHtml(formatNumber(value));
-        return `<span class="admin-status-pill admin-status-pill--${statusClass(value)}">${escapeHtml(String(value))}</span>`;
-    }
-
     function formatNumber(value) {
         const number = Number(value);
         if (!Number.isFinite(number)) return String(value || 0);
         return number.toLocaleString('zh-CN');
-    }
-
-    function formatBytes(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number)) return '--';
-        if (number < 1024) return `${number} B`;
-        if (number < 1024 * 1024) return `${(number / 1024).toFixed(1)} KB`;
-        return `${(number / 1024 / 1024).toFixed(1)} MB`;
     }
 
     function formatDate(value) {
@@ -2399,10 +2393,8 @@
         if (!state.root) return;
         const stats = state.root.querySelector('[data-admin-stats]');
         const databaseMap = state.root.querySelector('[data-admin-database-map]');
-        const summary = state.root.querySelector('[data-admin-summary]');
         if (stats) stats.innerHTML = '';
         if (databaseMap) databaseMap.innerHTML = '';
-        if (summary) summary.innerHTML = '';
         state.root.querySelectorAll('[data-admin-panel-body]').forEach((body) => {
             body.innerHTML = renderLoading('等待权威刷新');
         });
@@ -2424,15 +2416,16 @@
 
     function applyAdminWriteAvailability() {
         if (!state.root) return;
+        const courseBlocked = courseWriteBlocked();
         const writeDisabled = state.busy || Boolean(state.writeLock) || !state.online;
         state.root.querySelectorAll('[data-admin-write], [data-admin-user-update], [data-admin-join-review]').forEach((control) => {
             control.disabled = writeDisabled;
         });
         state.root.querySelectorAll('[data-admin-refresh-control]').forEach((control) => {
-            control.disabled = state.busy;
+            control.disabled = state.busy || courseBlocked;
         });
         state.root.querySelectorAll('[data-admin-api-base]').forEach((control) => {
-            control.disabled = state.busy || Boolean(state.writeLock);
+            control.disabled = state.busy || Boolean(state.writeLock) || courseBlocked;
         });
         state.root.querySelectorAll('[data-admin-organization-edit]').forEach((control) => {
             const lockTargetsControl = state.writeLock
@@ -2461,11 +2454,9 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
-
     function escapeAttr(value) {
         return escapeHtml(value);
     }
-
     window.initAdmin = initAdmin;
     window.destroyAdmin = destroyAdmin;
     window.initAdminGovernance = initAdmin;
@@ -2476,6 +2467,14 @@
             buildOrganizationMutation,
             organizationMutationSignature,
             organizationMutationMatches,
+            courseWriteBlocked,
+            governanceShellMarkup,
+            createConfirmedJoinReviewExecutor,
+            executeJoinReviewTransaction,
+            readJoinReviewAuthority,
+            ensureOwnerModules,
+            joinRequestMatches,
+            joinReviewAuditMatches,
             organizationFields: (kind) => {
                 const config = organizationConfig(kind);
                 return config ? config.fields.map((field) => field.name) : [];

@@ -145,7 +145,9 @@ assert.match(source, /setBusy\(true\)[\s\S]*AstraApiClient\.request\(organizatio
 assert.match(source, /const operationOwner = captureLifecycleOwner\(\)[\s\S]*signal: operationOwner\.controller\.signal/);
 assert.match(source, /function isLifecycleOwner\(owner\)[\s\S]*owner\.controller === state\.lifecycleController/);
 assert.match(source, /finally \{[\s\S]*if \(isLifecycleOwner\(operationOwner\)\)[\s\S]*setBusy\(false\)/);
-assert.match(source, /addEventListener\('cancel',[\s\S]*preventDefault\(\)[\s\S]*}, true\)/);
+assert.match(source, /addEventListener\('cancel',[\s\S]*preventDefault\(\)[\s\S]*capture:\s*true[\s\S]*signal:\s*state\.eventController\.signal/);
+assert.match(source, /if \(state\.eventController\) state\.eventController\.abort\(\)/);
+assert.match(source, /state\.rafIds\.forEach\(\(id\) => window\.cancelAnimationFrame\(id\)\)/);
 assert.match(source, /function organizationOutcomeFocusSelector\(\)[\s\S]*data-admin-organization-unlock[\s\S]*data-admin-organization-status/);
 assert.match(source, /requestAnimationFrame\([\s\S]*dialog\.contains|requestAnimationFrame\([\s\S]*target\.focus/);
 assert.match(source, /const currentTrigger = editor && state\.root && state\.root\.querySelector\([\s\S]*data-admin-organization-edit[\s\S]*originalTrigger && originalTrigger\.isConnected \? originalTrigger : currentTrigger/);

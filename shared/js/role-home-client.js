@@ -464,22 +464,225 @@
         state.phase = state.task ? 'ready' : 'empty';
     }
 
-    async function loadAdmin(scope) {
-        const payload = await api().request('/api/admin/class-join-requests', {
-            params: { status: 'pending', limit: 1, offset: 0 },
-            signal: scope.signal
-        });
-        if (!current(scope)) return;
-        const pending = list(payload)[0];
-        state.task = pending ? Object.freeze({
-            code: 'GOVERNANCE · PENDING',
-            title: pending.class_name ? `处理 ${pending.class_name} 的加入申请` : '处理一项班级加入申请',
-            detail: '该事项来自权威治理队列；申请人明细仅在治理工作区显示。',
-            meta: '运维指标不占用星序首屏。',
+    function adminCourseTask(payload) {
+        const priority = { draft: 0, archived: 1 };
+        const course = list(payload)
+            .filter(item => Object.prototype.hasOwnProperty.call(priority, String(item && item.status || '')))
+            .sort((left, right) => priority[left.status] - priority[right.status]
+                || positiveId(left.id) - positiveId(right.id))[0];
+        if (!course) return null;
+        const archived = course.status === 'archived';
+        return Object.freeze({
+            code: archived ? 'COURSE · ARCHIVED' : 'COURSE · DRAFT',
+            title: course.title || course.course_key || `课程 #${course.id}`,
+            detail: archived
+                ? '该课程处于已归档状态，需要管理员决定是否恢复为草稿后重新复核。'
+                : '该课程仍为草稿，需要管理员核对后决定发布或归档。',
+            meta: `${course.galaxy_key || '未标注星系'} · 课程 #${course.id}`,
             href: '#admin',
-            action: '进入治理工作区'
-        }) : null;
-        if (!state.task) issue('no_governance_task', '当前没有待处理治理事项。');
+            action: '进入课程治理'
+        });
+    }
+
+    const ADMIN_BUSINESS_AUDITS = new Set([
+        'admin.user.update:user',
+        'admin.user.password_reset:user',
+        'school.create:school',
+        'admin.school.update:school',
+        'admin.school.archive:school',
+        'admin.school.restore:school',
+        'class.create:class',
+        'admin.class.update:class',
+        'admin.class.archive:class',
+        'admin.class.restore:class',
+        'class.join.request.create:class_join_request',
+        'class.join.request.approve:class_join_request',
+        'class.join.request.reject:class_join_request',
+        'class.join:class_membership',
+        'class.teacher.transfer:class_membership',
+        'class.student.transfer:class_membership',
+        'class.member.status.update:class_membership',
+        'class.student.batch_import:class_membership_batch',
+        'class.member.status.batch_update:class_membership_batch',
+        'course.status.patch:course'
+    ]);
+    const ADMIN_AUDIT_PAGE_LIMIT = 25;
+    const ADMIN_AUDIT_PAGE_CAP = 4;
+    const ADMIN_AUDIT_RECORD_CAP = ADMIN_AUDIT_PAGE_LIMIT * ADMIN_AUDIT_PAGE_CAP;
+
+    function adminAuthorityError(message) {
+        const error = new Error(message);
+        error.code = 'admin_home_authority_invalid';
+        return error;
+    }
+
+    function nonemptyText(value) {
+        return typeof value === 'string' && Boolean(value.trim());
+    }
+
+    function adminPositiveId(value) {
+        return typeof value === 'number' && Number.isInteger(value) && value > 0;
+    }
+
+    function adminNullableScalar(value) {
+        return value === null
+            || typeof value === 'string'
+            || (typeof value === 'number' && Number.isFinite(value));
+    }
+
+    function adminScalarText(value) {
+        return adminNullableScalar(value) && value !== null ? String(value) : '';
+    }
+
+    function validateAdminPage(payload, expected, itemValid) {
+        if (!payload || typeof payload !== 'object' || !Array.isArray(payload.items)) {
+            throw adminAuthorityError(`${expected.label}分页响应结构无效`);
+        }
+        const metadata = ['total', 'limit', 'offset'];
+        if (metadata.some((key) => !Number.isInteger(payload[key]) || payload[key] < 0)
+            || payload.limit !== expected.limit
+            || payload.offset !== expected.offset
+            || payload.items.length > payload.limit
+            || payload.offset > payload.total
+            || payload.offset + payload.items.length > payload.total
+            || (payload.offset < payload.total && payload.items.length === 0)
+            || !payload.items.every(itemValid)) {
+            throw adminAuthorityError(`${expected.label}分页响应结构无效`);
+        }
+        return payload;
+    }
+
+    function validatePendingJoinPage(payload) {
+        return validateAdminPage(payload, { label: '待审加入', limit: 1, offset: 0 }, (item) => (
+            adminPositiveId(item && item.id)
+            && adminPositiveId(item && item.school_id)
+            && adminPositiveId(item && item.class_id)
+            && adminPositiveId(item && item.user_id)
+            && adminPositiveId(item && item.requested_by_user_id)
+            && nonemptyText(item.class_name)
+            && ['student', 'teacher'].includes(item.role)
+            && item.status === 'pending'
+        ));
+    }
+
+    function validateAdminCourses(payload) {
+        if (!Array.isArray(payload) || !payload.every((item) => (
+            adminPositiveId(item && item.id)
+            && adminPositiveId(item && item.school_id)
+            && adminPositiveId(item && item.creator_user_id)
+            && ['draft', 'published', 'archived'].includes(item.status)
+            && nonemptyText(item.galaxy_key)
+            && nonemptyText(item.course_key)
+            && nonemptyText(item.title)
+        ))) {
+            throw adminAuthorityError('课程治理列表响应结构无效');
+        }
+        return payload;
+    }
+
+    function validateAdminAuditPage(payload, offset) {
+        return validateAdminPage(payload, {
+            label: '近期业务审计',
+            limit: ADMIN_AUDIT_PAGE_LIMIT,
+            offset
+        }, (item) => (
+            adminPositiveId(item && item.id)
+            && nonemptyText(item.action)
+            && nonemptyText(item.resource)
+            && nonemptyText(item.resource_type)
+            && adminNullableScalar(item.resource_id)
+            && adminNullableScalar(item.request_id)
+        ));
+    }
+
+    function assertAdminAuthorityCurrent(signal, guard) {
+        if ((signal && signal.aborted) || (typeof guard === 'function' && !guard())) {
+            const error = new Error('管理员首页权威读取已失效');
+            error.name = 'AbortError';
+            throw error;
+        }
+    }
+
+    function isBusinessAudit(item) {
+        const action = nonemptyText(item && item.action) ? item.action.trim() : '';
+        const resourceType = nonemptyText(item && item.resource_type) ? item.resource_type.trim() : '';
+        return ADMIN_BUSINESS_AUDITS.has(`${action}:${resourceType}`);
+    }
+
+    function adminAuditTask(payload) {
+        const audit = list(payload).find(isBusinessAudit);
+        if (!audit) return null;
+        const resourceId = adminScalarText(audit.resource_id);
+        const requestId = adminScalarText(audit.request_id);
+        const resource = [
+            audit.resource_type,
+            resourceId ? `#${resourceId}` : ''
+        ].filter(Boolean).join(' ');
+        return Object.freeze({
+            code: 'AUDIT · RECENT',
+            title: audit.action,
+            detail: resource ? `最近业务审计作用于 ${resource}。` : '最近业务审计已写入权威审计链。',
+            meta: requestId ? `Request ID ${requestId}` : '该记录未提供 Request ID。',
+            href: '#admin',
+            action: '进入审计治理'
+        });
+    }
+
+    async function readRecentBusinessAudits(request, signal, guard) {
+        let offset = 0;
+        let total = null;
+        const business = [];
+        for (let pageIndex = 0; pageIndex < ADMIN_AUDIT_PAGE_CAP; pageIndex += 1) {
+            assertAdminAuthorityCurrent(signal, guard);
+            const payload = validateAdminAuditPage(await request('/api/admin/audit-logs', {
+                params: { limit: ADMIN_AUDIT_PAGE_LIMIT, offset },
+                signal
+            }), offset);
+            assertAdminAuthorityCurrent(signal, guard);
+            if (total === null) total = payload.total;
+            else if (payload.total !== total) throw adminAuthorityError('近期业务审计分页总量在读取期间发生变化');
+            business.push(...payload.items.filter(isBusinessAudit));
+            if (business.length >= 3 || offset + payload.items.length >= total) return business.slice(0, 3);
+            offset += payload.items.length;
+            if (offset >= ADMIN_AUDIT_RECORD_CAP) break;
+        }
+        if (total !== null && offset < total) throw adminAuthorityError('近期业务审计超过有界读取上限，无法安全判断');
+        return business.slice(0, 3);
+    }
+
+    async function resolveAdminTask(request, signal, guard) {
+        const pendingPayload = validatePendingJoinPage(await request('/api/admin/class-join-requests', {
+            params: { status: 'pending', limit: 1, offset: 0 },
+            signal
+        }));
+        assertAdminAuthorityCurrent(signal, guard);
+        const pending = pendingPayload.items[0];
+        if (pending) {
+            return Object.freeze({
+                code: 'GOVERNANCE · PENDING',
+                title: `处理 ${pending.class_name} 的加入申请`,
+                detail: '该事项来自权威治理队列；申请人明细仅在治理工作区显示。',
+                meta: `${pending.role} · 申请 #${pending.id}`,
+                href: '#admin',
+                action: '进入人员治理'
+            });
+        }
+
+        const courseTask = adminCourseTask(validateAdminCourses(await request('/api/courses', { signal })));
+        assertAdminAuthorityCurrent(signal, guard);
+        if (courseTask) return courseTask;
+        return adminAuditTask(await readRecentBusinessAudits(request, signal, guard));
+    }
+
+    async function loadAdmin(scope) {
+        const task = await resolveAdminTask(
+            (path, options) => api().request(path, options),
+            scope.signal,
+            () => current(scope)
+        );
+        if (!current(scope)) return;
+        state.task = task;
+        if (!state.task) issue('no_governance_task', '当前没有待审加入、需治理课程或可显示的近期业务审计。');
         state.phase = state.task ? 'ready' : 'empty';
     }
 
@@ -749,6 +952,16 @@
         load,
         choose,
         destroy,
+        contract: Object.freeze({
+            adminCourseTask,
+            adminAuditTask,
+            isBusinessAudit,
+            validatePendingJoinPage,
+            validateAdminCourses,
+            validateAdminAuditPage,
+            readRecentBusinessAudits,
+            resolveAdminTask
+        }),
         snapshot: () => Object.freeze({
             phase: state.phase,
             role: state.user && state.user.role || '',

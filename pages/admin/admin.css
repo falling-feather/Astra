@@ -1909,6 +1909,15 @@
     gap: 42px;
 }
 
+.admin-domain-panel {
+    display: grid;
+    gap: 42px;
+}
+
+.admin-domain-panel[hidden] {
+    display: none !important;
+}
+
 .admin-panel {
     min-width: 0;
     padding: 0;
@@ -2203,5 +2212,535 @@
     .admin-database-map__actions {
         align-items: flex-start;
         flex-direction: column;
+    }
+}
+
+/* V7.9.4 · 六领域管理员治理与按需次级入口 */
+.admin-business-overview {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 42px;
+}
+
+.admin-business-overview__header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(142,174,204,.22);
+}
+
+.admin-business-overview__header span {
+    color: #6edbff;
+    font: .58rem/1.2 'JetBrains Mono', monospace;
+    letter-spacing: .14em;
+}
+
+.admin-business-overview__header h2 {
+    margin-top: 6px;
+    color: #edf6ff;
+    font-size: 1.12rem;
+}
+
+.admin-business-overview__header p,
+.admin-business-summary p {
+    color: #7f8fa2;
+    font-size: .72rem;
+    line-height: 1.6;
+}
+
+.admin-business-overview__header p {
+    max-width: 460px;
+    text-align: right;
+}
+
+.admin-business-overview__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 0;
+}
+
+.admin-business-summary {
+    min-height: 170px;
+}
+
+.admin-business-summary__total {
+    display: block;
+    margin: 22px 0 8px;
+    color: #edf6ff;
+    font-size: 1.7rem;
+    font-weight: 560;
+}
+
+.admin-business-summary__state {
+    margin-top: 22px;
+}
+
+.admin-business-summary dl {
+    margin-top: 22px;
+}
+
+.admin-business-audit {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.admin-business-audit li {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding-top: 8px;
+    border-top: 1px solid rgba(142,174,204,.14);
+}
+
+.admin-business-audit strong,
+.admin-business-audit span,
+.admin-business-audit code {
+    overflow-wrap: anywhere;
+}
+
+.admin-business-audit strong {
+    color: #dfeaf5;
+    font-size: .72rem;
+}
+
+.admin-business-audit span,
+.admin-business-audit code {
+    color: #718197;
+    font-size: .64rem;
+}
+
+.admin-secondary-entry {
+    display: grid;
+    gap: 8px;
+    margin-top: 28px;
+}
+
+.admin-secondary-entry .admin-text-button,
+.admin-secondary-tabs button {
+    min-height: 44px;
+    justify-content: flex-start;
+}
+
+.admin-course-domain {
+    border-top: 0;
+}
+
+.admin-course-header,
+.admin-secondary-dialog__header,
+.admin-secondary-resource > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.admin-course-status-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid rgba(142,174,204,.16);
+}
+
+.admin-course-status-summary article {
+    display: grid;
+    gap: 6px;
+    min-height: 74px;
+    padding: 14px;
+    border-right: 1px solid rgba(142,174,204,.16);
+    background: rgba(9,16,26,.34);
+}
+
+.admin-course-status-summary article:last-child {
+    border-right: 0;
+}
+
+.admin-course-status-summary span,
+.admin-course-authority dt,
+.admin-course-impact dt,
+.admin-course-audit-fact dt,
+.admin-secondary-items dt {
+    color: #718197;
+    font-size: .66rem;
+}
+
+.admin-course-status-summary strong {
+    color: #edf6ff;
+    font-size: 1.2rem;
+}
+
+.admin-course-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, .72fr);
+    gap: 28px;
+    margin-top: 24px;
+}
+
+.admin-course-browser,
+.admin-course-inspector {
+    min-width: 0;
+}
+
+.admin-course-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(140px, .35fr);
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.admin-course-filters label,
+.admin-course-form label {
+    display: grid;
+    gap: 6px;
+    color: #8e9eb1;
+    font-size: .72rem;
+}
+
+.admin-course-filters input,
+.admin-course-filters select,
+.admin-course-form select,
+.admin-course-form textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    border: 1px solid rgba(142,174,204,.28);
+    border-radius: 2px;
+    padding: 10px;
+    background: rgba(5,10,17,.82);
+    color: #edf6ff;
+    font: inherit;
+}
+
+.admin-course-list {
+    display: grid;
+    border-top: 1px solid rgba(142,174,204,.2);
+}
+
+.admin-course-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 20px;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    padding: 10px 8px;
+    border: 0;
+    border-bottom: 1px solid rgba(142,174,204,.14);
+    background: transparent;
+    color: #dfeaf5;
+    text-align: left;
+}
+
+.admin-course-row > span:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.admin-course-row small {
+    overflow: hidden;
+    color: #68788d;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-course-row:hover,
+.admin-course-row:focus-visible,
+.admin-course-row.is-selected {
+    background: rgba(110,219,255,.07);
+    outline: 1px solid rgba(110,219,255,.32);
+    outline-offset: -1px;
+}
+
+.admin-course-inspector {
+    position: sticky;
+    top: 92px;
+    align-self: start;
+    max-height: calc(100dvh - 116px);
+    overflow: auto;
+    border-left: 1px solid rgba(142,174,204,.24);
+    padding-left: 24px;
+}
+
+.admin-course-inspector__empty,
+.admin-course-inspector__heading,
+.admin-course-form,
+.admin-course-result,
+.admin-course-lock {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-course-inspector__heading h3,
+.admin-secondary-dialog h2 {
+    color: #edf6ff;
+    font-size: 1.12rem;
+}
+
+.admin-course-inspector__heading > span,
+.admin-secondary-dialog__header span {
+    color: #6edbff;
+    font: .58rem/1.2 'JetBrains Mono', monospace;
+    letter-spacing: .14em;
+}
+
+.admin-course-authority,
+.admin-course-impact {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.admin-course-authority > div,
+.admin-course-impact > div {
+    display: grid;
+    gap: 5px;
+    padding: 10px;
+    border: 1px solid rgba(142,174,204,.14);
+}
+
+.admin-course-audit-fact {
+    display: grid;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.admin-course-audit-fact > div {
+    display: grid;
+    grid-template-columns: minmax(88px, .38fr) minmax(0, 1fr);
+    gap: 10px;
+}
+
+.admin-course-audit-fact dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.admin-course-preview,
+.admin-course-message,
+.admin-course-result,
+.admin-course-lock {
+    margin-top: 4px;
+    border: 1px solid rgba(226,178,80,.42);
+    padding: 12px;
+    background: rgba(96,67,18,.26);
+    color: #ffe7a6;
+}
+
+.admin-course-result--success {
+    border-color: rgba(111,224,164,.38);
+    background: rgba(31,128,79,.2);
+    color: #bff5d5;
+}
+
+.admin-course-result--error,
+.admin-course-message--error {
+    border-color: rgba(232,133,108,.48);
+    background: rgba(92,35,29,.38);
+    color: #ffc5b7;
+}
+
+.admin-course-lock code,
+.admin-course-result code,
+.admin-course-audit-fact code {
+    overflow-wrap: anywhere;
+    color: #dce7f2;
+    font-size: .7rem;
+}
+
+.admin-course-lock > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-course-impact__note {
+    color: #8291a4;
+    font-size: .7rem;
+}
+
+.admin-course-dialog {
+    display: none;
+}
+
+.admin-secondary-dialog {
+    inset: 72px 0 0 auto;
+    width: min(620px, 100vw);
+    max-width: none;
+    height: calc(100dvh - 72px);
+    max-height: none;
+    margin: 0;
+    overflow: auto;
+    border: 0;
+    border-left: 1px solid rgba(142,174,204,.34);
+    border-radius: 0;
+    padding: 24px;
+    background: #080e17;
+    color: #dce7f2;
+}
+
+.admin-secondary-dialog::backdrop,
+.admin-course-dialog::backdrop {
+    background: rgba(1,4,9,.72);
+    backdrop-filter: blur(3px);
+}
+
+.admin-secondary-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 22px 0;
+}
+
+.admin-secondary-tabs button {
+    border: 1px solid rgba(142,174,204,.24);
+    padding: 8px 14px;
+    background: transparent;
+    color: #8fa0b4;
+}
+
+.admin-secondary-tabs button[aria-selected='true'] {
+    border-color: #6edbff;
+    color: #edf6ff;
+}
+
+.admin-secondary-content,
+.admin-secondary-items {
+    display: grid;
+    gap: 20px;
+}
+
+.admin-secondary-resource {
+    display: grid;
+    gap: 12px;
+    border-top: 1px solid rgba(142,174,204,.28);
+    padding-top: 16px;
+}
+
+.admin-secondary-items dl,
+.admin-row-detail--business dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(142,174,204,.14);
+}
+
+.admin-secondary-items dl > div,
+.admin-row-detail--business dl > div {
+    min-width: 0;
+}
+
+.admin-secondary-items dd,
+.admin-row-detail--business dd {
+    overflow-wrap: anywhere;
+    color: #c4d0dc;
+    font-size: .74rem;
+}
+
+@media (max-width: 1180px) {
+    .admin-course-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(280px, .8fr);
+        gap: 20px;
+    }
+}
+
+@media (max-width: 820px) {
+    .admin-business-overview__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .admin-business-overview__header p {
+        text-align: left;
+    }
+
+    .admin-business-overview__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-section-nav {
+        scroll-snap-type: x proximity;
+    }
+
+    .admin-section-nav button {
+        min-width: 112px;
+        scroll-snap-align: start;
+    }
+
+    .admin-course-grid {
+        display: block;
+    }
+
+    .admin-course-inspector {
+        display: none;
+    }
+
+    .admin-course-dialog {
+        inset: 0;
+        display: block;
+        width: 100vw;
+        max-width: none;
+        height: 100dvh;
+        max-height: none;
+        margin: 0;
+        overflow: auto;
+        border: 0;
+        border-radius: 0;
+        padding: 20px;
+        background: #080e17;
+        color: #dce7f2;
+    }
+
+    .admin-course-dialog:not([open]) {
+        display: none;
+    }
+
+    .admin-course-inspector__dialog-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+
+    .admin-secondary-dialog {
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
+    }
+}
+
+@media (max-width: 520px) {
+    .admin-business-overview__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-course-status-summary,
+    .admin-course-authority,
+    .admin-course-impact,
+    .admin-secondary-items dl,
+    .admin-row-detail--business dl {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-course-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-course-row {
+        grid-template-columns: minmax(0, 1fr) auto 18px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-page *,
+    .admin-page *::before,
+    .admin-page *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
     }
 }

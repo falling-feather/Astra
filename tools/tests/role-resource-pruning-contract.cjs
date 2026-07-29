@@ -19,7 +19,7 @@ const registry = context.window.AstraPageRegistry;
 const normalize = (items) => Array.from(items);
 const studentVersion = '20260719v757StudentPublicationP0';
 const teacherVersion = '20260719v75ReviewTeacherLayersP0';
-const adminVersion = '20260718v7432UnifiedAtlasP0';
+const adminVersion = '20260729v794AdminGovernanceP0';
 const student = [
     `pages/student/student.css?v=${studentVersion}`,
     `pages/student/student.js?v=${studentVersion}`
@@ -43,6 +43,13 @@ assert.deepEqual(normalize(registry.resourcesForRole('anonymous')), []);
 assert.deepEqual(normalize(registry.stylesForRole('student')), student.slice(0, 1));
 assert.deepEqual(normalize(registry.rolesFor('teacher')), ['teacher', 'admin']);
 assert.equal(new Set(normalize(registry.allRoleResources())).size, 8);
+for (const owner of ['admin-course-governance.js', 'admin-secondary-governance.js']) {
+    assert.equal(
+        normalize(registry.allRoleResources()).some((resource) => resource.includes(owner)),
+        false,
+        `${owner} must remain behind the post-/api/users/me admin authority gate`
+    );
+}
 
 const roleAssetPattern = /pages\/(?:student|teacher|admin)\/[^?'"\s]+\.(?:css|js)/;
 assert.doesNotMatch(html, /<link[^>]+href="pages\/(?:student|teacher|admin)\//);
