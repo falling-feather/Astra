@@ -8,6 +8,7 @@ from app.api.endpoints import (
     code_judge,
     content,
     course_status,
+    course_unit_access,
     courses,
     health,
     knowledge,
@@ -32,6 +33,7 @@ api_router.include_router(classes.router, prefix="/classes", tags=["classes"])
 api_router.include_router(code_judge.router, tags=["code-judge"])
 api_router.include_router(courses.router, prefix="/courses", tags=["courses"])
 api_router.include_router(course_status.router, prefix="/courses", tags=["courses"])
+api_router.include_router(course_unit_access.router, prefix="/courses", tags=["courses"])
 api_router.include_router(assignment_policies.router, tags=["assignments"])
 api_router.include_router(knowledge.router, tags=["knowledge"])
 api_router.include_router(learning_evidence.router, prefix="/learning-evidence", tags=["learning-evidence"])
