@@ -85,20 +85,43 @@ const PhysicsSim = {
     },
 
     resizeCanvas() {
-        if (!this.canvas) return;
-        if (window.PhysicsZoom && window.PhysicsZoom.movedCanvas === this.canvas) return;
-        const container = this.canvas.parentElement;
-        const w = container.getBoundingClientRect().width;
+        if (!this.canvas) return null;
+        if (window.PhysicsZoom && window.PhysicsZoom.movedCanvas === this.canvas) return null;
+        return this._resizeToContainer(this.canvas.parentElement, false);
+    },
+
+    resizeForZoom(originalParent) {
+        if (
+            !this.canvas
+            || !originalParent
+            || !window.PhysicsZoom
+            || window.PhysicsZoom.movedCanvas !== this.canvas
+        ) return null;
+        return this._resizeToContainer(originalParent, true);
+    },
+
+    _resizeToContainer(container, renderImmediately) {
+        if (!container || typeof container.getBoundingClientRect !== 'function') return null;
+        const w = Number(container.getBoundingClientRect().width);
+        if (!Number.isFinite(w) || w <= 0) return null;
         // 用宽度推算高度，防止 ResizeObserver 循环膨胀
         const h = Math.min(Math.max(w * 0.56, 320), 560);
         const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = w * dpr;
-        this.canvas.height = h * dpr;
+        this.canvas.width = Math.max(1, Math.round(w * dpr));
+        this.canvas.height = Math.max(1, Math.round(h * dpr));
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.W = w;
         this.H = h;
+        if (renderImmediately) this.render();
+        return Object.freeze({
+            width: w,
+            height: h,
+            dpr,
+            bitmapWidth: this.canvas.width,
+            bitmapHeight: this.canvas.height
+        });
     },
 
     bindControls() {

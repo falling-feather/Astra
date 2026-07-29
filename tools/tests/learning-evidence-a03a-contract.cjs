@@ -25,6 +25,8 @@ const REGISTRY_LOOKUP_WARNING =
   '[ModuleSelector] experiment registry lookup failed; transition refused';
 const PUBLICATION_CLASSIFICATION_WARNING =
   '[ModuleSelector] publication classification failed; transition refused';
+const UNKNOWN_MODULE_WARNING =
+  '[ModuleSelector] refusing transition to unknown module';
 const HOSTILE_MODULE_ID =
   'student-private-value_Bearer_sk_live_JWT_password_PRIVATE-KEY';
 const SENSITIVE_ERROR_MESSAGE =
@@ -79,6 +81,9 @@ function assertFixedSafeWarning(warnings, expectedWarning, label) {
     'PRIVATE-KEY',
     'password',
     'student-private-value',
+    'ordinary-unknown',
+    'physics:ordinary-unknown',
+    'physics.ordinary-unknown',
     'leakedSource'
   ]) {
     assert.equal(
@@ -148,6 +153,7 @@ function createRouterPublicationHarness(options = {}) {
   const historyChanges = [];
   const apiCalls = [];
   const selectors = [];
+  const gateStates = [];
   const events = new Map();
   let ownerInitializations = 0;
   const routePage = options.page || 'physics';
@@ -191,17 +197,43 @@ function createRouterPublicationHarness(options = {}) {
   const studentUser = Object.prototype.hasOwnProperty.call(options, 'user')
     ? options.user
     : { id: 7, role: 'student' };
-  const request = options.request || ((route) => {
+  const request = options.request || ((route, requestOptions = {}) => {
     if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B 班' }]);
     if (route === '/api/courses') {
       return Promise.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
     }
     if (route === '/api/courses/92/units') {
-      return Promise.resolve(options.units || [{
-        id: 103,
-        activity_key: `physics.${moduleId}`,
-        effective_release_state: options.releaseState || 'hidden'
-      }]);
+      if (Object.prototype.hasOwnProperty.call(options, 'units')) {
+        return Promise.resolve(options.units);
+      }
+      if (options.releaseState === 'open' || options.releaseState === 'locked') {
+        return Promise.resolve([{
+          id: 103,
+          activity_key: `physics.${moduleId}`,
+          effective_release_state: options.releaseState
+        }]);
+      }
+      return Promise.resolve([]);
+    }
+    if (route === '/api/courses/92/unit-access') {
+      assert.equal(requestOptions.params.class_id, 42);
+      assert.equal(requestOptions.params.activity_key, `physics.${moduleId}`);
+      if (Object.prototype.hasOwnProperty.call(options, 'unitAccess')) {
+        if (typeof options.unitAccess === 'function') {
+          return options.unitAccess(route, requestOptions);
+        }
+        return Promise.resolve(options.unitAccess);
+      }
+      if (options.releaseState === 'locked') {
+        return Promise.resolve({ available: false, error_code: 'activity_locked' });
+      }
+      if (options.releaseState === 'open') {
+        return Promise.resolve({ available: true, error_code: null });
+      }
+      if (options.releaseState === 'missing') {
+        return Promise.resolve({ available: false, error_code: 'course_unit_missing' });
+      }
+      return Promise.resolve({ available: false, error_code: 'activity_hidden' });
     }
     throw new Error(`unexpected publication request: ${route}`);
   });
@@ -333,6 +365,13 @@ function createRouterPublicationHarness(options = {}) {
   selector._transitionTimers[routePage] = [];
   selector._sidebars[routePage] = null;
   selector._sidebarOpen[routePage] = false;
+  selector._renderPublicationGate = (pageName, _page, state, code = '') => {
+    selector._publicationGateNodes[pageName] = { state, code };
+    gateStates.push({ state, code });
+  };
+  selector._clearPublicationGate = (pageName) => {
+    delete selector._publicationGateNodes[pageName];
+  };
   selector._initModule = () => { ownerInitializations += 1; };
   selector._mountEvidenceRuntime = (_page, targetModuleId) => {
     if (targetModuleId === 'mechanics') ownerInitializations += 1;
@@ -347,6 +386,7 @@ function createRouterPublicationHarness(options = {}) {
     warnings,
     errors,
     apiCalls,
+    gateStates,
     selectors,
     historyChanges,
     windowObject,
@@ -536,6 +576,7 @@ function createPublicationModuleHarness(publication, options = {}) {
       replaceState(_state, _title, hash) { windowObject.location.hash = hash; }
     },
     Event: class { constructor(type) { this.type = type; } },
+    AbortController,
     CONFIG: { experiments: { physics: [{ id: 'mechanics' }] } },
     setTimeout,
     clearTimeout,
@@ -918,7 +959,15 @@ function assertRouterPublicationQuiescent(harness, expected, label) {
 
 function publicationAuthorityCallCount(harness) {
   return harness.apiCalls.filter((call) => (
-    call.route === '/api/courses' || /^\/api\/courses\/\d+\/units$/.test(call.route)
+    call.route === '/api/courses'
+    || /^\/api\/courses\/\d+\/units$/.test(call.route)
+    || /^\/api\/courses\/\d+\/unit-access$/.test(call.route)
+  )).length;
+}
+
+function unitAccessCallCount(harness) {
+  return harness.apiCalls.filter((call) => (
+    /^\/api\/courses\/\d+\/unit-access$/.test(call.route)
   )).length;
 }
 
@@ -953,14 +1002,89 @@ async function assertKnownGasLawsRecovery(harness, label, { restoreRegistry = fa
   );
 }
 
-function deferredPublicationRequest(unitsDeferred, moduleId) {
-  return (route) => {
+function deferredPublicationRequest(unitAccessDeferred, moduleId, observations = {}) {
+  return (route, requestOptions = {}) => {
     if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B 班' }]);
     if (route === '/api/courses') {
+      observations.coursesSignal = requestOptions.signal;
       return Promise.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
     }
-    if (route === '/api/courses/92/units') return unitsDeferred.promise;
+    if (route === '/api/courses/92/units') {
+      observations.unitsSignal = requestOptions.signal;
+      assert.equal(
+        requestOptions.signal,
+        observations.coursesSignal,
+        'the publication lookup must reuse one internal signal from /courses through /units'
+      );
+      return Promise.resolve([]);
+    }
+    if (route === '/api/courses/92/unit-access') {
+      observations.unitAccessSignal = requestOptions.signal;
+      assert.equal(
+        requestOptions.signal,
+        observations.unitsSignal,
+        'the exact unit-access fallback must reuse the /units AbortSignal'
+      );
+      assert.equal(requestOptions.params.class_id, 42);
+      assert.equal(requestOptions.params.activity_key, `physics.${moduleId}`);
+      return unitAccessDeferred.promise;
+    }
     throw new Error(`unexpected deferred publication request for ${moduleId}: ${route}`);
+  };
+}
+
+function sequencedDeferredPublicationRequest(unitAccessDeferreds, moduleId, observations = {}) {
+  let activeSignal = null;
+  let unitAccessIndex = 0;
+  observations.unitAccessSignals = observations.unitAccessSignals || [];
+  return (route, requestOptions = {}) => {
+    if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B class' }]);
+    if (route === '/api/courses') {
+      activeSignal = requestOptions.signal;
+      return Promise.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
+    }
+    if (route === '/api/courses/92/units') {
+      assert.equal(
+        requestOptions.signal,
+        activeSignal,
+        'each publication attempt must reuse its own signal from /courses through /units'
+      );
+      return Promise.resolve([]);
+    }
+    if (route === '/api/courses/92/unit-access') {
+      assert.equal(
+        requestOptions.signal,
+        activeSignal,
+        'each exact unit-access fallback must reuse its attempt signal'
+      );
+      assert.equal(requestOptions.params.class_id, 42);
+      assert.equal(requestOptions.params.activity_key, `physics.${moduleId}`);
+      const deferred = unitAccessDeferreds[unitAccessIndex];
+      assert.ok(deferred, 'each unit-access attempt must have a controlled response');
+      unitAccessIndex += 1;
+      observations.unitAccessSignals.push(requestOptions.signal);
+      return deferred.promise;
+    }
+    throw new Error(`unexpected sequenced publication request for ${moduleId}: ${route}`);
+  };
+}
+
+function deferredCoursesPublicationRequest(coursesDeferred, observations = {}) {
+  return (route, requestOptions = {}) => {
+    if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B 班' }]);
+    if (route === '/api/courses') {
+      observations.signal = requestOptions.signal;
+      return coursesDeferred.promise;
+    }
+    if (route === '/api/courses/92/units') {
+      observations.downstreamRoutes.push(route);
+      return Promise.resolve([]);
+    }
+    if (route === '/api/courses/92/unit-access') {
+      observations.downstreamRoutes.push(route);
+      return Promise.resolve({ available: false, error_code: 'activity_hidden' });
+    }
+    throw new Error(`unexpected cancelled-stage publication request: ${route}`);
   };
 }
 
@@ -1032,6 +1156,90 @@ async function runProductionRouterPublicationContract() {
     'known gas-laws must add zero publication authority requests'
   );
 
+  const listedOpen = createRouterPublicationHarness({
+    moduleId: 'mechanics',
+    units: [{
+      id: 103,
+      activity_key: 'physics.mechanics',
+      effective_release_state: 'open'
+    }]
+  });
+  await listedOpen.ready();
+  await listedOpen.startRoute();
+  await listedOpen.timers.drain();
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    listedOpen,
+    { hash: '#physics/mechanics', warnings: 0, owners: 2 },
+    'listed open mechanics route'
+  );
+  assert.equal(unitAccessCallCount(listedOpen), 0, 'listed open must not probe unit-access');
+
+  const listedLocked = createRouterPublicationHarness({
+    moduleId: 'mechanics',
+    units: [{
+      id: 103,
+      activity_key: 'physics.mechanics',
+      effective_release_state: 'locked'
+    }]
+  });
+  await listedLocked.ready();
+  await listedLocked.startRoute();
+  assert.equal(listedLocked.selector._publicationGatePending.physics, undefined);
+  assert.deepEqual(
+    listedLocked.selector._publicationGateNodes.physics,
+    { state: 'locked', code: 'activity_locked' }
+  );
+  assert.equal(listedLocked.windowObject.location.hash, '#physics/mechanics');
+  assert.equal(listedLocked.getOwnerInitializations(), 0);
+  assert.equal(unitAccessCallCount(listedLocked), 0, 'listed locked must not probe unit-access');
+  assert.deepEqual(listedLocked.warnings, []);
+  assert.deepEqual(listedLocked.errors, []);
+
+  const ambiguousListed = createRouterPublicationHarness({
+    moduleId: 'mechanics',
+    units: [
+      {
+        id: 103,
+        activity_key: 'physics.mechanics',
+        effective_release_state: 'open'
+      },
+      {
+        id: 104,
+        activity_key: 'physics.mechanics',
+        effective_release_state: 'locked'
+      }
+    ]
+  });
+  await ambiguousListed.ready();
+  await ambiguousListed.startRoute();
+  assert.equal(ambiguousListed.selector._publicationGatePending.physics, undefined);
+  assert.deepEqual(
+    ambiguousListed.selector._publicationGateNodes.physics,
+    { state: 'unavailable', code: 'course_unit_ambiguous' }
+  );
+  assert.equal(ambiguousListed.getOwnerInitializations(), 0);
+  assert.equal(unitAccessCallCount(ambiguousListed), 0, 'ambiguous /units matches must fail without probing');
+
+  const missingMechanics = createRouterPublicationHarness({
+    moduleId: 'mechanics',
+    units: [],
+    releaseState: 'missing'
+  });
+  await missingMechanics.ready();
+  await missingMechanics.startRoute();
+  assertRouterPublicationQuiescent(
+    missingMechanics,
+    { hash: '#physics', warnings: 1 },
+    'missing registered mechanics route'
+  );
+  assert.equal(unitAccessCallCount(missingMechanics), 1);
+  assertFixedSafeWarning(
+    missingMechanics.warnings,
+    UNKNOWN_MODULE_WARNING,
+    'missing registered mechanics route'
+  );
+
   const nonPhysics = createRouterPublicationHarness({
     page: 'chemistry',
     moduleId: 'backend-only-unknown',
@@ -1050,16 +1258,87 @@ async function runProductionRouterPublicationContract() {
     nonPhysicsAuthorityCalls,
     'non-physics routing must add zero publication authority requests'
   );
-  assert.match(
-    nonPhysics.warnings[0].map(String).join(' '),
-    /refusing transition to unknown module/
+  assertFixedSafeWarning(
+    nonPhysics.warnings,
+    UNKNOWN_MODULE_WARNING,
+    'non-physics ordinary unknown'
+  );
+
+  const nonStudent = createRouterPublicationHarness({
+    moduleId: 'teacher-unknown',
+    user: { id: 8, role: 'teacher' }
+  });
+  await nonStudent.ready();
+  await nonStudent.startRoute();
+  assertRouterPublicationQuiescent(
+    nonStudent,
+    { hash: '#physics', warnings: 1 },
+    'non-student production Router route'
+  );
+  assert.equal(publicationAuthorityCallCount(nonStudent), 0);
+  assertFixedSafeWarning(nonStudent.warnings, UNKNOWN_MODULE_WARNING, 'non-student route');
+
+  const noCurrentClass = createRouterPublicationHarness({
+    moduleId: 'no-class-unit',
+    request(route) {
+      if (route === '/api/classes') return Promise.resolve([]);
+      throw new Error(`no-class route must not request ${route}`);
+    }
+  });
+  await noCurrentClass.ready();
+  await noCurrentClass.startRoute();
+  assertRouterPublicationQuiescent(
+    noCurrentClass,
+    { hash: '#physics', warnings: 1 },
+    'student without a current class'
+  );
+  assert.equal(
+    noCurrentClass.apiCalls.filter((call) => call.route !== '/api/classes').length,
+    0,
+    'student without a current class must stop before course or unit access'
+  );
+  assertFixedSafeWarning(
+    noCurrentClass.warnings,
+    PUBLICATION_CLASSIFICATION_WARNING,
+    'student without a current class'
+  );
+
+  const ambiguousPhysicsCourse = createRouterPublicationHarness({
+    moduleId: 'ambiguous-course-unit',
+    request(route) {
+      if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B 班' }]);
+      if (route === '/api/courses') {
+        return Promise.resolve([
+          { id: 92, galaxy_key: 'englab', course_key: 'physics' },
+          { id: 93, galaxy_key: 'englab', course_key: 'physics' }
+        ]);
+      }
+      throw new Error(`ambiguous course route must not request ${route}`);
+    }
+  });
+  await ambiguousPhysicsCourse.ready();
+  await ambiguousPhysicsCourse.startRoute();
+  assertRouterPublicationQuiescent(
+    ambiguousPhysicsCourse,
+    { hash: '#physics', warnings: 1 },
+    'student with ambiguous physics courses'
+  );
+  assert.equal(unitAccessCallCount(ambiguousPhysicsCourse), 0);
+  assertFixedSafeWarning(
+    ambiguousPhysicsCourse.warnings,
+    PUBLICATION_CLASSIFICATION_WARNING,
+    'student with ambiguous physics courses'
   );
 
   for (const releaseState of ['hidden', 'locked']) {
     const moduleId = releaseState === 'hidden'
       ? 'hidden-qa-v7718'
       : 'locked-only-unit';
-    const harness = createRouterPublicationHarness({ moduleId, releaseState });
+    const harness = createRouterPublicationHarness({
+      moduleId,
+      releaseState,
+      units: []
+    });
     await harness.ready();
     assert.ok(
       harness.windowObject.AstraExperimentRegistry.get('physics', 'mechanics'),
@@ -1076,6 +1355,11 @@ async function runProductionRouterPublicationContract() {
       `${releaseState} classification must use the production publication context`
     );
     assert.equal(
+      unitAccessCallCount(harness),
+      1,
+      `${releaseState} omitted from /units must use one exact unit-access fallback`
+    );
+    assert.equal(
       harness.selectors.some((selector) => selector.includes(moduleId)),
       false,
       'an untrusted backend-only slug must never be interpolated into a CSS selector'
@@ -1084,7 +1368,8 @@ async function runProductionRouterPublicationContract() {
 
   const openUnknown = createRouterPublicationHarness({
     moduleId: 'open-backend-only',
-    releaseState: 'open'
+    units: [],
+    unitAccess: { available: true, error_code: null }
   });
   await openUnknown.ready();
   await openUnknown.startRoute();
@@ -1093,12 +1378,18 @@ async function runProductionRouterPublicationContract() {
     { hash: '#physics', warnings: 1 },
     'authoritative open registry-absent route'
   );
-  assert.match(openUnknown.warnings[0].map(String).join(' '), /refusing transition to unknown module/);
+  assertFixedSafeWarning(
+    openUnknown.warnings,
+    PUBLICATION_CLASSIFICATION_WARNING,
+    'available unknown without a course unit id'
+  );
+  assert.equal(unitAccessCallCount(openUnknown), 1);
   await assertKnownGasLawsRecovery(openUnknown, 'authoritative open registry-absent route');
 
   const ordinaryMissing = createRouterPublicationHarness({
     moduleId: 'ordinary-unknown',
-    units: []
+    units: [],
+    releaseState: 'missing'
   });
   await ordinaryMissing.ready();
   await ordinaryMissing.startRoute();
@@ -1107,8 +1398,40 @@ async function runProductionRouterPublicationContract() {
     { hash: '#physics', warnings: 1 },
     'ordinary registry-absent route'
   );
-  assert.match(ordinaryMissing.warnings[0].map(String).join(' '), /refusing transition to unknown module/);
+  assertFixedSafeWarning(
+    ordinaryMissing.warnings,
+    UNKNOWN_MODULE_WARNING,
+    'ordinary missing registry-absent route'
+  );
+  assert.equal(unitAccessCallCount(ordinaryMissing), 1);
   await assertKnownGasLawsRecovery(ordinaryMissing, 'ordinary registry-absent route');
+
+  const invalidUnitAccessCases = [
+    ['extra DTO key', { available: false, error_code: 'activity_hidden', title: 'secret' }],
+    ['unknown error code', { available: false, error_code: 'future_private_state' }],
+    ['contradictory DTO', { available: true, error_code: 'activity_hidden' }],
+    ['request rejection', () => Promise.reject(createSensitiveDiagnosticError())]
+  ];
+  for (const [label, unitAccess] of invalidUnitAccessCases) {
+    const harness = createRouterPublicationHarness({
+      moduleId: `invalid-access-${label.replace(/\s+/g, '-').toLowerCase()}`,
+      units: [],
+      unitAccess
+    });
+    await harness.ready();
+    await harness.startRoute();
+    assertRouterPublicationQuiescent(
+      harness,
+      { hash: '#physics', warnings: 1 },
+      label
+    );
+    assert.equal(unitAccessCallCount(harness), 1, `${label}: one exact fallback request`);
+    assertFixedSafeWarning(
+      harness.warnings,
+      PUBLICATION_CLASSIFICATION_WARNING,
+      label
+    );
+  }
 
   const malformed = createRouterPublicationHarness({
     moduleId: 'malformed/key',
@@ -1126,16 +1449,21 @@ async function runProductionRouterPublicationContract() {
     0,
     'a malformed module key must not enter authority resolution'
   );
+  assertFixedSafeWarning(
+    malformed.warnings,
+    UNKNOWN_MODULE_WARNING,
+    'malformed production Router route'
+  );
 
   const contextFailures = [
-    ['loader missing', { loaderMode: 'missing' }, /refusing transition to unknown module/],
+    ['loader missing', { loaderMode: 'missing' }, PUBLICATION_CLASSIFICATION_WARNING],
     ['loader reject', {
       loaderMode: 'reject',
       loaderError: createSensitiveDiagnosticError()
     }, PUBLICATION_CLASSIFICATION_WARNING],
     ['publication context missing', {
       contextMode: 'missing'
-    }, /refusing transition to unknown module/],
+    }, PUBLICATION_CLASSIFICATION_WARNING],
     ['publication resolve reject', {
       request(route) {
         if (route === '/api/classes') {
@@ -1157,18 +1485,19 @@ async function runProductionRouterPublicationContract() {
       { hash: '#physics', warnings: 1 },
       label
     );
-    if (typeof expectedWarning === 'string') {
-      assertFixedSafeWarning(harness.warnings, expectedWarning, label);
-    } else {
-      assert.match(harness.warnings[0].map(String).join(' '), expectedWarning);
-    }
+    assertFixedSafeWarning(harness.warnings, expectedWarning, label);
     await assertKnownGasLawsRecovery(harness, label);
   }
 
-  const repeatedUnits = createDeferred();
+  const repeatedAccess = createDeferred();
+  const repeatedObservations = {};
   const repeated = createRouterPublicationHarness({
     moduleId: 'same-route-hidden',
-    request: deferredPublicationRequest(repeatedUnits, 'same-route-hidden')
+    request: deferredPublicationRequest(
+      repeatedAccess,
+      'same-route-hidden',
+      repeatedObservations
+    )
   });
   await repeated.ready();
   await repeated.startRoute();
@@ -1180,11 +1509,8 @@ async function runProductionRouterPublicationContract() {
     repeatedApiCalls,
     'reopening the same pending backend-only route must reuse the classification'
   );
-  repeatedUnits.resolve([{
-    id: 201,
-    activity_key: 'physics.same-route-hidden',
-    effective_release_state: 'hidden'
-  }]);
+  assert.equal(unitAccessCallCount(repeated), 1);
+  repeatedAccess.resolve({ available: false, error_code: 'activity_hidden' });
   await settlePromises(32);
   assertRouterPublicationQuiescent(
     repeated,
@@ -1194,14 +1520,16 @@ async function runProductionRouterPublicationContract() {
 
   for (const lifecycle of ['close', 'reset', 'leave']) {
     const moduleId = `${lifecycle}-pending-hidden`;
-    const unitsDeferred = createDeferred();
+    const accessDeferred = createDeferred();
+    const observations = {};
     const harness = createRouterPublicationHarness({
       moduleId,
-      request: deferredPublicationRequest(unitsDeferred, moduleId)
+      request: deferredPublicationRequest(accessDeferred, moduleId, observations)
     });
     await harness.ready();
     await harness.startRoute();
     assert.ok(harness.selector._publicationGatePending.physics, `${lifecycle}: classification must be pending`);
+    assert.equal(observations.unitAccessSignal.aborted, false, `${lifecycle}: unit-access starts live`);
     if (lifecycle === 'close') {
       assert.equal(harness.selector.closeModule('physics'), true);
     } else if (lifecycle === 'reset') {
@@ -1209,16 +1537,17 @@ async function runProductionRouterPublicationContract() {
     } else {
       harness.selector.leavePage('physics', { preserveHash: true });
     }
+    assert.equal(
+      observations.unitAccessSignal.aborted,
+      true,
+      `${lifecycle}: cancelling the pending publication gate must immediately abort unit-access`
+    );
     const stableHash = lifecycle === 'close'
       ? '#physics'
       : harness.windowObject.location.hash;
     const stableGeneration = harness.selector._transitionGeneration.physics;
     assert.equal(harness.selector._publicationGatePending.physics, undefined);
-    unitsDeferred.resolve([{
-      id: 202,
-      activity_key: `physics.${moduleId}`,
-      effective_release_state: 'hidden'
-    }]);
+    accessDeferred.resolve({ available: false, error_code: 'activity_hidden' });
     await settlePromises(32);
     assertRouterPublicationQuiescent(
       harness,
@@ -1232,12 +1561,109 @@ async function runProductionRouterPublicationContract() {
     );
   }
 
-  for (const lateState of ['hidden', 'locked', 'missing']) {
-    const moduleId = `late-${lateState}`;
-    const unitsDeferred = createDeferred();
+  const abaModuleId = 'reset-aba-hidden';
+  const abaFirstAccess = createDeferred();
+  const abaSecondAccess = createDeferred();
+  const abaObservations = {};
+  const aba = createRouterPublicationHarness({
+    moduleId: abaModuleId,
+    request: sequencedDeferredPublicationRequest(
+      [abaFirstAccess, abaSecondAccess],
+      abaModuleId,
+      abaObservations
+    )
+  });
+  await aba.ready();
+  await aba.startRoute();
+  const abaFirstPending = aba.selector._publicationGatePending.physics;
+  assert.ok(abaFirstPending, 'ABA A classification must be pending');
+  assert.equal(abaObservations.unitAccessSignals.length, 1);
+  assert.equal(abaObservations.unitAccessSignals[0].aborted, false);
+  aba.selector.resetPage('physics');
+  assert.equal(abaFirstPending.controller.signal.aborted, true, 'reset must abort ABA A controller');
+  assert.equal(abaObservations.unitAccessSignals[0].aborted, true, 'reset must abort ABA A request');
+  assert.equal(aba.selector._publicationGatePending.physics, undefined);
+  assert.equal(aba.windowObject.location.hash, `#physics/${abaModuleId}`);
+  assert.equal(aba.selector.openModule('physics', abaModuleId), true);
+  await settlePromises(32);
+  const abaSecondPending = aba.selector._publicationGatePending.physics;
+  assert.ok(abaSecondPending, 'ABA B classification must start for the same slug');
+  assert.notEqual(abaSecondPending.controller, abaFirstPending.controller);
+  assert.equal(abaObservations.unitAccessSignals.length, 2);
+  assert.equal(abaObservations.unitAccessSignals[1].aborted, false);
+  const abaHashBeforeLateA = aba.windowObject.location.hash;
+  const abaWarningsBeforeLateA = aba.warnings.length;
+  abaFirstAccess.resolve({ available: false, error_code: 'activity_hidden' });
+  await settlePromises(32);
+  assert.equal(
+    aba.selector._publicationGatePending.physics,
+    abaSecondPending,
+    'a late ABA A result must preserve the exact ABA B pending identity'
+  );
+  assert.equal(
+    abaSecondPending.controller.signal.aborted,
+    false,
+    'a late ABA A result must not abort ABA B'
+  );
+  assert.equal(
+    abaObservations.unitAccessSignals[1].aborted,
+    false,
+    'a late ABA A result must leave the ABA B request live'
+  );
+  assert.equal(aba.windowObject.location.hash, abaHashBeforeLateA);
+  assert.equal(aba.warnings.length, abaWarningsBeforeLateA);
+  assert.notEqual(
+    abaSecondPending.generation,
+    abaFirstPending.generation,
+    'each post-reset unknown classification must own a fresh transition generation'
+  );
+  abaSecondAccess.resolve({ available: false, error_code: 'activity_hidden' });
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    aba,
+    { hash: '#physics', warnings: 0 },
+    'same-slug ABA B authoritative hidden result'
+  );
+
+  for (const lifecycle of ['close', 'reset', 'leave']) {
+    const moduleId = `${lifecycle}-cancel-before-units`;
+    const coursesDeferred = createDeferred();
+    const observations = { signal: null, downstreamRoutes: [] };
     const harness = createRouterPublicationHarness({
       moduleId,
-      request: deferredPublicationRequest(unitsDeferred, moduleId)
+      request: deferredCoursesPublicationRequest(coursesDeferred, observations)
+    });
+    await harness.ready();
+    await harness.startRoute();
+    assert.ok(harness.selector._publicationGatePending.physics);
+    assert.equal(observations.signal.aborted, false, `${lifecycle}: /courses starts live`);
+    if (lifecycle === 'close') {
+      assert.equal(harness.selector.closeModule('physics'), true);
+    } else if (lifecycle === 'reset') {
+      harness.selector.resetPage('physics');
+    } else {
+      harness.selector.leavePage('physics', { preserveHash: true });
+    }
+    assert.equal(observations.signal.aborted, true, `${lifecycle}: /courses must abort synchronously`);
+    coursesDeferred.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
+    await settlePromises(32);
+    assert.deepEqual(
+      observations.downstreamRoutes,
+      [],
+      `${lifecycle}: a cancelled /courses response must not advance to /units or unit-access`
+    );
+    assert.equal(harness.getOwnerInitializations(), 0);
+    assert.equal(harness.selector._publicationGatePending.physics, undefined);
+    assert.deepEqual(harness.warnings, []);
+    assert.deepEqual(harness.errors, []);
+  }
+
+  for (const lateState of ['hidden', 'locked', 'missing']) {
+    const moduleId = `late-${lateState}`;
+    const accessDeferred = createDeferred();
+    const harness = createRouterPublicationHarness({
+      moduleId,
+      request: deferredPublicationRequest(accessDeferred, moduleId)
     });
     await harness.ready();
     await harness.startRoute();
@@ -1246,11 +1672,10 @@ async function runProductionRouterPublicationContract() {
     await harness.timers.drain();
     const replacementGeneration = harness.selector._transitionGeneration.physics;
     const replacementOwnerCount = harness.getOwnerInitializations();
-    unitsDeferred.resolve(lateState === 'missing' ? [] : [{
-      id: 203,
-      activity_key: `physics.${moduleId}`,
-      effective_release_state: lateState
-    }]);
+    accessDeferred.resolve({
+      available: false,
+      error_code: lateState === 'missing' ? 'course_unit_missing' : `activity_${lateState}`
+    });
     await settlePromises(32);
     assertRouterPublicationQuiescent(
       harness,
@@ -1570,12 +1995,209 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(originalParent.placeholderInsertions, 4);
   assert.equal(originalParent.canvasRestorations, 4);
   assert.equal(originalParent.placeholderRemovals, 4);
+
+  let responsiveWidth = 1015;
+  const combinedTransforms = [];
+  const combinedFrames = [];
+  const combinedBaseScales = [];
+  const combinedContext2d = {
+    setTransform(...args) { combinedTransforms.push(args); },
+    clearRect(...args) { combinedFrames.push(args); },
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    stroke() {},
+    fillText() {}
+  };
+  const combinedWindow = createEventTarget({ devicePixelRatio: 1 });
+  const combinedModalClasses = new Set();
+  const combinedClose = createZoomTarget();
+  const combinedTitle = createZoomTarget({ textContent: '' });
+  const combinedHost = createZoomTarget({
+    getBoundingClientRect: () => ({ width: 360, height: 720 }),
+    appendChild(node) {
+      this.child = node;
+      node.parentElement = this;
+    }
+  });
+  let combinedCanvas = null;
+  const combinedModal = createZoomTarget({
+    classList: {
+      add(name) { combinedModalClasses.add(name); },
+      remove(name) { combinedModalClasses.delete(name); },
+      contains(name) { return combinedModalClasses.has(name); }
+    },
+    querySelectorAll: () => [combinedClose],
+    contains(node) {
+      return node === this || node === combinedClose || node === combinedHost || node === combinedCanvas;
+    }
+  });
+  const combinedOriginalParent = {
+    getBoundingClientRect: () => ({ width: responsiveWidth }),
+    insertBefore(node, reference) {
+      if (node === combinedCanvas) {
+        assert.equal(reference, combinedZoom.movedPlaceholder);
+        combinedCanvas.parentElement = this;
+      } else {
+        assert.equal(reference, combinedCanvas);
+      }
+    },
+    removeChild(node) {
+      assert.equal(node, combinedZoom.movedPlaceholder);
+    }
+  };
+  combinedCanvas = createZoomTarget({
+    id: 'physics-canvas',
+    parentElement: combinedOriginalParent,
+    style: {},
+    width: 0,
+    height: 0,
+    getContext: () => combinedContext2d,
+    getBoundingClientRect: () => ({
+      width: responsiveWidth,
+      height: Math.min(Math.max(responsiveWidth * 0.56, 320), 560)
+    }),
+    attributes: new Map()
+  });
+  const combinedElements = new Map([
+    ['physics-canvas', combinedCanvas],
+    ['physics-zoom-modal', combinedModal],
+    ['physics-zoom-host', combinedHost],
+    ['physics-zoom-title', combinedTitle],
+    ['physics-zoom-close', combinedClose]
+  ]);
+  [
+    'gravity-slider', 'restitution-slider', 'friction-slider', 'radius-slider',
+    'physics-clear', 'physics-pause', 'gravity-value', 'restitution-value',
+    'friction-value', 'radius-value'
+  ].forEach((id) => {
+    const element = createEventTarget({ value: '0', textContent: '' });
+    combinedElements.set(id, element);
+  });
+  const combinedDocument = createEventTarget({
+    getElementById: (id) => combinedElements.get(id) || null,
+    querySelectorAll: () => [],
+    createComment: () => ({ nodeType: 8 }),
+    body: { appendChild() {} }
+  });
+  Object.defineProperty(combinedDocument, 'activeElement', {
+    get: () => zoomActiveElement
+  });
+  const combinedContext = {
+    window: combinedWindow,
+    document: combinedDocument,
+    ResizeObserver: FakeResizeObserver,
+    cancelAnimationFrame() {},
+    requestAnimationFrame: () => 1,
+    Event: class {
+      constructor(type) { this.type = type; }
+    },
+    CustomEvent: class {
+      constructor(type, options) {
+        this.type = type;
+        this.detail = options?.detail;
+      }
+    },
+    TouchGestures: {
+      enablePinchZoom() {
+        return {
+          setBaseScale(scale) { combinedBaseScales.push(scale); },
+          reset() {},
+          destroy() {}
+        };
+      }
+    },
+    CF: { sans: 'sans-serif' },
+    console
+  };
+  vm.createContext(combinedContext);
+  vm.runInContext(physicsSource, combinedContext, { filename: 'pages/physics/physics.js' });
+  vm.runInContext(physicsZoomSource, combinedContext, { filename: 'pages/physics/physics-zoom.js' });
+  const combinedPhysics = combinedWindow.PhysicsSim;
+  const combinedZoom = combinedWindow.PhysicsZoom;
+  combinedPhysics.init();
+  combinedZoom.init();
+  assert.equal(combinedCanvas.style.width, '1015px');
+  assert.equal(combinedCanvas.width, 1015);
+  const combinedTrigger = createZoomTarget();
+  zoomActiveElement = combinedTrigger;
+  combinedZoom.open(combinedCanvas, 'Mechanics', combinedTrigger);
+  assert.equal(combinedModalClasses.has('open'), true);
+  assert.equal(countListener(combinedWindow, 'resize'), 2, 'PhysicsSim and PhysicsZoom retain one resize owner each');
+
+  responsiveWidth = 390;
+  combinedWindow.devicePixelRatio = 2;
+  combinedWindow.dispatchEvent({ type: 'resize' });
+  assert.equal(combinedModalClasses.has('open'), true, 'the responsive recalibration runs before zoom closes');
+  assert.equal(combinedCanvas.style.width, '390px');
+  assert.equal(combinedCanvas.style.height, '320px');
+  assert.equal(combinedCanvas.width, 780);
+  assert.equal(combinedCanvas.height, 640);
+  assert.equal(combinedPhysics.W, 390);
+  assert.equal(combinedPhysics.H, 320);
+  assert.deepEqual(combinedTransforms.at(-1), [2, 0, 0, 2, 0, 0]);
+  assert.deepEqual(combinedFrames.at(-1), [0, 0, 390, 320], 'the resized mechanics bitmap must render immediately');
+  assert.equal(combinedZoom.originalRect.width, 390);
+  assert.equal(combinedZoom.originalRect.height, 320);
+  assert.equal(
+    combinedBaseScales.at(-1),
+    Math.min(360 / 390, 720 / 320),
+    'the open Zoom pinch baseline must refresh from the resized mechanics dimensions'
+  );
+
+  combinedZoom.close();
+  assert.equal(combinedCanvas.parentElement, combinedOriginalParent);
+  assert.equal(combinedCanvas.style.width, '390px');
+  assert.equal(combinedCanvas.width, 780, 'the existing restored event must preserve current DPR calibration');
+  combinedZoom.destroy();
+  combinedPhysics.destroy();
+  assert.equal(countListener(combinedWindow, 'resize'), 0);
+  assert.equal(countListener(combinedDocument, 'keydown'), 0);
 }
 
 (async () => {
   runMechanicsZoomRestoreContract();
   await runPublicationUnknownModuleDiagnosticContract();
   await runProductionRouterPublicationContract();
+
+  let prepareSessionUser = null;
+  let settlePrepareClasses;
+  const prepareAbortCalls = [];
+  const prepareAbortWindow = {
+    addEventListener() {},
+    AstraApplicationSession: { getUser: () => prepareSessionUser },
+    AstraApiClient: {
+      request(route, options = {}) {
+        prepareAbortCalls.push({ route, signal: options.signal });
+        if (route === '/api/classes') {
+          return new Promise((resolve) => { settlePrepareClasses = resolve; });
+        }
+        throw new Error(`cancelled prepare must not advance to ${route}`);
+      },
+      isCancelled: (error) => Boolean(error && error.name === 'AbortError')
+    }
+  };
+  const prepareAbortContext = { window: prepareAbortWindow, console, AbortController };
+  vm.createContext(prepareAbortContext);
+  vm.runInContext(publicationSource, prepareAbortContext, {
+    filename: 'shared/js/engineering-lab-publication-context.js'
+  });
+  prepareSessionUser = { id: 7, role: 'student' };
+  const prepareAbortController = new AbortController();
+  const prepareAbortResolution = prepareAbortWindow.AstraEngineeringLabPublicationContext.resolve({
+    galaxy_key: 'englab',
+    course_key: 'physics',
+    activity_key: 'physics.mechanics'
+  }, { signal: prepareAbortController.signal });
+  await settlePromises(8);
+  assert.equal(prepareAbortCalls.length, 1);
+  assert.equal(prepareAbortCalls[0].route, '/api/classes');
+  assert.equal(prepareAbortCalls[0].signal.aborted, false);
+  prepareAbortController.abort();
+  assert.equal(prepareAbortCalls[0].signal.aborted, true, 'external cancellation must bridge into prepare');
+  settlePrepareClasses([{ id: 42, name: 'B 班' }]);
+  assert.equal((await prepareAbortResolution).error_code, 'cancelled');
+  assert.equal(prepareAbortCalls.length, 1, 'cancelled prepare must not advance into course resolution');
 
   const publicationWindow = {
     addEventListener() {},
@@ -1728,6 +2350,8 @@ function runMechanicsZoomRestoreContract() {
   const productionCalls = [];
   let settleLateA;
   let deferNextA = false;
+  let settleLateUnitAccess;
+  let deferNextHiddenUnitAccess = false;
   const productionWindow = {
     addEventListener() {},
     location: { hash: '' },
@@ -1735,7 +2359,8 @@ function runMechanicsZoomRestoreContract() {
     AstraApiClient: {
       request: (route, options = {}) => {
         const classId = Number(options.params && options.params.class_id || 0);
-        productionCalls.push({ route, classId, signal: options.signal });
+        const activityKey = String(options.params && options.params.activity_key || '');
+        productionCalls.push({ route, classId, activityKey, signal: options.signal });
         if (route === '/api/classes') {
           return Promise.resolve([{ id: 41, name: 'A 班' }, { id: 42, name: 'B 班' }]);
         }
@@ -1758,23 +2383,24 @@ function runMechanicsZoomRestoreContract() {
           }]);
         }
         if (route === '/api/courses/92/units') {
-          return Promise.resolve([
-            {
-              id: 102,
-              activity_key: 'physics.mechanics',
-              effective_release_state: 'locked'
-            },
-            {
-              id: 103,
-              activity_key: 'physics.hidden-qa-v7718',
-              effective_release_state: 'hidden'
-            },
-            {
-              id: 104,
-              activity_key: 'physics.locked-only-unit',
-              effective_release_state: 'locked'
+          return Promise.resolve([{
+            id: 102,
+            activity_key: 'physics.mechanics',
+            effective_release_state: 'locked'
+          }]);
+        }
+        if (route === '/api/courses/92/unit-access') {
+          if (activityKey === 'physics.hidden-qa-v7718') {
+            if (deferNextHiddenUnitAccess) {
+              deferNextHiddenUnitAccess = false;
+              return new Promise((resolve) => { settleLateUnitAccess = resolve; });
             }
-          ]);
+            return Promise.resolve({ available: false, error_code: 'activity_hidden' });
+          }
+          if (activityKey === 'physics.locked-only-unit') {
+            return Promise.resolve({ available: false, error_code: 'activity_locked' });
+          }
+          return Promise.resolve({ available: false, error_code: 'course_unit_missing' });
         }
         throw new Error(`unexpected production publication route: ${route}`);
       },
@@ -1796,6 +2422,15 @@ function runMechanicsZoomRestoreContract() {
     course_key: 'physics',
     activity_key: 'physics.mechanics'
   };
+  const alreadyAborted = new AbortController();
+  alreadyAborted.abort();
+  const callsBeforeAbortedResolve = productionCalls.length;
+  assert.equal(
+    (await productionPublication.resolve(activity, { signal: alreadyAborted.signal })).error_code,
+    'cancelled',
+    'an already-aborted external scope must cancel before any publication request'
+  );
+  assert.equal(productionCalls.length, callsBeforeAbortedResolve);
   deferNextA = true;
   const lateAResolution = productionPublication.resolve(activity);
   await settlePromises();
@@ -1825,6 +2460,14 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(productionHidden.windowObject.location.hash, '#physics');
   assert.equal(productionHidden.selector.activeModule.physics, null);
   assert.equal(productionHidden.getOwnerInitializations(), 0);
+  assert.equal(
+    productionCalls.filter((call) => (
+      call.route === '/api/courses/92/unit-access'
+      && call.activityKey === 'physics.hidden-qa-v7718'
+    )).length,
+    1,
+    'the production hidden unit omitted from /units must use one exact fallback'
+  );
   assert.deepEqual(productionHidden.warnings, []);
   assert.deepEqual(productionHidden.errors, []);
   const productionLocked = createPublicationModuleHarness(productionPublication, {
@@ -1835,11 +2478,42 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(productionLocked.windowObject.location.hash, '#physics');
   assert.equal(productionLocked.selector.activeModule.physics, null);
   assert.equal(productionLocked.getOwnerInitializations(), 0);
+  assert.equal(
+    productionCalls.filter((call) => (
+      call.route === '/api/courses/92/unit-access'
+      && call.activityKey === 'physics.locked-only-unit'
+    )).length,
+    1,
+    'the production backend-only locked unit must use one exact fallback'
+  );
   assert.deepEqual(productionLocked.warnings, []);
   assert.deepEqual(productionLocked.errors, []);
   settleLateA([{ id: 91, galaxy_key: 'englab', course_key: 'physics' }]);
   assert.equal((await lateAResolution).error_code, 'cancelled');
   assert.equal(productionPublication.snapshot().class_id, 42, 'late A must not restore the old class');
+
+  deferNextHiddenUnitAccess = true;
+  const pendingUnitAccess = productionPublication.resolve({
+    galaxy_key: 'englab',
+    course_key: 'physics',
+    activity_key: 'physics.hidden-qa-v7718'
+  });
+  await settlePromises(32);
+  assert.equal(typeof settleLateUnitAccess, 'function');
+  const pendingUnitAccessCall = productionCalls.findLast((call) => (
+    call.route === '/api/courses/92/unit-access'
+    && call.activityKey === 'physics.hidden-qa-v7718'
+  ));
+  assert.equal(pendingUnitAccessCall.signal.aborted, false);
+  await classDriver.changeClass('41');
+  assert.equal(
+    pendingUnitAccessCall.signal.aborted,
+    true,
+    'class switching must abort an exact unit-access fallback in flight'
+  );
+  settleLateUnitAccess({ available: false, error_code: 'activity_hidden' });
+  assert.equal((await pendingUnitAccess).error_code, 'cancelled');
+  assert.equal(productionPublication.snapshot().class_id, 41);
 
   await classDriver.changeClass('41');
   assert.equal(productionPublication.snapshot().class_id, 41);
