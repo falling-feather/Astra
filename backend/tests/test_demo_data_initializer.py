@@ -59,8 +59,36 @@ def test_manifest_is_complete_and_contains_no_credential_material():
     assert sum(len(course.units) for course in DEMO_COURSES) == 42
     assert len(REPRESENTATIVE_COURSES) == 6
     assert DEMO_EVIDENCE_EVENT_TYPES == ("started", "predicted", "attempted", "corrected", "explained")
-    assert {item["desired_status"] for item in DEMO_ASSIGNMENTS} == {"graded", "pending"}
+    assert {
+        (item["course_key"], item["activity_key"]): (
+            item["title"],
+            item["description"],
+            item["desired_status"],
+        )
+        for item in DEMO_ASSIGNMENTS
+    } == {
+        ("physics", "physics.mechanics"): (
+            "Physics evidence review",
+            "Synthetic local-preview evidence for the review loop.",
+            "graded",
+        ),
+        ("humanities-futures", "humanities.claim-review"): (
+            "Humanities claim review",
+            "Synthetic local-preview evidence for the review loop.",
+            "pending",
+        ),
+        ("control-flow", "control-flow.loop-boundary"): (
+            "Loop boundary review",
+            "Synthetic loop trace awaiting teacher feedback.",
+            "pending",
+        ),
+    }
     assert DEMO_CODE_PROBLEM["activity_key"] == "control-flow.loop-boundary"
+    control_assignment = next(item for item in DEMO_ASSIGNMENTS if item["course_key"] == "control-flow")
+    assert (control_assignment["course_key"], control_assignment["activity_key"]) == (
+        DEMO_CODE_PROBLEM["course_key"],
+        DEMO_CODE_PROBLEM["activity_key"],
+    )
     assert {
         item.course_key: (item.open_unit_key, item.locked_unit_key, item.hidden_unit_key, item.minimum_attempts)
         for item in REPRESENTATIVE_COURSES
@@ -80,10 +108,131 @@ def test_manifest_is_complete_and_contains_no_credential_material():
     assert "token" not in manifest_source.lower()
 
 
+async def _read_control_flow_demo_scope(report: dict) -> dict:
+    declaration = next(item for item in DEMO_ASSIGNMENTS if item["course_key"] == "control-flow")
+    async with DemoApi() as api:
+        teacher = await api.login(
+            "astra_demo_teacher",
+            DEMO_PASSWORDS["astra_demo_teacher"],
+            "teacher",
+            "演示教师",
+        )
+        admin = await api.login(
+            "astra_demo_admin",
+            DEMO_PASSWORDS["astra_demo_admin"],
+            "admin",
+            "演示管理员",
+        )
+        courses = initializer_module._require_status(
+            await api.get(f"/api/courses?school_id={report['school_id']}", teacher),
+            200,
+            "read control-flow course scope",
+        )
+        matching_courses = [item for item in courses if item.get("course_key") == declaration["course_key"]]
+        assert len(matching_courses) == 1
+        course = matching_courses[0]
+        units = initializer_module._require_status(
+            await api.get(f"/api/courses/{course['id']}/units", teacher),
+            200,
+            "read control-flow units",
+        )
+        matching_units = [item for item in units if item.get("activity_key") == declaration["activity_key"]]
+        assert len(matching_units) == 1
+        unit = matching_units[0]
+
+        assignments = initializer_module._require_status(
+            await api.get(f"/api/courses/{course['id']}/assignments?class_id={report['class_id']}", teacher),
+            200,
+            "read control-flow assignments",
+        )
+        assert len(assignments) == 1
+        matching_assignments = [
+            item
+            for item in assignments
+            if (
+                item.get("id") == report["assignments"]["control-flow"]["assignment_id"]
+                and item.get("title") == declaration["title"]
+                and item.get("unit_id") == unit["id"]
+            )
+        ]
+        assert len(matching_assignments) == 1
+        assignment = matching_assignments[0]
+
+        submissions = initializer_module._require_status(
+            await api.get(
+                f"/api/assignments/{assignment['id']}/submissions/page"
+                f"?class_id={report['class_id']}&limit=100&offset=0",
+                teacher,
+            ),
+            200,
+            "read control-flow assignment submissions",
+        )
+        assert submissions["total"] == 1
+        assert submissions["items"][0]["id"] == report["assignments"]["control-flow"]["submission_id"]
+        assert submissions["items"][0]["status"] == "submitted"
+
+        problem = initializer_module._require_status(
+            await api.get(
+                f"/api/code-problems/by-activity?course_id={course['id']}"
+                f"&activity_key={declaration['activity_key']}",
+                teacher,
+            ),
+            200,
+            "read control-flow code problem",
+        )
+        assert problem["id"] == report["code_runner"]["problem_id"]
+        assert problem["course_id"] == course["id"]
+        assert assignment["unit_id"] == problem["course_unit_id"] == unit["id"]
+
+        code_submissions = initializer_module._require_status(
+            await api.get(
+                f"/api/code-submissions?class_id={report['class_id']}&course_id={course['id']}"
+                f"&activity_key={declaration['activity_key']}&limit=100&offset=0",
+                teacher,
+            ),
+            200,
+            "read control-flow code submissions",
+        )
+        assert code_submissions["total"] == 1
+        assert code_submissions["items"][0]["id"] == report["code_runner"]["submission_id"]
+        assert code_submissions["items"][0]["status"] == "runner_unavailable"
+
+        audit_items = []
+        offset = 0
+        while True:
+            audit_page = initializer_module._require_status(
+                await api.get(f"/api/admin/audit-logs?limit=100&offset={offset}", admin),
+                200,
+                "read initializer audit ledger",
+            )
+            audit_items.extend(audit_page["items"])
+            if audit_page["next_offset"] is None:
+                break
+            offset = audit_page["next_offset"]
+
+        return {
+            "course_id": course["id"],
+            "activity_key": declaration["activity_key"],
+            "unit_id": unit["id"],
+            "assignment_ids": [item["id"] for item in assignments],
+            "assignment_submission_ids": [item["id"] for item in submissions["items"]],
+            "code_problem_id": problem["id"],
+            "code_submission_ids": [item["id"] for item in code_submissions["items"]],
+            "non_login_audits": [
+                (item["id"], item["action"], item["resource_type"], item["resource_id"])
+                for item in audit_items
+                if not str(item.get("action", "")).startswith("auth.")
+            ],
+        }
+
+
 def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_environment):
     first = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    first_scope = asyncio.run(_read_control_flow_demo_scope(first))
     second = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    second_scope = asyncio.run(_read_control_flow_demo_scope(second))
     third = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    third_scope = asyncio.run(_read_control_flow_demo_scope(third))
 
     for report in (first, second, third):
         assert report["status"] == "initialized"
@@ -128,7 +277,11 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
         assert report["assignments"]["physics"]["score"] == 88
         assert report["assignments"]["physics"]["feedback"]
         assert report["assignments"]["humanities-futures"]["status"] == "submitted"
+        assert report["assignments"]["control-flow"]["status"] == "submitted"
+        assert report["assignments"]["control-flow"]["score"] is None
+        assert report["assignments"]["control-flow"]["feedback"] is None
         assert report["code_runner"]["status"] == "runner_unavailable"
+        assert report["code_runner"]["course_key"] == "control-flow"
         assert report["code_runner"]["activity_key"] == "control-flow.loop-boundary"
         assert report["code_runner"]["source_authorized"] is True
         assert report["course_status"]["stale_status"] == 409
@@ -142,8 +295,23 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
     assert first["users"] == second["users"] == third["users"]
     assert first["school_id"] == second["school_id"] == third["school_id"]
     assert first["class_id"] == second["class_id"] == third["class_id"]
+    assert first["catalog"] == second["catalog"] == third["catalog"]
+    assert first["release_modes"] == second["release_modes"] == third["release_modes"]
+    assert first["completion_rules"] == second["completion_rules"] == third["completion_rules"]
+    assert first["representative_evidence"] == second["representative_evidence"] == third["representative_evidence"]
     assert first["assignments"] == second["assignments"] == third["assignments"]
+    assert (
+        first["assignments"]["control-flow"]["assignment_id"],
+        first["assignments"]["control-flow"]["submission_id"],
+    ) == (
+        second["assignments"]["control-flow"]["assignment_id"],
+        second["assignments"]["control-flow"]["submission_id"],
+    ) == (
+        third["assignments"]["control-flow"]["assignment_id"],
+        third["assignments"]["control-flow"]["submission_id"],
+    )
     assert first["code_runner"] == second["code_runner"] == third["code_runner"]
+    assert first_scope == second_scope == third_scope
     assert first["course_status"]["status_patch_audits"] == second["course_status"]["status_patch_audits"]
     assert second["course_status"]["status_patch_audits"] == third["course_status"]["status_patch_audits"]
 
