@@ -2,6 +2,9 @@
 // Provides sidebar navigation for experiments within each subject page.
 // Experiments are only initialized when opened (fixing canvas-in-hidden-container issues).
 
+const EXPERIMENT_REGISTRY_UNAVAILABLE_WARNING =
+    '[ModuleSelector] experiment registry unavailable; transition refused';
+
 const ModuleSelector = {
     activeModule: {},   // { pageName: 'module-id' | null }
     _initialized: {},   // { 'module-id': true } — tracks which modules have been initialized
@@ -300,11 +303,31 @@ const ModuleSelector = {
         const pageEl = document.getElementById(`page-${page}`);
         if (!pageEl) return false;
 
-        const registry = window.AstraExperimentRegistry;
-        const targetDefinition = registry && typeof registry.get === 'function'
-            ? registry.get(page, moduleId)
-            : null;
+        let registry = null;
+        try {
+            registry = window.AstraExperimentRegistry;
+        } catch (error) {
+            console.warn(EXPERIMENT_REGISTRY_UNAVAILABLE_WARNING);
+            return false;
+        }
+        if (!registry || typeof registry.get !== 'function') {
+            console.warn(EXPERIMENT_REGISTRY_UNAVAILABLE_WARNING);
+            return false;
+        }
+        let targetDefinition = null;
+        try {
+            targetDefinition = registry.get(page, moduleId);
+        } catch (error) {
+            console.warn('[ModuleSelector] experiment registry lookup failed; transition refused');
+            return false;
+        }
         if (!targetDefinition) {
+            if (
+                options.authorityPrepared !== true
+                && this._shouldResolveUnknownPublicationTarget(page, moduleId, pageEl)
+            ) {
+                return this._openUnknownPublicationTarget(page, moduleId);
+            }
             console.warn('[ModuleSelector] refusing transition to unknown module:', `${page}:${moduleId}`);
             return false;
         }
@@ -403,6 +426,69 @@ const ModuleSelector = {
         return true;
     },
 
+    _isStableModuleId(page, moduleId) {
+        if (typeof moduleId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(moduleId)) return false;
+        return `${page}.${moduleId}`.length <= 120;
+    },
+
+    _shouldResolveUnknownPublicationTarget(page, moduleId, pageEl) {
+        if (page !== 'physics' || !this._isStableModuleId(page, moduleId)) return false;
+        if (this.activeModule[page]) return false;
+        if (window.location.hash !== `#${page}/${moduleId}`) return false;
+        const hasModuleDom = Array.from(pageEl.querySelectorAll('[data-module]')).some(section => (
+            section && section.dataset && section.dataset.module === moduleId
+        ));
+        if (hasModuleDom) return false;
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        return Boolean(user && user.role === 'student');
+    },
+
+    _openUnknownPublicationTarget(page, moduleId) {
+        const existing = this._publicationGatePending[page];
+        if (
+            existing
+            && existing.unknownTarget === true
+            && existing.moduleId === moduleId
+            && existing.generation === this._transitionGeneration[page]
+        ) {
+            return true;
+        }
+
+        this._cancelPublicationGate(page);
+        const generation = this._transitionGeneration[page] || 0;
+        this._publicationGatePending[page] = { moduleId, generation, unknownTarget: true };
+        this._resolvePublicationAccess(page, moduleId).then(access => {
+            if (!this._isCurrentUnknownPublicationTarget(page, moduleId, generation)) return;
+            delete this._publicationGatePending[page];
+            const code = access && access.error_code || 'publication_context_unavailable';
+            if (code === 'activity_hidden' || code === 'activity_locked') {
+                this.closeModule(page);
+                return;
+            }
+            console.warn('[ModuleSelector] refusing transition to unknown module:', `${page}:${moduleId}`);
+            this.closeModule(page);
+        }).catch(() => {
+            if (!this._isCurrentUnknownPublicationTarget(page, moduleId, generation)) return;
+            delete this._publicationGatePending[page];
+            console.warn('[ModuleSelector] publication classification failed; transition refused');
+            this.closeModule(page);
+        });
+        return true;
+    },
+
+    _isCurrentUnknownPublicationTarget(page, moduleId, generation) {
+        const pending = this._publicationGatePending[page];
+        return Boolean(
+            pending
+            && pending.unknownTarget === true
+            && pending.moduleId === moduleId
+            && pending.generation === generation
+            && this._transitionGeneration[page] === generation
+            && !this.activeModule[page]
+        );
+    },
+
     _requiresPublicationGate(page, moduleId) {
         if (page !== 'physics' || moduleId !== 'mechanics') return false;
         const session = window.AstraApplicationSession;
@@ -498,7 +584,7 @@ const ModuleSelector = {
     },
 
     async _resolvePublicationAccess(page, moduleId) {
-        if (page !== 'physics' || moduleId !== 'mechanics') {
+        if (page !== 'physics' || !this._isStableModuleId(page, moduleId)) {
             return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
         }
         const loader = window.AstraLearningEvidenceLoader;
@@ -511,12 +597,18 @@ const ModuleSelector = {
             return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
         }
         const catalog = window.AstraLearningActivityCatalog;
-        const activity = catalog && typeof catalog.resolve === 'function'
-            ? catalog.resolve('englab', 'physics.mechanics')
+        const activity = moduleId === 'mechanics'
+            ? (catalog && typeof catalog.resolve === 'function'
+                ? catalog.resolve('englab', 'physics.mechanics')
+                : Object.freeze({
+                    galaxy_key: 'englab',
+                    course_key: 'physics',
+                    activity_key: 'physics.mechanics'
+                }))
             : Object.freeze({
                 galaxy_key: 'englab',
                 course_key: 'physics',
-                activity_key: 'physics.mechanics'
+                activity_key: `physics.${moduleId}`
             });
         if (!activity) return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
         return context.resolve(activity);

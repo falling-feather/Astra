@@ -8,7 +8,9 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const studentSource = read('pages/student/student.js');
 const publicationSource = read('shared/js/engineering-lab-publication-context.js');
+const experimentRegistrySource = read('shared/js/experiment-registry.js');
 const moduleSelectorSource = read('shared/js/module-selector.js');
+const routerSource = read('shared/js/router.js');
 const physicsSource = read('pages/physics/physics.js');
 const physicsZoomSource = read('pages/physics/physics-zoom.js');
 const physicsCss = read('pages/physics/physics.css');
@@ -17,8 +19,367 @@ const ratingCss = read('shared/css/experiment-rating.css');
 const ratingSource = read('shared/js/experiment-rating.js');
 const moduleSelectorCss = read('shared/css/module-selector.css');
 
+const REGISTRY_UNAVAILABLE_WARNING =
+  '[ModuleSelector] experiment registry unavailable; transition refused';
+const REGISTRY_LOOKUP_WARNING =
+  '[ModuleSelector] experiment registry lookup failed; transition refused';
+const PUBLICATION_CLASSIFICATION_WARNING =
+  '[ModuleSelector] publication classification failed; transition refused';
+const HOSTILE_MODULE_ID =
+  'student-private-value_Bearer_sk_live_JWT_password_PRIVATE-KEY';
+const SENSITIVE_ERROR_MESSAGE =
+  'Bearer sk_live_SECRET student-private-value '
+  + 'JWT eyJhbGciOi_SECRET publication-context password=hunter2 API key secret';
+const SENSITIVE_ERROR_CODE =
+  'api_key=secret -----BEGIN PRIVATE KEY----- '
+  + 'function leakedSource(){return "student-private-value";}';
+
 async function settlePromises(rounds = 16) {
   for (let index = 0; index < rounds; index += 1) await Promise.resolve();
+}
+
+function createSensitiveDiagnosticError() {
+  const error = new Error(SENSITIVE_ERROR_MESSAGE);
+  error.code = SENSITIVE_ERROR_CODE;
+  return error;
+}
+
+function createHostileSensitiveDiagnosticError(reads) {
+  return Object.defineProperties({}, {
+    message: {
+      get() {
+        reads.message += 1;
+        return SENSITIVE_ERROR_MESSAGE;
+      }
+    },
+    code: {
+      get() {
+        reads.code += 1;
+        return SENSITIVE_ERROR_CODE;
+      }
+    }
+  });
+}
+
+function assertFixedSafeWarning(warnings, expectedWarning, label) {
+  assert.equal(warnings.length, 1, `${label}: exactly one warning is required`);
+  assert.equal(warnings[0].length, 1, `${label}: warning must not carry dynamic parameters`);
+  assert.equal(warnings[0][0], expectedWarning, `${label}: fixed warning summary`);
+  const rendered = warnings[0].map(String).join(' ');
+  for (const forbidden of [
+    HOSTILE_MODULE_ID,
+    SENSITIVE_ERROR_MESSAGE,
+    SENSITIVE_ERROR_CODE,
+    'Bearer',
+    'JWT',
+    'sk_live',
+    'API key',
+    'api_key',
+    'PRIVATE KEY',
+    'PRIVATE-KEY',
+    'password',
+    'student-private-value',
+    'leakedSource'
+  ]) {
+    assert.equal(
+      rendered.includes(forbidden),
+      false,
+      `${label}: warning must not expose ${forbidden}`
+    );
+  }
+}
+
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function createControlledTimers() {
+  let nextId = 1;
+  const tasks = new Map();
+  return {
+    tasks,
+    setTimeout(callback, delay = 0) {
+      const id = nextId++;
+      tasks.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id) {
+      tasks.delete(id);
+    },
+    async runNext() {
+      const entry = tasks.entries().next().value;
+      if (!entry) return false;
+      const [id, task] = entry;
+      tasks.delete(id);
+      task.callback();
+      await settlePromises();
+      return true;
+    },
+    async drain(limit = 100) {
+      let count = 0;
+      while (count < limit && await this.runNext()) count += 1;
+      assert.equal(tasks.size, 0, 'the Router/ModuleSelector timer harness must settle');
+    }
+  };
+}
+
+function createRouterPublicationHarness(options = {}) {
+  class FakeClassList {
+    constructor(...names) { this.values = new Set(names); }
+    add(...names) { names.forEach((name) => this.values.add(name)); }
+    remove(...names) { names.forEach((name) => this.values.delete(name)); }
+    contains(name) { return this.values.has(name); }
+    toggle(name, force) {
+      const enabled = force === undefined ? !this.contains(name) : Boolean(force);
+      if (enabled) this.add(name); else this.remove(name);
+      return enabled;
+    }
+  }
+
+  const timers = createControlledTimers();
+  const warnings = [];
+  const errors = [];
+  const historyChanges = [];
+  const apiCalls = [];
+  const selectors = [];
+  const events = new Map();
+  let ownerInitializations = 0;
+  const routePage = options.page || 'physics';
+  const moduleIds = options.domModules || (
+    routePage === 'physics' ? ['mechanics', 'gas-laws'] : ['periodic-table']
+  );
+  const sections = new Map(moduleIds.map((moduleId) => [moduleId, {
+    dataset: { module: moduleId },
+    classList: new FakeClassList(),
+    isConnected: true,
+    querySelector() { return null; }
+  }]));
+  const page = {
+    id: `page-${routePage}`,
+    isConnected: true,
+    classList: new FakeClassList('page', 'active'),
+    querySelectorAll(selector) {
+      selectors.push(selector);
+      const exact = selector.match(/^\[data-module="([^"]+)"\](?:\.module-active)?$/);
+      if (exact) {
+        const section = sections.get(exact[1]);
+        if (!section) return [];
+        if (selector.endsWith('.module-active') && !section.classList.contains('module-active')) return [];
+        return [section];
+      }
+      if (selector === '[data-module]') return [...sections.values()];
+      if (selector === '[data-module].module-active') {
+        return [...sections.values()].filter((section) => section.classList.contains('module-active'));
+      }
+      if (selector === '.related-experiments') return [];
+      return [];
+    },
+    querySelector(selector) {
+      return this.querySelectorAll(selector)[0] || null;
+    }
+  };
+  const gallery = { style: { display: '' } };
+  const toggle = { style: {}, classList: new FakeClassList() };
+  const backdrop = { classList: new FakeClassList() };
+  const moduleId = options.moduleId || 'hidden-qa-v7718';
+  const studentUser = Object.prototype.hasOwnProperty.call(options, 'user')
+    ? options.user
+    : { id: 7, role: 'student' };
+  const request = options.request || ((route) => {
+    if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B 班' }]);
+    if (route === '/api/courses') {
+      return Promise.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
+    }
+    if (route === '/api/courses/92/units') {
+      return Promise.resolve(options.units || [{
+        id: 103,
+        activity_key: `physics.${moduleId}`,
+        effective_release_state: options.releaseState || 'hidden'
+      }]);
+    }
+    throw new Error(`unexpected publication request: ${route}`);
+  });
+  const windowObject = {
+    innerWidth: 1015,
+    location: { hash: options.initialHash || `#${routePage}/${moduleId}` },
+    scrollTo() {},
+    dispatchEvent() {},
+    addEventListener(type, handler) {
+      if (!events.has(type)) events.set(type, new Set());
+      events.get(type).add(handler);
+    },
+    removeEventListener(type, handler) {
+      events.get(type)?.delete(handler);
+    },
+    AstraApplicationSession: {
+      getUser: () => studentUser,
+      guardPage: (routePage) => routePage
+    },
+    AstraPageRegistry: {
+      pagesByTag: (tag) => tag === 'course' ? ['physics', 'chemistry'] : [],
+      galaxyFor: (pageName) => ['physics', 'chemistry'].includes(pageName) ? 'englab' : 'astra'
+    },
+    AstraApiClient: {
+      request(route, requestOptions = {}) {
+        apiCalls.push({ route, options: requestOptions });
+        return request(route, requestOptions);
+      },
+      isCancelled: (error) => Boolean(error && error.name === 'AbortError')
+    }
+  };
+  if (options.loaderMode !== 'missing') {
+    windowObject.AstraLearningEvidenceLoader = {
+      ensure: options.loaderEnsure || (options.loaderMode === 'reject'
+        ? () => Promise.reject(
+          options.loaderError
+          || Object.assign(new Error('loader unavailable'), { code: 'loader_unavailable' })
+        )
+        : () => Promise.resolve())
+    };
+  }
+  const documentObject = {
+    body: { appendChild() {} },
+    scripts: [],
+    activeElement: null,
+    createElement() {
+      return { className: '', style: {}, classList: new FakeClassList() };
+    },
+    getElementById(id) {
+      if (id === `page-${routePage}`) return page;
+      if (id === `gallery-${routePage}`) return gallery;
+      if (id === `sidebar-toggle-${routePage}`) return toggle;
+      if (id === 'module-sidebar-backdrop') return backdrop;
+      return null;
+    },
+    querySelector(selector) {
+      if (selector === '.page.active') return page.classList.contains('active') ? page : null;
+      return null;
+    },
+    querySelectorAll() { return []; }
+  };
+  const consoleObject = {
+    log() {},
+    warn(...args) { warnings.push(args); },
+    error(...args) { errors.push(args); }
+  };
+  const context = {
+    window: windowObject,
+    document: documentObject,
+    history: {
+      replaceState(_state, _title, hash) {
+        windowObject.location.hash = hash;
+        historyChanges.push(hash);
+      },
+      pushState(_state, _title, hash) {
+        windowObject.location.hash = hash;
+        historyChanges.push(hash);
+      }
+    },
+    Event: class { constructor(type) { this.type = type; } },
+    CONFIG: {
+      experiments: {
+        [routePage]: [...sections.keys()].map((id) => ({ id }))
+      }
+    },
+    AbortController,
+    setTimeout: (callback, delay) => timers.setTimeout(callback, delay),
+    clearTimeout: (id) => timers.clearTimeout(id),
+    setInterval: () => 1,
+    clearInterval() {},
+    console: consoleObject
+  };
+  vm.createContext(context);
+  if (options.registryMode === 'healthy' || !options.registryMode) {
+    vm.runInContext(experimentRegistrySource, context, {
+      filename: 'shared/js/experiment-registry.js'
+    });
+  } else if (options.registryMode === 'getter-throws') {
+    Object.defineProperty(windowObject, 'AstraExperimentRegistry', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw options.registryError || new Error('registry property unavailable');
+      }
+    });
+  } else if (options.registryMode === 'invalid-api') {
+    windowObject.AstraExperimentRegistry = {};
+  } else if (options.registryMode === 'throws') {
+    windowObject.AstraExperimentRegistry = {
+      get() { throw options.registryError || new Error('registry lookup failed'); }
+    };
+  }
+  vm.runInContext(publicationSource, context, {
+    filename: 'shared/js/engineering-lab-publication-context.js'
+  });
+  if (options.contextMode === 'missing') {
+    delete windowObject.AstraEngineeringLabPublicationContext;
+  }
+  vm.runInContext(moduleSelectorSource, context, {
+    filename: 'shared/js/module-selector.js'
+  });
+  vm.runInContext(routerSource, context, {
+    filename: 'shared/js/router.js'
+  });
+  const selector = vm.runInContext('ModuleSelector', context);
+  const router = vm.runInContext('Router', context);
+  selector.activeModule[routePage] = null;
+  selector._transitionGeneration[routePage] = 0;
+  selector._transitionTimers[routePage] = [];
+  selector._sidebars[routePage] = null;
+  selector._sidebarOpen[routePage] = false;
+  selector._initModule = () => { ownerInitializations += 1; };
+  selector._mountEvidenceRuntime = (_page, targetModuleId) => {
+    if (targetModuleId === 'mechanics') ownerInitializations += 1;
+  };
+  selector._focusExperiment = () => {};
+  selector._showRelatedExperiments = () => {};
+
+  return {
+    selector,
+    router,
+    timers,
+    warnings,
+    errors,
+    apiCalls,
+    selectors,
+    historyChanges,
+    windowObject,
+    page,
+    routePage,
+    sections,
+    getOwnerInitializations: () => ownerInitializations,
+    restoreProductionRegistry() {
+      vm.runInContext(experimentRegistrySource, context, {
+        filename: 'shared/js/experiment-registry.js'
+      });
+    },
+    async ready() {
+      await settlePromises(32);
+    },
+    async startRoute() {
+      router.updateNav = () => {};
+      router._toggleGalaxyFooters = () => {};
+      router._syncGalaxyRuntime = () => {};
+      router._toggleRunningTime = () => {};
+      router._startHashReconcile = () => {};
+      router.onPageEnter = (routePage) => router._applyPendingModule(routePage);
+      router.init();
+      assert.equal(router.currentPage, routePage, 'production Router.init must parse the cold-start page');
+      assert.equal(
+        router._pendingModule,
+        moduleId,
+        'production Router.init must retain the cold-start module until ModuleSelector answers'
+      );
+      assert.equal(await timers.runNext(), true, 'Router must schedule the production pending-module open');
+      await settlePromises(32);
+    }
+  };
 }
 
 function createStudentClassDriver(publication) {
@@ -86,7 +447,10 @@ function createStudentClassDriver(publication) {
   };
 }
 
-function createPublicationModuleHarness(publication) {
+function createPublicationModuleHarness(publication, options = {}) {
+  const defaultModules = options.knownModules || ['mechanics'];
+  const registryModules = new Set(options.registryModules || defaultModules);
+  const domModules = new Set(options.domModules || defaultModules);
   class FakeClassList {
     constructor() { this.values = new Set(); }
     add(...names) { names.forEach((name) => this.values.add(name)); }
@@ -96,18 +460,21 @@ function createPublicationModuleHarness(publication) {
       if (force) this.add(name); else this.remove(name);
     }
   }
-  const section = {
+  const sections = new Map([...domModules].map((moduleId) => [moduleId, {
+    dataset: { module: moduleId },
     classList: new FakeClassList(),
     isConnected: true,
     querySelector() { return null; }
-  };
+  }]));
   const page = {
     classList: new FakeClassList(),
     isConnected: true,
     querySelectorAll(selector) {
-      if (selector === '[data-module="mechanics"]') return [section];
+      const target = selector.match(/^\[data-module="([^"]+)"\]$/);
+      if (target && sections.has(target[1])) return [sections.get(target[1])];
+      if (selector === '[data-module]') return [...sections.values()];
       if (selector === '[data-module].module-active') {
-        return section.classList.contains('module-active') ? [section] : [];
+        return [...sections.values()].filter((section) => section.classList.contains('module-active'));
       }
       return [];
     }
@@ -115,18 +482,42 @@ function createPublicationModuleHarness(publication) {
   const gallery = { style: { display: '' } };
   const toggle = { style: {}, classList: new FakeClassList() };
   const gateStates = [];
+  const warnings = [];
+  const errors = [];
   let ownerInitializations = 0;
   const windowObject = {
     innerWidth: 1015,
-    location: { hash: '#physics/mechanics' },
+    location: { hash: options.initialHash || '#physics/mechanics' },
     scrollTo() {},
     dispatchEvent() {},
-    AstraApplicationSession: { getUser: () => ({ id: 7, role: 'student' }) },
+    AstraApplicationSession: {
+      getUser: () => Object.prototype.hasOwnProperty.call(options, 'user')
+        ? options.user
+        : ({ id: 7, role: 'student' })
+    },
     AstraEngineeringLabPublicationContext: publication,
-    AstraLearningEvidenceLoader: { ensure: () => Promise.resolve() },
+    AstraLearningEvidenceLoader: {
+      ensure: options.loaderEnsure || (() => Promise.resolve())
+    },
     AstraExperimentRegistry: {
-      get: () => ({ cleanup: { verified: true } })
+      get: (_page, moduleId) => registryModules.has(moduleId)
+        ? ({ cleanup: { verified: true } })
+        : null
     }
+  };
+  if (options.registryMode === 'missing') {
+    delete windowObject.AstraExperimentRegistry;
+  } else if (options.registryMode === 'invalid-api') {
+    windowObject.AstraExperimentRegistry = {};
+  } else if (options.registryMode === 'throws') {
+    windowObject.AstraExperimentRegistry = {
+      get() { throw options.registryError || new Error('registry lookup failed'); }
+    };
+  }
+  const consoleObject = {
+    ...console,
+    warn(...args) { warnings.push(args); },
+    error(...args) { errors.push(args); }
   };
   const context = {
     window: windowObject,
@@ -148,11 +539,12 @@ function createPublicationModuleHarness(publication) {
     CONFIG: { experiments: { physics: [{ id: 'mechanics' }] } },
     setTimeout,
     clearTimeout,
-    console
+    console: consoleObject
   };
   vm.createContext(context);
   vm.runInContext(moduleSelectorSource, context, { filename: 'shared/js/module-selector.js' });
   const selector = vm.runInContext('ModuleSelector', context);
+  selector.activeModule.physics = null;
   selector._transitionGeneration.physics = 0;
   selector._transitionTimers.physics = [];
   selector._sidebars.physics = null;
@@ -171,8 +563,725 @@ function createPublicationModuleHarness(publication) {
   return {
     selector,
     gateStates,
+    warnings,
+    errors,
+    windowObject,
     getOwnerInitializations: () => ownerInitializations
   };
+}
+
+async function runPublicationUnknownModuleDiagnosticContract() {
+  for (const registryMode of ['missing', 'invalid-api', 'throws']) {
+    let authorityResolutions = 0;
+    const brokenRegistry = createPublicationModuleHarness({
+      async resolve() {
+        authorityResolutions += 1;
+        return { available: false, error_code: 'activity_hidden' };
+      }
+    }, {
+      initialHash: '#physics/hidden-qa-v7718',
+      registryMode
+    });
+    assert.equal(
+      brokenRegistry.selector.openModule('physics', 'hidden-qa-v7718'),
+      false,
+      `${registryMode} registry infrastructure must fail closed synchronously`
+    );
+    await settlePromises();
+    assert.equal(authorityResolutions, 0, `${registryMode} registry must not enter authority resolution`);
+    assert.equal(brokenRegistry.getOwnerInitializations(), 0);
+    assert.equal(brokenRegistry.warnings.length, 1, `${registryMode} registry must emit one clear diagnostic`);
+    assert.deepEqual(brokenRegistry.errors, []);
+  }
+
+  const sensitiveRegistry = createPublicationModuleHarness({
+    async resolve() {
+      throw new Error('registry failure must never reach authority resolution');
+    }
+  }, {
+    initialHash: '#physics/hidden-qa-v7718',
+    registryMode: 'throws',
+    registryError: createSensitiveDiagnosticError()
+  });
+  assert.equal(sensitiveRegistry.selector.openModule('physics', 'hidden-qa-v7718'), false);
+  assertFixedSafeWarning(
+    sensitiveRegistry.warnings,
+    REGISTRY_LOOKUP_WARNING,
+    'sensitive registry lookup failure'
+  );
+
+  const sensitivePublication = createPublicationModuleHarness({
+    async resolve() {
+      throw createSensitiveDiagnosticError();
+    }
+  }, {
+    initialHash: '#physics/private-publication-error'
+  });
+  assert.equal(sensitivePublication.selector.openModule('physics', 'private-publication-error'), true);
+  await settlePromises();
+  assert.equal(sensitivePublication.windowObject.location.hash, '#physics');
+  assertFixedSafeWarning(
+    sensitivePublication.warnings,
+    PUBLICATION_CLASSIFICATION_WARNING,
+    'sensitive publication rejection'
+  );
+
+  let loaderRejectedAuthorityCalls = 0;
+  const sensitiveLoader = createPublicationModuleHarness({
+    async resolve() {
+      loaderRejectedAuthorityCalls += 1;
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics/private-loader-error',
+    loaderEnsure: () => Promise.reject(createSensitiveDiagnosticError())
+  });
+  assert.equal(sensitiveLoader.selector.openModule('physics', 'private-loader-error'), true);
+  await settlePromises();
+  assert.equal(loaderRejectedAuthorityCalls, 0);
+  assert.equal(sensitiveLoader.windowObject.location.hash, '#physics');
+  assertFixedSafeWarning(
+    sensitiveLoader.warnings,
+    PUBLICATION_CLASSIFICATION_WARNING,
+    'sensitive loader rejection'
+  );
+
+  const hiddenResolutions = [];
+  const hidden = createPublicationModuleHarness({
+    async resolve(activity) {
+      hiddenResolutions.push(activity);
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics/hidden-qa-v7718'
+  });
+  assert.equal(hidden.selector.openModule('physics', 'hidden-qa-v7718'), true);
+  await settlePromises();
+  assert.deepEqual(
+    hiddenResolutions.map((activity) => ({
+      galaxy_key: activity.galaxy_key,
+      course_key: activity.course_key,
+      activity_key: activity.activity_key
+    })),
+    [{
+      galaxy_key: 'englab',
+      course_key: 'physics',
+      activity_key: 'physics.hidden-qa-v7718'
+    }],
+    'the real unknown deep link must be classified through the authoritative publication context'
+  );
+  assert.equal(hidden.windowObject.location.hash, '#physics');
+  assert.equal(hidden.selector.activeModule.physics, null);
+  assert.equal(hidden.getOwnerInitializations(), 0);
+  assert.deepEqual(hidden.gateStates, []);
+  assert.deepEqual(hidden.warnings, [], 'an authoritative hidden rejection is expected and must not warn');
+  assert.deepEqual(hidden.errors, []);
+
+  const backendLocked = createPublicationModuleHarness({
+    async resolve() {
+      return { available: false, error_code: 'activity_locked' };
+    }
+  }, {
+    initialHash: '#physics/locked-only-unit'
+  });
+  assert.equal(backendLocked.selector.openModule('physics', 'locked-only-unit'), true);
+  await settlePromises();
+  assert.equal(backendLocked.windowObject.location.hash, '#physics');
+  assert.equal(backendLocked.selector.activeModule.physics, null);
+  assert.equal(backendLocked.getOwnerInitializations(), 0);
+  assert.deepEqual(backendLocked.gateStates, []);
+  assert.deepEqual(backendLocked.warnings, [], 'an authoritative backend-only locked rejection must not warn');
+  assert.deepEqual(backendLocked.errors, []);
+
+  const unknownResolutions = [];
+  const unknown = createPublicationModuleHarness({
+    async resolve(activity) {
+      unknownResolutions.push(activity.activity_key);
+      return { available: false, error_code: 'course_unit_missing' };
+    }
+  }, {
+    initialHash: '#physics/ordinary-unknown'
+  });
+  assert.equal(unknown.selector.openModule('physics', 'ordinary-unknown'), true);
+  await settlePromises();
+  assert.deepEqual(unknownResolutions, ['physics.ordinary-unknown']);
+  assert.equal(unknown.windowObject.location.hash, '#physics');
+  assert.equal(unknown.getOwnerInitializations(), 0);
+  assert.equal(unknown.warnings.length, 1, 'an ordinary unknown module must retain a diagnostic');
+  assert.match(String(unknown.warnings[0][0]), /refusing transition to unknown module/);
+  assert.deepEqual(unknown.errors, []);
+
+  let hashMismatchResolutions = 0;
+  const hashMismatch = createPublicationModuleHarness({
+    async resolve() {
+      hashMismatchResolutions += 1;
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics'
+  });
+  assert.equal(hashMismatch.selector.openModule('physics', 'programmatic-unknown'), false);
+  assert.equal(hashMismatchResolutions, 0, 'a hash mismatch must not enter authority resolution');
+  assert.equal(hashMismatch.getOwnerInitializations(), 0);
+  assert.equal(hashMismatch.warnings.length, 1);
+  assert.deepEqual(hashMismatch.errors, []);
+
+  let teacherResolutions = 0;
+  const nonStudent = createPublicationModuleHarness({
+    async resolve() {
+      teacherResolutions += 1;
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics/teacher-unknown',
+    user: { id: 8, role: 'teacher' }
+  });
+  assert.equal(nonStudent.selector.openModule('physics', 'teacher-unknown'), false);
+  assert.equal(teacherResolutions, 0, 'a non-student unknown module must not enter authority resolution');
+  assert.equal(nonStudent.getOwnerInitializations(), 0);
+  assert.equal(nonStudent.warnings.length, 1);
+  assert.deepEqual(nonStudent.errors, []);
+
+  let domOnlyResolutions = 0;
+  const domOnly = createPublicationModuleHarness({
+    async resolve() {
+      domOnlyResolutions += 1;
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics/dom-only',
+    registryModules: ['mechanics'],
+    domModules: ['mechanics', 'dom-only']
+  });
+  assert.equal(domOnly.selector.openModule('physics', 'dom-only'), false);
+  assert.equal(domOnlyResolutions, 0, 'DOM without registry ownership must not enter authority resolution');
+  assert.equal(domOnly.getOwnerInitializations(), 0);
+  assert.equal(domOnly.warnings.length, 1, 'DOM without registry ownership must retain a diagnostic');
+  assert.deepEqual(domOnly.errors, []);
+
+  const missingDom = createPublicationModuleHarness({
+    async resolve() {
+      throw new Error('known modules with missing DOM must not enter publication resolution');
+    }
+  }, {
+    initialHash: '#physics/known-missing-dom',
+    registryModules: ['mechanics', 'known-missing-dom'],
+    domModules: ['mechanics']
+  });
+  assert.equal(missingDom.selector.openModule('physics', 'known-missing-dom'), false);
+  assert.equal(missingDom.getOwnerInitializations(), 0);
+  assert.equal(missingDom.warnings.length, 1);
+  assert.match(String(missingDom.warnings[0][0]), /module DOM is unavailable/);
+  assert.deepEqual(missingDom.errors, []);
+
+  let malformedResolutionCalls = 0;
+  const malformed = createPublicationModuleHarness({
+    async resolve() {
+      malformedResolutionCalls += 1;
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics/malformed/key'
+  });
+  assert.equal(malformed.selector.openModule('physics', 'malformed/key'), false);
+  await settlePromises();
+  assert.equal(malformedResolutionCalls, 0, 'a malformed key must not enter authority resolution');
+  assert.equal(malformed.selector.activeModule.physics, null);
+  assert.equal(malformed.getOwnerInitializations(), 0);
+  assert.equal(malformed.warnings.length, 1, 'a malformed module key must retain a diagnostic');
+  assert.deepEqual(malformed.errors, []);
+
+  const locked = createPublicationModuleHarness({
+    async resolve() {
+      return { available: false, error_code: 'activity_locked' };
+    }
+  });
+  assert.equal(locked.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  assert.deepEqual(locked.gateStates.at(-1), { state: 'locked', code: 'activity_locked' });
+  assert.equal(locked.selector.activeModule.physics, null);
+  assert.equal(locked.getOwnerInitializations(), 0);
+  assert.deepEqual(locked.warnings, []);
+  assert.deepEqual(locked.errors, []);
+
+  const mechanicsHidden = createPublicationModuleHarness({
+    async resolve() {
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  });
+  assert.equal(mechanicsHidden.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  assert.equal(mechanicsHidden.windowObject.location.hash, '#physics');
+  assert.equal(mechanicsHidden.selector.activeModule.physics, null);
+  assert.equal(mechanicsHidden.getOwnerInitializations(), 0);
+  assert.deepEqual(mechanicsHidden.warnings, []);
+  assert.deepEqual(mechanicsHidden.errors, []);
+
+  const open = createPublicationModuleHarness({
+    async resolve() {
+      return {
+        available: true,
+        class_id: 42,
+        course_id: 9,
+        course_unit_id: 91,
+        activity_key: 'physics.mechanics'
+      };
+    }
+  });
+  assert.equal(open.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  assert.equal(open.selector.activeModule.physics, 'mechanics');
+  assert.equal(open.getOwnerInitializations(), 2);
+  assert.deepEqual(open.warnings, []);
+  assert.deepEqual(open.errors, []);
+
+  let activeOwnerResolutions = 0;
+  const activeOwner = createPublicationModuleHarness({
+    async resolve() {
+      activeOwnerResolutions += 1;
+      return { available: false, error_code: 'activity_hidden' };
+    }
+  }, {
+    initialHash: '#physics/gas-laws',
+    knownModules: ['mechanics', 'gas-laws']
+  });
+  assert.equal(activeOwner.selector.openModule('physics', 'gas-laws'), true);
+  assert.equal(activeOwner.selector.activeModule.physics, 'gas-laws');
+  assert.equal(activeOwner.getOwnerInitializations(), 2);
+  activeOwner.windowObject.location.hash = '#physics/unknown-over-active';
+  assert.equal(activeOwner.selector.openModule('physics', 'unknown-over-active'), false);
+  assert.equal(activeOwnerResolutions, 0, 'an unknown request over an active owner must not enter authority resolution');
+  assert.equal(activeOwner.selector.activeModule.physics, 'gas-laws');
+  assert.equal(activeOwner.getOwnerInitializations(), 2);
+  assert.equal(activeOwner.warnings.length, 1);
+  assert.deepEqual(activeOwner.errors, []);
+
+  let resolveLateHidden;
+  const staleHidden = createPublicationModuleHarness({
+    resolve() {
+      return new Promise((resolve) => { resolveLateHidden = resolve; });
+    }
+  }, {
+    initialHash: '#physics/stale-hidden',
+    knownModules: ['mechanics', 'gas-laws']
+  });
+  assert.equal(staleHidden.selector.openModule('physics', 'stale-hidden'), true);
+  await settlePromises();
+  assert.equal(typeof resolveLateHidden, 'function');
+  assert.equal(staleHidden.selector.openModule('physics', 'gas-laws'), true);
+  assert.equal(staleHidden.selector.activeModule.physics, 'gas-laws');
+  assert.equal(staleHidden.getOwnerInitializations(), 2);
+  const replacementGeneration = staleHidden.selector._transitionGeneration.physics;
+  resolveLateHidden({ available: false, error_code: 'activity_hidden' });
+  await settlePromises();
+  assert.equal(
+    staleHidden.selector.activeModule.physics,
+    'gas-laws',
+    'a late hidden classification must not close a newer known module'
+  );
+  assert.equal(staleHidden.windowObject.location.hash, '#physics/gas-laws');
+  assert.equal(staleHidden.selector._transitionGeneration.physics, replacementGeneration);
+  assert.equal(staleHidden.selector._publicationGatePending.physics, undefined);
+  assert.equal(staleHidden.getOwnerInitializations(), 2);
+  assert.deepEqual(staleHidden.warnings, []);
+  assert.deepEqual(staleHidden.errors, []);
+}
+
+function assertRouterPublicationQuiescent(harness, expected, label) {
+  const routePage = harness.routePage;
+  assert.equal(harness.router._pendingModule, null, `${label}: Router pending module must clear`);
+  assert.equal(
+    harness.selector._publicationGatePending[routePage],
+    undefined,
+    `${label}: publication classification must not remain pending`
+  );
+  assert.equal(
+    harness.selector._publicationGateNodes[routePage],
+    undefined,
+    `${label}: backend-only classification must not leave a gate node`
+  );
+  assert.equal(
+    (harness.selector._transitionTimers[routePage] || []).length,
+    0,
+    `${label}: ModuleSelector transition timers must clear`
+  );
+  assert.equal(harness.timers.tasks.size, 0, `${label}: Router timers must clear`);
+  assert.equal(harness.windowObject.location.hash, expected.hash, `${label}: hash normalization`);
+  assert.equal(
+    harness.getOwnerInitializations(),
+    expected.owners || 0,
+    `${label}: owner initialization count`
+  );
+  assert.equal(harness.warnings.length, expected.warnings, `${label}: warning count`);
+  assert.equal(harness.errors.length, 0, `${label}: console error count`);
+}
+
+function publicationAuthorityCallCount(harness) {
+  return harness.apiCalls.filter((call) => (
+    call.route === '/api/courses' || /^\/api\/courses\/\d+\/units$/.test(call.route)
+  )).length;
+}
+
+async function assertKnownGasLawsRecovery(harness, label, { restoreRegistry = false } = {}) {
+  if (restoreRegistry) harness.restoreProductionRegistry();
+  const authorityCallsBefore = publicationAuthorityCallCount(harness);
+  const ownersBefore = harness.getOwnerInitializations();
+  const warningsBefore = harness.warnings.length;
+  harness.windowObject.location.hash = '#physics/gas-laws';
+  harness.router.handleHash();
+  await settlePromises(32);
+  await harness.timers.drain();
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    harness,
+    {
+      hash: '#physics/gas-laws',
+      warnings: warningsBefore,
+      owners: ownersBefore + 1
+    },
+    `${label}: known-module recovery`
+  );
+  assert.equal(
+    harness.selector.activeModule.physics,
+    'gas-laws',
+    `${label}: known module must become active`
+  );
+  assert.equal(
+    publicationAuthorityCallCount(harness),
+    authorityCallsBefore,
+    `${label}: known module must add zero publication authority requests`
+  );
+}
+
+function deferredPublicationRequest(unitsDeferred, moduleId) {
+  return (route) => {
+    if (route === '/api/classes') return Promise.resolve([{ id: 42, name: 'B 班' }]);
+    if (route === '/api/courses') {
+      return Promise.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
+    }
+    if (route === '/api/courses/92/units') return unitsDeferred.promise;
+    throw new Error(`unexpected deferred publication request for ${moduleId}: ${route}`);
+  };
+}
+
+async function runProductionRouterPublicationContract() {
+  const hostileGetterReads = { code: 0, message: 0 };
+  const registryFailures = [
+    [
+      'getter-throws',
+      REGISTRY_UNAVAILABLE_WARNING,
+      HOSTILE_MODULE_ID,
+      createHostileSensitiveDiagnosticError(hostileGetterReads)
+    ],
+    ['missing', REGISTRY_UNAVAILABLE_WARNING, 'hidden-qa-v7718'],
+    ['invalid-api', REGISTRY_UNAVAILABLE_WARNING, 'hidden-qa-v7718'],
+    ['throws', REGISTRY_LOOKUP_WARNING, 'hidden-qa-v7718', createSensitiveDiagnosticError()]
+  ];
+  for (const [registryMode, expectedWarning, moduleId, registryError] of registryFailures) {
+    const harness = createRouterPublicationHarness({
+      registryMode,
+      registryError,
+      moduleId
+    });
+    await harness.ready();
+    await harness.startRoute();
+    assertRouterPublicationQuiescent(
+      harness,
+      { hash: '#physics', warnings: 1 },
+      `production Router with ${registryMode} registry`
+    );
+    assert.equal(
+      publicationAuthorityCallCount(harness),
+      0,
+      `${registryMode} registry infrastructure must not query publication authority`
+    );
+    assertFixedSafeWarning(
+      harness.warnings,
+      expectedWarning,
+      `production Router ${registryMode} registry failure`
+    );
+    if (registryMode === 'getter-throws') {
+      assert.deepEqual(
+        hostileGetterReads,
+        { code: 0, message: 0 },
+        'registry property failure must not inspect hostile error fields'
+      );
+    }
+    await assertKnownGasLawsRecovery(
+      harness,
+      `production Router with ${registryMode} registry`,
+      { restoreRegistry: true }
+    );
+  }
+
+  const knownModule = createRouterPublicationHarness({ moduleId: 'gas-laws' });
+  await knownModule.ready();
+  const knownAuthorityCalls = publicationAuthorityCallCount(knownModule);
+  await knownModule.startRoute();
+  await knownModule.timers.drain();
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    knownModule,
+    { hash: '#physics/gas-laws', warnings: 0, owners: 1 },
+    'known gas-laws production Router route'
+  );
+  assert.equal(knownModule.selector.activeModule.physics, 'gas-laws');
+  assert.equal(
+    publicationAuthorityCallCount(knownModule),
+    knownAuthorityCalls,
+    'known gas-laws must add zero publication authority requests'
+  );
+
+  const nonPhysics = createRouterPublicationHarness({
+    page: 'chemistry',
+    moduleId: 'backend-only-unknown',
+    domModules: ['periodic-table']
+  });
+  await nonPhysics.ready();
+  const nonPhysicsAuthorityCalls = publicationAuthorityCallCount(nonPhysics);
+  await nonPhysics.startRoute();
+  assertRouterPublicationQuiescent(
+    nonPhysics,
+    { hash: '#chemistry', warnings: 1, owners: 0 },
+    'non-physics production Router route'
+  );
+  assert.equal(
+    publicationAuthorityCallCount(nonPhysics),
+    nonPhysicsAuthorityCalls,
+    'non-physics routing must add zero publication authority requests'
+  );
+  assert.match(
+    nonPhysics.warnings[0].map(String).join(' '),
+    /refusing transition to unknown module/
+  );
+
+  for (const releaseState of ['hidden', 'locked']) {
+    const moduleId = releaseState === 'hidden'
+      ? 'hidden-qa-v7718'
+      : 'locked-only-unit';
+    const harness = createRouterPublicationHarness({ moduleId, releaseState });
+    await harness.ready();
+    assert.ok(
+      harness.windowObject.AstraExperimentRegistry.get('physics', 'mechanics'),
+      'the cold-start contract must use the production experiment registry'
+    );
+    await harness.startRoute();
+    assertRouterPublicationQuiescent(
+      harness,
+      { hash: '#physics', warnings: 0 },
+      `authoritative ${releaseState} backend-only route`
+    );
+    assert.ok(
+      harness.apiCalls.some((call) => call.route === '/api/courses/92/units'),
+      `${releaseState} classification must use the production publication context`
+    );
+    assert.equal(
+      harness.selectors.some((selector) => selector.includes(moduleId)),
+      false,
+      'an untrusted backend-only slug must never be interpolated into a CSS selector'
+    );
+  }
+
+  const openUnknown = createRouterPublicationHarness({
+    moduleId: 'open-backend-only',
+    releaseState: 'open'
+  });
+  await openUnknown.ready();
+  await openUnknown.startRoute();
+  assertRouterPublicationQuiescent(
+    openUnknown,
+    { hash: '#physics', warnings: 1 },
+    'authoritative open registry-absent route'
+  );
+  assert.match(openUnknown.warnings[0].map(String).join(' '), /refusing transition to unknown module/);
+  await assertKnownGasLawsRecovery(openUnknown, 'authoritative open registry-absent route');
+
+  const ordinaryMissing = createRouterPublicationHarness({
+    moduleId: 'ordinary-unknown',
+    units: []
+  });
+  await ordinaryMissing.ready();
+  await ordinaryMissing.startRoute();
+  assertRouterPublicationQuiescent(
+    ordinaryMissing,
+    { hash: '#physics', warnings: 1 },
+    'ordinary registry-absent route'
+  );
+  assert.match(ordinaryMissing.warnings[0].map(String).join(' '), /refusing transition to unknown module/);
+  await assertKnownGasLawsRecovery(ordinaryMissing, 'ordinary registry-absent route');
+
+  const malformed = createRouterPublicationHarness({
+    moduleId: 'malformed/key',
+    initialHash: '#physics/malformed/key'
+  });
+  await malformed.ready();
+  await malformed.startRoute();
+  assertRouterPublicationQuiescent(
+    malformed,
+    { hash: '#physics', warnings: 1 },
+    'malformed production Router route'
+  );
+  assert.equal(
+    malformed.apiCalls.filter((call) => call.route === '/api/courses').length,
+    0,
+    'a malformed module key must not enter authority resolution'
+  );
+
+  const contextFailures = [
+    ['loader missing', { loaderMode: 'missing' }, /refusing transition to unknown module/],
+    ['loader reject', {
+      loaderMode: 'reject',
+      loaderError: createSensitiveDiagnosticError()
+    }, PUBLICATION_CLASSIFICATION_WARNING],
+    ['publication context missing', {
+      contextMode: 'missing'
+    }, /refusing transition to unknown module/],
+    ['publication resolve reject', {
+      request(route) {
+        if (route === '/api/classes') {
+          return Promise.reject(createSensitiveDiagnosticError());
+        }
+        throw new Error(`unexpected request after class rejection: ${route}`);
+      }
+    }, PUBLICATION_CLASSIFICATION_WARNING]
+  ];
+  for (const [label, options, expectedWarning] of contextFailures) {
+    const harness = createRouterPublicationHarness({
+      ...options,
+      moduleId: 'context-failure'
+    });
+    await harness.ready();
+    await harness.startRoute();
+    assertRouterPublicationQuiescent(
+      harness,
+      { hash: '#physics', warnings: 1 },
+      label
+    );
+    if (typeof expectedWarning === 'string') {
+      assertFixedSafeWarning(harness.warnings, expectedWarning, label);
+    } else {
+      assert.match(harness.warnings[0].map(String).join(' '), expectedWarning);
+    }
+    await assertKnownGasLawsRecovery(harness, label);
+  }
+
+  const repeatedUnits = createDeferred();
+  const repeated = createRouterPublicationHarness({
+    moduleId: 'same-route-hidden',
+    request: deferredPublicationRequest(repeatedUnits, 'same-route-hidden')
+  });
+  await repeated.ready();
+  await repeated.startRoute();
+  assert.ok(repeated.selector._publicationGatePending.physics);
+  const repeatedApiCalls = repeated.apiCalls.length;
+  assert.equal(repeated.selector.openModule('physics', 'same-route-hidden'), true);
+  assert.equal(
+    repeated.apiCalls.length,
+    repeatedApiCalls,
+    'reopening the same pending backend-only route must reuse the classification'
+  );
+  repeatedUnits.resolve([{
+    id: 201,
+    activity_key: 'physics.same-route-hidden',
+    effective_release_state: 'hidden'
+  }]);
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    repeated,
+    { hash: '#physics', warnings: 0 },
+    'repeated authoritative hidden route'
+  );
+
+  for (const lifecycle of ['close', 'reset', 'leave']) {
+    const moduleId = `${lifecycle}-pending-hidden`;
+    const unitsDeferred = createDeferred();
+    const harness = createRouterPublicationHarness({
+      moduleId,
+      request: deferredPublicationRequest(unitsDeferred, moduleId)
+    });
+    await harness.ready();
+    await harness.startRoute();
+    assert.ok(harness.selector._publicationGatePending.physics, `${lifecycle}: classification must be pending`);
+    if (lifecycle === 'close') {
+      assert.equal(harness.selector.closeModule('physics'), true);
+    } else if (lifecycle === 'reset') {
+      harness.selector.resetPage('physics');
+    } else {
+      harness.selector.leavePage('physics', { preserveHash: true });
+    }
+    const stableHash = lifecycle === 'close'
+      ? '#physics'
+      : harness.windowObject.location.hash;
+    const stableGeneration = harness.selector._transitionGeneration.physics;
+    assert.equal(harness.selector._publicationGatePending.physics, undefined);
+    unitsDeferred.resolve([{
+      id: 202,
+      activity_key: `physics.${moduleId}`,
+      effective_release_state: 'hidden'
+    }]);
+    await settlePromises(32);
+    assertRouterPublicationQuiescent(
+      harness,
+      { hash: stableHash, warnings: 0 },
+      `${lifecycle} invalidates late authoritative hidden`
+    );
+    assert.equal(
+      harness.selector._transitionGeneration.physics,
+      stableGeneration,
+      `${lifecycle}: a late classification must not advance transition generation`
+    );
+  }
+
+  for (const lateState of ['hidden', 'locked', 'missing']) {
+    const moduleId = `late-${lateState}`;
+    const unitsDeferred = createDeferred();
+    const harness = createRouterPublicationHarness({
+      moduleId,
+      request: deferredPublicationRequest(unitsDeferred, moduleId)
+    });
+    await harness.ready();
+    await harness.startRoute();
+    assert.ok(harness.selector._publicationGatePending.physics);
+    assert.equal(harness.selector.openModule('physics', 'gas-laws'), true);
+    await harness.timers.drain();
+    const replacementGeneration = harness.selector._transitionGeneration.physics;
+    const replacementOwnerCount = harness.getOwnerInitializations();
+    unitsDeferred.resolve(lateState === 'missing' ? [] : [{
+      id: 203,
+      activity_key: `physics.${moduleId}`,
+      effective_release_state: lateState
+    }]);
+    await settlePromises(32);
+    assertRouterPublicationQuiescent(
+      harness,
+      { hash: '#physics/gas-laws', warnings: 0, owners: replacementOwnerCount },
+      `late ${lateState} result behind a new owner`
+    );
+    assert.equal(harness.selector.activeModule.physics, 'gas-laws');
+    assert.equal(harness.selector._transitionGeneration.physics, replacementGeneration);
+  }
+
+  const loaderDeferred = createDeferred();
+  const lateReject = createRouterPublicationHarness({
+    moduleId: 'late-reject',
+    loaderEnsure: () => loaderDeferred.promise
+  });
+  await lateReject.ready();
+  await lateReject.startRoute();
+  assert.ok(lateReject.selector._publicationGatePending.physics);
+  assert.equal(lateReject.selector.openModule('physics', 'gas-laws'), true);
+  await lateReject.timers.drain();
+  const lateRejectGeneration = lateReject.selector._transitionGeneration.physics;
+  const lateRejectOwners = lateReject.getOwnerInitializations();
+  loaderDeferred.reject(Object.assign(new Error('late loader rejection'), { code: 'loader_unavailable' }));
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    lateReject,
+    { hash: '#physics/gas-laws', warnings: 0, owners: lateRejectOwners },
+    'late rejection behind a new owner'
+  );
+  assert.equal(lateReject.selector.activeModule.physics, 'gas-laws');
+  assert.equal(lateReject.selector._transitionGeneration.physics, lateRejectGeneration);
 }
 
 function runMechanicsZoomRestoreContract() {
@@ -465,6 +1574,8 @@ function runMechanicsZoomRestoreContract() {
 
 (async () => {
   runMechanicsZoomRestoreContract();
+  await runPublicationUnknownModuleDiagnosticContract();
+  await runProductionRouterPublicationContract();
 
   const publicationWindow = {
     addEventListener() {},
@@ -647,11 +1758,23 @@ function runMechanicsZoomRestoreContract() {
           }]);
         }
         if (route === '/api/courses/92/units') {
-          return Promise.resolve([{
-            id: 102,
-            activity_key: 'physics.mechanics',
-            effective_release_state: 'locked'
-          }]);
+          return Promise.resolve([
+            {
+              id: 102,
+              activity_key: 'physics.mechanics',
+              effective_release_state: 'locked'
+            },
+            {
+              id: 103,
+              activity_key: 'physics.hidden-qa-v7718',
+              effective_release_state: 'hidden'
+            },
+            {
+              id: 104,
+              activity_key: 'physics.locked-only-unit',
+              effective_release_state: 'locked'
+            }
+          ]);
         }
         throw new Error(`unexpected production publication route: ${route}`);
       },
@@ -694,6 +1817,26 @@ function runMechanicsZoomRestoreContract() {
     productionCalls.some((call) => call.route === '/api/courses' && call.classId === 42),
     'the direct deep link after A→B must query B'
   );
+  const productionHidden = createPublicationModuleHarness(productionPublication, {
+    initialHash: '#physics/hidden-qa-v7718'
+  });
+  assert.equal(productionHidden.selector.openModule('physics', 'hidden-qa-v7718'), true);
+  await settlePromises();
+  assert.equal(productionHidden.windowObject.location.hash, '#physics');
+  assert.equal(productionHidden.selector.activeModule.physics, null);
+  assert.equal(productionHidden.getOwnerInitializations(), 0);
+  assert.deepEqual(productionHidden.warnings, []);
+  assert.deepEqual(productionHidden.errors, []);
+  const productionLocked = createPublicationModuleHarness(productionPublication, {
+    initialHash: '#physics/locked-only-unit'
+  });
+  assert.equal(productionLocked.selector.openModule('physics', 'locked-only-unit'), true);
+  await settlePromises();
+  assert.equal(productionLocked.windowObject.location.hash, '#physics');
+  assert.equal(productionLocked.selector.activeModule.physics, null);
+  assert.equal(productionLocked.getOwnerInitializations(), 0);
+  assert.deepEqual(productionLocked.warnings, []);
+  assert.deepEqual(productionLocked.errors, []);
   settleLateA([{ id: 91, galaxy_key: 'englab', course_key: 'physics' }]);
   assert.equal((await lateAResolution).error_code, 'cancelled');
   assert.equal(productionPublication.snapshot().class_id, 42, 'late A must not restore the old class');
@@ -854,7 +1997,7 @@ function runMechanicsZoomRestoreContract() {
   assert.match(reducedMotionBlock, /animation:\s*none !important;/);
   assert.match(ratingCss, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.rating-card/);
 
-  console.log('learning-evidence-a03a-contract: release states, guarded deep link, 44px controls, and non-overlap dock ok');
+  console.log('learning-evidence-a03a-contract: release states, production Router diagnostics, guarded deep link, 44px controls, and non-overlap dock ok');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
