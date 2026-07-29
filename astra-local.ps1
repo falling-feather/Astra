@@ -9,21 +9,281 @@ param(
 
     [switch]$InitializeDemoData,
 
-    [switch]$SkipDependencyInstall
+    [switch]$SkipDependencyInstall,
+
+    [string]$PythonExecutable = "",
+
+    [string]$VirtualEnvironmentPath = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot = [IO.Path]::GetFullPath((Split-Path -Parent $MyInvocation.MyCommand.Path))
 $BackendRoot = Join-Path $RepoRoot "backend"
-$VirtualEnvironment = Join-Path $RepoRoot ".venv"
-$VirtualPython = Join-Path $VirtualEnvironment "Scripts\python.exe"
+$DefaultVirtualEnvironment = Join-Path $RepoRoot ".venv"
 $RequirementsLock = Join-Path $BackendRoot "requirements.lock"
-$RequirementsMarker = Join-Path $VirtualEnvironment ".astra-requirements.sha256"
+$PythonExecutableSpecified = $PSBoundParameters.ContainsKey("PythonExecutable")
+$VirtualEnvironmentPathSpecified = $PSBoundParameters.ContainsKey("VirtualEnvironmentPath")
+
+if ($PythonExecutableSpecified -and $VirtualEnvironmentPathSpecified) {
+    throw "-PythonExecutable and -VirtualEnvironmentPath are mutually exclusive."
+}
+if ($PythonExecutableSpecified -and [string]::IsNullOrWhiteSpace($PythonExecutable)) {
+    throw "-PythonExecutable must name an executable application."
+}
+if ($VirtualEnvironmentPathSpecified -and [string]::IsNullOrWhiteSpace($VirtualEnvironmentPath)) {
+    throw "-VirtualEnvironmentPath must name a filesystem directory."
+}
+if ($PythonExecutableSpecified -and -not $SkipDependencyInstall) {
+    throw "-PythonExecutable is caller-managed and requires -SkipDependencyInstall."
+}
 
 if ($BootstrapAdmin -and $InitializeDemoData) {
     throw "Use either -BootstrapAdmin or -InitializeDemoData, not both."
+}
+
+function Assert-StandardWindowsPathNamespace {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $namespaceProbe = $PathValue.Replace("/", "\")
+    foreach ($devicePrefix in @("\\?\", "\\.\", "\??\", "\\??\")) {
+        if ($namespaceProbe.StartsWith($devicePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "$Description must not use a Windows device namespace."
+        }
+    }
+}
+
+function Resolve-AstraFileSystemPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    Assert-StandardWindowsPathNamespace -PathValue $PathValue -Description $Description
+    try {
+        if ([IO.Path]::IsPathRooted($PathValue)) {
+            $resolvedPath = [IO.Path]::GetFullPath($PathValue)
+        } else {
+            $location = Get-Location
+            if ($location.Provider.Name -ne "FileSystem") {
+                throw "The current PowerShell location is not a filesystem location."
+            }
+            $resolvedPath = [IO.Path]::GetFullPath((Join-Path $location.ProviderPath $PathValue))
+        }
+    } catch {
+        throw "$Description could not be normalized as a filesystem path: $PathValue"
+    }
+    Assert-StandardWindowsPathNamespace -PathValue $resolvedPath -Description $Description
+
+    $root = [IO.Path]::GetPathRoot($resolvedPath)
+    if ($resolvedPath.Length -gt $root.Length) {
+        $resolvedPath = $resolvedPath.TrimEnd(
+            [IO.Path]::DirectorySeparatorChar,
+            [IO.Path]::AltDirectorySeparatorChar
+        )
+    }
+    return $resolvedPath
+}
+
+function Assert-NoReparsePointInPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ResolvedPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    Assert-StandardWindowsPathNamespace -PathValue $ResolvedPath -Description $Description
+    $pathRoot = [IO.Path]::GetPathRoot($ResolvedPath)
+    if ([string]::IsNullOrWhiteSpace($pathRoot)) {
+        throw "$Description must be an absolute filesystem path."
+    }
+    try {
+        $rootItem = Get-Item -Force -LiteralPath $pathRoot -ErrorAction Stop
+    } catch {
+        throw "$Description filesystem root could not be inspected safely: $pathRoot"
+    }
+    if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "$Description must not traverse a junction, symbolic link, or volume mount: $pathRoot"
+    }
+    if (-not $rootItem.PSIsContainer) {
+        throw "$Description filesystem root is not a directory: $pathRoot"
+    }
+
+    $relativePath = $ResolvedPath.Substring($pathRoot.Length)
+    $components = @(
+        $relativePath.Split(
+            [char[]]@(
+                [IO.Path]::DirectorySeparatorChar,
+                [IO.Path]::AltDirectorySeparatorChar
+            ),
+            [StringSplitOptions]::RemoveEmptyEntries
+        )
+    )
+    $cursor = $pathRoot
+    for ($index = 0; $index -lt $components.Count; $index += 1) {
+        $component = $components[$index]
+        try {
+            $matches = @(
+                Get-ChildItem -Force -LiteralPath $cursor -ErrorAction Stop |
+                    Where-Object {
+                        $_.Name.Equals(
+                            $component,
+                            [StringComparison]::OrdinalIgnoreCase
+                        )
+                    }
+            )
+        } catch {
+            throw "$Description could not enumerate an existing parent safely: $cursor"
+        }
+        if ($matches.Count -eq 0) {
+            return
+        }
+        if ($matches.Count -ne 1) {
+            throw "$Description resolves ambiguously below: $cursor"
+        }
+        $item = $matches[0]
+        $candidate = Join-Path $cursor $component
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "$Description must not traverse a junction, symbolic link, or volume mount: $candidate"
+        }
+        if ($index -lt ($components.Count - 1) -and -not $item.PSIsContainer) {
+            throw "$Description traverses a non-directory filesystem item: $candidate"
+        }
+        $cursor = $candidate
+    }
+}
+
+function Resolve-ExecutableApplication {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CommandOrPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $looksLikePath = [IO.Path]::IsPathRooted($CommandOrPath) -or
+        $CommandOrPath.Contains("\") -or
+        $CommandOrPath.Contains("/") -or
+        $CommandOrPath.StartsWith(".")
+    try {
+        if ($looksLikePath) {
+            $candidatePath = Resolve-AstraFileSystemPath -PathValue $CommandOrPath -Description $Description
+            if (-not (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
+                throw "$Description does not exist: $candidatePath"
+            }
+            $escapedPath = [Management.Automation.WildcardPattern]::Escape($candidatePath)
+            $application = Get-Command -Name $escapedPath -CommandType Application -ErrorAction Stop |
+                Select-Object -First 1
+        } else {
+            if ($CommandOrPath.IndexOfAny([char[]]"*?[]") -ge 0) {
+                throw "$Description must not contain wildcard characters."
+            }
+            $application = Get-Command -Name $CommandOrPath -CommandType Application -ErrorAction Stop |
+                Select-Object -First 1
+        }
+    } catch {
+        throw "$Description must resolve to an executable application: $CommandOrPath"
+    }
+
+    if (-not $application -or $application.CommandType -ne [Management.Automation.CommandTypes]::Application) {
+        throw "$Description must resolve to an executable application: $CommandOrPath"
+    }
+    $resolvedApplication = Resolve-AstraFileSystemPath -PathValue $application.Path -Description $Description
+    if (-not (Test-Path -LiteralPath $resolvedApplication -PathType Leaf)) {
+        throw "$Description does not exist: $resolvedApplication"
+    }
+    return $resolvedApplication
+}
+
+function Assert-ExternalVirtualEnvironmentPath {
+    param([string]$ResolvedVirtualEnvironment)
+
+    Assert-NoReparsePointInPath `
+        -ResolvedPath $RepoRoot `
+        -Description "Repository path"
+    Assert-NoReparsePointInPath `
+        -ResolvedPath $ResolvedVirtualEnvironment `
+        -Description "-VirtualEnvironmentPath"
+
+    $pathRoot = [IO.Path]::GetPathRoot($ResolvedVirtualEnvironment)
+    if ($ResolvedVirtualEnvironment.Equals($pathRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "-VirtualEnvironmentPath must be a dedicated directory, not a filesystem root."
+    }
+    $repoPrefix = $RepoRoot + [IO.Path]::DirectorySeparatorChar
+    if ($ResolvedVirtualEnvironment.Equals($RepoRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $ResolvedVirtualEnvironment.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "-VirtualEnvironmentPath must be outside the repository."
+    }
+    if ((Test-Path -LiteralPath $ResolvedVirtualEnvironment) -and
+        -not (Test-Path -LiteralPath $ResolvedVirtualEnvironment -PathType Container)) {
+        throw "-VirtualEnvironmentPath must name a filesystem directory."
+    }
+}
+
+function Assert-ExternalManagedRuntimePaths {
+    param(
+        [string]$VirtualEnvironment,
+        [string]$VirtualPython,
+        [string]$RequirementsMarker
+    )
+
+    Assert-ExternalVirtualEnvironmentPath -ResolvedVirtualEnvironment $VirtualEnvironment
+    Assert-NoReparsePointInPath `
+        -ResolvedPath $VirtualPython `
+        -Description "External virtual environment Python"
+    Assert-NoReparsePointInPath `
+        -ResolvedPath $RequirementsMarker `
+        -Description "External virtual environment requirements marker"
+    Assert-NoReparsePointInPath `
+        -ResolvedPath (Join-Path $VirtualEnvironment "Lib\site-packages") `
+        -Description "External virtual environment site-packages"
+}
+
+function Assert-PythonRuntimePrefix {
+    param(
+        [string]$RuntimePython,
+        [string]$ExpectedVirtualEnvironment
+    )
+
+    $prefixRows = @(& $RuntimePython -I -c "import base64, os, sys; print(base64.b64encode(os.path.abspath(sys.prefix).encode('utf-8')).decode('ascii'))" 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $prefixRows.Count -ne 1 -or
+        [string]::IsNullOrWhiteSpace([string]$prefixRows[0])) {
+        throw "External virtual environment Python did not report one valid sys.prefix."
+    }
+    try {
+        $prefixBytes = [Convert]::FromBase64String(([string]$prefixRows[0]).Trim())
+        $prefixValue = [Text.UTF8Encoding]::new($false, $true).GetString($prefixBytes)
+    } catch {
+        throw "External virtual environment Python reported an invalid UTF-8 sys.prefix."
+    }
+    if (-not [IO.Path]::IsPathRooted($prefixValue)) {
+        throw "External virtual environment Python reported a non-absolute sys.prefix."
+    }
+    $resolvedPrefix = Resolve-AstraFileSystemPath `
+        -PathValue $prefixValue `
+        -Description "External virtual environment sys.prefix"
+    Assert-NoReparsePointInPath `
+        -ResolvedPath $resolvedPrefix `
+        -Description "External virtual environment sys.prefix"
+    if (-not $resolvedPrefix.Equals(
+        $ExpectedVirtualEnvironment,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "External virtual environment Python sys.prefix does not match -VirtualEnvironmentPath."
+    }
 }
 
 function Test-CommandPython {
@@ -39,29 +299,136 @@ function Test-CommandPython {
 }
 
 function Resolve-PythonLauncher {
-    if (Get-Command "py" -ErrorAction SilentlyContinue) {
+    $pyLauncher = $null
+    try {
+        $pyLauncher = Resolve-ExecutableApplication -CommandOrPath "py" -Description "Python launcher"
+    } catch {}
+    if ($pyLauncher) {
         $candidates = @("-3.12")
         try {
-            $launcherRows = & py -0p 2>$null
+            $launcherRows = & $pyLauncher -0p 2>$null
             foreach ($row in $launcherRows) {
-                if ([string]$row -match "(-V:\S*3\.12\S*)") {
+                if ([string]$row -match "(-V:\S+)") {
                     $candidates += $Matches[1]
                 }
             }
         } catch {}
         foreach ($candidate in ($candidates | Select-Object -Unique)) {
-            if (Test-CommandPython -Command "py" -PrefixArguments @($candidate)) {
-                return [pscustomobject]@{ Command = "py"; Arguments = @($candidate) }
+            if (Test-CommandPython -Command $pyLauncher -PrefixArguments @($candidate)) {
+                return [pscustomobject]@{ Command = $pyLauncher; Arguments = @($candidate) }
             }
         }
     }
     foreach ($command in @("python", "python3")) {
-        if ((Get-Command $command -ErrorAction SilentlyContinue) -and
-            (Test-CommandPython -Command $command -PrefixArguments @())) {
-            return [pscustomobject]@{ Command = $command; Arguments = @() }
-        }
+        try {
+            $application = Resolve-ExecutableApplication -CommandOrPath $command -Description "Python launcher"
+            if (Test-CommandPython -Command $application -PrefixArguments @()) {
+                return [pscustomobject]@{ Command = $application; Arguments = @() }
+            }
+        } catch {}
     }
     throw "Python 3.12+ is required. Install it, then run this script again."
+}
+
+function Resolve-ExplicitPythonRuntime {
+    param([string]$RequestedPython)
+
+    $runtime = Resolve-ExecutableApplication `
+        -CommandOrPath $RequestedPython `
+        -Description "-PythonExecutable"
+    if (-not (Test-CommandPython -Command $runtime -PrefixArguments @())) {
+        throw "-PythonExecutable must be Python 3.12+."
+    }
+    return $runtime
+}
+
+function Invoke-ExplicitPythonDependencyValidation {
+    param([string]$RuntimePython)
+
+    Write-Host "Validating caller-managed Python dependencies without changes..." -ForegroundColor Cyan
+    & $RuntimePython -m pip --isolated --disable-pip-version-check --no-cache-dir install --dry-run --no-index --require-hashes -r $RequirementsLock
+    if ($LASTEXITCODE -ne 0) {
+        throw "Caller-managed Python failed the locked dependency dry-run validation."
+    }
+    & $RuntimePython -m pip --isolated check
+    if ($LASTEXITCODE -ne 0) {
+        throw "Caller-managed Python failed pip check."
+    }
+}
+
+function Initialize-ManagedPythonRuntime {
+    param(
+        [string]$VirtualEnvironment,
+        [string]$VirtualPython,
+        [string]$RequirementsMarker,
+        [switch]$ExternalVirtualEnvironment
+    )
+
+    if ($ExternalVirtualEnvironment) {
+        Assert-ExternalManagedRuntimePaths `
+            -VirtualEnvironment $VirtualEnvironment `
+            -VirtualPython $VirtualPython `
+            -RequirementsMarker $RequirementsMarker
+    }
+
+    if (-not (Test-Path -LiteralPath $VirtualPython -PathType Leaf)) {
+        $launcher = Resolve-PythonLauncher
+        Write-Host "Creating isolated Python environment..." -ForegroundColor Cyan
+        & $launcher.Command @($launcher.Arguments) -m venv $VirtualEnvironment | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Failed to create the Python virtual environment." }
+    }
+
+    if ($ExternalVirtualEnvironment) {
+        Assert-ExternalManagedRuntimePaths `
+            -VirtualEnvironment $VirtualEnvironment `
+            -VirtualPython $VirtualPython `
+            -RequirementsMarker $RequirementsMarker
+    }
+
+    $RuntimePython = Resolve-ExecutableApplication `
+        -CommandOrPath $VirtualPython `
+        -Description "Virtual environment Python"
+    if (-not (Test-CommandPython -Command $RuntimePython -PrefixArguments @())) {
+        throw "The selected virtual environment does not use Python 3.12+. Move it aside or recreate it with Python 3.12+, then run this script again."
+    }
+
+    if ($ExternalVirtualEnvironment) {
+        Assert-ExternalManagedRuntimePaths `
+            -VirtualEnvironment $VirtualEnvironment `
+            -VirtualPython $RuntimePython `
+            -RequirementsMarker $RequirementsMarker
+        Assert-PythonRuntimePrefix `
+            -RuntimePython $RuntimePython `
+            -ExpectedVirtualEnvironment $VirtualEnvironment
+    }
+
+    $lockHash = (Get-FileHash -LiteralPath $RequirementsLock -Algorithm SHA256).Hash.ToLowerInvariant()
+    $installedHash = if (Test-Path -LiteralPath $RequirementsMarker -PathType Leaf) {
+        (Get-Content -LiteralPath $RequirementsMarker -Raw).Trim()
+    } else { "" }
+    if ($installedHash -ne $lockHash) {
+        if ($SkipDependencyInstall) {
+            throw "Locked dependencies are not installed. Re-run without -SkipDependencyInstall."
+        }
+        if ($ExternalVirtualEnvironment) {
+            Assert-ExternalManagedRuntimePaths `
+                -VirtualEnvironment $VirtualEnvironment `
+                -VirtualPython $RuntimePython `
+                -RequirementsMarker $RequirementsMarker
+        }
+        Write-Host "Installing hash-locked backend dependencies..." -ForegroundColor Cyan
+        & $RuntimePython -m pip install --disable-pip-version-check --require-hashes -r $RequirementsLock | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed" }
+        if ($ExternalVirtualEnvironment) {
+            Assert-ExternalManagedRuntimePaths `
+                -VirtualEnvironment $VirtualEnvironment `
+                -VirtualPython $RuntimePython `
+                -RequirementsMarker $RequirementsMarker
+        }
+        [IO.File]::WriteAllText($RequirementsMarker, "$lockHash`n", [Text.UTF8Encoding]::new($false))
+    }
+
+    return $RuntimePython
 }
 
 function Test-LocalPort {
@@ -125,6 +492,28 @@ function Assert-LocalDataDirectory {
 }
 
 function Invoke-AstraLocalPreview {
+    $RuntimePython = $null
+    $ManagedVirtualEnvironment = $DefaultVirtualEnvironment
+    $ManagedVirtualPython = Join-Path $ManagedVirtualEnvironment "Scripts\python.exe"
+    $ManagedRequirementsMarker = Join-Path $ManagedVirtualEnvironment ".astra-requirements.sha256"
+
+    if ($PythonExecutableSpecified) {
+        $RuntimePython = Resolve-ExplicitPythonRuntime -RequestedPython $PythonExecutable
+        Invoke-ExplicitPythonDependencyValidation -RuntimePython $RuntimePython
+    } elseif ($VirtualEnvironmentPathSpecified) {
+        $ManagedVirtualEnvironment = Resolve-AstraFileSystemPath `
+            -PathValue $VirtualEnvironmentPath `
+            -Description "-VirtualEnvironmentPath"
+        Assert-ExternalVirtualEnvironmentPath -ResolvedVirtualEnvironment $ManagedVirtualEnvironment
+        $ManagedVirtualPython = Join-Path $ManagedVirtualEnvironment "Scripts\python.exe"
+        $ManagedRequirementsMarker = Join-Path $ManagedVirtualEnvironment ".astra-requirements.sha256"
+        $RuntimePython = Initialize-ManagedPythonRuntime `
+            -VirtualEnvironment $ManagedVirtualEnvironment `
+            -VirtualPython $ManagedVirtualPython `
+            -RequirementsMarker $ManagedRequirementsMarker `
+            -ExternalVirtualEnvironment
+    }
+
     if (-not $DataDirectory) {
         $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
         if (-not $localAppData) { $localAppData = $env:TEMP }
@@ -180,27 +569,11 @@ function Invoke-AstraLocalPreview {
 
 New-Item -ItemType Directory -Path $DataDirectory -Force | Out-Null
 
-if (-not (Test-Path -LiteralPath $VirtualPython -PathType Leaf)) {
-    $launcher = Resolve-PythonLauncher
-    Write-Host "Creating isolated Python environment..." -ForegroundColor Cyan
-    & $launcher.Command @($launcher.Arguments) -m venv $VirtualEnvironment
-    if ($LASTEXITCODE -ne 0) { throw "Failed to create .venv" }
-} elseif (-not (Test-CommandPython -Command $VirtualPython -PrefixArguments @())) {
-    throw "The existing .venv does not use Python 3.12+. Move it aside or recreate it with Python 3.12+, then run this script again."
-}
-
-$lockHash = (Get-FileHash -LiteralPath $RequirementsLock -Algorithm SHA256).Hash.ToLowerInvariant()
-$installedHash = if (Test-Path -LiteralPath $RequirementsMarker) {
-    (Get-Content -LiteralPath $RequirementsMarker -Raw).Trim()
-} else { "" }
-if ($installedHash -ne $lockHash) {
-    if ($SkipDependencyInstall) {
-        throw "Locked dependencies are not installed. Re-run without -SkipDependencyInstall."
-    }
-    Write-Host "Installing hash-locked backend dependencies..." -ForegroundColor Cyan
-    & $VirtualPython -m pip install --disable-pip-version-check --require-hashes -r $RequirementsLock
-    if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed" }
-    [IO.File]::WriteAllText($RequirementsMarker, "$lockHash`n", [Text.UTF8Encoding]::new($false))
+if (-not $RuntimePython) {
+    $RuntimePython = Initialize-ManagedPythonRuntime `
+        -VirtualEnvironment $ManagedVirtualEnvironment `
+        -VirtualPython $ManagedVirtualPython `
+        -RequirementsMarker $ManagedRequirementsMarker
 }
 
 $databasePath = Join-Path $DataDirectory "astra-local.sqlite3"
@@ -240,7 +613,7 @@ $env:ASTRA_CONTENT_SCRIPT_REMOTE_DRIFT_SCHEDULER_RUN_ON_START = "false"
 Push-Location $BackendRoot
 try {
     Write-Host "Applying database migrations..." -ForegroundColor Cyan
-    & $VirtualPython -m alembic -c alembic.ini upgrade head
+    & $RuntimePython -m alembic -c alembic.ini upgrade head
     if ($LASTEXITCODE -ne 0) { throw "Database migration failed" }
 
     if ($BootstrapAdmin) {
@@ -261,7 +634,7 @@ try {
             $previousOutputEncoding = $OutputEncoding
             try {
                 $OutputEncoding = [Text.UTF8Encoding]::new($false)
-                $payload | & $VirtualPython -X utf8 -m scripts.local_preview_bootstrap_admin --confirm-local-preview
+                $payload | & $RuntimePython -X utf8 -m scripts.local_preview_bootstrap_admin --confirm-local-preview
                 if ($LASTEXITCODE -ne 0) { throw "Administrator bootstrap failed" }
             } finally {
                 $OutputEncoding = $previousOutputEncoding
@@ -279,7 +652,7 @@ try {
         Write-Host "Initializing the local synthetic demo through the authoritative API..." -ForegroundColor Cyan
         $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "true"
         try {
-            & $VirtualPython -X utf8 -m scripts.initialize_demo_data --confirm-local-preview
+            & $RuntimePython -X utf8 -m scripts.initialize_demo_data --confirm-local-preview
             if ($LASTEXITCODE -ne 0) { throw "Demo data initialization failed" }
         } finally {
             $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "false"
@@ -290,7 +663,7 @@ try {
     Write-Host "Astra local preview: http://127.0.0.1:$Port/" -ForegroundColor Green
     Write-Host "Data directory: $DataDirectory"
     Write-Host "Press Ctrl+C to stop the website."
-    & $VirtualPython -m uvicorn app.local_preview:app --host 127.0.0.1 --port $Port
+    & $RuntimePython -m uvicorn app.local_preview:app --host 127.0.0.1 --port $Port
     if ($LASTEXITCODE -ne 0) { throw "Astra local preview stopped unexpectedly" }
 } finally {
     Pop-Location

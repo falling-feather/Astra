@@ -149,23 +149,20 @@ const powershell = spawnSync('C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\po
   '-NoProfile',
   '-NonInteractive',
   '-Command',
-  `$source = Get-Content -Raw -LiteralPath '${psScriptPath}';
-if ($source -notmatch 'if \\(\\$InitializeDemoData\\)\\s*\\{\\s*Assert-LocalDataDirectory') { exit 11 }
-$function = [regex]::Match($source, '(?s)function Assert-LocalDataDirectory \\{.*?\\r?\\n\\}\\r?\\n\\r?\\nfunction Invoke-AstraLocalPreview').Value
+  `$tokens = $null
+$errors = $null
+$ast = [Management.Automation.Language.Parser]::ParseFile('${psScriptPath}', [ref]$tokens, [ref]$errors)
+if ($errors.Count -ne 0) { exit 11 }
+$function = $ast.Find(
+  { param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-LocalDataDirectory' },
+  $true
+)
 if (-not $function) { exit 12 }
-$function = $function -replace '(?s)\\r?\\n\\r?\\nfunction Invoke-AstraLocalPreview.*$', ''
-Invoke-Expression $function
-try { Assert-LocalDataDirectory -ResolvedDataDirectory '\\\\server\\share' } catch { if ($_.Exception.Message -match 'UNC') { exit 0 }; exit 13 }
+$scriptBlock = $function.Body.GetScriptBlock()
+try { & $scriptBlock -ResolvedDataDirectory '\\\\server\\share' } catch { if ($_.Exception.Message -match 'UNC') { exit 0 }; exit 13 }
 exit 14`,
 ], { encoding: 'utf8' });
-if (powershell.error && powershell.error.code === 'EPERM') {
-  // The managed Codex sandbox forbids a Node child process from launching
-  // PowerShell.  The same extracted function is exercised by the dedicated
-  // PowerShell gate in the handoff matrix; CI/normal workstations run this
-  // branch as a real dynamic subprocess assertion.
-  console.warn('demo-data-initializer-contract: PowerShell dynamic subprocess skipped by sandbox EPERM');
-} else {
-  assert.equal(powershell.status, 0, powershell.stderr || powershell.stdout);
-}
+assert.ifError(powershell.error);
+assert.equal(powershell.status, 0, powershell.stderr || powershell.stdout);
 
 console.log('demo-data-initializer-contract: ok');
