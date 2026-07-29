@@ -10,10 +10,16 @@ const PhysicsZoom = {
     originalInlineStyle: null,
     originalRect: null,
     _resizeHandlerBound: null,
+    _closeHandlerBound: null,
+    _backdropHandlerBound: null,
+    _keydownHandlerBound: null,
+    _listenersAttached: false,
+    _returnFocusTarget: null,
     _pinchCtrl: null,
 
     init() {
         this._ensureModal();
+        this._attachModalListeners();
         this._attachButtons();
     },
 
@@ -44,16 +50,83 @@ const PhysicsZoom = {
         this.host = document.getElementById('physics-zoom-host');
         this.titleEl = document.getElementById('physics-zoom-title');
         this.closeBtn = document.getElementById('physics-zoom-close');
+    },
 
-        this.closeBtn.addEventListener('click', () => this.close());
-        this.modal.addEventListener('click', (e) => {
-            if (e.target === this.modal) this.close();
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.modal.classList.contains('open')) this.close();
-        });
-        this._resizeHandlerBound = () => this._syncScale();
+    _attachModalListeners() {
+        if (this._listenersAttached || !this.modal || !this.closeBtn) return;
+        if (!this._closeHandlerBound) this._closeHandlerBound = () => this.close();
+        if (!this._backdropHandlerBound) {
+            this._backdropHandlerBound = (e) => {
+                if (e.target === this.modal) this.close();
+            };
+        }
+        if (!this._keydownHandlerBound) {
+            this._keydownHandlerBound = (e) => {
+                if (!this.modal?.classList.contains('open')) return;
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.close();
+                    return;
+                }
+                if (e.key === 'Tab') this._trapFocus(e);
+            };
+        }
+        if (!this._resizeHandlerBound) this._resizeHandlerBound = () => this._syncScale();
+
+        this.closeBtn.addEventListener('click', this._closeHandlerBound);
+        this.modal.addEventListener('click', this._backdropHandlerBound);
+        document.addEventListener('keydown', this._keydownHandlerBound);
         window.addEventListener('resize', this._resizeHandlerBound);
+        this._listenersAttached = true;
+    },
+
+    _detachModalListeners() {
+        if (!this._listenersAttached) return;
+        this.closeBtn?.removeEventListener('click', this._closeHandlerBound);
+        this.modal?.removeEventListener('click', this._backdropHandlerBound);
+        document.removeEventListener('keydown', this._keydownHandlerBound);
+        window.removeEventListener('resize', this._resizeHandlerBound);
+        this._listenersAttached = false;
+    },
+
+    _focusableElements() {
+        if (!this.modal) return [];
+        const selector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        return Array.from(this.modal.querySelectorAll(selector)).filter((element) => {
+            if (element.isConnected === false || element.hidden || element.disabled) return false;
+            if (element.getAttribute?.('aria-hidden') === 'true') return false;
+            return true;
+        });
+    },
+
+    _trapFocus(event) {
+        const focusable = this._focusableElements();
+        if (!focusable.length) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            this.closeBtn?.focus({ preventScroll: true });
+            return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey ? active === first || !this.modal.contains(active) : active === last || !this.modal.contains(active)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            (event.shiftKey ? last : first).focus({ preventScroll: true });
+        }
+    },
+
+    _restoreFocus() {
+        const target = this._returnFocusTarget;
+        this._returnFocusTarget = null;
+        if (!target || typeof target.focus !== 'function') return;
+        if (target.isConnected === false || target.hidden || target.disabled) return;
+        if (target.getAttribute?.('aria-disabled') === 'true') return;
+        if (target.closest?.('[hidden], [inert], [aria-hidden="true"]')) return;
+        if (typeof target.getClientRects === 'function' && target.getClientRects().length === 0) return;
+        target.focus({ preventScroll: true });
     },
 
     _attachButtons() {
@@ -74,14 +147,17 @@ const PhysicsZoom = {
             btn.textContent = '放大';
             btn.addEventListener('click', () => {
                 const title = section.querySelector('h2, h3')?.textContent?.trim() || '物理实验';
-                this.open(canvas, title);
+                this.open(canvas, title, btn);
             });
             controls.appendChild(btn);
         });
     },
 
-    open(canvas, title) {
+    open(canvas, title, trigger = document.activeElement) {
         if (!canvas || this.movedCanvas) return;
+        this._ensureModal();
+        this._attachModalListeners();
+        this._returnFocusTarget = trigger;
         // 画布暂时挂到 modal 宿主时，各实验 resize 必须用 movedCanvas 判断并跳过，否则会按宿主宽度重算而破坏原比例与缓冲区。
         this.originalParent = canvas.parentElement;
         this.movedCanvas = canvas;
@@ -105,6 +181,7 @@ const PhysicsZoom = {
             this._pinchCtrl = TouchGestures.enablePinchZoom(this.host, this.movedCanvas, { maxScale: 4 });
         }
         if (this._pinchCtrl) this._pinchCtrl.reset();
+        this.closeBtn.focus({ preventScroll: true });
     },
 
     _syncScale() {
@@ -125,23 +202,40 @@ const PhysicsZoom = {
     },
 
     close() {
-        if (!this.movedCanvas || !this.originalParent || !this.movedPlaceholder) return;
-        // Destroy pinch-zoom controller
-        if (this._pinchCtrl) { this._pinchCtrl.destroy(); this._pinchCtrl = null; }
-        // 先还原原始 inline 样式，确保缩小后尺寸完全回到放大前
-        if (this.originalInlineStyle) {
-            this.movedCanvas.setAttribute('style', this.originalInlineStyle);
-        } else {
-            this.movedCanvas.removeAttribute('style');
+        const canRestoreCanvas = this.movedCanvas && this.originalParent && this.movedPlaceholder;
+        const restoredCanvas = canRestoreCanvas ? this.movedCanvas : null;
+        try {
+            if (this._pinchCtrl) { this._pinchCtrl.destroy(); this._pinchCtrl = null; }
+            if (canRestoreCanvas) {
+                // 先还原原始 inline 样式，确保缩小后尺寸完全回到放大前
+                if (this.originalInlineStyle) {
+                    this.movedCanvas.setAttribute('style', this.originalInlineStyle);
+                } else {
+                    this.movedCanvas.removeAttribute('style');
+                }
+                this.originalParent.insertBefore(this.movedCanvas, this.movedPlaceholder);
+                this.originalParent.removeChild(this.movedPlaceholder);
+            }
+        } finally {
+            this.movedCanvas = null;
+            this.originalParent = null;
+            this.movedPlaceholder = null;
+            this.originalInlineStyle = null;
+            this.originalRect = null;
+            this.modal?.classList.remove('open');
+            this._detachModalListeners();
+            if (restoredCanvas) restoredCanvas.dispatchEvent(new Event('astra:physics-zoom-restored'));
+            this._restoreFocus();
         }
-        this.originalParent.insertBefore(this.movedCanvas, this.movedPlaceholder);
-        this.originalParent.removeChild(this.movedPlaceholder);
-        this.movedCanvas = null;
-        this.originalParent = null;
-        this.movedPlaceholder = null;
-        this.originalInlineStyle = null;
-        this.originalRect = null;
-        this.modal.classList.remove('open');
+    },
+
+    destroy() {
+        try {
+            this.close();
+        } finally {
+            this._detachModalListeners();
+            this._restoreFocus();
+        }
     }
 };
 

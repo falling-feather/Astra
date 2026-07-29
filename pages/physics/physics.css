@@ -521,6 +521,27 @@
     margin-bottom: var(--space-2);
 }
 
+@media (max-width: 1024px) {
+    #page-physics [data-module="mechanics"] .demo-layout {
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    #page-physics [data-module="mechanics"] .demo-controls-panel,
+    #page-physics [data-module="mechanics"] .physics-controls,
+    #page-physics [data-module="mechanics"] .demo-visualization {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    #page-physics [data-module="mechanics"] .physics-canvas {
+        display: block;
+        min-width: 0;
+        max-width: 100%;
+    }
+}
+
 @media (max-width: 768px) {
     .physics-canvas,
     .em-canvas {

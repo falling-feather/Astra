@@ -47,9 +47,9 @@ const PhysicsSim = {
         if (typeof ResizeObserver !== 'undefined') {
             this._resizeObs = new ResizeObserver(() => this.resizeCanvas());
             this._resizeObs.observe(this.canvas.parentElement);
-        } else {
-            this._on(window, 'resize', () => this.resizeCanvas());
         }
+        this._on(window, 'resize', () => this.resizeCanvas());
+        this._on(this.canvas, 'astra:physics-zoom-restored', () => this.resizeCanvas());
     },
 
     destroy() {
