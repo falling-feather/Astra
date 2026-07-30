@@ -60,11 +60,16 @@ assert.match(sessionCss, /@media \(max-width: 900px\)[\s\S]*\.astra-workspace-do
 assert.match(sessionCss, /\.page\.astra-workspace-page[\s\S]*padding-top:\s*0\s*!important/);
 assert.match(sessionCss, /@media \(max-width: 900px\)[\s\S]*\.page\.astra-workspace-page\.active\s*\{[\s\S]*transform:\s*none\s*!important[\s\S]*will-change:\s*auto\s*!important/);
 
-for (const label of ['教学总览', '课程节奏', '作业发布', '批改与学情', '组织与课程']) {
+for (const label of ['教学总览', '课程节奏', '批改与学情', '作业发布', '组织与课程']) {
   assert.ok(teacher.includes(label), `teacher workbench must expose ${label}`);
 }
 assert.match(teacher, /activeView:\s*'overview'/);
-assert.match(teacher, /overview:\s*renderOverviewPanel[\s\S]*curriculum:\s*renderCurriculumWorkspace[\s\S]*assignments:\s*renderAssignmentWorkspace[\s\S]*grading:\s*renderGradingWorkspace[\s\S]*structure:\s*renderOrganizationPanel/);
+assert.match(teacher, /const TEACHER_VIEWS = Object\.freeze\(\{\s*overview:[\s\S]*curriculum:[\s\S]*grading:[\s\S]*\}\)/);
+assert.match(teacher, /const panels = \{\s*overview:\s*renderOverviewPanel,[\s\S]*curriculum:\s*renderCurriculumWorkspace,[\s\S]*grading:\s*renderGradingWorkspace\s*\}/);
+assert.doesNotMatch(teacher, /const panels = \{[\s\S]*assignments:\s*renderAssignmentWorkspace/);
+assert.doesNotMatch(teacher, /const panels = \{[\s\S]*structure:\s*renderOrganizationPanel/);
+assert.match(teacher, /data-teacher-secondary="assignments"/);
+assert.match(teacher, /data-teacher-secondary="structure"/);
 assert.match(teacher, /data-teacher-operation=/);
 assert.match(teacher, /function renderOperation/);
 assert.doesNotMatch(teacher, /class="teacher-kpi-grid"/);
@@ -73,7 +78,10 @@ assert.doesNotMatch(teacher, /renderSetupPanel\(\)[\s\S]*renderReservedPanel\(\)
 assert.match(teacherCss, /V7\.4\.37 · 星序教学工作台/);
 assert.match(teacherCss, /V7\.5\.7 · 三星系课程节奏与学情轨道/);
 assert.match(teacherCss, /\.teacher-curriculum-grid/);
-assert.match(teacherCss, /\.teacher-progress-matrix/);
+assert.match(teacherCss, /\.teacher-natural-progress-table/);
+assert.match(teacherCss, /\.teacher-progress-disclosure/);
+assert.match(teacherCss, /\.teacher-progress-desktop\s*\{[\s\S]*display:\s*none/);
+assert.match(teacherCss, /@media \(min-width: 761px\)[\s\S]*\.teacher-progress-mobile\s*\{[\s\S]*display:\s*none/);
 assert.match(teacherCss, /\.teacher-code-station/);
 assert.match(teacherCss, /\.teacher-summary-strip\s*\{[\s\S]*grid-template-columns:\s*repeat\(4/);
 assert.match(teacherCss, /\.teacher-overview-layout\s*\{[\s\S]*grid-template-columns:/);

@@ -9,6 +9,21 @@ assert.match(
     /function canManageAssignmentClassPolicy\(\)\s*\{\s*return !isClassReadOnly\(\) && hasCourseCapability/,
     'archived class must disable assignment-class-policy PUT and DELETE controls'
 );
+const gradeStart = teacherSource.indexOf('async function gradeSubmissionCommand');
+const gradeEnd = teacherSource.indexOf('async function updateMemberStatus', gradeStart);
+assert.ok(gradeStart >= 0 && gradeEnd > gradeStart, 'grade owner must stay inspectable');
+const gradeOwner = teacherSource.slice(gradeStart, gradeEnd);
+assert.equal(
+    (gradeOwner.match(/method:\s*'PATCH'/g) || []).length,
+    1,
+    'one grading action must issue exactly one mutation'
+);
+assert.match(gradeOwner, /assignmentId:\s*Number\(state\.selected\.assignmentId\)/);
+assert.match(gradeOwner, /classId:\s*Number\(state\.selected\.classId\)/);
+assert.match(gradeOwner, /offset:\s*state\.pagination\.assignmentSubmissionOffset/);
+assert.match(gradeOwner, /record = await readSubmissionAuthority\(scope/);
+assert.match(gradeOwner, /mutationState === 'conflict'[\s\S]*系统没有自动重发评分/);
+assert.match(gradeOwner, /mutationState === 'locked'[\s\S]*系统不会自动重试/);
 
 async function main() {
     global.window = global;

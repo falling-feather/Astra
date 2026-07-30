@@ -1815,7 +1815,7 @@ async function testPageOwnerResourceFailureFallbacks() {
   const teacherAggregate = new FakeElement('article');
   const teacherRoot = new FakeElement('section');
   teacherRoot.querySelectorAll = (selector) => (
-    selector === '[data-learning-evidence-teacher-aggregate]' ? [teacherAggregate] : []
+    selector === '[data-teacher-natural-workflow]' ? [teacherAggregate] : []
   );
   const teacherContext = {
     console: { warn() {} },
@@ -1974,7 +1974,8 @@ async function testCodeChallengeScopeIsolationAndEvidenceRemount() {
 
 function testTeacherPollingClaim() {
   assert.match(teacherOwnerSource, /const POLL_MS = 4000/);
-  assert.match(teacherOwnerSource, /约 4 秒内发起新一轮读取，显示时延另含接口耗时/);
+  assert.match(teacherOwnerSource, /schedule\(session, POLL_MS\)/);
+  assert.match(teacherOwnerSource, /if \(session\.dialog && session\.dialog\.open && !request\.force\) \{\s*schedule\(session, POLL_MS\);\s*return false;/);
   assert.doesNotMatch(capabilitiesSource, /不超过 5 秒刷新|≤\s*5\s*秒/);
   assert.match(capabilitiesSource, /约每 4 秒发起轮询，显示时延另含接口耗时/);
   assert.match(loaderSource, /code: 'learning_evidence_resource_load_failed'/);

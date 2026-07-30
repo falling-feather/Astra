@@ -1085,3 +1085,108 @@
         min-width: 610px;
     }
 }
+
+/* V7.8.5 · 三个主入口之外的低频流程统一收进二级折叠区 */
+.teacher-secondary-workflow {
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 28px;
+    border-top: 1px solid rgba(139, 180, 224, 0.18);
+    border-bottom: 1px solid rgba(139, 180, 224, 0.12);
+}
+
+.teacher-secondary-workflow > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-height: 68px;
+    padding: 10px 2px;
+    color: #dceaf7;
+    cursor: pointer;
+    list-style: none;
+}
+
+.teacher-secondary-workflow > summary::-webkit-details-marker {
+    display: none;
+}
+
+.teacher-secondary-workflow > summary > span {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.teacher-secondary-workflow > summary strong {
+    font-size: 0.88rem;
+}
+
+.teacher-secondary-workflow > summary small {
+    color: #71869d;
+    font-size: 0.7rem;
+    font-weight: 560;
+}
+
+.teacher-secondary-workflow > summary > svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    color: #6d859d;
+    transition: transform 160ms ease;
+}
+
+.teacher-secondary-workflow[open] > summary > svg {
+    transform: rotate(180deg);
+}
+
+.teacher-secondary-workflow__body {
+    min-width: 0;
+    padding: 0 0 28px;
+}
+
+.teacher-view-nav,
+.teacher-overview-layout,
+.teacher-overview-main,
+.teacher-overview-aside,
+.teacher-operation-list,
+.teacher-operation,
+.teacher-operation__body,
+.teacher-secondary-workflow__body {
+    min-width: 0;
+    max-width: 100%;
+}
+
+@media (max-width: 760px) {
+    .teacher-view-nav {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+    }
+
+    .teacher-view-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .teacher-secondary-workflow {
+        margin-top: 22px;
+    }
+
+    .teacher-secondary-workflow > summary {
+        min-height: 72px;
+        padding-inline: 4px;
+    }
+
+    .teacher-secondary-workflow__body {
+        padding-bottom: 20px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .teacher-secondary-workflow > summary > svg,
+    .teacher-quick-action,
+    .teacher-view-nav button,
+    .teacher-operation > summary > svg {
+        transition: none;
+    }
+}

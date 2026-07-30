@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const teacher = read('pages/teacher/teacher.js');
+const teacherOwner = read('shared/js/teacher-learning-evidence.js');
 const teacherCss = [
   'pages/teacher/teacher-foundation.css',
   'pages/teacher/teacher-workbench.css',
@@ -26,22 +27,26 @@ assert.match(teacher, /const GALAXY_LABELS/);
 assert.match(teacher, /function filteredCourses\(\)/);
 assert.match(teacher, /async function loadCurriculumScope/);
 assert.match(teacher, /\/api\/courses\/\$\{courseId\}\/classes\/\$\{classId\}\/release-plan/);
-assert.match(teacher, /\/api\/progress\/courses\/\$\{courseId\}\/classes\/\$\{classId\}\/students/);
+assert.match(teacherOwner, /`\/api\/progress\/courses\/\$\{snapshot\.courseId\}\/classes\/\$\{snapshot\.classId\}\/students`/);
 assert.match(teacher, /fetchJson\('\/api\/code-submissions'/);
-assert.match(teacher, /limit:\s*COURSE_PROGRESS_PAGE_LIMIT,\s*offset:\s*state\.pagination\.courseProgressOffset/);
+assert.match(teacherOwner, /limit:\s*PROGRESS_PAGE_LIMIT,\s*offset/);
 assert.match(teacher, /limit:\s*CODE_SUBMISSION_PAGE_LIMIT,\s*offset:\s*state\.pagination\.codeSubmissionsOffset/);
 assert.match(teacher, /data-teacher-curriculum-page=/);
-assert.match(teacher, /page\.next_offset/);
-assert.match(teacher, /data-learning-evidence-teacher-aggregate/);
-assert.match(teacher, /0051 权威 aggregate/);
+assert.match(teacherOwner, /data-teacher-natural-page=/);
+assert.match(teacherOwner, /page\.next_offset/);
+assert.match(teacher, /data-teacher-natural-workflow/);
+assert.match(teacherOwner, /teacherAggregate/);
+assert.match(teacherOwner, /学生完成状态以本页学生进度和服务端投影为准/);
 assert.doesNotMatch(teacher, /(?:本页|全班)完成度/);
 
 assert.match(teacher, /data-teacher-form="release-plan"/);
+assert.match(teacher, /confirmReleasePlan\(releasePreview\(plan, command\)\)/);
 assert.match(teacher, /method:\s*'PATCH'[\s\S]*expected_version:\s*Number\(plan\.plan_version\)/);
-assert.match(teacher, /new Set\(positions\)\.size !== positions\.length/);
+assert.match(teacher, /new Set\(items\.map\(\(item\) => item\.position\)\)\.size !== items\.length/);
 assert.match(teacher, /prerequisite\.position >= item\.position/);
-assert.match(teacher, /Number\(error && error\.status\) !== 409/);
-assert.match(teacher, /await loadCurriculumScope\(\);[\s\S]*系统已回读最新权威版本，请确认后重新发布/);
+assert.match(teacher, /releaseErrorStatus\(error\) === 409/);
+assert.match(teacher, /await readReleasePlanAuthority\(\)[\s\S]*草稿没有自动重发/);
+assert.match(teacher, /AstraApiClient\.isAmbiguousMutation\(error\)[\s\S]*系统不会自动重试/);
 assert.match(teacher, /提交内容与权威版本 v\$\{updated\.plan_version\} 一致，无需重复写入/);
 
 for (const endpoint of [
@@ -69,7 +74,8 @@ assert.match(teacherCss, /V7\.5\.7 · 三星系课程节奏与学情轨道/);
 for (const selector of [
   '.teacher-orbit-context',
   '.teacher-release-plan',
-  '.teacher-progress-matrix',
+  '.teacher-natural-progress-table',
+  '.teacher-progress-disclosure',
   '.teacher-code-station',
   '.teacher-source-code'
 ]) {
