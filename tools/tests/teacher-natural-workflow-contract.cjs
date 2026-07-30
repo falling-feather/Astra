@@ -90,7 +90,7 @@ const ownerInstrumented = ownerSource.replace(
       evidenceItemsMarkup, evidenceDialogMarkup, loadEvidence, applyEvidenceFilters,
       clearWorkflowState, blockForAuthority, releasePreviewMarkup, confirmReleasePlan,
       openDialog, closeDialog, trapDialogKeydown, handleClick, handleScopeChange,
-      refreshSession, submitCorrection, mount, destroy,
+      refreshSession, evaluate, submitCorrection, mount, destroy,
       activate(session) { active = session; }, current() { return active; }
   });
   global.AstraTeacherLearningEvidence = Object.freeze({`,
@@ -1073,6 +1073,213 @@ async function main() {
   await runCorrectionCase('duplicate', true);
   await runCorrectionCase('409', true);
   await runCorrectionCase('ambiguous', true);
+
+  let raceAttached = false;
+  const raceProgressCalls = [];
+  const raceAggregateCalls = [];
+  const raceProgressGate = deferred();
+  const raceAggregateGate = deferred();
+  let resolveReadyMarkup;
+  const readyMarkup = new Promise(resolve => { resolveReadyMarkup = resolve; });
+  const raceContainer = {
+    dataset: {},
+    markup: '',
+    setAttribute() {},
+    contains() { return false; },
+    set innerHTML(value) {
+      this.markup = value;
+      if (value.includes('teacher-natural-progress-table')) resolveReadyMarkup();
+    },
+    get innerHTML() { return this.markup; },
+  };
+  const raceMutationStates = [];
+  const raceSession = correctionSession([], raceMutationStates);
+  raceSession.bridge.snapshot = () => ({
+    role: 'teacher',
+    online: true,
+    curriculumAttached: raceAttached,
+    classId: 11,
+    courseId: 101,
+    classLabel: '一班',
+    courseLabel: '力学实验',
+    baseUrl: customBase,
+  });
+  raceSession.root = {
+    querySelectorAll(selector) { return selector === '[data-teacher-natural-workflow]' ? [raceContainer] : []; },
+    appendChild() {},
+  };
+  raceSession.consumedAttachment = true;
+  raceSession.progress = safeProgress;
+  raceSession.aggregate = aggregateResponse;
+  raceSession.progressOffset = 50;
+  raceSession.progressError = 'old-progress-error';
+  raceSession.aggregateError = 'old-aggregate-error';
+  raceSession.pendingRender = true;
+  raceSession.phase = 'loading';
+  raceSession.errorCode = 'old-owner-error';
+  raceSession.evidencePage = evidencePage;
+  raceSession.evidenceError = 'old-evidence-error';
+  raceSession.evidenceStatus = 'old-feedback';
+  raceSession.evidenceStatusType = 'error';
+  raceSession.selectedStudentId = 31;
+  raceSession.selectedStudentLabel = 'old-private-student';
+  raceSession.evidenceFilters = { activityKey: 'physics.mechanics', eventType: 'attempted' };
+  raceSession.eventTokens.set('old-private-token', 9001);
+  raceSession.dialog.open = true;
+  raceSession.dialog.innerHTML = 'old-private-fact';
+  raceSession.dialogMode = 'evidence';
+  raceSession.dialogCloseRequested = true;
+  raceSession.correctionInFlight = true;
+  const initialProgressController = new AbortController();
+  const initialEvidenceController = new AbortController();
+  const initialCorrectionController = new AbortController();
+  raceSession.controller = initialProgressController;
+  raceSession.evidenceController = initialEvidenceController;
+  raceSession.correctionController = initialCorrectionController;
+  raceSession.timer = setTimeout(() => {}, 60_000);
+  ownerContext.AstraApiClient.request = (url, options = {}) => {
+    raceProgressCalls.push({ url, options });
+    return raceProgressGate.promise;
+  };
+  ownerContext.AstraLearningEvidenceClient = {
+    normalizeError(error) { return error; },
+    subscribe() { return () => {}; },
+    teacherAggregate(scope, options = {}) {
+      raceAggregateCalls.push({ scope, options });
+      return raceAggregateGate.promise;
+    },
+  };
+  owner.activate(raceSession);
+  await owner.refreshSession(raceSession, { clear: true });
+  assert.equal(raceSession.scopeKey, `${customBase}|11:101`);
+  assert.equal(raceSession.consumedAttachment, false);
+  assert.equal(raceSession.errorCode, 'course_not_attached');
+  assert.equal(raceProgressCalls.length, 0, 'detached scope must not request private progress');
+  assert.equal(raceAggregateCalls.length, 0, 'detached scope must not request private aggregate');
+  assert.equal(raceSession.progress, null);
+  assert.equal(raceSession.aggregate, null);
+  assert.equal(raceSession.progressOffset, 0);
+  assert.equal(raceSession.pendingRender, false);
+  assert.equal(raceSession.progressError, '');
+  assert.equal(raceSession.aggregateError, '');
+  assert.equal(raceSession.evidencePage, null);
+  assert.equal(raceSession.evidenceError, '');
+  assert.equal(raceSession.evidenceStatus, '');
+  assert.equal(raceSession.evidenceStatusType, '');
+  assert.equal(raceSession.selectedStudentId, 0);
+  assert.equal(raceSession.selectedStudentLabel, '');
+  assert.deepEqual(raceSession.evidenceFilters, { activityKey: '', eventType: '' });
+  assert.equal(raceSession.eventTokens.size, 0);
+  assert.equal(raceSession.dialog.open, false);
+  assert.equal(raceSession.dialog.innerHTML, '');
+  assert.equal(raceSession.dialogCloseRequested, false);
+  assert.equal(raceSession.correctionInFlight, false);
+  assert.equal(initialProgressController.signal.aborted, true);
+  assert.equal(initialEvidenceController.signal.aborted, true);
+  assert.equal(initialCorrectionController.signal.aborted, true);
+  assert.equal(raceSession.timer, 0);
+  assert.doesNotMatch(raceContainer.markup, /old-private/);
+
+  raceAttached = true;
+  owner.evaluate(raceSession);
+  owner.evaluate(raceSession);
+  owner.evaluate(raceSession);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(raceProgressCalls.length, 1, 'false→true must coalesce to one progress request');
+  assert.equal(raceAggregateCalls.length, 1, 'false→true must coalesce to one aggregate request');
+  assert.equal(raceProgressCalls[0].url, '/api/progress/courses/101/classes/11/students');
+  assert.equal(raceProgressCalls[0].options.baseUrl, customBase);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(raceProgressCalls[0].options.params)),
+    { limit: 50, offset: 0 },
+  );
+  assert.ok(raceProgressCalls[0].options.signal instanceof AbortSignal);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(raceAggregateCalls[0].scope)),
+    { class_id: 11, course_id: 101 },
+  );
+  assert.equal(raceAggregateCalls[0].options.baseUrl, customBase);
+  assert.ok(raceAggregateCalls[0].options.signal instanceof AbortSignal);
+  raceProgressGate.resolve(progressPayload);
+  raceAggregateGate.resolve(aggregateResponse);
+  await readyMarkup;
+  assert.equal(raceSession.consumedAttachment, true);
+  assert.equal(raceSession.errorCode, '');
+  assert.equal(raceSession.phase, 'ready');
+  assert.ok(raceSession.progress);
+  assert.ok(raceSession.aggregate);
+  assert.match(raceContainer.markup, /teacher-natural-progress-table/);
+  assert.match(raceContainer.markup, /teacher-progress-disclosure/);
+  const steadyPollTimer = raceSession.timer;
+  owner.evaluate(raceSession);
+  owner.evaluate(raceSession);
+  assert.equal(raceSession.timer, steadyPollTimer, 'repeated true state must not replace the normal poll timer');
+  assert.equal(raceProgressCalls.length, 1);
+  assert.equal(raceAggregateCalls.length, 1);
+
+  raceSession.progressOffset = 50;
+  raceSession.progressError = 'old-progress-error';
+  raceSession.aggregateError = 'old-aggregate-error';
+  raceSession.pendingRender = true;
+  raceSession.phase = 'loading';
+  raceSession.evidencePage = evidencePage;
+  raceSession.evidenceError = 'old-evidence-error';
+  raceSession.evidenceStatus = 'old-feedback';
+  raceSession.evidenceStatusType = 'error';
+  raceSession.selectedStudentId = 31;
+  raceSession.selectedStudentLabel = 'old-private-student';
+  raceSession.evidenceFilters = { activityKey: 'physics.mechanics', eventType: 'attempted' };
+  raceSession.eventTokens.set('old-private-token', 9001);
+  raceSession.dialog.open = true;
+  raceSession.dialog.innerHTML = 'old-private-fact';
+  raceSession.dialogMode = 'evidence';
+  raceSession.dialogCloseRequested = true;
+  raceSession.correctionInFlight = true;
+  const detachedProgressController = new AbortController();
+  const detachedEvidenceController = new AbortController();
+  const detachedCorrectionController = new AbortController();
+  raceSession.controller = detachedProgressController;
+  raceSession.evidenceController = detachedEvidenceController;
+  raceSession.correctionController = detachedCorrectionController;
+  raceAttached = false;
+  owner.evaluate(raceSession);
+  owner.evaluate(raceSession);
+  owner.evaluate(raceSession);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(raceSession.consumedAttachment, false);
+  assert.equal(raceSession.scopeKey, `${customBase}|11:101`);
+  assert.equal(raceSession.errorCode, 'course_not_attached');
+  assert.equal(raceSession.phase, 'partial');
+  assert.equal(raceProgressCalls.length, 1, 'true→false must not request progress');
+  assert.equal(raceAggregateCalls.length, 1, 'true→false must not request aggregate');
+  assert.equal(raceSession.progress, null);
+  assert.equal(raceSession.aggregate, null);
+  assert.equal(raceSession.progressOffset, 0);
+  assert.equal(raceSession.pendingRender, false);
+  assert.equal(raceSession.progressError, '');
+  assert.equal(raceSession.aggregateError, '');
+  assert.equal(raceSession.evidencePage, null);
+  assert.equal(raceSession.evidenceError, '');
+  assert.equal(raceSession.evidenceStatus, '');
+  assert.equal(raceSession.evidenceStatusType, '');
+  assert.equal(raceSession.selectedStudentId, 0);
+  assert.equal(raceSession.selectedStudentLabel, '');
+  assert.deepEqual(raceSession.evidenceFilters, { activityKey: '', eventType: '' });
+  assert.equal(raceSession.eventTokens.size, 0);
+  assert.equal(raceSession.dialog.open, false);
+  assert.equal(raceSession.dialog.innerHTML, '');
+  assert.equal(raceSession.dialogCloseRequested, false);
+  assert.equal(raceSession.correctionInFlight, false);
+  assert.equal(detachedProgressController.signal.aborted, true);
+  assert.equal(detachedEvidenceController.signal.aborted, true);
+  assert.equal(detachedCorrectionController.signal.aborted, true);
+  assert.equal(raceSession.timer, 0);
+  assert.doesNotMatch(raceContainer.markup, /old-private/);
+  owner.evaluate(raceSession);
+  owner.evaluate(raceSession);
+  assert.equal(raceSession.timer, 0, 'repeated false state must not schedule a request storm');
+  assert.equal(raceProgressCalls.length, 1);
+  assert.equal(raceAggregateCalls.length, 1);
 
   let workflowWrites = 0;
   const focusedWorkflowNode = {};
