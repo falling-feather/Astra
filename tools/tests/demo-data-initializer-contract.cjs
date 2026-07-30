@@ -9,10 +9,14 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const launcher = read('astra-local.ps1');
 const manifest = read('backend/scripts/demo_data_manifest.py');
+const evidenceProfiles = read('backend/scripts/demo_evidence_profiles.py');
 const initializer = read('backend/scripts/initialize_demo_data.py');
 const codeManifestSource = read('codevis/shared/js/course-manifest.js');
 const futureManifestSource = read('pages/frontier/frontier-manifest.js');
 const registrySource = read('shared/js/experiment-registry.js');
+const physicsProducerSource = read('pages/physics/physics.js');
+const controlFlowProducerSource = read('codevis/pages/course-challenge/course-challenge.js');
+const sharedEvidenceProducerSource = read('shared/js/learning-evidence-activity.js');
 
 assert.match(launcher, /\[switch\]\$InitializeDemoData/);
 assert.match(launcher, /-m scripts\.initialize_demo_data --confirm-local-preview/);
@@ -40,12 +44,19 @@ for (const endpoint of [
 assert.match(initializer, /runner_unavailable/);
 assert.match(initializer, /getpass\.getpass/);
 assert.match(initializer, /secret-free report/);
+assert.match(initializer, /from scripts\.demo_evidence_profiles import/);
+assert.match(initializer, /build_demo_evidence_payload\(profile, event_type, index\)/);
+assert.match(initializer, /"producer_mode": representative\.evidence_profile\.producer_mode/);
+assert.match(initializer, /"course_fact_status": representative\.evidence_profile\.course_fact_status/);
 assert.match(initializer, /for declaration in DEMO_ASSIGNMENTS:/);
 assert.match(initializer, /result\[course_key\] =/);
+assert.doesNotMatch(initializer, /representative\.(?:learning_goal|variable|constant|prediction|operation|observation|feedback|explanation)/);
 assert.doesNotMatch(initializer, /from app\.core\.config import get_settings/);
 assert.doesNotMatch(initializer, /^\s*(?:from|import)\s+(?:sqlalchemy|sqlite3|alembic)\b/m);
 assert.doesNotMatch(initializer, /^\s*from\s+app\.(?:models|services)\b/m);
 
+assert.match(manifest, /from scripts\.demo_evidence_profiles import DEMO_EVIDENCE_PROFILE_BY_ACTIVITY/);
+assert.match(manifest, /return DEMO_EVIDENCE_PROFILE_BY_ACTIVITY\[self\.open_unit_key\]/);
 assert.match(manifest, /len\(DEMO_COURSES\) != 14/);
 assert.match(manifest, /sum\(len\(course\.units\) for course in DEMO_COURSES\) != 42/);
 assert.match(manifest, /len\(REPRESENTATIVE_COURSES\) != 6/);
@@ -59,6 +70,71 @@ assert.match(manifest, /astra_demo_admin/);
 assert.match(manifest, /astra_demo_teacher/);
 assert.match(manifest, /astra_demo_student/);
 assert.doesNotMatch(manifest, /password|token/i);
+assert.doesNotMatch(evidenceProfiles, /password|token/i);
+
+for (const literal of [
+  'frontend_precise',
+  'frontend_shallow',
+  'generic_lifecycle_fallback',
+  'precise',
+  'shallow',
+  'unavailable',
+  'deterministic_synthetic_not_browser_capture',
+  'physics.mechanics',
+  'control-flow.loop-boundary',
+  'mathematics.derivative-application',
+  'debugging-testing.minimal-case',
+  'engineering.load-path',
+  'humanities.claim-review',
+]) {
+  assert.match(evidenceProfiles, new RegExp(literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
+for (const literal of [
+  'expects_higher_080',
+  'expected_height_multiplier',
+  'reason_size',
+  'restitution_adjustment',
+  'after-observation',
+  'first_rebound_height_px',
+  'height_ratio',
+  'height_follows_e_squared',
+  'model_limit_acknowledged',
+  'ratio_040',
+  'ratio_080',
+]) {
+  assert.match(physicsProducerSource, new RegExp(literal));
+  assert.match(evidenceProfiles, new RegExp(literal));
+}
+for (const literal of [
+  'prediction-recorded',
+  'before-browser-precheck',
+  'browser_precheck',
+  'runner_unavailable',
+  'browser_precheck_finished',
+  'formal_oj_submission',
+  'judge_result_received',
+  'code-revision',
+  'public-check-pass',
+]) {
+  assert.match(controlFlowProducerSource, new RegExp(literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(evidenceProfiles, new RegExp(literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
+for (const literal of ['surface', 'entered', 'claim-evidence-link', 'claim-supported', 'explained']) {
+  assert.match(sharedEvidenceProducerSource, new RegExp(literal));
+  assert.match(evidenceProfiles, new RegExp(literal));
+}
+for (const futureOnlyField of [
+  'slope_x0_id',
+  'failure_class_id',
+  'load_node_id',
+  'source_id',
+  'body_execution_count',
+  'first_false_count',
+  'operator_id',
+  'output_id',
+]) {
+  assert.doesNotMatch(evidenceProfiles, new RegExp(futureOnlyField));
+}
 
 const assignmentSection = manifest.match(/DEMO_ASSIGNMENTS = \(([\s\S]*?)\r?\n\)\r?\nDEMO_CODE_PROBLEM =/);
 assert.ok(assignmentSection, 'DEMO_ASSIGNMENTS must remain a declarative manifest section');

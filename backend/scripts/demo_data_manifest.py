@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from scripts.demo_evidence_profiles import DEMO_EVIDENCE_PROFILE_BY_ACTIVITY
+
 
 @dataclass(frozen=True)
 class DemoUnitSpec:
@@ -37,15 +39,10 @@ class RepresentativeCourseSpec:
     locked_unit_key: str
     hidden_unit_key: str
     minimum_attempts: int
-    learning_goal: str
-    variable: str
-    constant: str
-    prediction: str
-    operation: str
-    observation: str
-    feedback: str
-    correction_reason: str
-    explanation: str
+
+    @property
+    def evidence_profile(self):
+        return DEMO_EVIDENCE_PROFILE_BY_ACTIVITY[self.open_unit_key]
 
 
 DEMO_ADMIN_USERNAME = "astra_demo_admin"
@@ -104,39 +101,21 @@ DEMO_COURSES = (
 REPRESENTATIVE_COURSES = (
     RepresentativeCourseSpec(
         "physics", "physics.mechanics", "physics.gas-laws", "physics.thermodynamics", 2,
-        "Relate recovery coefficient to peak height.", "e", "fixed drop preset",
-        "height changes nonlinearly with e", "compare-e-only", "h/H follows the e-squared relation",
-        "separate peak from tail", "model-limit", "e changes velocity ratio before the height relation.",
     ),
     RepresentativeCourseSpec(
         "mathematics", "mathematics.derivative-application", "mathematics.function-graph", "mathematics.calculus", 2,
-        "Use derivative signs to classify change and extrema.", "x0", "fixed function and range",
-        "the derivative sign predicts local increase or decrease", "fill-sign-table", "left and right signs change at the critical point",
-        "f-prime-zero-is-not-enough", "compare-left-right-signs", "a zero derivative needs a sign change or other evidence.",
     ),
     RepresentativeCourseSpec(
         "control-flow", "control-flow.loop-boundary", "control-flow.branch-doors", "control-flow.nested-grid", 2,
-        "Explain the difference between <3 and <=3.", "comparison operator", "initial value, step, bound and body",
-        "the inclusive boundary runs one more body iteration", "trace-condition-checks", "the first false check stops the loop without entering its body",
-        "separate checks from body executions", "first-false-is-evidence", "the operator changes the final false boundary, not the step.",
     ),
     RepresentativeCourseSpec(
         "debugging-testing", "debugging-testing.minimal-case", "debugging-testing.assert-boundary", "debugging-testing.trace-mismatch", 4,
-        "Reduce a failure to a minimal counterexample and regress it.", "input size", "predicate, expected result and runner",
-        "a one-element negative input preserves the failure", "shrink-four-to-one", "the failure signature remains while input size drops from four to one",
-        "reproduce before changing code", "minimum-counterexample", "the fix must pass both the minimal and original inputs.",
     ),
     RepresentativeCourseSpec(
         "engineering-systems", "engineering.load-path", "engineering.member-choice", "engineering.safety-check", 3,
-        "Explain ideal-truss load redistribution across nodes B, C and D.", "load node", "60 kN, geometry, supports and ideal pins",
-        "moving the load changes reactions and member forces", "run-b-c-d-cases", "Ay/Ey, GH/CD forces and node residuals change by case",
-        "compare reactions before reading member colors", "ideal-model-boundary", "ideal joint equilibrium is not a real bridge safety conclusion.",
     ),
     RepresentativeCourseSpec(
         "humanities-futures", "humanities.claim-review", "humanities.context-map", "humanities.voice-shift", 2,
-        "Narrow a claim using two sources and support/limit evidence.", "claim scope", "source roles and time context",
-        "two sources require a narrower claim than one source", "compare-two-sources", "support and limitation evidence point to a qualified claim",
-        "distinguish context from causal proof", "claim-scope-revision", "the revised claim states what the sources support and what remains open.",
     ),
 )
 
@@ -210,3 +189,8 @@ if sum(len(course.units) for course in DEMO_COURSES) != 42:
     raise AssertionError("the local demo catalog must contain 42 units")
 if len(REPRESENTATIVE_COURSES) != 6:
     raise AssertionError("the local demo catalog must contain six representative courses")
+if set(DEMO_EVIDENCE_PROFILE_BY_ACTIVITY) != {
+    representative.open_unit_key
+    for representative in REPRESENTATIVE_COURSES
+}:
+    raise AssertionError("every representative course must have one evidence producer profile")
