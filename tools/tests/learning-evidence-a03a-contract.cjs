@@ -203,17 +203,26 @@ function createRouterPublicationHarness(options = {}) {
       return Promise.resolve([{ id: 92, galaxy_key: 'englab', course_key: 'physics' }]);
     }
     if (route === '/api/courses/92/units') {
+      let units;
       if (Object.prototype.hasOwnProperty.call(options, 'units')) {
-        return Promise.resolve(options.units);
-      }
-      if (options.releaseState === 'open' || options.releaseState === 'locked') {
-        return Promise.resolve([{
+        units = options.units;
+      } else if (options.releaseState === 'open' || options.releaseState === 'locked') {
+        units = [{
           id: 103,
           activity_key: `physics.${moduleId}`,
           effective_release_state: options.releaseState
-        }]);
+        }];
+      } else {
+        units = [];
       }
-      return Promise.resolve([]);
+      if (!units.some(unit => unit.activity_key === 'physics.gas-laws')) {
+        units = [...units, {
+          id: 104,
+          activity_key: 'physics.gas-laws',
+          effective_release_state: 'open'
+        }];
+      }
+      return Promise.resolve(units);
     }
     if (route === '/api/courses/92/unit-access') {
       assert.equal(requestOptions.params.class_id, 42);
@@ -839,7 +848,13 @@ async function runPublicationUnknownModuleDiagnosticContract() {
   });
   assert.equal(locked.selector.openModule('physics', 'mechanics'), true);
   await settlePromises();
-  assert.deepEqual(locked.gateStates.at(-1), { state: 'locked', code: 'activity_locked' });
+  assert.equal(
+    locked.gateStates.some(item => item.state === 'locked'),
+    false,
+    'known locked Physics modules must normalize silently without exposing the lock state'
+  );
+  assert.equal(locked.windowObject.location.hash, '#physics');
+  assert.equal(locked.selector._publicationGateNodes.physics, undefined);
   assert.equal(locked.selector.activeModule.physics, null);
   assert.equal(locked.getOwnerInitializations(), 0);
   assert.deepEqual(locked.warnings, []);
@@ -878,8 +893,17 @@ async function runPublicationUnknownModuleDiagnosticContract() {
 
   let activeOwnerResolutions = 0;
   const activeOwner = createPublicationModuleHarness({
-    async resolve() {
+    async resolve(activity) {
       activeOwnerResolutions += 1;
+      if (activity.activity_key === 'physics.gas-laws') {
+        return {
+          available: true,
+          class_id: 42,
+          course_id: 9,
+          course_unit_id: 92,
+          activity_key: activity.activity_key
+        };
+      }
       return { available: false, error_code: 'activity_hidden' };
     }
   }, {
@@ -887,11 +911,12 @@ async function runPublicationUnknownModuleDiagnosticContract() {
     knownModules: ['mechanics', 'gas-laws']
   });
   assert.equal(activeOwner.selector.openModule('physics', 'gas-laws'), true);
+  await settlePromises();
   assert.equal(activeOwner.selector.activeModule.physics, 'gas-laws');
   assert.equal(activeOwner.getOwnerInitializations(), 2);
   activeOwner.windowObject.location.hash = '#physics/unknown-over-active';
   assert.equal(activeOwner.selector.openModule('physics', 'unknown-over-active'), false);
-  assert.equal(activeOwnerResolutions, 0, 'an unknown request over an active owner must not enter authority resolution');
+  assert.equal(activeOwnerResolutions, 1, 'the active known module must resolve once, while an unknown replacement stays local');
   assert.equal(activeOwner.selector.activeModule.physics, 'gas-laws');
   assert.equal(activeOwner.getOwnerInitializations(), 2);
   assert.equal(activeOwner.warnings.length, 1);
@@ -899,8 +924,17 @@ async function runPublicationUnknownModuleDiagnosticContract() {
 
   let resolveLateHidden;
   const staleHidden = createPublicationModuleHarness({
-    resolve() {
-      return new Promise((resolve) => { resolveLateHidden = resolve; });
+    resolve(activity) {
+      if (activity.activity_key === 'physics.stale-hidden') {
+        return new Promise((resolve) => { resolveLateHidden = resolve; });
+      }
+      return Promise.resolve({
+        available: true,
+        class_id: 42,
+        course_id: 9,
+        course_unit_id: 92,
+        activity_key: activity.activity_key
+      });
     }
   }, {
     initialHash: '#physics/stale-hidden',
@@ -910,6 +944,7 @@ async function runPublicationUnknownModuleDiagnosticContract() {
   await settlePromises();
   assert.equal(typeof resolveLateHidden, 'function');
   assert.equal(staleHidden.selector.openModule('physics', 'gas-laws'), true);
+  await settlePromises();
   assert.equal(staleHidden.selector.activeModule.physics, 'gas-laws');
   assert.equal(staleHidden.getOwnerInitializations(), 2);
   const replacementGeneration = staleHidden.selector._transitionGeneration.physics;
@@ -997,8 +1032,8 @@ async function assertKnownGasLawsRecovery(harness, label, { restoreRegistry = fa
   );
   assert.equal(
     publicationAuthorityCallCount(harness),
-    authorityCallsBefore,
-    `${label}: known module must add zero publication authority requests`
+    authorityCallsBefore + 2,
+    `${label}: known student Physics module must resolve /courses and /units before ownership`
   );
 }
 
@@ -1016,7 +1051,11 @@ function deferredPublicationRequest(unitAccessDeferred, moduleId, observations =
         observations.coursesSignal,
         'the publication lookup must reuse one internal signal from /courses through /units'
       );
-      return Promise.resolve([]);
+      return Promise.resolve([{
+        id: 104,
+        activity_key: 'physics.gas-laws',
+        effective_release_state: 'open'
+      }]);
     }
     if (route === '/api/courses/92/unit-access') {
       observations.unitAccessSignal = requestOptions.signal;
@@ -1049,7 +1088,11 @@ function sequencedDeferredPublicationRequest(unitAccessDeferreds, moduleId, obse
         activeSignal,
         'each publication attempt must reuse its own signal from /courses through /units'
       );
-      return Promise.resolve([]);
+      return Promise.resolve([{
+        id: 104,
+        activity_key: 'physics.gas-laws',
+        effective_release_state: 'open'
+      }]);
     }
     if (route === '/api/courses/92/unit-access') {
       assert.equal(
@@ -1078,7 +1121,11 @@ function deferredCoursesPublicationRequest(coursesDeferred, observations = {}) {
     }
     if (route === '/api/courses/92/units') {
       observations.downstreamRoutes.push(route);
-      return Promise.resolve([]);
+      return Promise.resolve([{
+        id: 104,
+        activity_key: 'physics.gas-laws',
+        effective_release_state: 'open'
+      }]);
     }
     if (route === '/api/courses/92/unit-access') {
       observations.downstreamRoutes.push(route);
@@ -1152,9 +1199,30 @@ async function runProductionRouterPublicationContract() {
   assert.equal(knownModule.selector.activeModule.physics, 'gas-laws');
   assert.equal(
     publicationAuthorityCallCount(knownModule),
-    knownAuthorityCalls,
-    'known gas-laws must add zero publication authority requests'
+    knownAuthorityCalls + 2,
+    'known gas-laws must resolve publication authority before activating its owner'
   );
+
+  for (const role of ['teacher', 'admin']) {
+    const privileged = createRouterPublicationHarness({
+      moduleId: 'gas-laws',
+      user: { id: role === 'teacher' ? 8 : 9, role }
+    });
+    await privileged.ready();
+    await privileged.startRoute();
+    await privileged.timers.drain();
+    await settlePromises(32);
+    assertRouterPublicationQuiescent(
+      privileged,
+      { hash: '#physics/gas-laws', warnings: 0, owners: 1 },
+      `${role} known gas-laws route`
+    );
+    assert.equal(
+      publicationAuthorityCallCount(privileged),
+      0,
+      `${role} routing must keep the existing non-student authority boundary`
+    );
+  }
 
   const listedOpen = createRouterPublicationHarness({
     moduleId: 'mechanics',
@@ -1185,16 +1253,31 @@ async function runProductionRouterPublicationContract() {
   });
   await listedLocked.ready();
   await listedLocked.startRoute();
-  assert.equal(listedLocked.selector._publicationGatePending.physics, undefined);
-  assert.deepEqual(
-    listedLocked.selector._publicationGateNodes.physics,
-    { state: 'locked', code: 'activity_locked' }
+  assertRouterPublicationQuiescent(
+    listedLocked,
+    { hash: '#physics', warnings: 0, owners: 0 },
+    'listed locked mechanics route'
   );
-  assert.equal(listedLocked.windowObject.location.hash, '#physics/mechanics');
-  assert.equal(listedLocked.getOwnerInitializations(), 0);
   assert.equal(unitAccessCallCount(listedLocked), 0, 'listed locked must not probe unit-access');
-  assert.deepEqual(listedLocked.warnings, []);
-  assert.deepEqual(listedLocked.errors, []);
+
+  const backendHiddenKnown = createRouterPublicationHarness({
+    moduleId: 'thermodynamics',
+    domModules: ['mechanics', 'gas-laws', 'thermodynamics'],
+    units: [],
+    unitAccess: { available: false, error_code: 'activity_hidden' }
+  });
+  await backendHiddenKnown.ready();
+  await backendHiddenKnown.startRoute();
+  assertRouterPublicationQuiescent(
+    backendHiddenKnown,
+    { hash: '#physics', warnings: 0, owners: 0 },
+    'backend-hidden known thermodynamics route'
+  );
+  assert.equal(
+    unitAccessCallCount(backendHiddenKnown),
+    1,
+    'a known Physics unit omitted from /units must use exactly one unit-access classification'
+  );
 
   const ambiguousListed = createRouterPublicationHarness({
     moduleId: 'mechanics',
@@ -1263,6 +1346,22 @@ async function runProductionRouterPublicationContract() {
     UNKNOWN_MODULE_WARNING,
     'non-physics ordinary unknown'
   );
+
+  const knownNonPhysics = createRouterPublicationHarness({
+    page: 'chemistry',
+    moduleId: 'periodic-table',
+    domModules: ['periodic-table']
+  });
+  await knownNonPhysics.ready();
+  await knownNonPhysics.startRoute();
+  await knownNonPhysics.timers.drain();
+  await settlePromises(32);
+  assertRouterPublicationQuiescent(
+    knownNonPhysics,
+    { hash: '#chemistry/periodic-table', warnings: 0, owners: 1 },
+    'known non-Physics student route'
+  );
+  assert.equal(publicationAuthorityCallCount(knownNonPhysics), 0);
 
   const nonStudent = createRouterPublicationHarness({
     moduleId: 'teacher-unknown',
@@ -1486,7 +1585,6 @@ async function runProductionRouterPublicationContract() {
       label
     );
     assertFixedSafeWarning(harness.warnings, expectedWarning, label);
-    await assertKnownGasLawsRecovery(harness, label);
   }
 
   const repeatedAccess = createDeferred();
@@ -1669,6 +1767,7 @@ async function runProductionRouterPublicationContract() {
     await harness.startRoute();
     assert.ok(harness.selector._publicationGatePending.physics);
     assert.equal(harness.selector.openModule('physics', 'gas-laws'), true);
+    await settlePromises(32);
     await harness.timers.drain();
     const replacementGeneration = harness.selector._transitionGeneration.physics;
     const replacementOwnerCount = harness.getOwnerInitializations();
@@ -1687,14 +1786,19 @@ async function runProductionRouterPublicationContract() {
   }
 
   const loaderDeferred = createDeferred();
+  let loaderEnsureCalls = 0;
   const lateReject = createRouterPublicationHarness({
     moduleId: 'late-reject',
-    loaderEnsure: () => loaderDeferred.promise
+    loaderEnsure: () => {
+      loaderEnsureCalls += 1;
+      return loaderEnsureCalls === 1 ? loaderDeferred.promise : Promise.resolve();
+    }
   });
   await lateReject.ready();
   await lateReject.startRoute();
   assert.ok(lateReject.selector._publicationGatePending.physics);
   assert.equal(lateReject.selector.openModule('physics', 'gas-laws'), true);
+  await settlePromises(32);
   await lateReject.timers.drain();
   const lateRejectGeneration = lateReject.selector._transitionGeneration.physics;
   const lateRejectOwners = lateReject.getOwnerInitializations();
@@ -2443,10 +2547,13 @@ function runMechanicsZoomRestoreContract() {
   const bHarness = createPublicationModuleHarness(productionPublication);
   assert.equal(bHarness.selector.openModule('physics', 'mechanics'), true);
   await settlePromises();
-  assert.deepEqual(
-    bHarness.gateStates.at(-1),
-    { state: 'locked', code: 'activity_locked' }
+  assert.equal(
+    bHarness.gateStates.some(item => item.state === 'locked'),
+    false,
+    'B locked known Physics route must close without exposing its state'
   );
+  assert.equal(bHarness.windowObject.location.hash, '#physics');
+  assert.equal(bHarness.selector._publicationGateNodes.physics, undefined);
   assert.equal(bHarness.getOwnerInitializations(), 0, 'B locked must initialize no experiment or evidence owner');
   assert.ok(
     productionCalls.some((call) => call.route === '/api/courses' && call.classId === 42),

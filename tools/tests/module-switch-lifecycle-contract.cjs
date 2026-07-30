@@ -218,9 +218,11 @@ function configureStudentPublication(harness, access) {
     getUser: () => ({ id: 7, role: 'student' })
   };
   harness.windowObject.AstraEngineeringLabPublicationContext = {
-    resolve: (_activity, options = {}) => {
+    resolve: (activity, options = {}) => {
       harness.publicationSignals.push(options.signal);
-      return Promise.resolve(access);
+      return Promise.resolve(
+        typeof access === 'function' ? access(activity, options) : access
+      );
     }
   };
   harness.selector._renderPublicationGate = (page, _pageEl, state, code = '') => {
@@ -289,7 +291,13 @@ function configureStudentPublication(harness, access) {
   assert.equal(lockedPublication.order.includes('unexpected-locked-init'), false);
   assert.equal(lockedPublication.order.includes('unexpected-locked-assets'), false);
   assert.equal(lockedPublication.order.includes('unexpected-locked-evidence'), false);
-  assert.ok(lockedPublication.order.includes('publication-gate:locked:activity_locked'));
+  assert.equal(
+    lockedPublication.order.some(item => item === 'publication-gate:locked:activity_locked'),
+    false,
+    'known locked Physics routes must close silently without exposing their state'
+  );
+  assert.equal(lockedPublication.selector._publicationGateNodes.physics, undefined);
+  assert.equal(lockedPublication.windowObject.location.hash, '#physics');
   assert.equal(lockedPublication.selector._initialized['physics:mechanics'], undefined);
 
   const openPublication = createHarness();
@@ -347,7 +355,17 @@ function configureStudentPublication(harness, access) {
   let settlePendingAccess;
   const pendingAccess = new Promise(resolve => { settlePendingAccess = resolve; });
   const pendingSwitch = createHarness();
-  configureStudentPublication(pendingSwitch, pendingAccess);
+  configureStudentPublication(pendingSwitch, activity => (
+    activity.activity_key === 'physics.mechanics'
+      ? pendingAccess
+      : {
+          available: true,
+          class_id: 12,
+          course_id: 23,
+          course_unit_id: 35,
+          activity_key: activity.activity_key
+        }
+  ));
   pendingSwitch.selector._initModule = (page, id) => pendingSwitch.order.push(`pending-switch-init:${page}:${id}`);
   assert.equal(pendingSwitch.selector.openModule('physics', 'mechanics'), true);
   assert.ok(pendingSwitch.selector._publicationGatePending.physics);
@@ -356,6 +374,9 @@ function configureStudentPublication(harness, access) {
   assert.equal(pendingSwitchSignal.aborted, false);
   assert.equal(pendingSwitch.selector.openModule('physics', 'gas-laws'), true);
   assert.equal(pendingSwitchSignal.aborted, true);
+  assert.equal(pendingSwitch.selector.activeModule.physics, null);
+  assert.equal(pendingSwitch.sections['gas-laws'].classList.contains('module-active'), false);
+  await settlePromises();
   assert.equal(pendingSwitch.selector._publicationGatePending.physics, undefined);
   assert.equal(pendingSwitch.selector._publicationGateNodes.physics, undefined);
   assert.equal(pendingSwitch.selector.activeModule.physics, 'gas-laws');
@@ -651,11 +672,26 @@ function configureStudentPublication(harness, access) {
   const guideTimers = createTimers();
   const guideFocusTarget = { focusCalls: 0, focus() { this.focusCalls += 1; } };
   const guideSection = { querySelector() { return guideFocusTarget; } };
+  const guideDocumentListeners = new Map();
+  const guideListenerOperations = [];
+  let guideZoomOpen = false;
   const guideContext = {
     window: {},
     document: {
       querySelector(selector) {
+        if (selector === '.physics-zoom-modal.open, .biology-zoom-modal.open') {
+          return guideZoomOpen ? {} : null;
+        }
         return selector === '#page-physics [data-module="mechanics"].module-active' ? guideSection : null;
+      },
+      addEventListener(type, handler, options) {
+        if (!guideDocumentListeners.has(type)) guideDocumentListeners.set(type, new Set());
+        guideDocumentListeners.get(type).add(handler);
+        guideListenerOperations.push({ action: 'add', type, handler, options });
+      },
+      removeEventListener(type, handler, options) {
+        guideDocumentListeners.get(type)?.delete(handler);
+        guideListenerOperations.push({ action: 'remove', type, handler, options });
       }
     },
     setTimeout: (callback, delay) => guideTimers.setTimeout(callback, delay),
@@ -674,7 +710,57 @@ function configureStudentPublication(harness, access) {
   await guideTimers.drain();
   assert.equal(hiddenDismissTarget.focusCalls, 0, 'dismiss must cancel delayed focus on the hidden guide button');
   assert.equal(guideFocusTarget.focusCalls, 1, 'dismissing the guide must restore focus to the active module');
-  assert.match(guideSource, /e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*this\._dismiss\(\{ restoreFocus: true \}\);/);
+
+  guide._overlay.classList.add('active');
+  guide._attachEscapeOwner();
+  guide._attachEscapeOwner();
+  assert.equal(
+    (guideDocumentListeners.get('keydown') || new Set()).size,
+    1,
+    'guide Escape ownership must attach idempotently at document level'
+  );
+  guideZoomOpen = true;
+  const zoomEscape = {
+    key: 'Escape',
+    defaultPrevented: false,
+    immediatePropagationStopped: false,
+    preventDefault() { this.defaultPrevented = true; },
+    stopImmediatePropagation() { this.immediatePropagationStopped = true; }
+  };
+  for (const handler of guideDocumentListeners.get('keydown') || []) handler(zoomEscape);
+  assert.equal(guide._overlay.classList.contains('active'), true, 'Zoom must outrank Guide');
+  assert.equal(zoomEscape.defaultPrevented, false);
+
+  guideZoomOpen = false;
+  const firstGuideEscape = {
+    key: 'Escape',
+    target: { id: 'fab-trigger' },
+    defaultPrevented: false,
+    immediatePropagationStopped: false,
+    preventDefault() { this.defaultPrevented = true; },
+    stopImmediatePropagation() { this.immediatePropagationStopped = true; }
+  };
+  for (const handler of [...(guideDocumentListeners.get('keydown') || [])]) handler(firstGuideEscape);
+  await guideTimers.drain();
+  assert.equal(guide._overlay.classList.contains('active'), false);
+  assert.equal(firstGuideEscape.defaultPrevented, true);
+  assert.equal(firstGuideEscape.immediatePropagationStopped, true);
+  assert.equal(
+    (guideDocumentListeners.get('keydown') || new Set()).size,
+    0,
+    'dismiss must synchronously release the document Escape owner'
+  );
+  const guideKeyAdds = guideListenerOperations.filter((operation) => (
+    operation.action === 'add' && operation.type === 'keydown'
+  ));
+  const guideKeyRemoves = guideListenerOperations.filter((operation) => (
+    operation.action === 'remove' && operation.type === 'keydown'
+  ));
+  assert.equal(guideKeyAdds.length, 1);
+  assert.equal(guideKeyRemoves.length, 1);
+  assert.equal(guideKeyAdds[0].handler, guideKeyRemoves[0].handler);
+  assert.equal(guideKeyAdds[0].options, true);
+  assert.equal(guideKeyRemoves[0].options, true);
   assert.match(source, /教师尚未开放“力学模拟”[\s\S]*实验画布与交互资源均未启动/);
   assert.match(source, /data-module-access-return[\s\S]*安全返回物理实验列表/);
 

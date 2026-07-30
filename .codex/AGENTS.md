@@ -10,17 +10,17 @@
 - Python/FastAPI 业务后端：认证、学校/班级/课程、作业、内容、学习分析、任务与审计。
 - Node/C++ 静态服务：只承担审核后的浏览器资源托管。
 
-V6.6.63 后端阶段已经完成；V7.4 完成项目对接、注册 / 生命周期、认证与角色资源、组织治理、统一三星系总览、单一全局治理和 9001 一键入口；V7.5 完成代码空间、未来星系、课程编排、教师进度、OJ 诚实降级和全仓 review。V7.6 由 `主开发` 作为集成分支，`main@V7.5.11` 保持公开稳定。V7.6.5 / BE-006、V7.8.0 / BE-007、V7.8.2 / BE-011、V7.9.4 / UI-003、V7.9.7 / DATA-001 与 V7.9.12 / DATA-002 均已进入当前集成线；`CONTENT-003 / V7.7.0` 已冻结未来星系六方向 / 18 门课程矩阵，`CONTENT-001 / V7.7.15` 已冻结三星系六门代表课程。`FE-012 / V7.7.22` 已集成精确单元访问处置接线、固定诊断、请求取消 / ABA 隔离与 Zoom 打开态 resize；`TOOLS-002 / V7.7.25` 已在 `de3afdbf` 集成 strict-readonly 外部 Python / venv 启动能力。`QA-014 / V7.7.26` 随后在 clean detached `b56e@de3afdbf` 上完成真实 9001 / SQLite / 外部 Edge 复验并以 P0=0、P1=2、P2=2、P3=0 RETURN FE-012：物理力学缺少学生 `corrected` 路径，已知 locked / hidden 物理深链仍激活模块与 Canvas，实验指南首个 Escape 存在约 100ms 焦点空窗，恢复后重复写入 `started`。Zoom 旧位图早采样已撤销为未证实，不得作为返修依据。V7.7.27 唯一分配给原 FE-012 集中修复，V7.7.28 预留给同一 QA-014 精确复验。FE-013 继续等待 A03a PASS；FE-017 仍等待 26 号视觉规格与完整概念图两次用户确认。当前交付目标仍是课程作业 / 设计大赛的本地展示版：优先课程互动、学生—教师—管理员协同、SQLite 数据对账和 9001 一键启动；真实 MySQL、公网 R6、隔离 runner、压力测试、真实课堂试点与 AI 能力后置。任务、责任、版本与门禁只认 `doc/02-项目规划.md`。
+V6.6.63 后端阶段已经完成；V7.4 完成项目对接、注册 / 生命周期、认证与角色资源、组织治理、统一三星系总览、单一全局治理和 9001 一键入口；V7.5 完成代码空间、未来星系、课程编排、教师进度、OJ 诚实降级和全仓 review。V7.6 由 `主开发` 作为集成分支，`main@V7.5.11` 保持公开稳定。V7.6.5 / BE-006、V7.8.0 / BE-007、V7.8.2 / BE-011、V7.9.4 / UI-003、V7.9.7 / DATA-001 与 V7.9.12 / DATA-002 均已进入当前集成线；`CONTENT-003 / V7.7.0` 已冻结未来星系六方向 / 18 门课程矩阵，`CONTENT-001 / V7.7.15` 已冻结三星系六门代表课程。`FE-012 / V7.7.22` 已集成精确单元访问处置接线、固定诊断、请求取消 / ABA 隔离与 Zoom 打开态 resize；`TOOLS-002 / V7.7.25` 已在 `de3afdbf` 集成 strict-readonly 外部 Python / venv 启动能力。`QA-014 / V7.7.26` 在 clean detached `b56e@de3afdbf` 上以 P0=0、P1=2、P2=2、P3=0 RETURN FE-012；`FE-012 / V7.7.27` 随后集中关闭物理学生 corrected / 完成闭环、known locked / hidden 物理深链、指南首个 Escape 和恢复后重复 started 四项缺口，候选 `b450e33b` 已经两轮独立复审并以 P0—P3=0 进入当前集成线。V7.7.28 只供同一 QA-014 对新的精确主线树执行真实 9001 / SQLite / 外部 Edge 复验；A03a PASS 前 FE-012、FE-013 均不关闭。FE-017 仍等待 26 号视觉规格与完整概念图两次用户确认。当前交付目标仍是课程作业 / 设计大赛的本地展示版：优先课程互动、学生—教师—管理员协同、SQLite 数据对账和 9001 一键启动；真实 MySQL、公网 R6、隔离 runner、压力测试、真实课堂试点与 AI 能力后置。任务、责任、版本与门禁只认 `doc/02-项目规划.md`。
 
-当前增量：V7.7.26 已对 `de3afdbf6934ec4e321bce75fa0595df0c67fed6` 完整执行 216 个跟踪 JavaScript / 43/43 前端合同、76 项定向后端、578 项后端全量、正式启动、三角色 API、外部 Edge 双视口与只读 SQLite 终账。自动化、权限矩阵、响应式、44px、Zoom、普通 missing 固定诊断、console 与资源释放大项通过；A03a 因四项精确前端缺陷 RETURN。QA 的教师 correction 误操作只记程序性数据污染，不计产品缺陷；启动后 `content_pages=1` 是 local-preview 确定性 seed，旧 empty-baseline 失败只记 runbook 阶段错配。外部浏览器与 9001 已关闭，`b56e` clean、无 `.venv`；V7.7.26 TEMP `C:/Users/niu-h/AppData/Local/Temp/astra-qa-v7726-db881ce314d546e9b760aca625544592` 及证据原样保留。原 FE-012 将在新登记的 `f27a` 独立工作树集中修复四项缺口；旧 `d6b6` 只保留审计，`a02c` 永久禁入。所有更新仍以 `doc/02-项目规划.md` 为准。
+当前增量：V7.7.27 在 `f27a` 独立工作树形成精确候选 `b450e33b30f8151aae428b35db2e9aa41ed48d72`（父 `0e159932715d34d1e6cf15e242f67cb933c38c94`），修改登记的 15 个前端、合同及受影响 01/08 文件。物理力学现在以固定落高和 `e=.40/.80` 两次受控试验形成 learner corrected 与服务端派生 completed，自由探索不写证据；所有 known Physics 路由统一先过发布 gate；Guide 取得 document-level 首个 Escape owner；recovery 有 `first_started_at` 时不再追加 started。首轮独立复审发现 owner reopen 状态分裂与 resize 旧高度夹取，两项已由原 owner 返修；第二轮复审 P0—P3=0。主开发集成树的六项专项、217 个跟踪 JavaScript / 44/44 前端合同及受影响后端 44 passed / 1 个显式 MySQL skip 已通过。实现组没有形成真实浏览器证据，故 V7.7.28 仍须使用全新 detached 树 / TEMP 完整复验。`f27a` clean、写入关闭；旧 `d6b6` 只保留审计，`a02c` 永久禁入。
 
 DATA-001 与 DATA-002 已完成并集成；专业组保留在 `C:/Users/niu-h/.codex/worktrees/992d/工科实验室 / codex/data-v7.9-teacher-demo-sample @ a920642`，工作树 clean、写入关闭。V7.9.12 只为 `control-flow.loop-boundary` 增加 pending 作业样例及专项断言，通用初始化器 blob 保持不变；未新增模型、迁移、endpoint、service、router、直接数据库写入或修改前端 / UI / teacher / Future。
 
 BE-011 已完成并集成；专业组保留在 `C:/Users/niu-h/.codex/worktrees/0dce/工科实验室 / codex/be-v7.8-unit-access @ 35fa219`，工作树 clean、写入关闭。`V7.8.2` 只新增独立 course-unit-access schema / endpoint / service、router 注册和专项测试，未修改模型、迁移、冻结课程 endpoint/schema 或前端。
 
-FE-012 / V7.7.22 已集成；旧专业组树 `d6b6@5db1112e` 保持 clean、写入关闭。QA-014 / V7.7.26 已形成四项真实产品缺陷并 RETURN 原 FE-012；V7.7.27 将从最新主开发控制点建立 `C:/Users/niu-h/.codex/worktrees/f27a/工科实验室` / `codex/fe-v7.7-a03a-four-fixes`，只允许精确返修与受影响 01/08，不得复用旧树或触碰 Future。
+FE-012 / V7.7.27 已集成待 QA；专业组树 `C:/Users/niu-h/.codex/worktrees/f27a/工科实验室` / `codex/fe-v7.7-a03a-four-fixes @ b450e33b` clean、写入关闭。旧 `d6b6@5db1112e` 只保留审计；两个 FE 树均不得继续写入、merge、push、rebase 或清理，不得触碰 Future 或 `a02c`。
 
-QA-014 / V7.7.23 与 V7.7.24 的 BLOCKED / NOT-RUN 现场继续冻结。V7.7.26 在 `b56e@de3afdbf` 完整运行后以 P0=0、P1=2、P2=2、P3=0 RETURN；浏览器、服务与所有仓库均已收束，`b56e` detached、clean、无 `.venv`。本轮唯一 TEMP `C:/Users/niu-h/AppData/Local/Temp/astra-qa-v7726-db881ce314d546e9b760aca625544592` 及 `evidence/final-handoff.json`、targeted ledger、SHA-256 manifest 原样保留。旧 `89e8`、`c91f` 与三个 QA TEMP 不移动复用，`a02c` 永久禁入。
+QA-014 / V7.7.23 与 V7.7.24 的 BLOCKED / NOT-RUN 现场继续冻结。V7.7.26 在 `b56e@de3afdbf` 完整运行后以 P0=0、P1=2、P2=2、P3=0 RETURN；浏览器、服务与所有仓库均已收束，唯一 TEMP `C:/Users/niu-h/AppData/Local/Temp/astra-qa-v7726-db881ce314d546e9b760aca625544592` 及证据原样保留。V7.7.28 必须从 V7.7.27 精确主线提交建立全新 detached QA 树与唯一 TEMP，使用当前可信外部 Edge / Chrome extension backend 复验；旧 `89e8`、`c91f`、`b56e` 与旧 QA TEMP 不移动复用，`a02c` 永久禁入。
 
 TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室` / `codex/tools-v7.7-readonly-local-start` 完成，精确候选 `ba3d02c4e8712e9ba10fd8499f99f5dc0bb43d6b`，父 `0262b322401e644cafc8a31bcfa8b405ebb6df94`，工作树 clean。候选只修改登记的 9 个启动器、合同与入口文档文件；首轮独立复审 RETURN 后由原 owner 返修，最终复审 P0—P3=0 并由本提交集成。工具写入关闭；共享 02/03、requirements、后端、前端、部署脚本和所有 QA TEMP 始终冻结。
 
@@ -41,7 +41,7 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 ## 项目对接与写入
 
 1. 当前“星序 Astra｜主开发｜总控”已经恢复，由主开发独占 `主开发` 根工作区和共享 `02/03`；`main` 只接收已收束的稳定版本，`houduan` 保留下一轮后端开发起点。
-2. 项目对接模式已经启用。CONTENT、FE、BE、QA 已按标准标题恢复并登记独立 worktree；CONTENT 与 QA 只读，写入组只在收到主开发的精确任务 / 版本 / 文件包后写各自物理目录。V7.7.26 已真实 RETURN 原 FE-012；当前只恢复 FE-012 / V7.7.27，在新 `f27a` 独立工作树集中修复四项缺口。BE、DATA、UI、TOOLS 与 QA 写入均关闭；不得创建竞争 FE / QA 任务或复用旧 d6b6 / b56e。
+2. 项目对接模式已经启用。CONTENT、FE、BE、QA 已按标准标题恢复并登记独立 worktree；CONTENT 与 QA 只读，写入组只在收到主开发的精确任务 / 版本 / 文件包后写各自物理目录。V7.7.27 已集成且 FE 写入关闭；下一动作只恢复原 QA-014 / V7.7.28，在新的 detached 树上验证精确主线提交。BE、DATA、UI、TOOLS 与 FE 写入均关闭；不得创建竞争 FE / QA 任务或复用旧 d6b6 / b56e。
 3. `doc/02-项目规划.md` 与 `doc/03-开发历史.md` 由主开发集中写入；恢复后的专业组只维护各自专属实现文档差异并在 handoff 中提供任务 / 历史摘要，禁止并行修改共享 02/03 造成冲突。
 4. 恢复后的 QA 必须独立验收主开发或专业组交付；主开发自测不能替代 QA 回执。
 5. `qianduan` 旧 worktree 无唯一提交，已由 `ARCH-002 / V7.6.9` 删除；`qianduan` 分支与本地标签 `archive/qianduan-wip-before-main-sync-20260727` 继续保留，标签只用于恢复和审计，不是开发入口。
@@ -59,7 +59,7 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 6. 外部投递/问题同步/审计锚定默认关闭，启用需要独立审批和真实 staging 证据。
 7. 数据库结构变化必须带 Alembic、回滚考虑和 SQLite 升级 / 降级 / 再升级；MySQL DDL / 条件门禁不得破坏。真实 MySQL 实证只在用户恢复生产发布任务后成为硬门禁。
 8. 学生 AI 助教、教师 AI 教学助手、AI 维护 / 管理助手均为展示后条件任务；当前不得显示为可用。以后接入时，AI 输出只作建议，权威完成、评分、发布、权限和治理写入必须继续由人确认并通过既有领域 API 与审计链执行。
-9. 未来星系层级重构以 `doc/02-项目规划.md` 第 1.4 节、`doc/02-子文档/25-V7.7未来星系18课程内容与路由冻结矩阵.md`、`doc/02-子文档/26-V7.7未来星系页面视觉规格.md`、`FE-017`、`QA-015` 为唯一规划入口。18 门课程全部保留，CONTENT-003 已完成；V7.7.26 已真实 RETURN FE-012，必须先以 V7.7.27 关闭学习完成、发布深链、Escape 与重复 started 四项缺口并由 V7.7.28 复验。26 号视觉规格仍待用户确认，之后必须生成并再次确认完整概念图。只有 A03a 通过和两次视觉确认完成、FE 写入分支从最新集成点建立并收到新版本令牌后，FE-017 才能写入产品代码。
+9. 未来星系层级重构以 `doc/02-项目规划.md` 第 1.4 节、`doc/02-子文档/25-V7.7未来星系18课程内容与路由冻结矩阵.md`、`doc/02-子文档/26-V7.7未来星系页面视觉规格.md`、`FE-017`、`QA-015` 为唯一规划入口。18 门课程全部保留，CONTENT-003 已完成；V7.7.27 已在代码与合同层关闭 V7.7.26 的四项缺口，仍须由 V7.7.28 完成真实 A03a 复验。26 号视觉规格仍待用户确认，之后必须生成并再次确认完整概念图。只有 A03a 通过和两次视觉确认完成、FE 写入分支从最新集成点建立并收到新版本令牌后，FE-017 才能写入产品代码。
 
 ## 验证要求
 
