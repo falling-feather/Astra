@@ -174,13 +174,13 @@ const PhysicsZoom = {
         this.movedCanvas.style.transformOrigin = 'center center';
 
         this.modal.classList.add('open');
-        this._syncScale();
 
         // Enable pinch-zoom gesture on touch devices
         if (typeof TouchGestures !== 'undefined' && !this._pinchCtrl) {
             this._pinchCtrl = TouchGestures.enablePinchZoom(this.host, this.movedCanvas, { maxScale: 4 });
         }
         if (this._pinchCtrl) this._pinchCtrl.reset();
+        this._syncScale();
         this.closeBtn.focus({ preventScroll: true });
     },
 
@@ -191,7 +191,7 @@ const PhysicsZoom = {
 
         const sx = hostRect.width / this.originalRect.width;
         const sy = hostRect.height / this.originalRect.height;
-        const scale = Math.min(sx, sy);
+        const scale = Math.min(1, sx, sy);
 
         // If pinch-zoom is active, delegate transform to its controller
         if (this._pinchCtrl) {
@@ -199,6 +199,17 @@ const PhysicsZoom = {
         } else {
             this.movedCanvas.style.transform = `scale(${scale})`;
         }
+    },
+
+    syncOriginalParentResize(canvas, originalParent) {
+        if (
+            !canvas
+            || canvas !== this.movedCanvas
+            || !originalParent
+            || originalParent !== this.originalParent
+        ) return false;
+        this._handleResize();
+        return true;
     },
 
     _handleResize() {
