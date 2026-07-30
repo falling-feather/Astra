@@ -20,6 +20,17 @@ from app.models.learning_evidence import (
     LearningRuleClassBinding,
 )
 from app.db.session import get_session_factory
+from scripts.demo_evidence_profiles import (
+    COURSE_FACT_STATUS_PRECISE,
+    COURSE_FACT_STATUS_SHALLOW,
+    COURSE_FACT_STATUS_UNAVAILABLE,
+    DEMO_EVIDENCE_PROFILE_BY_ACTIVITY,
+    DEMO_FIXTURE_PROVENANCE,
+    PRODUCER_MODE_FRONTEND_PRECISE,
+    PRODUCER_MODE_FRONTEND_SHALLOW,
+    PRODUCER_MODE_GENERIC_FALLBACK,
+    build_demo_evidence_payload,
+)
 from scripts.demo_data_manifest import (
     DEMO_ASSIGNMENTS,
     DEMO_CODE_PROBLEM,
@@ -100,12 +111,189 @@ def test_manifest_is_complete_and_contains_no_credential_material():
         "engineering-systems": ("engineering.load-path", "engineering.member-choice", "engineering.safety-check", 3),
         "humanities-futures": ("humanities.claim-review", "humanities.context-map", "humanities.voice-shift", 2),
     }
+    assert {
+        activity_key: (profile.producer_mode, profile.course_fact_status)
+        for activity_key, profile in DEMO_EVIDENCE_PROFILE_BY_ACTIVITY.items()
+    } == {
+        "physics.mechanics": (PRODUCER_MODE_FRONTEND_PRECISE, COURSE_FACT_STATUS_PRECISE),
+        "control-flow.loop-boundary": (PRODUCER_MODE_FRONTEND_SHALLOW, COURSE_FACT_STATUS_SHALLOW),
+        "mathematics.derivative-application": (PRODUCER_MODE_GENERIC_FALLBACK, COURSE_FACT_STATUS_UNAVAILABLE),
+        "debugging-testing.minimal-case": (PRODUCER_MODE_GENERIC_FALLBACK, COURSE_FACT_STATUS_UNAVAILABLE),
+        "engineering.load-path": (PRODUCER_MODE_GENERIC_FALLBACK, COURSE_FACT_STATUS_UNAVAILABLE),
+        "humanities.claim-review": (PRODUCER_MODE_GENERIC_FALLBACK, COURSE_FACT_STATUS_UNAVAILABLE),
+    }
 
-    manifest_source = Path(__file__).resolve().parents[1].joinpath("scripts", "demo_data_manifest.py").read_text(
-        encoding="utf-8"
+    scripts_root = Path(__file__).resolve().parents[1] / "scripts"
+    for filename in ("demo_data_manifest.py", "demo_evidence_profiles.py"):
+        declaration_source = scripts_root.joinpath(filename).read_text(encoding="utf-8")
+        assert "password" not in declaration_source.lower()
+        assert "token" not in declaration_source.lower()
+
+
+def test_demo_evidence_profiles_match_current_producers_and_keep_fallback_generic():
+    physics = DEMO_EVIDENCE_PROFILE_BY_ACTIVITY["physics.mechanics"]
+    assert build_demo_evidence_payload(physics, "started", 1) == {
+        "cursor": {"surface": "englab", "stage": "entered"}
+    }
+    assert build_demo_evidence_payload(physics, "predicted", 1) == {
+        "prediction": {
+            "expects_higher_080": True,
+            "expected_height_multiplier": 4,
+            "reason_size": 24,
+        },
+        "cursor": {"stage": "prediction-recorded"},
+    }
+    physics_attempts = [
+        build_demo_evidence_payload(physics, "attempted", index)
+        for index in range(1, 4)
+    ]
+    assert [item["cursor"]["trial"] for item in physics_attempts] == [40, 80, 40]
+    assert [item["cursor"]["preset"]["restitution"] for item in physics_attempts] == [0.40, 0.80, 0.40]
+    assert {
+        tuple(sorted(item["cursor"]["preset"].items()))
+        for item in physics_attempts
+    } == {
+        (
+            ("damping", 0),
+            ("drop_height_px", 200),
+            ("gravity_px_s2", 980),
+            ("horizontal_velocity_px_s", 0),
+            ("radius_px", 16),
+            ("restitution", 0.40),
+        ),
+        (
+            ("damping", 0),
+            ("drop_height_px", 200),
+            ("gravity_px_s2", 980),
+            ("horizontal_velocity_px_s", 0),
+            ("radius_px", 16),
+            ("restitution", 0.80),
+        ),
+    }
+    for item in physics_attempts:
+        observation = item["cursor"]["observation"]
+        assert abs(
+            observation["height_ratio"]
+            - round(observation["first_rebound_height_px"] / 200, 2)
+        ) <= 0.01
+    assert build_demo_evidence_payload(physics, "corrected", 1) == {
+        "correction": {
+            "height_follows_e_squared": True,
+            "model_limit_acknowledged": True,
+            "ratio_040": 0.16,
+            "ratio_080": 0.64,
+        },
+        "cursor": {"stage": "after-repair"},
+    }
+    assert build_demo_evidence_payload(physics, "explained", 1) == {
+        "artifact": {"kind": "claim-evidence-link", "value": "claim-supported"},
+        "cursor": {"stage": "explained"},
+    }
+
+    control = DEMO_EVIDENCE_PROFILE_BY_ACTIVITY["control-flow.loop-boundary"]
+    assert build_demo_evidence_payload(control, "started", 1) == {
+        "cursor": {"surface": "code-space", "stage": "entered"}
+    }
+    assert build_demo_evidence_payload(control, "predicted", 1) == {
+        "prediction": {"choice": "prediction-recorded"},
+        "cursor": {"stage": "before-browser-precheck"},
+    }
+    control_attempts = [
+        build_demo_evidence_payload(control, "attempted", index)
+        for index in range(1, 4)
+    ]
+    assert control_attempts == [
+        {
+            "operation": "browser_precheck",
+            "reported_correct": False,
+            "cursor": {"runner": "runner_unavailable"},
+        },
+        {
+            "operation": "browser_precheck",
+            "reported_correct": True,
+            "cursor": {"runner": "browser_precheck_finished"},
+        },
+        {
+            "operation": "formal_oj_submission",
+            "cursor": {"judge": "judge_result_received"},
+        },
+    ]
+    assert "trace" not in json.dumps(control_attempts, sort_keys=True)
+    assert build_demo_evidence_payload(control, "corrected", 1) == {
+        "correction": {
+            "kind": "code-revision",
+            "result": "public-check-pass",
+        },
+        "cursor": {"stage": "after-repair"},
+    }
+    assert build_demo_evidence_payload(control, "explained", 1) == {
+        "artifact": {"kind": "claim-evidence-link", "value": "claim-supported"},
+        "cursor": {"stage": "explained"},
+    }
+
+    fallback_activity_keys = (
+        "mathematics.derivative-application",
+        "debugging-testing.minimal-case",
+        "engineering.load-path",
+        "humanities.claim-review",
     )
-    assert "password" not in manifest_source.lower()
-    assert "token" not in manifest_source.lower()
+    fallback_payloads = {
+        activity_key: {
+            event_type: build_demo_evidence_payload(
+                DEMO_EVIDENCE_PROFILE_BY_ACTIVITY[activity_key],
+                event_type,
+                1,
+            )
+            for event_type in DEMO_EVIDENCE_EVENT_TYPES
+        }
+        for activity_key in fallback_activity_keys
+    }
+    assert len({
+        json.dumps(payloads, sort_keys=True)
+        for payloads in fallback_payloads.values()
+    }) == 1
+    fallback_serialized = json.dumps(fallback_payloads, sort_keys=True)
+    for forbidden_course_fact in (
+        "slope_x0_id",
+        "failure_class_id",
+        "load_node_id",
+        "source_id",
+        "body_execution_count",
+        "first_false_count",
+        "output_id",
+    ):
+        assert forbidden_course_fact not in fallback_serialized
+
+
+def _expected_seeded_learner_evidence_payloads() -> dict[str, dict]:
+    expected: dict[str, dict] = {}
+    for representative in REPRESENTATIVE_COURSES:
+        activity_key = representative.open_unit_key
+        attempt_count = representative.minimum_attempts + 1
+        for event_type in DEMO_EVIDENCE_EVENT_TYPES:
+            event_count = attempt_count if event_type == "attempted" else 1
+            for index in range(1, event_count + 1):
+                expected[f"demo:{activity_key}:{event_type}:{index}"] = build_demo_evidence_payload(
+                    representative.evidence_profile,
+                    event_type,
+                    index,
+                )
+    return expected
+
+
+def _read_seeded_learner_evidence_payloads() -> dict[str, dict]:
+    session_factory = get_session_factory(get_settings().database_url)
+    with session_factory() as db:
+        events = db.scalars(
+            select(LearningEvidenceEvent)
+            .where(LearningEvidenceEvent.client_event_id.like("demo:%"))
+            .order_by(LearningEvidenceEvent.client_event_id)
+        ).all()
+    return {
+        event.client_event_id: event.evidence_json
+        for event in events
+        if ":teacher-correction:" not in event.client_event_id
+    }
 
 
 async def _read_control_flow_demo_scope(report: dict) -> dict:
@@ -228,10 +416,13 @@ async def _read_control_flow_demo_scope(report: dict) -> dict:
 
 def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_environment):
     first = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    first_payloads = _read_seeded_learner_evidence_payloads()
     first_scope = asyncio.run(_read_control_flow_demo_scope(first))
     second = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    second_payloads = _read_seeded_learner_evidence_payloads()
     second_scope = asyncio.run(_read_control_flow_demo_scope(second))
     third = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    third_payloads = _read_seeded_learner_evidence_payloads()
     third_scope = asyncio.run(_read_control_flow_demo_scope(third))
 
     for report in (first, second, third):
@@ -256,13 +447,19 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
             assert set(item["event_counts"]) == {"started", "predicted", "attempted", "corrected", "explained"}
             assert all(count >= 1 for count in item["event_counts"].values())
             assert item["event_counts"]["attempted"] == item["minimum_attempts"] + 1
+            assert item["fixture_provenance"] == DEMO_FIXTURE_PROVENANCE
             assert item["teacher_correction"]["event_id"] > 0
             assert item["teacher_correction"]["target_event_id"] > 0
             assert item["teacher_correction"]["linked_in_teacher_readback"] is True
             assert "teacher_feedback" not in item
             assert item["payload_fingerprints"]["attempted"]
-            assert item["summary_facts"]["predicted"]
-        assert len({item["payload_fingerprints"]["predicted"][0] for item in report["representative_evidence"].values()}) == 6
+        assert {
+            item["activity_key"]: (item["producer_mode"], item["course_fact_status"])
+            for item in report["representative_evidence"].values()
+        } == {
+            activity_key: (profile.producer_mode, profile.course_fact_status)
+            for activity_key, profile in DEMO_EVIDENCE_PROFILE_BY_ACTIVITY.items()
+        }
         assert all(item["teacher_correction"]["linked_in_teacher_readback"] for item in report["representative_evidence"].values())
         assert report["release_modes"]["engineering-systems"] == {
             "engineering.load-path": "open",
@@ -312,6 +509,12 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
     )
     assert first["code_runner"] == second["code_runner"] == third["code_runner"]
     assert first_scope == second_scope == third_scope
+    assert (
+        first_payloads
+        == second_payloads
+        == third_payloads
+        == _expected_seeded_learner_evidence_payloads()
+    )
     assert first["course_status"]["status_patch_audits"] == second["course_status"]["status_patch_audits"]
     assert second["course_status"]["status_patch_audits"] == third["course_status"]["status_patch_audits"]
 

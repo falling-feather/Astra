@@ -23,6 +23,11 @@ from urllib.parse import urlsplit
 
 from httpx import ASGITransport, AsyncClient, Response
 
+from scripts.demo_evidence_profiles import (
+    DEMO_FIXTURE_PROVENANCE,
+    DEMO_TEACHER_CORRECTION_REASON,
+    build_demo_evidence_payload,
+)
 from scripts.demo_data_manifest import (
     DEMO_ADMIN_USERNAME,
     DEMO_ASSIGNMENTS,
@@ -143,55 +148,13 @@ def _iso(value: datetime) -> str:
 
 
 def _stable_event_payload(event_type: str, representative: Any, activity_key: str, index: int) -> dict[str, Any]:
-    if event_type == "started":
-        return {
-            "cursor": {
-                "learning_goal": representative.learning_goal,
-                "variable": representative.variable,
-                "constant": representative.constant,
-            },
-        }
-    if event_type == "predicted":
-        return {
-            "prediction": {
-                "choice": representative.prediction,
-                "variable": representative.variable,
-            },
-            "cursor": {"learning_goal": representative.learning_goal},
-        }
-    if event_type == "attempted":
-        return {
-            "operation": f"{representative.operation}:{index}",
-            "reported_correct": True,
-            "cursor": {
-                "observation": representative.observation,
-                "attempt_index": index,
-            },
-        }
-    if event_type == "corrected":
-        return {
-            "correction": {
-                "kind": "learner-self-correction",
-                "reason_code": representative.correction_reason,
-                "revision_kind": representative.feedback,
-            },
-            "cursor": {"learning_goal": representative.learning_goal},
-        }
-    if event_type == "explained":
-        return {
-            "artifact": {
-                "format": "text",
-                "kind": "explanation",
-                "ref": f"demo:{activity_key}:explanation",
-                "status": "ready",
-                "result": representative.explanation,
-            },
-            "cursor": {
-                "observation": representative.observation,
-                "learning_goal": representative.learning_goal,
-            },
-        }
-    raise DemoInitializationError(f"unsupported demo evidence event type: {event_type}")
+    profile = representative.evidence_profile
+    if profile.activity_key != activity_key:
+        raise DemoInitializationError(f"demo evidence profile scope drifted for {activity_key}")
+    try:
+        return build_demo_evidence_payload(profile, event_type, index)
+    except ValueError as exc:
+        raise DemoInitializationError(str(exc)) from exc
 
 
 def _stable_event_time(base_time: datetime, event_type: str, index: int, attempt_count: int) -> str:
@@ -1012,7 +975,7 @@ async def _ensure_representative_evidence(
             teacher,
             {
                 "client_event_id": f"demo:{activity_key}:teacher-correction:1",
-                "reason": representative.correction_reason,
+                "reason": DEMO_TEACHER_CORRECTION_REASON,
                 "occurred_at": _iso(base_time + timedelta(minutes=4 + attempt_count)),
             },
         )
@@ -1075,6 +1038,9 @@ async def _ensure_representative_evidence(
             raise DemoInitializationError(f"teacher aggregate did not show completion for {activity_key}")
         evidence_summary[course_key] = {
             "activity_key": activity_key,
+            "producer_mode": representative.evidence_profile.producer_mode,
+            "course_fact_status": representative.evidence_profile.course_fact_status,
+            "fixture_provenance": DEMO_FIXTURE_PROVENANCE,
             "status": projection["status"],
             "attempt_count": projection["attempt_count"],
             "corrected_count": projection["corrected_count"],
