@@ -24,9 +24,9 @@ DATA-003 / V7.9.19 已完成并集成：`da03` 最终候选 `31722c8899ffc7f7a56
 
 FE-013 / V7.8.5 已形成最终专业候选 `b34f007f5fd91428beb92e6598d4f2b80e3a7f21`（父 `41e929a`）并由主开发语义集成；精确 20 文件均在登记 allowlist 内，`teacher.js` 保持 2883 个逻辑行且未提高架构 ceiling。顶级导航已收束为三项，多范围不静默首选，发布 / 纠正 / 反馈保持单次写与权威回读，桌面表格 / 移动 disclosure、有限 facts、hidden 零泄漏及 owner 生命周期由合同覆盖。独立架构第三审和 UX 复审均 PASS、P0—P3=0；实现组未形成 runtime / browser 证据，FE 写入关闭，等待 QA-013。旧 f27a / d6b6 继续只读审计。
 
-QA-013 / V7.8.6 已唯一分配给标准长期任务“星序 Astra｜QA组｜长期对接”，固定结果标题为 `V7.8.6 QA test(teacher): 验收教师协同工作台（QA-013）`。V7.9.24 只登记本次教师协同运行包；并行 QA 正常释放 9001 后，主开发已从该精确控制点创建 detached `C:/Users/niu-h/.codex/worktrees/qe13/工科实验室 @ 990f4e8ff33d8c05968965136e147fdd7b103c29`，V7.9.25 只回填该实态。新树 clean、无 `.venv`，完整 `[ASSIGN]` 到达前只读等待；QA 不得复用旧 worktree / TEMP / SQLite、终止其他组服务、写产品或共享文档，也不得触碰 `a02c`。
+QA-013 / V7.8.6 已唯一分配给标准长期任务“星序 Astra｜QA组｜长期对接”，固定结果标题为 `V7.8.6 QA test(teacher): 验收教师协同工作台（QA-013）`。V7.9.24 只登记本次教师协同运行包；主开发已创建并以 V7.9.25 回填 detached `C:/Users/niu-h/.codex/worktrees/qe13/工科实验室 @ 990f4e8ff33d8c05968965136e147fdd7b103c29`。完整 `[ASSIGN]` 已发出，QA 正在该 clean、无 `.venv` 的只读树执行；不得复用旧 worktree / TEMP / SQLite、终止其他组服务、写产品或共享文档，也不得触碰 `a02c`。
 
-FE-012 / V7.7.27 已集成；后续同一产品树的补充运行证据确认 Zoom 保持打开时由 390×844 切至 1015×898 会把 863px backing store 自动放大到 943px，形成真实 P3。V7.7.30 已唯一分配给原 FE-012，固定标题为 `V7.7.30 FE fix(evidence): 修复 Zoom 跨断点同步（FE-012）`；新工作树只能在 V7.9.26 控制提交后由主开发创建并以 V7.9.27 回填。旧 `f27a@b450e33b` 与 `d6b6@5db1112e` 只保留审计，不得恢复写入、merge、push、rebase 或清理，不得触碰 Future 或 `a02c`。
+FE-012 / V7.7.27 已集成；后续同一产品树的补充运行证据确认 Zoom 保持打开时由 390×844 切至 1015×898 会把 863px backing store 自动放大到 943px，形成真实 P3。V7.7.30 已唯一分配给原 FE-012，固定标题为 `V7.7.30 FE fix(evidence): 修复 Zoom 跨断点同步（FE-012）`。主开发已从 V7.9.26 控制提交 `876cb44df7f483774ca4c52ebbc291ba713e11d4` 创建 `C:/Users/niu-h/.codex/worktrees/fz30/工科实验室` / `codex/fe-v7.7-zoom-resize @ 876cb44`，V7.9.27 只回填该 clean 实态；完整 `[ASSIGN]` 前仍禁止写入。旧 `f27a@b450e33b` 与 `d6b6@5db1112e` 只保留审计，不得恢复写入、merge、push、rebase 或清理，不得触碰 Future 或 `a02c`。
 
 QA-014 / V7.7.23、V7.7.24 的 BLOCKED / NOT-RUN 现场与 V7.7.26 产品 RETURN 证据保持不变。V7.7.29 使用 detached `q28a@2d6a065` 完成当时既定 A03a 矩阵；其后从保留的 V7.7.28 现场补充回传了可重复的 Zoom 移动→桌面保持打开 P3，因此不得继续把该切片记为关闭。精确截图为 `C:/Users/niu-h/AppData/Local/Temp/astra-qa-v7728-ee8d104947b74b589f1bd3310f8f36cb/evidence/browser-zoom-desktop-mismatch.png`，manifest SHA-256 为 `c581230e0da1ce4238da51e3b1ff2982d5ad2068dc82aeb2e8775fc67f82f00e`；浏览器与服务已释放、9001=0。所有旧 TEMP 均只读保留，不移动、复用或清理；旧 `89e8`、`c91f`、`b56e` 与受保护 `a02c` 永久禁入。
 
@@ -49,7 +49,7 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 ## 项目对接与写入
 
 1. 当前“星序 Astra｜主开发｜总控”已经恢复，由主开发独占 `主开发` 根工作区和共享 `02/03`；`main` 只接收已收束的稳定版本，`houduan` 保留下一轮后端开发起点。
-2. 项目对接模式已经启用。CONTENT、FE、BE、QA 已按标准标题恢复；QA 只读，写入组只在收到主开发的精确任务 / 版本 / 文件包后写各自物理目录。CONTENT-004 / V7.8.3、DATA-003 / V7.9.19 与 BE-013 / V7.8.4 均已完成并暂停；FE-013 / V7.8.5 已由登记的临时接续执行者在 fe13 形成最终候选并由主开发语义集成，专业写入关闭。QA-013 / V7.8.6 正在唯一标准 QA 长期任务内运行。补充 QA 证据把 Zoom P3 退回既有 FE-012；V7.7.30 与 V7.9.26—27 已唯一分配，V7.9.26 控制提交前不得创建或写入新 FE 工作树。q28a、c04e、da03、be13、fe13、qe13 与外部证据只保留各自任务边界。原长期任务处于 systemError 时，只允许主开发登记的边界明确临时执行者接续同一任务编号，不创建竞争任务标题；不得复用旧 d6b6 / f27a / b56e。
+2. 项目对接模式已经启用。CONTENT、FE、BE、QA 已按标准标题恢复；QA 只读，写入组只在收到主开发的精确任务 / 版本 / 文件包后写各自物理目录。CONTENT-004 / V7.8.3、DATA-003 / V7.9.19 与 BE-013 / V7.8.4 均已完成并暂停；FE-013 / V7.8.5 已集成并关闭专业写入。QA-013 / V7.8.6 正在唯一标准 QA 长期任务内运行。补充 QA 证据把 Zoom P3 退回既有 FE-012；V7.9.26 控制提交后，主开发已创建 clean `fz30@876cb44`，V7.9.27 只回填其实态，完整 `[ASSIGN]` 到达前写入仍关闭。q28a、c04e、da03、be13、fe13、qe13、fz30 与外部证据各守任务边界。原长期任务处于 systemError 时，只允许主开发登记的边界明确临时执行者接续同一任务编号，不创建竞争任务标题；不得复用旧 d6b6 / f27a / b56e。
 3. `doc/02-项目规划.md` 与 `doc/03-开发历史.md` 由主开发集中写入；恢复后的专业组只维护各自专属实现文档差异并在 handoff 中提供任务 / 历史摘要，禁止并行修改共享 02/03 造成冲突。
 4. 恢复后的 QA 必须独立验收主开发或专业组交付；主开发自测不能替代 QA 回执。
 5. `qianduan` 旧 worktree 无唯一提交，已由 `ARCH-002 / V7.6.9` 删除；`qianduan` 分支与本地标签 `archive/qianduan-wip-before-main-sync-20260727` 继续保留，标签只用于恢复和审计，不是开发入口。
