@@ -223,13 +223,16 @@
         session.scopeKey = '';
         session.progress = null;
         session.aggregate = null;
+        session.progressOffset = 0;
         session.progressError = '';
         session.aggregateError = '';
+        session.pendingRender = false;
         session.phase = code ? 'partial' : 'idle';
         session.errorCode = code || '';
         session.evidencePage = null;
         session.evidenceError = '';
         session.evidenceStatus = '';
+        session.evidenceStatusType = '';
         session.selectedStudentId = 0;
         session.selectedStudentLabel = '';
         session.evidenceFilters.activityKey = '';
@@ -522,13 +525,16 @@
 
     async function refreshSession(session, options) {
         if (!session || session !== active || session.destroyed || !session.authorityReady) return;
-        const request = options || {};
+        const request = Object.assign({}, options || {});
+        const snapshot = normalizeSnapshot(session);
+        const nextScopeKey = scopeKey(snapshot);
+        const attachmentChanged = snapshot.attached !== session.consumedAttachment;
+        request.force = Boolean(request.force || attachmentChanged);
         if (session.dialog && session.dialog.open && !request.force) {
             schedule(session, POLL_MS);
             return false;
         }
-        const snapshot = normalizeSnapshot(session);
-        const nextScopeKey = scopeKey(snapshot);
+        session.consumedAttachment = snapshot.attached;
         if (!snapshot.role || !snapshot.online || !snapshot.classId || !snapshot.courseId || !snapshot.attached) {
             clearWorkflowState(
                 session,
@@ -1158,7 +1164,9 @@
         const snapshot = normalizeSnapshot(session);
         const key = scopeKey(snapshot);
         render(session);
-        if (session.authorityReady && key !== session.scopeKey) schedule(session, 0, true);
+        if (session.authorityReady && (key !== session.scopeKey || snapshot.attached !== session.consumedAttachment)) {
+            schedule(session, 0, true);
+        }
     }
 
     function blockForAuthority(session) {
@@ -1187,6 +1195,7 @@
             generation: 0,
             evidenceGeneration: 0,
             scopeKey: '',
+            consumedAttachment: null,
             phase: 'idle',
             errorCode: '',
             progress: null,
