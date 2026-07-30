@@ -766,3 +766,51 @@
         min-width: 620px;
     }
 }
+
+/* V7.8.5 · 教师自然工作流的全局边界与命中区 */
+.teacher-page,
+.teacher-workbench,
+.teacher-dashboard,
+.teacher-panel-grid,
+[data-teacher-panels],
+.teacher-view {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.teacher-page {
+    overflow-x: clip;
+}
+
+.teacher-page *,
+.teacher-page *::before,
+.teacher-page *::after {
+    box-sizing: border-box;
+}
+
+.teacher-page button,
+.teacher-page input,
+.teacher-page select,
+.teacher-page summary {
+    min-height: 44px;
+}
+
+.teacher-page textarea {
+    min-height: 96px;
+}
+
+.teacher-page button:focus-visible,
+.teacher-page input:focus-visible,
+.teacher-page select:focus-visible,
+.teacher-page textarea:focus-visible,
+.teacher-page summary:focus-visible,
+.teacher-page [tabindex]:focus-visible {
+    outline: 2px solid #67e8e3;
+    outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+    .teacher-workbench {
+        width: min(100% - 28px, 720px);
+    }
+}

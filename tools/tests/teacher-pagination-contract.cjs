@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
 const teacher = fs.readFileSync(path.join(root, 'pages/teacher/teacher.js'), 'utf8');
+const teacherOwner = fs.readFileSync(path.join(root, 'shared/js/teacher-learning-evidence.js'), 'utf8');
 
 function between(start, end) {
   const startIndex = teacher.indexOf(start);
@@ -18,8 +19,16 @@ for (const [name, maximum] of [
   ['ASSIGNMENT_SUBMISSION_PAGE_LIMIT', 200],
   ['CODE_ATTEMPT_PAGE_LIMIT', 200]
 ]) {
-  const match = teacher.match(new RegExp(`const ${name} = (\\d+);`));
+  const match = teacher.match(new RegExp(`\\b${name}\\s*=\\s*(\\d+)`));
   assert.ok(match, `${name} must be explicit`);
+  assert.ok(Number(match[1]) > 0 && Number(match[1]) <= maximum, `${name} must stay within the API ceiling`);
+}
+for (const [name, maximum] of [
+  ['PROGRESS_PAGE_LIMIT', 100],
+  ['EVENT_PAGE_LIMIT', 100],
+]) {
+  const match = teacherOwner.match(new RegExp(`\\b${name}\\s*=\\s*(\\d+)`));
+  assert.ok(match, `${name} must be explicit in the natural workflow owner`);
   assert.ok(Number(match[1]) > 0 && Number(match[1]) <= maximum, `${name} must stay within the API ceiling`);
 }
 
@@ -30,7 +39,9 @@ assert.match(classScope, /activeStudentsResult\.value\.items/);
 assert.doesNotMatch(classScope, /\/members`,/);
 
 const assignmentScope = between('async function loadAssignmentScope', 'async function loadCurriculumScope');
-assert.match(assignmentScope, /\/api\/assignments\/\$\{state\.selected\.assignmentId\}\/submissions\/page/);
+assert.match(assignmentScope, /\/api\/assignments\/\$\{assignmentId\}\/submissions\/page/);
+assert.match(assignmentScope, /class_id:\s*classId/);
+assert.match(assignmentScope, /validateAssignmentSubmissionPage\(page,\s*\{\s*assignmentId,\s*classId,\s*offset\s*\}\)/);
 assert.match(assignmentScope, /submissionsResult\.value\.items/);
 assert.doesNotMatch(assignmentScope, /\/submissions`,/);
 
@@ -45,9 +56,12 @@ for (const kind of ['members', 'active-students', 'assignment-submissions', 'cod
 }
 
 assert.match(teacher, /activeStudentsPage\s*&&\s*state\.data\.activeStudentsPage\.total/);
-assert.match(teacher, /function studentOptions\(\)[\s\S]*state\.data\.activeStudents\.map/);
-assert.match(teacher, /function normalizeSelectedUserId/);
+assert.match(teacher, /function renderMembersPanel\(\)[\s\S]*state\.data\.activeStudents\.map/);
+assert.match(teacher, /function normalizeSelectedId\(value, items\)/);
 assert.match(teacher, /data-teacher-curriculum-page=/);
 assert.match(teacher, /page\.next_offset/);
+assert.match(teacherOwner, /data-teacher-natural-page=/);
+assert.match(teacherOwner, /page\.next_offset/);
+assert.match(teacherOwner, /teacherEvents\([\s\S]*limit:\s*EVENT_PAGE_LIMIT,[\s\S]*offset/);
 
 console.log('teacher-pagination-contract: ok');

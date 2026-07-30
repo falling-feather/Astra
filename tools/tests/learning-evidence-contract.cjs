@@ -354,8 +354,9 @@ function testStaticOwnershipAndSemantics() {
 
   assert.doesNotMatch(studentSource, /points\.reduce/);
   assert.match(studentSource, /state\.data\.progress && state\.data\.progress\.total_points/);
-  assert.equal((teacherSource.match(/<article[^>]*data-learning-evidence-teacher-aggregate/g) || []).length, 1);
-  assert.match(teacherOwnerSource, /投影项按活动累计，不代表去重学生数/);
+  assert.equal((teacherSource.match(/<article[^>]*data-teacher-natural-workflow/g) || []).length, 1);
+  assert.match(teacherSource, /AstraTeacherLearningEvidence\.mount/);
+  assert.match(teacherOwnerSource, /概况只作班级趋势参考；学生完成状态以本页学生进度和服务端投影为准/);
 
   const signedOutStart = appSessionSource.indexOf('async function handleSignedOut');
   const signedOutBody = appSessionSource.slice(signedOutStart, appSessionSource.indexOf('function bootstrap', signedOutStart));

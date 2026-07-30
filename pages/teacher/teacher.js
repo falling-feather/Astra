@@ -1,119 +1,37 @@
 (function () {
     'use strict';
-
-    const TEACHER_ASSET_VERSION = '20260719v75ReviewTeacherLayersP0';
-    const API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
-    const TEACHER_VIEWS = Object.freeze({
-        overview: '教学总览',
-        curriculum: '课程节奏',
-        assignments: '作业发布',
-        grading: '批改与学情',
-        structure: '组织与课程'
-    });
+    const TEACHER_ASSET_VERSION = '20260730v785TeacherNaturalWorkflowP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
+    const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' });
     const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
     const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' });
     const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' });
-    const RELEASE_REASON_LABELS = Object.freeze({
-        manual_locked: '教师锁定',
-        scheduled: '等待开放时间',
-        prerequisite_incomplete: '前置分块未完成'
-    });
+    const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
     const CODE_STATUS_LABELS = Object.freeze({
-        queued: '排队中',
-        runner_unavailable: '判题器未启用',
-        running: '判题中',
-        accepted: '通过',
-        wrong_answer: '答案不符',
-        partial: '部分通过',
-        compile_error: '编译错误',
-        runtime_error: '运行错误',
-        time_limit: '运行超时',
-        memory_limit: '内存超限',
-        output_limit: '输出超限',
-        internal_error: '判题异常',
+        queued: '排队中', runner_unavailable: '判题器未启用', running: '判题中', accepted: '通过',
+        wrong_answer: '答案不符', partial: '部分通过', compile_error: '编译错误', runtime_error: '运行错误',
+        time_limit: '运行超时', memory_limit: '内存超限', output_limit: '输出超限', internal_error: '判题异常',
         cancelled: '已取消'
     });
-    const COURSE_PROGRESS_PAGE_LIMIT = 50;
-    const CODE_SUBMISSION_PAGE_LIMIT = 100;
-    const MEMBER_PAGE_LIMIT = 50;
-    const ACTIVE_STUDENT_PAGE_LIMIT = 50;
-    const ASSIGNMENT_SUBMISSION_PAGE_LIMIT = 50;
-    const CODE_ATTEMPT_PAGE_LIMIT = 20;
-
+    const CODE_SUBMISSION_PAGE_LIMIT = 100, MEMBER_PAGE_LIMIT = 50, ACTIVE_STUDENT_PAGE_LIMIT = 50,
+        ASSIGNMENT_SUBMISSION_PAGE_LIMIT = 50, CODE_ATTEMPT_PAGE_LIMIT = 20;
     const state = {
-        root: null,
-        apiBase: '',
-        initialized: false,
-        active: false,
-        online: navigator.onLine !== false,
-        runtimeBound: false,
-        lifecycleController: null,
-        requestGeneration: 0,
-        onOnline: null,
-        onOffline: null,
-        onAuthRequired: null,
-        busy: false,
-        user: null,
-        activeView: 'overview',
-        writeLock: null,
-        selected: {
-            schoolId: '',
-            classId: '',
-            courseId: '',
-            unitId: '',
-            assignmentId: '',
-            studentId: '',
-            codeSubmissionId: ''
-        },
-        filters: {
-            galaxyKey: '',
-            memberRole: 'student',
-            memberStatus: 'active',
-            submissionStatus: 'submitted',
-            codeStatus: ''
-        },
-        pagination: {
-            memberOffset: 0,
-            activeStudentOffset: 0,
-            assignmentSubmissionOffset: 0,
-            courseProgressOffset: 0,
-            codeSubmissionsOffset: 0,
-            codeAttemptOffset: 0
-        },
+        root: null, apiBase: '', initialized: false, active: false, online: navigator.onLine !== false,
+        runtimeBound: false, mutationInFlight: false, evidenceMutationInFlight: false, lifecycleController: null, requestGeneration: 0,
+        onOnline: null, onOffline: null, onAuthRequired: null, busy: false, user: null,
+        activeView: 'overview', writeLock: null, releaseDraft: null,
+        selected: { schoolId: '', classId: '', courseId: '', unitId: '', assignmentId: '', codeSubmissionId: '' },
+        filters: { galaxyKey: '', memberRole: 'student', memberStatus: 'active', submissionStatus: 'submitted', codeStatus: '' },
+        pagination: { memberOffset: 0, activeStudentOffset: 0, assignmentSubmissionOffset: 0, codeSubmissionsOffset: 0, codeAttemptOffset: 0 },
         data: {
-            schools: [],
-            classes: [],
-            courses: [],
-            units: [],
-            assignments: [],
-            members: [],
-            membersPage: null,
-            activeStudents: [],
-            activeStudentsPage: null,
-            submissions: [],
-            assignmentSubmissions: [],
-            assignmentSubmissionsPage: null,
-            collaborators: [],
-            collaboratorBatchResult: null,
-            pointRule: null,
-            assignmentClassPolicy: null,
-            knowledge: null,
-            progress: null,
-            studentBatchImportResult: null,
-            curriculumAttached: false,
-            releasePlan: null,
-            courseProgress: null,
-            codeSubmissions: null,
-            codeSubmissionSource: null,
-            codeSubmissionAttempts: [],
+            schools: [], classes: [], courses: [], units: [], assignments: [], members: [], membersPage: null,
+            activeStudents: [], activeStudentsPage: null, submissions: [], assignmentSubmissions: [],
+            assignmentSubmissionsPage: null, collaborators: [], collaboratorBatchResult: null, pointRule: null,
+            assignmentClassPolicy: null, knowledge: null, studentBatchImportResult: null, curriculumAttached: false,
+            releasePlan: null, codeSubmissions: null, codeSubmissionSource: null, codeSubmissionAttempts: [],
             codeSubmissionAttemptsPage: null
         },
-        errors: {},
-        flash: null,
-        learningEvidenceResourceError: null,
-        learningEvidenceLoadGeneration: 0
+        errors: {}, flash: null, learningEvidenceResourceError: null, learningEvidenceLoadGeneration: 0
     };
-
     function initTeacher() {
         state.root = document.querySelector('[data-teacher-workbench]');
         if (!state.root) return;
@@ -135,7 +53,6 @@
         }
         refreshAll();
     }
-
     function destroyTeacher() {
         state.active = false;
         state.learningEvidenceLoadGeneration += 1;
@@ -157,27 +74,33 @@
             `;
         }
     }
-
     function learningEvidenceResourceIssue(error) {
         return Object.freeze({ code: String(error && error.code || 'learning_evidence_resource_failed'),
-            message: '共享教师证据资源加载失败或超时；页面不会继续显示为“正在读取”。请重试加载。' });
+            message: '教师协同资源加载失败或超时；旧班级与课程数据没有保留。请重试加载。' });
     }
     function teacherLearningEvidenceResourceMarkup(issue) {
         return `
-            <header class="astra-authority-summary__header"><div><span>RESOURCE FAIL-CLOSED</span><h3>权威学习证据汇总</h3></div></header>
-            <div class="astra-authority-summary__state" role="status"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p>
+            <header class="teacher-natural-header"><div><span>RESOURCE FAIL-CLOSED</span><h3>学生进度与学习证据</h3></div></header>
+            <div class="teacher-natural-state" role="alert"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p>
             <button type="button" class="astra-authority-summary__retry" data-teacher-evidence-resource-retry>重试加载学习证据</button></div>`;
     }
-
     function renderTeacherLearningEvidenceResourceState() {
         if (!state.root || !state.learningEvidenceResourceError) return;
-        state.root.querySelectorAll('[data-learning-evidence-teacher-aggregate]').forEach((container) => {
-            delete container.dataset.authoritySignature;
-            container.classList.add('astra-authority-summary');
+        state.root.querySelectorAll('[data-teacher-natural-workflow]').forEach((container) => {
+            delete container.dataset.teacherNaturalSignature;
             container.innerHTML = teacherLearningEvidenceResourceMarkup(state.learningEvidenceResourceError);
         });
     }
-
+    function teacherWorkflowSnapshot() {
+        const classGroup = selectedClass();
+        const course = selectedCourse();
+        return Object.freeze({
+            role: state.user && state.user.role || '', online: state.online,
+            curriculumAttached: state.data.curriculumAttached === true,
+            classId: Number(state.selected.classId) || 0, courseId: Number(state.selected.courseId) || 0,
+            classLabel: classGroup && classGroup.name || '', courseLabel: course && course.title || '', baseUrl: state.apiBase
+        });
+    }
     async function mountTeacherLearningEvidence() {
         const generation = ++state.learningEvidenceLoadGeneration;
         state.learningEvidenceResourceError = null;
@@ -194,17 +117,26 @@
                 const error = Object.assign(new Error('teacher learning evidence owner unavailable'), { code: 'teacher_evidence_owner_unavailable' });
                 throw error;
             }
-            window.AstraTeacherLearningEvidence.mount(state.root);
+            window.AstraTeacherLearningEvidence.mount(state.root, {
+                snapshot: teacherWorkflowSnapshot,
+                mutationState: (locked) => {
+                    state.evidenceMutationInFlight = Boolean(locked);
+                    if (state.root) applyWriteAvailability();
+                },
+                lockWrite: (error, confirmed) => {
+                    lockUnknownWrite('追加式纠正', error, confirmed);
+                    if (state.root) { renderWriteLock(); applyWriteAvailability(); }
+                }
+            });
             return true;
         } catch (error) {
             if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
             state.learningEvidenceResourceError = learningEvidenceResourceIssue(error);
             renderTeacherLearningEvidenceResourceState();
-            console.warn('[TeacherWorkbench] learning evidence unavailable', error && (error.code || error.message));
+            console.warn('[TeacherWorkbench] teacher collaboration resource unavailable');
             return false;
         }
     }
-
     function bindRuntimeEvents() {
         if (state.runtimeBound) return;
         state.onOnline = () => {
@@ -236,7 +168,6 @@
         window.addEventListener('astra:api-auth-required', state.onAuthRequired);
         state.runtimeBound = true;
     }
-
     function unbindRuntimeEvents() {
         if (!state.runtimeBound) return;
         window.removeEventListener('online', state.onOnline);
@@ -247,7 +178,6 @@
         state.onAuthRequired = null;
         state.runtimeBound = false;
     }
-
     function renderShell() {
         state.root.innerHTML = `
             <header class="teacher-workbench__header">
@@ -283,7 +213,6 @@
         `;
         refreshIcons();
     }
-
     function bindEvents() {
         state.root.addEventListener('keydown', handleViewNavigationKeydown);
         state.root.addEventListener('click', (event) => {
@@ -327,6 +256,7 @@
             }
             const planResetButton = target.closest('[data-teacher-plan-reset]');
             if (planResetButton) {
+                state.releaseDraft = null;
                 renderPanels();
                 applyWriteAvailability();
                 refreshIcons();
@@ -346,14 +276,12 @@
                 return;
             }
         });
-
         state.root.addEventListener('submit', (event) => {
             const form = event.target;
             if (!(form instanceof HTMLFormElement) || !form.dataset.teacherForm) return;
             event.preventDefault();
             handleFormSubmit(form);
         });
-
         state.root.addEventListener('change', (event) => {
             const target = event.target;
             if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
@@ -365,7 +293,7 @@
                 handleFilterChange(target);
                 return;
             }
-            if (target.matches('[data-teacher-plan-field]')) {
+            if (target.matches('[data-teacher-plan-field], [data-teacher-plan-reason]')) {
                 markReleasePlanDraft(target);
                 return;
             }
@@ -373,7 +301,6 @@
                 applyApiBaseChange(target);
             }
         });
-
         state.root.addEventListener('blur', (event) => {
             const target = event.target;
             if (target instanceof HTMLInputElement && target.matches('[data-teacher-api-base]')) {
@@ -381,10 +308,11 @@
             }
         }, true);
     }
-
     async function refreshAll(options) {
         if (!state.root || !state.active) return;
         const request = options || {};
+        const previousIdentity = state.user && `${state.user.id}:${state.user.role}`;
+        if (!previousIdentity) clearWorkspace();
         resetPagination();
         const generation = beginRequestGeneration();
         setBusy(true);
@@ -401,6 +329,7 @@
         try {
             const user = await fetchJson('/api/users/me');
             if (!isCurrentRequest(generation)) return;
+            if (previousIdentity && previousIdentity !== `${user.id}:${user.role}`) clearWorkspace();
             state.user = user;
             if (!['teacher', 'admin'].includes(user.role)) {
                 renderAuthState('forbidden', user);
@@ -415,6 +344,10 @@
                     setFlash('warning', '权威数据尚未完整读取，写操作继续锁定；请恢复服务后再次刷新核对');
                 } else {
                     state.writeLock = null;
+                    const draft = releaseDraftForCurrentScope();
+                    if (draft && state.data.releasePlan) {
+                        state.releaseDraft = Object.assign({}, draft, { conflict: false, reconciled: true });
+                    }
                 }
             }
             showDashboard();
@@ -430,7 +363,6 @@
             }
         }
     }
-
     async function loadSchools(preferredId, generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
         let schools = [];
@@ -445,12 +377,11 @@
         state.errors.schools = requestError;
         const schoolId = preferredId || state.selected.schoolId;
         state.selected.schoolId = normalizeSelectedId(schoolId, state.data.schools);
-        if (!state.selected.schoolId && state.data.schools.length) {
+        if (!state.selected.schoolId && state.data.schools.length === 1) {
             state.selected.schoolId = String(state.data.schools[0].id);
         }
         await loadSchoolScope(generation);
     }
-
     async function loadSchoolScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
         resetBelow('school');
@@ -459,51 +390,46 @@
             return;
         }
         state.errors.classes = null;
-        state.errors.courses = null;
         const schoolId = state.selected.schoolId;
-        const [classesResult, coursesResult] = await Promise.allSettled([
-            fetchJson('/api/classes', { params: { school_id: schoolId } }),
-            fetchJson('/api/courses', { params: { school_id: schoolId } })
-        ]);
+        const classParams = { school_id: schoolId };
+        if (state.user.role === 'teacher') classParams.mine = true;
+        const classesResult = await Promise.resolve(fetchJson('/api/classes', { params: classParams }))
+            .then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }));
         if (!isCurrentRequest(generation)) return;
-        if (classesResult.status === 'fulfilled') {
-            state.data.classes = classesResult.value;
-        } else {
-            state.data.classes = [];
-            state.errors.classes = classesResult.reason;
-        }
-        if (coursesResult.status === 'fulfilled') {
-            state.data.courses = coursesResult.value;
-        } else {
-            state.data.courses = [];
-            state.errors.courses = coursesResult.reason;
-        }
+        if (classesResult.status === 'fulfilled') state.data.classes = classesResult.value;
+        else { state.data.classes = []; state.errors.classes = classesResult.reason; }
         state.selected.classId = normalizeSelectedId(state.selected.classId, state.data.classes);
-        const visibleCourses = filteredCourses();
-        state.selected.courseId = normalizeSelectedId(state.selected.courseId, visibleCourses);
-        if (!state.selected.classId && state.data.classes.length) state.selected.classId = String(state.data.classes[0].id);
-        if (!state.selected.courseId && visibleCourses.length === 1) state.selected.courseId = String(visibleCourses[0].id);
+        if (!state.selected.classId && state.data.classes.length === 1) state.selected.classId = String(state.data.classes[0].id);
+        await loadClassCourses(generation);
+        if (!isCurrentRequest(generation)) return;
         await Promise.all([loadClassScope(generation), loadCourseScope(generation)]);
         if (!isCurrentRequest(generation)) return;
         await loadCurriculumScope(generation);
         if (!isCurrentRequest(generation)) return;
         renderWorkspace();
     }
-
+    async function loadClassCourses(generation = state.requestGeneration) {
+        if (!isCurrentRequest(generation)) return;
+        const previousCourseId = state.selected.courseId;
+        state.data.courses = []; state.selected.courseId = ''; state.errors.courses = null;
+        if (!state.selected.classId) return;
+        try {
+            state.data.courses = await fetchJson('/api/courses', { params: { class_id: state.selected.classId } });
+        } catch (error) {
+            if (isCurrentRequest(generation)) state.errors.courses = error; return;
+        }
+        if (!isCurrentRequest(generation)) return;
+        const visibleCourses = filteredCourses();
+        state.selected.courseId = normalizeSelectedId(previousCourseId, visibleCourses);
+        if (!state.selected.courseId && visibleCourses.length === 1) state.selected.courseId = String(visibleCourses[0].id);
+    }
     async function loadClassScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
-        state.data.members = [];
-        state.data.membersPage = null;
-        state.data.activeStudents = [];
-        state.data.activeStudentsPage = null;
-        state.data.submissions = [];
-        state.data.knowledge = null;
-        state.data.progress = null;
-        state.errors.members = null;
-        state.errors.activeStudents = null;
-        state.errors.submissions = null;
-        state.errors.knowledge = null;
-        state.errors.progress = null;
+        state.data.members = []; state.data.membersPage = null;
+        state.data.activeStudents = []; state.data.activeStudentsPage = null;
+        state.data.submissions = []; state.data.knowledge = null;
+        state.errors.members = null; state.errors.activeStudents = null;
+        state.errors.submissions = null; state.errors.knowledge = null;
         if (!state.selected.classId) return;
         const classId = state.selected.classId;
         const memberParams = {
@@ -543,14 +469,8 @@
             state.data.activeStudentsPage = activeStudentsResult.value;
             state.data.activeStudents = Array.isArray(activeStudentsResult.value.items) ? activeStudentsResult.value.items : [];
             state.pagination.activeStudentOffset = Number(activeStudentsResult.value.offset) || 0;
-            state.selected.studentId = normalizeSelectedUserId(state.selected.studentId, state.data.activeStudents);
-            if (!state.selected.studentId) {
-                const firstStudent = state.data.activeStudents[0];
-                state.selected.studentId = firstStudent ? String(firstStudent.user_id) : '';
-            }
         } else {
             state.errors.activeStudents = activeStudentsResult.reason;
-            state.selected.studentId = '';
         }
         if (submissionsResult.status === 'fulfilled') {
             state.data.submissions = Array.isArray(submissionsResult.value.items) ? submissionsResult.value.items : [];
@@ -563,9 +483,7 @@
         } else {
             state.errors.knowledge = knowledgeResult.reason;
         }
-        await loadStudentProgress(generation);
     }
-
     async function fetchClassKnowledge(classId) {
         const courseId = state.selected.courseId;
         if (courseId) {
@@ -577,44 +495,18 @@
             params: { course_id: courseId || undefined }
         });
     }
-
-    async function loadStudentProgress(generation = state.requestGeneration) {
-        if (!isCurrentRequest(generation)) return;
-        state.data.progress = null;
-        state.errors.progress = null;
-        if (!state.selected.classId || !state.selected.studentId) return;
-        let progress = null;
-        let requestError = null;
-        try {
-            progress = await fetchJson(`/api/progress/users/${state.selected.studentId}`, {
-                params: { class_id: state.selected.classId }
-            });
-        } catch (error) {
-            requestError = error;
-        }
-        if (!isCurrentRequest(generation)) return;
-        state.data.progress = requestError ? null : progress;
-        state.errors.progress = requestError;
-    }
-
     async function loadCourseScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
-        state.data.units = [];
-        state.data.assignments = [];
-        state.data.assignmentSubmissions = [];
-        state.data.assignmentSubmissionsPage = null;
-        state.data.collaborators = [];
-        state.data.pointRule = null;
-        state.errors.units = null;
-        state.errors.assignments = null;
-        state.errors.assignmentSubmissions = null;
-        state.errors.collaborators = null;
-        state.errors.pointRule = null;
+        state.data.units = []; state.data.assignments = [];
+        state.data.assignmentSubmissions = []; state.data.assignmentSubmissionsPage = null;
+        state.data.collaborators = []; state.data.pointRule = null;
+        state.errors.units = null; state.errors.assignments = null;
+        state.errors.assignmentSubmissions = null; state.errors.collaborators = null; state.errors.pointRule = null;
         if (!state.selected.courseId) return;
         const courseId = state.selected.courseId;
         const [unitsResult, assignmentsResult, collaboratorsResult] = await Promise.allSettled([
             fetchJson(`/api/courses/${courseId}/units`),
-            fetchJson(`/api/courses/${courseId}/assignments`),
+            fetchJson(`/api/courses/${courseId}/assignments`, { params: { class_id: state.selected.classId } }),
             fetchJson(`/api/courses/${courseId}/collaborators`, { params: { status: 'all' } })
         ]);
         if (!isCurrentRequest(generation)) return;
@@ -641,7 +533,6 @@
         }
         await loadAssignmentScope(generation);
     }
-
     async function loadAssignmentScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
         state.data.assignmentSubmissions = [];
@@ -651,18 +542,20 @@
         state.errors.assignmentSubmissions = null;
         state.errors.pointRule = null;
         state.errors.assignmentClassPolicy = null;
-        if (!state.selected.assignmentId) return;
+        if (!state.selected.assignmentId || !state.selected.classId) return;
+        const assignmentId = Number(state.selected.assignmentId);
+        const classId = Number(state.selected.classId);
+        const offset = state.pagination.assignmentSubmissionOffset;
         const params = {
-            class_id: state.selected.classId || undefined,
+            class_id: classId,
             limit: ASSIGNMENT_SUBMISSION_PAGE_LIMIT,
-            offset: state.pagination.assignmentSubmissionOffset
+            offset
         };
-        const policyRequest = state.selected.classId
-            ? fetchJson(`/api/assignments/${state.selected.assignmentId}/classes/${state.selected.classId}/policy`)
-            : Promise.resolve(null);
+        const policyRequest = fetchJson(`/api/assignments/${assignmentId}/classes/${classId}/policy`);
         const [submissionsResult, ruleResult, policyResult] = await Promise.allSettled([
-            fetchJson(`/api/assignments/${state.selected.assignmentId}/submissions/page`, { params }),
-            fetchJson(`/api/points/assignments/${state.selected.assignmentId}/rule`),
+            fetchJson(`/api/assignments/${assignmentId}/submissions/page`, { params })
+                .then((page) => validateAssignmentSubmissionPage(page, { assignmentId, classId, offset })),
+            fetchJson(`/api/points/assignments/${assignmentId}/rule`),
             policyRequest
         ]);
         if (!isCurrentRequest(generation)) return;
@@ -684,26 +577,49 @@
             state.errors.assignmentClassPolicy = policyResult.reason;
         }
     }
-
+    function validSubmissionDate(value, nullable) { return nullable && value === null || typeof value === 'string' && Number.isFinite(new Date(value).getTime()); }
+    function assignmentSubmissionSchemaError(confirmed) {
+        return Object.assign(new Error('作业提交分页未通过范围或字段校验'), { code: 'assignment_submission_schema_invalid', confirmed: Boolean(confirmed) });
+    }
+    function validateAssignmentSubmissionPage(payload, scope, confirmed) {
+        const items = payload && payload.items;
+        const ids = new Set();
+        const validItems = Array.isArray(items) && items.length <= ASSIGNMENT_SUBMISSION_PAGE_LIMIT && items.every((item) => {
+            const valid = item && Number.isInteger(item.id) && item.id > 0 && !ids.has(item.id)
+                && item.assignment_id === scope.assignmentId && item.class_id === scope.classId
+                && Number.isInteger(item.student_id) && item.student_id > 0
+                && ['submitted', 'graded', 'returned'].includes(item.status)
+                && (item.score === null || Number.isInteger(item.score) && item.score >= 0 && item.score <= 1000)
+                && (item.feedback === null || typeof item.feedback === 'string' && item.feedback.length <= 4000)
+                && (item.graded_by_user_id === null || Number.isInteger(item.graded_by_user_id) && item.graded_by_user_id > 0)
+                && validSubmissionDate(item.submitted_at, false) && validSubmissionDate(item.graded_at, true);
+            if (valid) ids.add(item.id);
+            return valid;
+        });
+        const next = payload && payload.next_offset;
+        if (!payload || !Number.isInteger(payload.total) || payload.total < 0
+            || payload.limit !== ASSIGNMENT_SUBMISSION_PAGE_LIMIT || payload.offset !== scope.offset
+            || !validItems || items.length > payload.total || payload.offset + items.length > payload.total
+            || !(next === null || Number.isInteger(next) && next > payload.offset && next <= payload.total)) throw assignmentSubmissionSchemaError(confirmed);
+        return payload;
+    }
+    async function readSubmissionAuthority(scope, confirmed) {
+        const page = validateAssignmentSubmissionPage(await fetchJson(`/api/assignments/${scope.assignmentId}/submissions/page`, {
+            params: { class_id: scope.classId, limit: ASSIGNMENT_SUBMISSION_PAGE_LIMIT, offset: scope.offset }
+        }), scope, confirmed);
+        const record = page.items.find((item) => item.id === scope.submissionId);
+        if (!record) throw assignmentSubmissionSchemaError(confirmed);
+        state.data.assignmentSubmissionsPage = page; state.data.assignmentSubmissions = page.items;
+        state.pagination.assignmentSubmissionOffset = page.offset;
+        state.errors.assignmentSubmissions = null;
+        return record;
+    }
     async function loadCurriculumScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
-        state.data.curriculumAttached = false;
-        state.data.releasePlan = null;
-        state.data.courseProgress = null;
-        state.data.codeSubmissions = null;
-        state.data.codeSubmissionSource = null;
-        state.data.codeSubmissionAttempts = [];
-        state.data.codeSubmissionAttemptsPage = null;
-        state.pagination.codeAttemptOffset = 0;
-        state.selected.codeSubmissionId = '';
-        state.errors.curriculumScope = null;
-        state.errors.releasePlan = null;
-        state.errors.courseProgress = null;
-        state.errors.codeSubmissions = null;
-        state.errors.codeSubmissionSource = null;
-        state.errors.codeSubmissionAttempts = null;
+        state.data.curriculumAttached = false; state.data.releasePlan = null; state.data.codeSubmissions = null; state.data.codeSubmissionSource = null; state.data.codeSubmissionAttempts = []; state.data.codeSubmissionAttemptsPage = null;
+        state.pagination.codeAttemptOffset = 0; state.selected.codeSubmissionId = '';
+        state.errors.curriculumScope = null; state.errors.releasePlan = null; state.errors.codeSubmissions = null; state.errors.codeSubmissionSource = null; state.errors.codeSubmissionAttempts = null;
         if (!state.selected.classId || !state.selected.courseId) return;
-
         const classId = state.selected.classId;
         const courseId = state.selected.courseId;
         let attachedCourses = [];
@@ -717,12 +633,8 @@
         if (!isCurrentRequest(generation)) return;
         state.data.curriculumAttached = attachedCourses.some((course) => String(course.id) === String(courseId));
         if (!state.data.curriculumAttached) return;
-
-        const [planResult, progressResult, codeResult] = await Promise.allSettled([
+        const [planResult, codeResult] = await Promise.allSettled([
             fetchJson(`/api/courses/${courseId}/classes/${classId}/release-plan`),
-            fetchJson(`/api/progress/courses/${courseId}/classes/${classId}/students`, {
-                params: { limit: COURSE_PROGRESS_PAGE_LIMIT, offset: state.pagination.courseProgressOffset }
-            }),
             fetchJson('/api/code-submissions', {
                 params: {
                     class_id: classId,
@@ -734,15 +646,16 @@
         ]);
         if (!isCurrentRequest(generation)) return;
         if (planResult.status === 'fulfilled') {
-            state.data.releasePlan = planResult.value;
+            try {
+                state.data.releasePlan = validateReleasePlanResponse(planResult.value, {
+                    classId: Number(classId), courseId: Number(courseId)
+                });
+            } catch (error) {
+                state.data.releasePlan = null;
+                state.errors.releasePlan = error;
+            }
         } else {
             state.errors.releasePlan = planResult.reason;
-        }
-        if (progressResult.status === 'fulfilled') {
-            state.data.courseProgress = progressResult.value;
-            state.pagination.courseProgressOffset = Number(progressResult.value.offset) || 0;
-        } else {
-            state.errors.courseProgress = progressResult.reason;
         }
         if (codeResult.status === 'fulfilled') {
             state.data.codeSubmissions = codeResult.value;
@@ -751,7 +664,6 @@
             state.errors.codeSubmissions = codeResult.reason;
         }
     }
-
     async function loadCodeSubmissionDetails(submissionId, generation = state.requestGeneration) {
         if (!isCurrentRequest(generation) || !submissionId) return;
         state.data.codeSubmissionSource = null;
@@ -779,27 +691,23 @@
             state.errors.codeSubmissionAttempts = attemptsResult.reason;
         }
     }
-
     function handleViewNavigationKeydown(event) {
         const target = event.target;
         if (!(target instanceof Element) || !target.matches('[data-teacher-view]')) return;
         const tabs = Array.from(state.root.querySelectorAll('[data-teacher-view]'));
         const currentIndex = tabs.indexOf(target);
         if (currentIndex < 0 || !tabs.length) return;
-
         let nextIndex = currentIndex;
         if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % tabs.length;
         else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
         else if (event.key === 'Home') nextIndex = 0;
         else if (event.key === 'End') nextIndex = tabs.length - 1;
         else return;
-
         event.preventDefault();
         const nextTab = tabs[nextIndex];
         setActiveView(nextTab.dataset.teacherView);
         nextTab.focus();
     }
-
     function renderWorkspace() {
         renderFlash();
         renderWriteLock();
@@ -812,7 +720,6 @@
         applyWriteAvailability();
         refreshIcons();
     }
-
     function renderWriteLock() {
         const container = state.root && state.root.querySelector('[data-teacher-write-lock]');
         if (!container) return;
@@ -836,16 +743,17 @@
             </div>
         `;
     }
-
     function applyWriteAvailability() {
-        const blocked = Boolean(state.writeLock || !state.online || state.busy);
-        state.root.querySelectorAll(
-            '[data-teacher-form] button[type="submit"], [data-teacher-member-status], [data-teacher-collaborator-status], [data-teacher-plan-preset], [data-teacher-plan-reset]'
-        ).forEach((control) => {
-            if (blocked) control.disabled = true;
-        });
+        const owner = window.AstraTeacherLearningEvidence, mutationPending = Boolean(state.mutationInFlight || state.evidenceMutationInFlight
+            || owner && typeof owner.isMutationPending === 'function' && owner.isMutationPending());
+        const blocked = Boolean(state.writeLock || !state.online || state.busy || mutationPending);
+        const toggle = (control, disabled) => {
+            if (disabled && !control.disabled) { control.dataset.teacherBusyDisabled = ''; control.disabled = true; }
+            else if (!disabled && Object.prototype.hasOwnProperty.call(control.dataset, 'teacherBusyDisabled')) { delete control.dataset.teacherBusyDisabled; control.disabled = false; }
+        };
+        state.root.querySelectorAll('[data-teacher-form] button[type="submit"], [data-teacher-member-status], [data-teacher-collaborator-status], [data-teacher-plan-preset], [data-teacher-plan-reset]').forEach(control => toggle(control, blocked));
+        state.root.querySelectorAll('[data-teacher-scope], [data-teacher-api-base]').forEach(control => toggle(control, state.busy || mutationPending));
     }
-
     function renderKpis() {
         const container = state.root.querySelector('[data-teacher-kpis]');
         if (!container) return;
@@ -863,7 +771,6 @@
             <div class="teacher-summary"><i data-lucide="${icon}"></i><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>
         `).join('');
     }
-
     function renderScope() {
         const container = state.root.querySelector('[data-teacher-scope-panel]');
         if (!container) return;
@@ -883,7 +790,6 @@
             </details>
         `;
     }
-
     function renderScopeSelect(key, label, items, value, labeler, error) {
         return `
             <label class="teacher-scope__field${error ? ' is-error' : ''}">
@@ -896,31 +802,35 @@
             </label>
         `;
     }
-
     function renderPanels() {
         const container = state.root.querySelector('[data-teacher-panels]');
         if (!container) return;
         const panels = {
             overview: renderOverviewPanel,
             curriculum: renderCurriculumWorkspace,
-            assignments: renderAssignmentWorkspace,
-            grading: renderGradingWorkspace,
-            structure: renderOrganizationPanel
+            grading: renderGradingWorkspace
         };
         container.dataset.activeView = state.activeView;
         container.setAttribute('aria-labelledby', `teacher-tab-${state.activeView}`);
         container.innerHTML = (panels[state.activeView] || panels.overview)();
     }
-
     function setActiveView(view) {
-        if (!Object.prototype.hasOwnProperty.call(TEACHER_VIEWS, view)) return;
-        state.activeView = view;
+        const secondary = view === 'assignments' || view === 'structure' ? view : '';
+        const targetView = secondary === 'assignments' ? 'curriculum' : secondary === 'structure' ? 'overview' : view;
+        if (!Object.prototype.hasOwnProperty.call(TEACHER_VIEWS, targetView)) return;
+        state.activeView = targetView;
         syncViewNavigation();
         renderPanels();
         applyWriteAvailability();
         refreshIcons();
+        if (secondary) {
+            const detail = state.root.querySelector(`[data-teacher-secondary="${secondary}"]`);
+            if (detail) {
+                detail.open = true;
+                detail.querySelector('summary')?.focus();
+            }
+        }
     }
-
     function syncViewNavigation() {
         if (!state.root) return;
         state.root.querySelectorAll('[data-teacher-view]').forEach((button) => {
@@ -930,7 +840,6 @@
             button.tabIndex = selected ? 0 : -1;
         });
     }
-
     function renderOverviewPanel() {
         const classLabel = selectedClassLabel();
         const schoolLabel = selectedSchool() ? selectedSchool().name : '尚未选择学校';
@@ -967,9 +876,12 @@
                     </section>
                 </aside>
             </div>
+            <details class="teacher-secondary-workflow" data-teacher-secondary="structure">
+                <summary><span><strong>组织与课程</strong><small>按需管理学校、班级、挂班与成员</small></span><i data-lucide="chevron-down"></i></summary>
+                <div class="teacher-secondary-workflow__body">${renderOrganizationPanel()}</div>
+            </details>
         `;
     }
-
     function renderGalaxyScopeSelect() {
         return `
             <label class="teacher-scope__field">
@@ -981,7 +893,6 @@
             </label>
         `;
     }
-
     function renderOverviewEmpty(title, text, view, action) {
         return `
             <div class="teacher-overview-empty">
@@ -992,11 +903,9 @@
             </div>
         `;
     }
-
     function renderQuickAction(view, icon, title, detail) {
         return `<button type="button" class="teacher-quick-action" data-teacher-view-target="${escapeAttr(view)}"><span><i data-lucide="${escapeAttr(icon)}"></i></span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div><i data-lucide="chevron-right"></i></button>`;
     }
-
     function renderCurriculumWorkspace() {
         const course = selectedCourse();
         const galaxy = galaxyMeta(course);
@@ -1031,16 +940,16 @@
                         : !state.data.curriculumAttached
                             ? renderCurriculumEmpty('当前课程尚未挂接此班级', '完成课程挂班后，系统会建立默认开放计划并开始聚合学生进度。', 'link-2-off', 'structure', '前往组织与课程')
                             : `
-                                <div class="teacher-curriculum-grid">
-                                    ${renderReleasePlanPanel()}
-                                    ${renderProgressMatrix()}
-                                </div>
+                                <div class="teacher-curriculum-grid">${renderReleasePlanPanel()}</div>
                                 ${renderCodeSubmissionPanel()}
+                                <details class="teacher-secondary-workflow" data-teacher-secondary="assignments">
+                                    <summary><span><strong>作业发布</strong><small>按需创建单元、作业并设置当前班级策略</small></span><i data-lucide="chevron-down"></i></summary>
+                                    <div class="teacher-secondary-workflow__body">${renderAssignmentWorkspace()}</div>
+                                </details>
                             `}
             </div>
         `;
     }
-
     function renderCurriculumEmpty(title, text, icon, view, action) {
         return `
             <div class="teacher-curriculum-empty">
@@ -1050,12 +959,13 @@
             </div>
         `;
     }
-
     function renderReleasePlanPanel() {
         if (state.errors.releasePlan) return `<article class="teacher-curriculum-panel">${renderError(state.errors.releasePlan, '发布计划读取失败')}</article>`;
         const plan = state.data.releasePlan;
         if (!plan || !Array.isArray(plan.items)) return `<article class="teacher-curriculum-panel">${renderEmpty('暂无发布计划')}</article>`;
         const editable = canManageReleasePlan();
+        const draft = releaseDraftForCurrentScope();
+        const draftItems = new Map((draft && draft.items || []).map((item) => [Number(item.courseUnitId), item]));
         const openCount = plan.items.filter((item) => item.effective_release_state === 'open').length;
         const lockedCount = plan.items.filter((item) => item.effective_release_state === 'locked').length;
         const hiddenCount = plan.items.filter((item) => item.effective_release_state === 'hidden').length;
@@ -1075,24 +985,32 @@
                         <span>批量设置</span>
                         ${RELEASE_MODES.map((mode) => `<button type="button" data-teacher-plan-preset="${mode}" ${editable ? '' : 'disabled'}>${escapeHtml(RELEASE_MODE_LABELS[mode])}</button>`).join('')}
                         <button type="button" data-teacher-plan-reset ${editable ? '' : 'disabled'}>撤销草稿</button>
-                        <small data-teacher-plan-draft-status>尚未修改</small>
+                        <small data-teacher-plan-draft-status>${escapeHtml(draft ? (draft.conflict
+                            ? '权威版本已变化；草稿已保留，请重新比较'
+                            : draft.reconciled ? `草稿已针对 v${plan.plan_version} 重新比较` : '存在尚未发布的调整') : '尚未修改')}</small>
                     </div>
+                    ${draft && draft.conflict ? '<p class="teacher-plan-conflict" role="alert">课程安排已被其他操作更新。已读取最新状态；你的草稿没有自动重发，请核对后再次确认。</p>' : ''}
                     <div class="teacher-plan-list">
-                        ${plan.items.map((item, index) => renderReleasePlanRow(item, index, plan.items, editable)).join('')}
+                        ${plan.items.map((item, index) => renderReleasePlanRow(item, index, plan.items, editable, draftItems.get(Number(item.course_unit_id)))).join('')}
                     </div>
                     <footer class="teacher-plan-actions">
-                        <label><span>调整说明</span><input name="reason" maxlength="4000" placeholder="例如：第二周开放控制流程练习" ${editable ? '' : 'disabled'}></label>
-                        <button type="submit" ${editable && plan.items.length ? '' : 'disabled'}><i data-lucide="send"></i><span>发布到当前班级</span></button>
+                        <label><span>调整说明</span><input name="reason" maxlength="4000" data-teacher-plan-reason value="${escapeAttr(draft && draft.reason || '')}" placeholder="例如：第二周开放控制流程练习" ${editable ? '' : 'disabled'}></label>
+                        <button type="submit" ${editable && plan.items.length ? '' : 'disabled'}><i data-lucide="scan-search"></i><span>预览本次安排</span></button>
                     </footer>
                 </form>
             </article>
         `;
     }
-
-    function renderReleasePlanRow(item, index, allItems, editable) {
+    function renderReleasePlanRow(item, index, allItems, editable, draftItem) {
         const unit = findById(state.data.units, item.course_unit_id);
         const earlierItems = allItems.filter((candidate) => Number(candidate.position) < Number(item.position));
         const reasons = Array.isArray(item.lock_reasons) ? item.lock_reasons : [];
+        const value = draftItem || {
+            position: String(item.position),
+            releaseMode: item.release_mode,
+            openAt: datetimeLocalValue(item.open_at),
+            prerequisiteUnitId: item.prerequisite_unit_id ? String(item.prerequisite_unit_id) : ''
+        };
         return `
             <div class="teacher-plan-row" data-teacher-plan-row data-unit-id="${escapeAttr(item.course_unit_id)}">
                 <div class="teacher-plan-row__index"><span>${String(index + 1).padStart(2, '0')}</span><i></i></div>
@@ -1102,24 +1020,22 @@
                     <span class="teacher-release-state teacher-release-state--${escapeAttr(item.effective_release_state)}">${escapeHtml(RELEASE_MODE_LABELS[item.effective_release_state] || item.effective_release_state)}</span>
                     ${reasons.length ? `<small>${reasons.map((reason) => escapeHtml(RELEASE_REASON_LABELS[reason] || reason)).join(' · ')}</small>` : ''}
                 </div>
-                <label><span>顺序</span><input type="number" min="1" max="100" value="${escapeAttr(item.position)}" data-teacher-plan-field="position" ${editable ? '' : 'disabled'}></label>
-                <label><span>呈现</span><select data-teacher-plan-field="release_mode" ${editable ? '' : 'disabled'}>${RELEASE_MODES.map((mode) => `<option value="${mode}"${mode === item.release_mode ? ' selected' : ''}>${escapeHtml(RELEASE_MODE_LABELS[mode])}</option>`).join('')}</select></label>
-                <label><span>开放时间</span><input type="datetime-local" value="${escapeAttr(datetimeLocalValue(item.open_at))}" data-teacher-plan-field="open_at" ${editable ? '' : 'disabled'}></label>
+                <label><span>顺序</span><input type="number" min="1" max="100" value="${escapeAttr(value.position)}" data-teacher-plan-field="position" ${editable ? '' : 'disabled'}></label>
+                <label><span>呈现</span><select data-teacher-plan-field="release_mode" ${editable ? '' : 'disabled'}>${RELEASE_MODES.map((mode) => `<option value="${mode}"${mode === value.releaseMode ? ' selected' : ''}>${escapeHtml(RELEASE_MODE_LABELS[mode])}</option>`).join('')}</select></label>
+                <label><span>开放时间</span><input type="datetime-local" value="${escapeAttr(value.openAt)}" data-teacher-plan-field="open_at" ${editable ? '' : 'disabled'}></label>
                 <label><span>前置分块</span><select data-teacher-plan-field="prerequisite_unit_id" ${editable ? '' : 'disabled'}><option value="">无</option>${earlierItems.map((candidate) => {
                     const candidateUnit = findById(state.data.units, candidate.course_unit_id);
-                    return `<option value="${candidate.course_unit_id}"${Number(candidate.course_unit_id) === Number(item.prerequisite_unit_id) ? ' selected' : ''}>${escapeHtml(candidateUnit ? candidateUnit.title : candidate.activity_key)}</option>`;
+                    return `<option value="${candidate.course_unit_id}"${String(candidate.course_unit_id) === String(value.prerequisiteUnitId) ? ' selected' : ''}>${escapeHtml(candidateUnit ? candidateUnit.title : candidate.activity_key)}</option>`;
                 }).join('')}</select></label>
             </div>
         `;
     }
-
     function renderProgressMatrix() {
         const content = state.learningEvidenceResourceError
             ? teacherLearningEvidenceResourceMarkup(state.learningEvidenceResourceError)
-            : '<p>正在按明确班级与课程读取 0051 权威 aggregate。</p>';
-        return `<article class="teacher-curriculum-panel teacher-curriculum-panel--progress" data-learning-evidence-teacher-aggregate>${content}</article>`;
+            : '<p>正在按明确班级与课程读取学生进度与班级概况。</p>';
+        return `<article class="teacher-curriculum-panel teacher-curriculum-panel--progress" data-teacher-natural-workflow>${content}</article>`;
     }
-
     function renderCurriculumPageControls(page, kind, itemLabel) {
         const items = page && Array.isArray(page.items) ? page.items : [];
         const total = Math.max(0, Number(page && page.total) || 0);
@@ -1141,7 +1057,6 @@
             </nav>
         `;
     }
-
     function renderCodeSubmissionPanel() {
         const course = selectedCourse();
         const page = state.data.codeSubmissions || { items: [], total: 0 };
@@ -1154,6 +1069,10 @@
                     <div><span>CODE REVIEW STATION</span><h3>代码提交与判题记录</h3><p>${codeCourse ? '按学生查看原始代码、语言和权威判题状态；公开样例运行不计入此处。' : '当前课程没有已识别的代码活动；建立代码题目后，提交会自动进入此处。'}</p></div>
                     <div><strong>${formatNumber(page.total || allItems.length)}</strong><span>提交记录</span></div>
                 </header>
+                <div class="teacher-runner-boundary">
+                    <section data-runner-lane="browser-precheck"><strong>浏览器预检</strong><p>只用于学生本地学习反馈；browser_runtime_error 不是正式判题，也不会生成通过状态或分数。</p></section>
+                    <section data-runner-lane="formal"><strong>正式 runner</strong><p>这里只读取 code-submissions 与 attempt；accepted 是唯一成功，其他状态不会从公开样例或响应摘要推断。</p></section>
+                </div>
                 ${state.errors.codeSubmissions ? renderError(state.errors.codeSubmissions, '代码提交读取失败') : `
                     <div class="teacher-code-station__toolbar">
                         <label><span>判题状态</span><select data-teacher-filter="codeStatus"><option value="">全部状态</option>${Object.entries(CODE_STATUS_LABELS).map(([value, label]) => `<option value="${value}"${state.filters.codeStatus === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></label>
@@ -1170,7 +1089,6 @@
             </article>
         `;
     }
-
     function renderCodeSubmissionItem(item) {
         const selected = String(item.id) === String(state.selected.codeSubmissionId);
         return `
@@ -1182,7 +1100,6 @@
             </button>
         `;
     }
-
     function renderCodeSubmissionDetails(visibleItems) {
         const selected = (visibleItems || []).find((item) => String(item.id) === String(state.selected.codeSubmissionId));
         if (!selected) {
@@ -1200,6 +1117,7 @@
         return `
             <div class="teacher-code-detail">
                 <header><div><span>提交 #${formatNumber(selected.id)}</span><strong>${escapeHtml(studentLabel(selected.student_id))}</strong></div>${renderCodeStatus(selected.status)}</header>
+                <p class="teacher-code-outcome-copy" role="status">${escapeHtml(codeStatusMessage(selected.status))}</p>
                 ${state.errors.codeSubmissionSource ? renderError(state.errors.codeSubmissionSource, '源代码读取失败') : !source
                     ? '<div class="teacher-code-loading"><i data-lucide="loader-circle"></i><span>正在读取授权源码</span></div>'
                     : `
@@ -1217,12 +1135,20 @@
             </div>
         `;
     }
-
     function renderCodeStatus(value) {
         const normalized = String(value || 'unknown').replace(/[^a-z0-9_-]/gi, '').toLowerCase();
-        return `<span class="teacher-code-status teacher-code-status--${escapeAttr(normalized)}">${escapeHtml(CODE_STATUS_LABELS[value] || value || '未知')}</span>`;
+        return `<span class="teacher-code-status teacher-code-status--${escapeAttr(normalized)}" data-formal-outcome="${codeStatusOutcome(value)}">${escapeHtml(CODE_STATUS_LABELS[value] || value || '未知')}</span>`;
     }
-
+    function codeStatusOutcome(value) {
+        if (value === 'accepted') return 'success'; if (value === 'runner_unavailable') return 'neutral';
+        if (value === 'queued' || value === 'running') return 'processing';
+        return 'failure';
+    }
+    function codeStatusMessage(value) {
+        if (value === 'accepted') return '正式判题已通过（accepted）。'; if (value === 'runner_unavailable') return '正式判题未启用（runner_unavailable）。提交已保存；浏览器预检不等同正式通过。';
+        if (value === 'queued' || value === 'running') return '正式判题仍在处理中；当前没有成绩或通过结论。';
+        return `正式判题未通过（${String(value || 'unknown')}）；浏览器预检不会覆盖这一结果。`;
+    }
     function renderOrganizationPanel() {
         const schoolDisabled = !state.selected.schoolId || isSchoolReadOnly();
         const courseDisabled = !state.selected.courseId || isCourseReadOnly();
@@ -1267,7 +1193,6 @@
             </div>
         `;
     }
-
     function renderAssignmentWorkspace() {
         return `
             <div class="teacher-view teacher-view--assignments">
@@ -1278,17 +1203,16 @@
             </div>
         `;
     }
-
     function renderGradingWorkspace() {
         return `
             <div class="teacher-view teacher-view--grading">
                 <header class="teacher-view__header"><div><span>REVIEW & INSIGHT</span><h2>批改与学情</h2><p>在同一教学范围中处理提交、反馈和学生学习进度。</p></div></header>
                 ${renderAssignmentScope()}
+                ${renderProgressMatrix()}
                 <div class="teacher-grading-grid">${renderSubmissionsPanel()}${renderInsightPanel()}</div>
             </div>
         `;
     }
-
     function renderAssignmentScope() {
         return `
             <div class="teacher-assignment-scope" aria-label="作业上下文">
@@ -1297,7 +1221,6 @@
             </div>
         `;
     }
-
     function renderAssignmentCreationPanel() {
         const unitOptions = state.data.units.map((unit) => `<option value="${unit.id}"${String(unit.id) === state.selected.unitId ? ' selected' : ''}>${escapeHtml(unit.title)}</option>`).join('');
         const unitDisabled = !canCreateCourseUnit();
@@ -1329,7 +1252,6 @@
             </div>
         `;
     }
-
     function renderOperation(id, icon, title, detail, content, open) {
         return `
             <details class="teacher-operation" data-teacher-operation="${escapeAttr(id)}" ${open ? 'open' : ''}>
@@ -1338,7 +1260,6 @@
             </details>
         `;
     }
-
     function renderCoursePanel() {
         const selectedAssignment = findById(state.data.assignments, state.selected.assignmentId);
         const rule = state.data.pointRule || {};
@@ -1421,7 +1342,6 @@
             </article>
         `;
     }
-
     function renderMembersPanel() {
         const classDisabled = !state.selected.classId || isClassReadOnly();
         const targetClasses = state.data.classes.filter((item) => (
@@ -1472,7 +1392,6 @@
             </article>
         `;
     }
-
     function renderMembersTable() {
         if (state.errors.members) return renderError(state.errors.members, '成员读取失败');
         if (!state.selected.classId) return renderEmpty('请选择班级');
@@ -1511,7 +1430,6 @@
             <footer class="teacher-list-pagination">${renderCurriculumPageControls(page, 'members', '班级成员')}</footer>
         `;
     }
-
     function renderStudentBatchImportResult() {
         const result = state.data.studentBatchImportResult;
         if (!result || !Array.isArray(result.items)) return '';
@@ -1530,7 +1448,6 @@
             </div>
         `;
     }
-
     function renderSubmissionsPanel() {
         return `
             <article class="teacher-panel">
@@ -1546,7 +1463,6 @@
             </article>
         `;
     }
-
     function renderSubmissionQueue() {
         if (state.errors.submissions) return renderError(state.errors.submissions, '提交队列读取失败');
         if (!state.selected.classId) return renderEmpty('请选择班级');
@@ -1569,7 +1485,6 @@
             </div>
         `;
     }
-
     function renderGradeForm() {
         const options = state.data.assignmentSubmissions.map((submission) => {
             const member = state.data.members.find((item) => item.user_id === submission.student_id);
@@ -1598,24 +1513,24 @@
                 : `<footer class="teacher-list-pagination">${renderCurriculumPageControls(page, 'assignment-submissions', '作业提交记录')}</footer>`}
         `;
     }
-
     function renderInsightPanel() {
         return `
             <article class="teacher-panel">
                 <header class="teacher-panel__header">
-                    <h2><i data-lucide="chart-no-axes-combined"></i>学情口径</h2>
+                    <h2><i data-lucide="chart-no-axes-combined"></i>学情统计口径</h2>
                     ${statusBadge('partial')}
                 </header>
-                <p class="teacher-muted">权威完成与迁移统一在“课程编排”的 0051 aggregate 区域按明确班级/课程读取；本区继续保留作业提交与教师反馈入口，不用旧访问或 knowledge 统计声明掌握。</p>
+                <p class="teacher-muted">权威完成与迁移统一在“课程节奏”的学生进度区按明确班级与课程读取；本区只保留作业提交与教师反馈，不用访问次数或旧统计声明掌握。</p>
             </article>
         `;
     }
-
     async function handleFormSubmit(form) {
         const formType = form.dataset.teacherForm;
         if (!canStartMutation(formType)) return;
+        let preserveReleaseDom = false;
         try {
-            setBusy(true);
+            state.mutationInFlight = true;
+            if (formType !== 'release-plan') setBusy(true);
             if (formType === 'school') await createSchool(form);
             if (formType === 'class') await createClass(form);
             if (formType === 'course') await createCourse(form);
@@ -1625,21 +1540,25 @@
             if (formType === 'assignment-audience') await updateAssignmentAudience(form);
             if (formType === 'assignment-class-policy') await updateAssignmentClassPolicy(form);
             if (formType === 'point-rule') await updatePointRule(form);
-            if (formType === 'release-plan') await updateReleasePlan(form);
+            if (formType === 'release-plan') preserveReleaseDom = await updateReleasePlan(form) === 'cancelled';
             if (formType === 'collaborator') await createCollaborator(form);
             if (formType === 'collaborator-batch') await batchUpdateCollaborators(form);
             if (formType === 'student-batch-import') await batchImportStudents(form);
             if (formType === 'student-transfer') await transferStudent(form);
             if (formType === 'grade') await gradeSubmission(form);
-            form.reset();
+            if (formType !== 'release-plan') form.reset();
         } catch (error) {
             await handleMutationFailure(error, formType || 'teacher-write');
         } finally {
+            state.mutationInFlight = false;
             setBusy(false);
-            renderWorkspace();
+            if (preserveReleaseDom) {
+                applyWriteAvailability();
+                renderFlash();
+            }
+            else renderWorkspace();
         }
     }
-
     async function createSchool(form) {
         const data = formData(form);
         const school = await fetchJson('/api/schools', {
@@ -1650,7 +1569,6 @@
         state.selected.schoolId = String(school.id);
         await reconcileConfirmedWrite('创建学校', () => loadSchools(school.id));
     }
-
     async function createClass(form) {
         const data = formData(form);
         const classGroup = await fetchJson('/api/classes', {
@@ -1666,7 +1584,6 @@
         state.selected.classId = String(classGroup.id);
         await reconcileConfirmedWrite('创建班级', () => loadSchoolScope());
     }
-
     async function createCourse(form) {
         const data = formData(form);
         const course = await fetchJson('/api/courses', {
@@ -1684,7 +1601,6 @@
         state.selected.courseId = String(course.id);
         await reconcileConfirmedWrite('创建课程', () => loadSchoolScope());
     }
-
     async function attachCourseToClass() {
         await fetchJson(`/api/courses/${state.selected.courseId}/classes`, {
             method: 'POST',
@@ -1696,7 +1612,6 @@
             await loadCurriculumScope();
         });
     }
-
     async function createUnit(form) {
         const data = formData(form);
         const unit = await fetchJson(`/api/courses/${state.selected.courseId}/units`, {
@@ -1716,7 +1631,6 @@
             await loadCurriculumScope();
         });
     }
-
     async function createAssignment(form) {
         const data = formData(form);
         const unitId = data.unit_id || state.selected.unitId;
@@ -1735,7 +1649,6 @@
         state.selected.assignmentId = String(assignment.id);
         await reconcileConfirmedWrite('创建作业', () => loadCourseScope());
     }
-
     async function updateAssignmentAudience(form) {
         const data = formData(form);
         const assignmentId = data.assignment_id || state.selected.assignmentId;
@@ -1747,7 +1660,6 @@
         setFlash('success', '作业受众模式已更新');
         await reconcileConfirmedWrite('更新作业受众', () => loadCourseScope());
     }
-
     async function updateAssignmentClassPolicy(form) {
         const data = formData(form);
         const pointRule = data.override_points ? {
@@ -1773,7 +1685,6 @@
         setFlash('success', '当前班级作业与积分覆盖策略已保存');
         await reconcileConfirmedWrite('保存班级作业策略', () => Promise.all([loadAssignmentScope(), loadClassScope()]));
     }
-
     async function resetAssignmentClassPolicy() {
         if (!canStartMutation('assignment-class-policy-reset')) return;
         try {
@@ -1791,7 +1702,6 @@
             renderWorkspace();
         }
     }
-
     async function updatePointRule(form) {
         const data = formData(form);
         const assignmentId = data.assignment_id || state.selected.assignmentId;
@@ -1807,62 +1717,212 @@
         state.selected.assignmentId = String(assignmentId);
         await reconcileConfirmedWrite('保存积分规则', () => loadAssignmentScope());
     }
-
+    function releaseScopeKey() { return `${state.apiBase}|${state.user && state.user.id || ''}:${state.selected.classId || ''}:${state.selected.courseId || ''}`; }
+    function releaseDraftForCurrentScope() { return state.releaseDraft && state.releaseDraft.scopeKey === releaseScopeKey() ? state.releaseDraft : null; }
+    function captureReleaseDraft(form) {
+        const previous = releaseDraftForCurrentScope();
+        const draft = {
+            scopeKey: releaseScopeKey(),
+            reason: String(form.querySelector('[name="reason"]')?.value || '').slice(0, 4000),
+            conflict: Boolean(previous && previous.conflict),
+            reconciled: Boolean(previous && previous.reconciled),
+            items: Array.from(form.querySelectorAll('[data-teacher-plan-row]')).map((row) => ({
+                courseUnitId: Number(row.dataset.unitId),
+                position: String(row.querySelector('[data-teacher-plan-field="position"]')?.value || ''),
+                releaseMode: String(row.querySelector('[data-teacher-plan-field="release_mode"]')?.value || ''),
+                openAt: String(row.querySelector('[data-teacher-plan-field="open_at"]')?.value || ''),
+                prerequisiteUnitId: String(row.querySelector('[data-teacher-plan-field="prerequisite_unit_id"]')?.value || '')
+            }))
+        };
+        state.releaseDraft = draft;
+        return draft;
+    }
+    function parseReleaseDraft(draft, plan) {
+        if (!draft || !plan || draft.scopeKey !== releaseScopeKey() || !draft.items.length) throw new Error('当前课程没有可编排分块');
+        const expectedUnits = new Set(plan.items.map((item) => Number(item.course_unit_id)));
+        const unitIds = new Set();
+        const items = draft.items.map((item) => {
+            const position = Number(item.position);
+            const courseUnitId = Number(item.courseUnitId);
+            const prerequisiteUnitId = item.prerequisiteUnitId ? Number(item.prerequisiteUnitId) : null;
+            const openDate = item.openAt ? new Date(item.openAt) : null;
+            if (!Number.isInteger(courseUnitId) || !expectedUnits.has(courseUnitId) || unitIds.has(courseUnitId)) throw new Error('课程分块范围无效');
+            if (!Number.isInteger(position) || position < 1 || position > 100) throw new Error('课程分块顺序必须是 1—100 的整数');
+            if (!RELEASE_MODES.includes(item.releaseMode)) throw new Error('课程分块呈现状态无效');
+            if (openDate && !Number.isFinite(openDate.getTime())) throw new Error('课程分块开放时间无效');
+            if (prerequisiteUnitId && (!Number.isInteger(prerequisiteUnitId) || !expectedUnits.has(prerequisiteUnitId))) throw new Error('课程分块前置范围无效');
+            unitIds.add(courseUnitId);
+            return {
+                course_unit_id: courseUnitId,
+                position,
+                release_mode: item.releaseMode,
+                open_at: openDate ? openDate.toISOString() : null,
+                prerequisite_unit_id: prerequisiteUnitId
+            };
+        });
+        if (items.length !== expectedUnits.size) throw new Error('课程分块草稿不完整');
+        if (new Set(items.map((item) => item.position)).size !== items.length) throw new Error('课程分块顺序不能重复');
+        const byUnitId = new Map(items.map((item) => [item.course_unit_id, item]));
+        items.forEach((item) => {
+            const prerequisite = item.prerequisite_unit_id && byUnitId.get(item.prerequisite_unit_id);
+            if (item.prerequisite_unit_id && (!prerequisite || prerequisite.position >= item.position)) throw new Error('前置分块必须位于当前分块之前');
+        });
+        return { items, reason: optional(draft.reason) };
+    }
+    function releasePreview(plan, command) {
+        return {
+            classId: Number(state.selected.classId),
+            courseId: Number(state.selected.courseId),
+            classLabel: selectedClass() && selectedClass().name,
+            courseLabel: selectedCourse() && selectedCourse().title,
+            expectedVersion: Number(plan.plan_version),
+            reason: command.reason,
+            items: command.items.map((item) => {
+                const original = plan.items.find((candidate) => Number(candidate.course_unit_id) === item.course_unit_id);
+                const unit = findById(state.data.units, item.course_unit_id);
+                const prerequisite = findById(state.data.units, item.prerequisite_unit_id);
+                const originalPrerequisite = original && findById(state.data.units, original.prerequisite_unit_id);
+                return {
+                    courseUnitId: item.course_unit_id,
+                    label: unit ? unit.title : original && original.activity_key,
+                    before: {
+                        position: original && original.position,
+                        releaseMode: original && original.release_mode,
+                        openAt: original && original.open_at,
+                        prerequisiteLabel: originalPrerequisite && originalPrerequisite.title
+                    },
+                    after: {
+                        position: item.position,
+                        releaseMode: item.release_mode,
+                        openAt: item.open_at,
+                        prerequisiteLabel: prerequisite && prerequisite.title
+                    }
+                };
+            })
+        };
+    }
+    function sameTimestamp(left, right) {
+        if (!left && !right) return true;
+        return Number.isFinite(new Date(left).getTime()) && new Date(left).getTime() === new Date(right).getTime();
+    }
+    function releaseSchemaError() {
+        return Object.assign(new Error('发布计划响应未通过范围、版本或字段校验'), { code: 'release_plan_schema_invalid', confirmed: true });
+    }
+    function validateReleasePlanResponse(payload, expectation) {
+        const expected = expectation || {};
+        const expectedClassId = Number(expected.classId || state.selected.classId),
+            expectedCourseId = Number(expected.courseId || state.selected.courseId);
+        const items = payload && payload.items;
+        const ids = new Set(), positions = new Set();
+        if (!payload || payload.course_id !== expectedCourseId
+            || payload.class_id !== expectedClassId
+            || !Number.isInteger(payload.course_class_id) || payload.course_class_id < 1
+            || !Number.isInteger(payload.plan_version) || payload.plan_version < 1
+            || typeof payload.changed !== 'boolean' || !Array.isArray(items) || items.length > 100
+        ) throw releaseSchemaError();
+        const validItems = items.every((item) => {
+            const valid = item && Number.isInteger(item.id) && item.id > 0
+                && Number.isInteger(item.course_unit_id) && item.course_unit_id > 0 && !ids.has(item.course_unit_id)
+                && typeof item.activity_key === 'string' && item.activity_key.length > 0 && item.activity_key.length <= 120
+                && Number.isInteger(item.position) && item.position > 0 && item.position <= 100 && !positions.has(item.position)
+                && RELEASE_MODES.includes(item.release_mode) && (item.open_at === null || Number.isFinite(new Date(item.open_at).getTime()))
+                && (item.prerequisite_unit_id === null || Number.isInteger(item.prerequisite_unit_id) && item.prerequisite_unit_id > 0)
+                && RELEASE_MODES.includes(item.effective_release_state) && Array.isArray(item.lock_reasons)
+                && item.lock_reasons.length <= 12 && item.lock_reasons.every((reason) => typeof reason === 'string' && reason.length <= 120);
+            if (valid) { ids.add(item.course_unit_id); positions.add(item.position); }
+            return valid;
+        });
+        if (!validItems) throw releaseSchemaError();
+        if (expected.expectedVersion
+            && payload.plan_version !== expected.expectedVersion + (payload.changed ? 1 : 0)) throw releaseSchemaError();
+        if (expected.planVersion && payload.plan_version !== expected.planVersion) throw releaseSchemaError();
+        if (expected.items) {
+            if (items.length !== expected.items.length) throw releaseSchemaError();
+            const responseByUnit = new Map(items.map((item) => [item.course_unit_id, item]));
+            if (expected.items.some((item) => {
+                const response = responseByUnit.get(item.course_unit_id);
+                return !response || response.position !== item.position || response.release_mode !== item.release_mode
+                    || response.prerequisite_unit_id !== item.prerequisite_unit_id || !sameTimestamp(response.open_at, item.open_at);
+            })) throw releaseSchemaError();
+        }
+        return payload;
+    }
+    async function readReleasePlanAuthority(expectation) {
+        const courseId = Number(state.selected.courseId), classId = Number(state.selected.classId);
+        state.data.releasePlan = validateReleasePlanResponse(
+            await fetchJson(`/api/courses/${courseId}/classes/${classId}/release-plan`),
+            Object.assign({ classId, courseId }, expectation || {})
+        );
+        state.errors.releasePlan = null;
+        return state.data.releasePlan;
+    }
+    function releaseErrorStatus(error) { return Number(error && (error.status || error.details && error.details.status)) || 0; }
+    function lockUnknownWrite(label, error, confirmed) {
+        state.writeLock = { label: String(label || 'teacher-write'), requestId: String(error && error.requestId || ''),
+            lockedAt: Date.now(), confirmed: Boolean(confirmed) };
+    }
     async function updateReleasePlan(form) {
         const plan = state.data.releasePlan;
         if (!plan || !state.data.curriculumAttached) throw new Error('当前班级课程发布计划尚未就绪');
-        const rows = Array.from(form.querySelectorAll('[data-teacher-plan-row]'));
-        if (!rows.length) throw new Error('当前课程没有可编排分块');
-        const items = rows.map((row) => {
-            const position = Number(row.querySelector('[data-teacher-plan-field="position"]').value);
-            const releaseMode = row.querySelector('[data-teacher-plan-field="release_mode"]').value;
-            const openAtValue = row.querySelector('[data-teacher-plan-field="open_at"]').value;
-            const prerequisiteValue = row.querySelector('[data-teacher-plan-field="prerequisite_unit_id"]').value;
-            if (!Number.isInteger(position) || position < 1) throw new Error('课程分块顺序必须是正整数');
-            if (!RELEASE_MODES.includes(releaseMode)) throw new Error('课程分块呈现状态无效');
-            return {
-                course_unit_id: Number(row.dataset.unitId),
-                position,
-                release_mode: releaseMode,
-                open_at: openAtValue ? new Date(openAtValue).toISOString() : null,
-                prerequisite_unit_id: prerequisiteValue ? Number(prerequisiteValue) : null
-            };
-        });
-        const positions = items.map((item) => item.position);
-        if (new Set(positions).size !== positions.length) throw new Error('课程分块顺序不能重复');
-        const byUnitId = new Map(items.map((item) => [item.course_unit_id, item]));
-        items.forEach((item) => {
-            if (!item.prerequisite_unit_id) return;
-            const prerequisite = byUnitId.get(item.prerequisite_unit_id);
-            if (!prerequisite || prerequisite.position >= item.position) {
-                throw new Error('前置分块必须位于当前分块之前');
-            }
-        });
-        const reason = optional(new FormData(form).get('reason'));
-        try {
-            const updated = await fetchJson(
-                `/api/courses/${state.selected.courseId}/classes/${state.selected.classId}/release-plan`,
-                {
-                    method: 'PATCH',
-                    body: {
-                        expected_version: Number(plan.plan_version),
-                        items,
-                        reason
-                    }
-                }
-            );
-            state.data.releasePlan = updated;
-            setFlash(updated.changed ? 'success' : 'warning', updated.changed
-                ? `课程节奏已发布，权威版本更新为 v${updated.plan_version}`
-                : `提交内容与权威版本 v${updated.plan_version} 一致，无需重复写入`);
-            await reconcileConfirmedWrite('发布课程节奏', () => loadCurriculumScope());
-        } catch (error) {
-            if (Number(error && error.status) !== 409) throw error;
-            await loadCurriculumScope();
-            setFlash('warning', '另一位教师已更新课程节奏；系统已回读最新权威版本，请确认后重新发布');
+        const draft = captureReleaseDraft(form);
+        const command = parseReleaseDraft(draft, plan);
+        const previewOwner = window.AstraTeacherLearningEvidence;
+        if (!previewOwner || typeof previewOwner.confirmReleasePlan !== 'function') throw new Error('课程安排预览尚未就绪');
+        const confirmed = await previewOwner.confirmReleasePlan(releasePreview(plan, command));
+        if (!confirmed) {
+            setFlash('warning', '本次安排尚未发布；草稿仍保留在当前页面。');
+            return 'cancelled';
         }
+        setBusy(true);
+        let updated;
+        try {
+            const payload = await fetchJson(
+                `/api/courses/${state.selected.courseId}/classes/${state.selected.classId}/release-plan`,
+                { method: 'PATCH', body: { expected_version: Number(plan.plan_version), items: command.items, reason: command.reason } }
+            );
+            updated = validateReleasePlanResponse(payload, {
+                expectedVersion: Number(plan.plan_version),
+                items: command.items
+            });
+        } catch (error) {
+            if (releaseErrorStatus(error) === 409) {
+                try {
+                    await readReleasePlanAuthority();
+                } catch (readError) {
+                    state.errors.releasePlan = readError;
+                    lockUnknownWrite('发布课程节奏', readError, false);
+                    state.releaseDraft = Object.assign({}, draft, { conflict: true, reconciled: false });
+                    setFlash('warning', '课程安排冲突已返回，但最新权威状态读取失败；草稿未重发，写操作保持锁定，请显式刷新后核对。');
+                    return 'locked';
+                }
+                state.releaseDraft = Object.assign({}, draft, { conflict: true, reconciled: false });
+                setFlash('warning', '课程安排已被其他操作更新。已读取最新状态；你的草稿没有自动重发，请核对后再次确认。');
+                return 'conflict';
+            }
+            if (AstraApiClient.isAmbiguousMutation(error) || error && error.confirmed) {
+                lockUnknownWrite('发布课程节奏', error, Boolean(error && error.confirmed));
+                try { await readReleasePlanAuthority(); } catch (readError) { state.errors.releasePlan = readError; }
+                setFlash('warning', error && error.confirmed
+                    ? '服务器已响应，但结果未通过范围或版本校验。系统不会重复发送；写操作已锁定，请显式刷新后重新比较。'
+                    : '尚不能确认本次写入结果。系统不会自动重试；已读取最新状态并锁定写操作，请显式刷新后重新比较。');
+                return 'locked';
+            }
+            throw error;
+        }
+        try {
+            await readReleasePlanAuthority({ planVersion: updated.plan_version, items: command.items });
+        } catch (error) {
+            lockUnknownWrite('发布课程节奏', error, true);
+            state.errors.releasePlan = error;
+            setFlash('warning', '课程安排写入已确认，但权威回读失败。系统不会重复发送；请显式刷新完成核对。');
+            return 'locked';
+        }
+        state.releaseDraft = null;
+        setFlash(updated.changed ? 'success' : 'warning', updated.changed
+            ? `课程节奏已发布，权威版本更新为 v${updated.plan_version}`
+            : `提交内容与权威版本 v${updated.plan_version} 一致，无需重复写入`);
+        return 'success';
     }
-
     async function createCollaborator(form) {
         const data = formData(form);
         await fetchJson(`/api/courses/${state.selected.courseId}/collaborators`, {
@@ -1872,7 +1932,6 @@
         setFlash('success', '协作者已添加');
         await reconcileConfirmedWrite('添加协作者', () => loadCourseScope());
     }
-
     async function batchUpdateCollaborators(form) {
         const data = formData(form);
         const roles = new Set(['editor', 'content_editor', 'assessment_editor', 'viewer']);
@@ -1899,7 +1958,6 @@
         );
         await reconcileConfirmedWrite('批量协作者管理', () => loadCourseScope());
     }
-
     async function batchImportStudents(form) {
         const data = formData(form);
         const usernames = String(data.usernames || '')
@@ -1919,7 +1977,6 @@
         setFlash(level, `批量导入已处理：新增 ${result.created_count}，恢复 ${result.restored_count}，已存在 ${result.unchanged_count}，失败 ${result.failed_count}`);
         await reconcileConfirmedWrite('批量导入学生', () => loadClassScope());
     }
-
     async function transferStudent(form) {
         const data = formData(form);
         const result = await fetchJson(
@@ -1935,24 +1992,42 @@
         setFlash('success', result.applied ? '学生已转入目标班级，源班历史记录继续保留' : '转班目标状态已存在，无需重复写入');
         await reconcileConfirmedWrite('学生转班', () => loadClassScope());
     }
-
-    async function gradeSubmission(form) {
-        const data = formData(form);
-        await fetchJson(`/api/submissions/${data.submission_id}/grade`, {
-            method: 'PATCH',
-            body: {
-                score: Number(data.score) || 0,
-                feedback: optional(data.feedback),
-                status: data.status || 'graded'
-            }
-        });
-        setFlash('success', '评分已提交');
-        await reconcileConfirmedWrite(
-            '提交评分',
-            () => Promise.all([loadClassScope(), loadAssignmentScope()])
-        );
+    async function gradeSubmission(form) { return gradeSubmissionCommand(formData(form)); }
+    async function gradeSubmissionCommand(data) {
+        const scope = { submissionId: Number(data.submission_id), assignmentId: Number(state.selected.assignmentId),
+            classId: Number(state.selected.classId), offset: state.pagination.assignmentSubmissionOffset };
+        if (!scope.submissionId || !scope.assignmentId || !scope.classId
+            || !state.data.assignmentSubmissions.some((item) => item.id === scope.submissionId)) {
+            throw new Error('请选择当前班级与作业分页中的提交');
+        }
+        let mutationState = 'success';
+        let mutationError = null;
+        try {
+            await fetchJson(`/api/submissions/${scope.submissionId}/grade`, { method: 'PATCH',
+                body: { score: Number(data.score) || 0, feedback: optional(data.feedback), status: data.status || 'graded' } });
+        } catch (error) {
+            mutationError = error;
+            if (releaseErrorStatus(error) === 409) mutationState = 'conflict'; else if (AstraApiClient.isAmbiguousMutation(error) || error && error.confirmed) {
+                mutationState = 'locked';
+                lockUnknownWrite('提交评分', error, Boolean(error && error.confirmed));
+            } else throw error;
+        }
+        let record;
+        try {
+            record = await readSubmissionAuthority(scope, mutationState !== 'conflict');
+        } catch (error) {
+            state.errors.assignmentSubmissions = error;
+            lockUnknownWrite('提交评分', mutationError || error, mutationState === 'success');
+            setFlash('warning', mutationState === 'conflict'
+                ? '评分冲突已返回，但同一作业、班级与分页的权威记录读取失败；系统未重发，写操作保持锁定。'
+                : '评分写入后无法确认同一提交的权威记录；系统未重发，写操作保持锁定。');
+            return 'locked';
+        }
+        if (mutationState === 'conflict') { setFlash('warning', '提交状态已变化；已按同一作业、班级与分页回读该提交，系统没有自动重发评分。'); return 'conflict'; }
+        if (mutationState === 'locked') { setFlash('warning', '尚不能确认本次评分写入结果。系统不会自动重试；已回读同一提交并保持写锁，请显式刷新后核对。'); return 'locked'; }
+        setFlash('success', `权威回读：提交 #${record.id} 已${record.status === 'returned' ? '退回' : '评分'}${record.score === null ? '' : `，得分 ${record.score}`}${record.feedback ? '，反馈已保存' : ''}`);
+        return 'success';
     }
-
     async function updateMemberStatus(button) {
         if (!canStartMutation('member-status')) return;
         try {
@@ -1970,7 +2045,6 @@
             renderWorkspace();
         }
     }
-
     async function updateCollaboratorStatus(button) {
         if (!canStartMutation('collaborator-status')) return;
         try {
@@ -1988,7 +2062,6 @@
             renderWorkspace();
         }
     }
-
     function canStartMutation(label) {
         if (!state.online) {
             setFlash('error', '当前处于离线状态，写操作已停用');
@@ -2000,10 +2073,9 @@
             renderWorkspace();
             return false;
         }
-        if (state.busy) return false;
+        if (state.busy || state.mutationInFlight || state.evidenceMutationInFlight) return false;
         return Boolean(label);
     }
-
     async function handleMutationFailure(error, label) {
         if (error && error.confirmed) {
             try { await refreshAll(); } catch (refreshError) {}
@@ -2023,7 +2095,6 @@
         const requestHint = state.writeLock.requestId ? `（请求 ${state.writeLock.requestId.slice(0, 12)}…）` : '';
         setFlash('warning', `写入结果尚未确认${requestHint}，系统未自动重试；写操作已锁定，请核对后点击顶部刷新解除`);
     }
-
     async function reconcileConfirmedWrite(label, loader) {
         let refreshError = null;
         try {
@@ -2042,7 +2113,6 @@
         lockConfirmedWrite(label, workspaceError || AstraApiClient.offlineError());
         return false;
     }
-
     function lockConfirmedWrite(label, error) {
         state.writeLock = {
             label: String(label || 'teacher-write'),
@@ -2056,7 +2126,6 @@
             `${label || '写入'}已由服务器确认，但权威数据刷新失败${detail}。系统不会重复发送；请点击顶部刷新完成核对后继续`
         );
     }
-
     function applyReleasePlanPreset(mode) {
         if (!RELEASE_MODES.includes(mode) || state.busy || !canManageReleasePlan()) return;
         state.root.querySelectorAll('[data-teacher-plan-field="release_mode"]').forEach((select) => {
@@ -2066,15 +2135,17 @@
         });
         const status = state.root.querySelector('[data-teacher-plan-draft-status]');
         if (status) status.textContent = `草稿：全部设为${RELEASE_MODE_LABELS[mode]}`;
+        const form = state.root.querySelector('[data-teacher-form="release-plan"]');
+        if (form) captureReleaseDraft(form);
     }
-
     function markReleasePlanDraft(control) {
         const row = control.closest('[data-teacher-plan-row]');
         if (row) row.classList.add('is-dirty');
+        const form = control.closest('[data-teacher-form="release-plan"]');
+        if (form) captureReleaseDraft(form);
         const status = state.root.querySelector('[data-teacher-plan-draft-status]');
         if (status) status.textContent = '存在尚未发布的调整';
     }
-
     async function selectCodeSubmission(submissionId) {
         if (state.busy || !submissionId) return;
         state.selected.codeSubmissionId = String(submissionId);
@@ -2095,7 +2166,6 @@
             renderWorkspace();
         }
     }
-
     async function changeCurriculumPage(kind, requestedOffset) {
         if (state.busy) return;
         const offset = Math.max(0, Math.floor(Number(requestedOffset) || 0));
@@ -2103,24 +2173,16 @@
         const courseId = state.selected.courseId;
         const assignmentId = state.selected.assignmentId;
         const codeSubmissionId = state.selected.codeSubmissionId;
-        const supported = new Set(['progress', 'code', 'members', 'active-students', 'assignment-submissions', 'code-attempts']);
+        const supported = new Set(['code', 'members', 'active-students', 'assignment-submissions', 'code-attempts']);
         if (!supported.has(kind)) return;
-        if (['progress', 'code'].includes(kind) && (!classId || !courseId)) return;
+        if (kind === 'code' && (!classId || !courseId)) return;
         if (['members', 'active-students'].includes(kind) && !classId) return;
-        if (kind === 'assignment-submissions' && !assignmentId) return;
+        if (kind === 'assignment-submissions' && (!assignmentId || !classId)) return;
         if (kind === 'code-attempts' && !codeSubmissionId) return;
         const generation = beginRequestGeneration();
         setBusy(true);
         try {
-            if (kind === 'progress') {
-                state.errors.courseProgress = null;
-                const page = await fetchJson(`/api/progress/courses/${courseId}/classes/${classId}/students`, {
-                    params: { limit: COURSE_PROGRESS_PAGE_LIMIT, offset }
-                });
-                if (!isCurrentRequest(generation)) return;
-                state.data.courseProgress = page;
-                state.pagination.courseProgressOffset = Number(page.offset) || 0;
-            } else if (kind === 'code') {
+            if (kind === 'code') {
                 state.errors.codeSubmissions = null;
                 const page = await fetchJson('/api/code-submissions', {
                     params: { class_id: classId, course_id: courseId, limit: CODE_SUBMISSION_PAGE_LIMIT, offset }
@@ -2156,17 +2218,14 @@
                 state.data.activeStudentsPage = page;
                 state.data.activeStudents = Array.isArray(page.items) ? page.items : [];
                 state.pagination.activeStudentOffset = Number(page.offset) || 0;
-                state.selected.studentId = state.data.activeStudents[0] ? String(state.data.activeStudents[0].user_id) : '';
-                await loadStudentProgress(generation);
             } else if (kind === 'assignment-submissions') {
                 state.errors.assignmentSubmissions = null;
-                const page = await fetchJson(`/api/assignments/${assignmentId}/submissions/page`, {
-                    params: {
-                        class_id: classId || undefined,
-                        limit: ASSIGNMENT_SUBMISSION_PAGE_LIMIT,
-                        offset
-                    }
-                });
+                const page = validateAssignmentSubmissionPage(
+                    await fetchJson(`/api/assignments/${assignmentId}/submissions/page`, {
+                        params: { class_id: Number(classId), limit: ASSIGNMENT_SUBMISSION_PAGE_LIMIT, offset }
+                    }),
+                    { assignmentId: Number(assignmentId), classId: Number(classId), offset }
+                );
                 if (!isCurrentRequest(generation)) return;
                 state.data.assignmentSubmissionsPage = page;
                 state.data.assignmentSubmissions = Array.isArray(page.items) ? page.items : [];
@@ -2184,7 +2243,6 @@
         } catch (error) {
             if (!isCurrentRequest(generation)) return;
             const errorKey = {
-                progress: 'courseProgress',
                 code: 'codeSubmissions',
                 members: 'members',
                 'active-students': 'activeStudents',
@@ -2199,57 +2257,80 @@
             }
         }
     }
-
+    function clearPrivateDownstream() {
+        Object.assign(state.data, {
+            units: [], assignments: [], members: [], membersPage: null, activeStudents: [], activeStudentsPage: null, submissions: [],
+            assignmentSubmissions: [], assignmentSubmissionsPage: null, collaborators: [], collaboratorBatchResult: null,
+            pointRule: null, assignmentClassPolicy: null, knowledge: null, studentBatchImportResult: null,
+            curriculumAttached: false, releasePlan: null, codeSubmissions: null,
+            codeSubmissionSource: null, codeSubmissionAttempts: [], codeSubmissionAttemptsPage: null
+        });
+        Object.assign(state.selected, { unitId: '', assignmentId: '', codeSubmissionId: '' });
+        state.releaseDraft = null; resetPagination();
+        const owner = window.AstraTeacherLearningEvidence;
+        if (owner && typeof owner.clearScope === 'function') owner.clearScope();
+    }
     async function handleScopeChange(target) {
-        if (state.busy) {
-            renderWorkspace();
+        const evidenceOwner = window.AstraTeacherLearningEvidence;
+        if (state.mutationInFlight || state.evidenceMutationInFlight
+            || evidenceOwner && typeof evidenceOwner.isMutationPending === 'function' && evidenceOwner.isMutationPending()) {
+            setFlash('warning', '当前写入正在等待权威回读，暂不能切换教学范围。');
+            renderScope();
+            renderFlash();
             return;
         }
         const key = target.dataset.teacherScope;
+        const nextValue = target.value;
+        invalidateRequests();
+        if (['galaxyKey', 'schoolId', 'classId', 'courseId'].includes(key)) {
+            clearPrivateDownstream();
+            if (key === 'schoolId') {
+                state.data.classes = []; state.data.courses = [];
+                Object.assign(state.selected, { classId: '', courseId: '' });
+            } else if (key === 'classId') {
+                state.data.courses = []; state.selected.courseId = '';
+            }
+        } else if (key === 'assignmentId') {
+            Object.assign(state.data, { assignmentSubmissions: [], assignmentSubmissionsPage: null,
+                pointRule: null, assignmentClassPolicy: null });
+            state.pagination.assignmentSubmissionOffset = 0;
+        }
+        const generation = beginRequestGeneration();
         if (key === 'galaxyKey') {
-            state.filters.galaxyKey = target.value;
-            resetPagination();
+            state.filters.galaxyKey = nextValue;
             const courses = filteredCourses();
             state.selected.courseId = normalizeSelectedId(state.selected.courseId, courses);
             if (!state.selected.courseId && courses.length === 1) state.selected.courseId = String(courses[0].id);
+            renderWorkspace();
             setBusy(true);
             try {
-                await loadCourseScope();
-                await loadClassScope();
-                await loadCurriculumScope();
+                await Promise.all([loadCourseScope(generation), loadClassScope(generation)]);
+                await loadCurriculumScope(generation);
             } finally {
-                setBusy(false);
-                renderWorkspace();
+                if (isCurrentRequest(generation)) { setBusy(false); renderWorkspace(); }
             }
             return;
         }
-        state.selected[key] = target.value;
-        if (key === 'schoolId' || key === 'classId' || key === 'courseId') resetPagination();
-        if (key === 'assignmentId') state.pagination.assignmentSubmissionOffset = 0;
-        if (key === 'schoolId' || key === 'classId') state.data.studentBatchImportResult = null;
-        if (key === 'schoolId' || key === 'courseId') state.data.collaboratorBatchResult = null;
+        state.selected[key] = nextValue;
+        renderWorkspace();
         setBusy(true);
         try {
-            if (key === 'schoolId') await loadSchoolScope();
+            if (key === 'schoolId') await loadSchoolScope(generation);
             if (key === 'classId') {
-                await loadClassScope();
-                await loadAssignmentScope();
-                await loadCurriculumScope();
+                await loadClassCourses(generation);
+                await Promise.all([loadClassScope(generation), loadCourseScope(generation)]);
+                await loadCurriculumScope(generation);
             }
             if (key === 'courseId') {
-                await loadCourseScope();
-                await loadClassScope();
-                await loadCurriculumScope();
+                await Promise.all([loadCourseScope(generation), loadClassScope(generation)]);
+                await loadCurriculumScope(generation);
             }
             if (key === 'unitId') renderWorkspace();
-            if (key === 'assignmentId') await loadAssignmentScope();
-            if (key === 'studentId') await loadStudentProgress();
+            if (key === 'assignmentId') await loadAssignmentScope(generation);
         } finally {
-            setBusy(false);
-            renderWorkspace();
+            if (isCurrentRequest(generation)) { setBusy(false); renderWorkspace(); }
         }
     }
-
     async function handleFilterChange(target) {
         if (state.busy) {
             renderWorkspace();
@@ -2278,7 +2359,6 @@
             renderWorkspace();
         }
     }
-
     function renderAuthState(mode, user) {
         const container = state.root.querySelector('[data-teacher-auth-state]');
         if (!container) return;
@@ -2328,7 +2408,6 @@
             </div>
         `;
     }
-
     function renderAuthError(error) {
         const container = state.root.querySelector('[data-teacher-auth-state]');
         if (!container) return;
@@ -2353,7 +2432,6 @@
             </div>
         `;
     }
-
     function renderCollaborators() {
         if (state.errors.collaborators) return renderError(state.errors.collaborators, '协作者读取失败');
         if (!state.selected.courseId) return '';
@@ -2373,7 +2451,6 @@
             </div>
         `;
     }
-
     function renderCollaboratorBatchResult() {
         const result = state.data.collaboratorBatchResult;
         if (!result || !Array.isArray(result.items)) return '';
@@ -2392,7 +2469,6 @@
             </div>
         `;
     }
-
     function renderKnowledgeStats(knowledge) {
         if (!knowledge || !Array.isArray(knowledge.knowledge_stats) || !knowledge.knowledge_stats.length) {
             return renderEmpty('暂无规则统计');
@@ -2404,7 +2480,7 @@
             .sort((a, b) => Number(a.percent || 0) - Number(b.percent || 0))
             .slice(0, 6);
         return `
-            <p class="teacher-muted">统计口径 ${escapeHtml(knowledge.rule_version || 'v1')}：仅纳入已发布课程/单元、本班有效分配且有效状态为 active 的作业。</p>
+            <p class="teacher-muted">本区只纳入已发布课程与单元、本班有效分配且当前生效的作业。</p>
             <div class="teacher-knowledge-list">
                 ${overall.slice(0, 3).map((item) => `
                     <div>
@@ -2426,28 +2502,11 @@
             ` : ''}
         `;
     }
-
-    function renderProgress(progress) {
-        if (!state.selected.studentId) return renderEmpty('暂无学生');
-        if (!progress) return renderEmpty('暂无学生进度');
-        return `
-            <div class="teacher-metric-grid teacher-metric-grid--progress">
-                ${metric('提交', progress.submitted_assignments)}
-                ${metric('已评分', progress.graded_assignments)}
-                ${metric('事件', progress.learning_events)}
-                ${metric('完成', progress.completed_events)}
-                ${metric('积分', progress.total_points)}
-                ${metric('完成率', formatPercent(progress.completion_percent))}
-            </div>
-        `;
-    }
-
     function renderSimpleList(items, renderer, error) {
         if (error) return renderError(error, '读取失败');
         if (!items.length) return renderEmpty('暂无数据');
         return `<div class="teacher-simple-list">${items.map((item) => `<div>${renderer(item)}</div>`).join('')}</div>`;
     }
-
     function metric(label, value) {
         return `
             <div class="teacher-metric">
@@ -2456,7 +2515,6 @@
             </div>
         `;
     }
-
     function renderError(error, label) {
         return `
             <div class="teacher-error">
@@ -2465,11 +2523,9 @@
             </div>
         `;
     }
-
     function renderEmpty(text) {
         return `<div class="teacher-empty">${escapeHtml(text)}</div>`;
     }
-
     function renderFlash() {
         const container = state.root.querySelector('[data-teacher-flash]');
         if (!container) return;
@@ -2490,53 +2546,42 @@
             <span>${escapeHtml(state.flash.message)}</span>
         `;
     }
-
     function setFlash(type, message) {
         state.flash = { type, message };
     }
-
     function selectedSchool() {
         return findById(state.data.schools, state.selected.schoolId);
     }
-
     function selectedClass() {
         return findById(state.data.classes, state.selected.classId);
     }
-
     function selectedCourse() {
         return findById(state.data.courses, state.selected.courseId);
     }
-
     function filteredCourses() {
         if (!state.filters.galaxyKey) return state.data.courses;
         return state.data.courses.filter((course) => String(course.galaxy_key || '') === state.filters.galaxyKey);
     }
-
     function selectedCourseLabel() {
         const course = selectedCourse();
         return course ? `课程：${course.title}` : '课程：--';
     }
-
     function selectedClassLabel() {
         const classGroup = selectedClass();
         return classGroup ? `班级：${classGroup.name}` : '班级：--';
     }
-
     function isClassReadOnly() {
         const classGroup = selectedClass();
         return isSchoolReadOnly() || !classGroup || classGroup.status !== 'active';
     }
-
     function isSchoolReadOnly() {
         const school = selectedSchool();
         return !school || school.status !== 'active';
     }
-
     function isCourseReadOnly() {
         const course = selectedCourse();
         return isSchoolReadOnly() || !course || course.status === 'archived';
     }
-
     function activeCourseCollaboratorRole() {
         if (!state.user) return '';
         const collaborator = state.data.collaborators.find((item) => (
@@ -2544,36 +2589,29 @@
         ));
         return collaborator ? collaborator.role : '';
     }
-
     function hasCourseCapability(roles) {
         if (isCourseReadOnly() || !state.user) return false;
         const course = selectedCourse();
         if (state.user.role === 'admin' || Number(course.creator_user_id) === Number(state.user.id)) return true;
         return roles.includes(activeCourseCollaboratorRole());
     }
-
     function canManageCourseOwnership() {
         if (isCourseReadOnly() || !state.user) return false;
         const course = selectedCourse();
         return state.user.role === 'admin' || Number(course.creator_user_id) === Number(state.user.id);
     }
-
     function canCreateCourseUnit() {
         return hasCourseCapability(['editor', 'content_editor']);
     }
-
     function canCreateCourseAssignment() {
         return hasCourseCapability(['editor', 'content_editor', 'assessment_editor']);
     }
-
     function canManageAssignmentPointRule() {
         return hasCourseCapability(['editor', 'assessment_editor']);
     }
-
     function canManageAssignmentClassPolicy() {
         return !isClassReadOnly() && hasCourseCapability(['editor', 'assessment_editor']);
     }
-
     function canManageReleasePlan() {
         return Boolean(
             state.data.curriculumAttached
@@ -2583,7 +2621,6 @@
             && !isCourseReadOnly()
         );
     }
-
     function galaxyMeta(course) {
         const key = String(course && course.galaxy_key || '').toLowerCase();
         if (key === 'code-space') return { code: 'CODE / 02', label: '代码空间', icon: 'code-2', tone: 'code', href: 'codevis/index.html#catalog' };
@@ -2591,43 +2628,31 @@
         if (key === 'englab') return { code: 'ENG / 01', label: '工科试验室', icon: 'flask-conical', tone: 'englab', href: '#home' };
         return { code: 'ASTRA / COURSE', label: '星序课程', icon: 'orbit', tone: 'astra', href: '#planets' };
     }
-
     function isCodeCourse(course) {
         if (!course) return false;
         if (String(course.galaxy_key || '').toLowerCase() === 'code-space') return true;
         if (/代码|编程|算法/i.test(String(course.title || ''))) return true;
         return state.data.units.some((unit) => /^(program|control-flow|data-functions|algorithm|debugging|challenge)[.-]/.test(String(unit.activity_key || '')));
     }
-
     function studentLabel(studentId) {
         const candidates = state.data.activeStudents.concat(state.data.members);
         const member = candidates.find((item) => Number(item.user_id) === Number(studentId));
         return member ? (member.display_name || member.username || `学生 #${studentId}`) : `学生 #${studentId}`;
     }
-
     function assignmentOptions() {
         return state.data.assignments.map((assignment) => (
             `<option value="${assignment.id}"${String(assignment.id) === state.selected.assignmentId ? ' selected' : ''}>${escapeHtml(assignment.title)}</option>`
         )).join('') || '<option value="">--</option>';
     }
-
-    function studentOptions() {
-        return state.data.activeStudents.map((member) => (
-            `<option value="${member.user_id}"${String(member.user_id) === state.selected.studentId ? ' selected' : ''}>${escapeHtml(member.display_name || member.username)}</option>`
-        )).join('') || '<option value="">--</option>';
-    }
-
     function optionSet(values, current, prefix) {
         const options = (prefix || []).concat(values.map((value) => [value, value]));
         return options.map(([value, label]) => `<option value="${escapeAttr(value)}"${value === current ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
     }
-
     function statusBadge(value) {
         if (!value) return '<span class="teacher-status-pill">--</span>';
         const normalized = String(value).replace(/[^a-z0-9_-]/gi, '').toLowerCase();
         return `<span class="teacher-status-pill teacher-status-pill--${escapeAttr(normalized)}">${escapeHtml(String(value))}</span>`;
     }
-
     function formData(form) {
         const data = {};
         const raw = new FormData(form);
@@ -2639,22 +2664,14 @@
         });
         return data;
     }
-
     function optional(value) {
         const text = String(value || '').trim();
         return text || null;
     }
-
     function normalizeSelectedId(value, items) {
         if (!value) return '';
         return items.some((item) => String(item.id) === String(value)) ? String(value) : '';
     }
-
-    function normalizeSelectedUserId(value, members) {
-        if (!value) return '';
-        return members.some((item) => String(item.user_id) === String(value)) ? String(value) : '';
-    }
-
     function resetBelow(level) {
         if (level === 'school') {
             resetPagination();
@@ -2674,11 +2691,9 @@
             state.data.pointRule = null;
             state.data.assignmentClassPolicy = null;
             state.data.knowledge = null;
-            state.data.progress = null;
             state.data.studentBatchImportResult = null;
             state.data.curriculumAttached = false;
             state.data.releasePlan = null;
-            state.data.courseProgress = null;
             state.data.codeSubmissions = null;
             state.data.codeSubmissionSource = null;
             state.data.codeSubmissionAttempts = [];
@@ -2686,41 +2701,36 @@
             state.selected.codeSubmissionId = '';
         }
     }
-
     function clearWorkspace() {
-        state.user = null;
-        state.errors = {};
-        resetPagination();
-        Object.keys(state.data).forEach((key) => {
-            state.data[key] = Array.isArray(state.data[key]) ? [] : null;
-        });
+        state.user = null; state.releaseDraft = null; state.writeLock = null;
+        state.errors = {}; state.flash = null;
+        Object.keys(state.selected).forEach((key) => { state.selected[key] = ''; });
+        state.filters.galaxyKey = ''; resetPagination();
+        Object.keys(state.data).forEach((key) => { state.data[key] = Array.isArray(state.data[key]) ? [] : null; });
+        const owner = window.AstraTeacherLearningEvidence;
+        if (owner && typeof owner.clearScope === 'function') owner.clearScope();
+        state.mutationInFlight = false; state.evidenceMutationInFlight = false;
         hideDashboard();
     }
-
     function resetPagination() {
         state.pagination.memberOffset = 0;
         state.pagination.activeStudentOffset = 0;
         state.pagination.assignmentSubmissionOffset = 0;
-        state.pagination.courseProgressOffset = 0;
         state.pagination.codeSubmissionsOffset = 0;
         state.pagination.codeAttemptOffset = 0;
     }
-
     function showDashboard() {
         const dashboard = getDashboard();
         if (dashboard) dashboard.hidden = false;
         renderWorkspace();
     }
-
     function hideDashboard() {
         const dashboard = getDashboard();
         if (dashboard) dashboard.hidden = true;
     }
-
     function getDashboard() {
         return state.root && state.root.querySelector('[data-teacher-dashboard]');
     }
-
     function setBusy(value) {
         state.busy = Boolean(value);
         if (state.root) state.root.classList.toggle('is-busy', state.busy);
@@ -2729,9 +2739,8 @@
                 control.disabled = state.busy;
             });
         }
-        if (state.root && state.busy) applyWriteAvailability();
+        if (state.root) applyWriteAvailability();
     }
-
     async function fetchJson(path, options) {
         const request = options || {};
         return AstraApiClient.request(path, {
@@ -2744,7 +2753,6 @@
             signal: state.lifecycleController && state.lifecycleController.signal
         });
     }
-
     function beginRequestGeneration() {
         if (state.lifecycleController && !state.lifecycleController.signal.aborted) {
             state.lifecycleController.abort();
@@ -2754,7 +2762,6 @@
         state.errors = {};
         return state.requestGeneration;
     }
-
     function invalidateRequests() {
         state.requestGeneration += 1;
         if (state.lifecycleController && !state.lifecycleController.signal.aborted) {
@@ -2762,7 +2769,6 @@
         }
         state.lifecycleController = null;
     }
-
     function isCurrentRequest(generation) {
         return Boolean(
             state.active
@@ -2771,11 +2777,9 @@
             && !state.lifecycleController.signal.aborted
         );
     }
-
     function hasWorkspaceErrors() {
         return Object.values(state.errors).some(Boolean);
     }
-
     function resolveApiBase() {
         try {
             const queryBase = new URLSearchParams(location.search).get('apiBase');
@@ -2790,7 +2794,6 @@
         }
         return '';
     }
-
     function persistApiBase() {
         try {
             state.apiBase = AstraApiClient.normalizeBaseUrl(state.apiBase);
@@ -2800,34 +2803,35 @@
             if (input) input.value = state.apiBase;
         } catch (e) {}
     }
-
     function applyApiBaseChange(input) {
-        if (state.busy) {
+        const owner = window.AstraTeacherLearningEvidence;
+        if (state.busy || state.mutationInFlight || state.evidenceMutationInFlight || owner && typeof owner.isMutationPending === 'function' && owner.isMutationPending()) {
             input.value = state.apiBase;
-            return;
+            if (state.root) applyWriteAvailability();
+            return false;
         }
         const previous = state.apiBase;
         state.apiBase = AstraApiClient.normalizeBaseUrl(input.value);
         persistApiBase();
-        if (state.apiBase !== previous) refreshAll();
+        if (state.apiBase !== previous) {
+            invalidateRequests();
+            clearWorkspace();
+            refreshAll();
+        }
+        return true;
     }
-
     function findById(items, id) {
         return (items || []).find((item) => String(item.id) === String(id)) || null;
     }
-
     function errorMessage(error) {
         return AstraApiClient.message(error);
     }
-
     function formatNumber(value) {
         return new Intl.NumberFormat('zh-CN').format(Number(value || 0));
     }
-
     function formatPercent(value) {
         return `${Number(value || 0).toFixed(1)}%`;
     }
-
     function formatDate(value) {
         if (!value) return '--';
         const date = new Date(value);
@@ -2839,7 +2843,6 @@
             minute: '2-digit'
         }).format(date);
     }
-
     function datetimeLocalValue(value) {
         if (!value) return '';
         const date = new Date(value);
@@ -2847,7 +2850,6 @@
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
         return local.toISOString().slice(0, 16);
     }
-
     function escapeHtml(value) {
         return String(value === undefined || value === null ? '' : value)
             .replace(/&/g, '&amp;')
@@ -2856,11 +2858,9 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
-
     function escapeAttr(value) {
         return escapeHtml(value);
     }
-
     function refreshIcons() {
         if (typeof lucide !== 'undefined' && lucide && typeof lucide.createIcons === 'function') {
             try {
@@ -2868,7 +2868,6 @@
             } catch (e) {}
         }
     }
-
     window.initTeacher = initTeacher;
     window.destroyTeacher = destroyTeacher;
     window.initTeacherWorkbench = initTeacher;

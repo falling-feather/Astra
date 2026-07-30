@@ -5,6 +5,8 @@
 
     const EVENT_TYPES = new Set(['started', 'predicted', 'attempted', 'corrected', 'explained']);
     const SERVER_PROJECTION_TYPES = new Set(['completed', 'transferred']);
+    const DISCOVERABLE_EVENT_TYPES = new Set([...EVENT_TYPES, ...SERVER_PROJECTION_TYPES]);
+    const DISCOVERABLE_PRODUCER_TYPES = new Set(['learner', 'trusted_assessment']);
     const WRITE_OUTCOMES = new Set(['accepted', 'duplicate', 'rejected', 'conflict']);
     const CLIENT_EVENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
     const ACTIVITY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$/;
@@ -481,6 +483,135 @@
         return typeof value === 'string'
             && /(?:Z|[+-]\d\d:\d\d)$/i.test(value)
             && Number.isFinite(new Date(value).getTime());
+    }
+
+    function nonNegativeInteger(value) {
+        return Number.isInteger(value) && value >= 0;
+    }
+
+    function nullablePositiveInteger(value) {
+        return value === null || value === undefined || (Number.isInteger(value) && value > 0);
+    }
+
+    function teacherFactScalar(value) {
+        return value === null
+            || typeof value === 'boolean'
+            || (typeof value === 'string' && value.length <= 240 && validUnicodeScalar(value))
+            || (typeof value === 'number' && Number.isFinite(value));
+    }
+
+    function assertTeacherEventsResponse(response, expected) {
+        const items = response && response.items;
+        const seenEventIds = new Set();
+        const validItems = Array.isArray(items)
+            && items.length <= expected.limit
+            && items.every(item => {
+                const summary = item && item.evidence_summary;
+                const facts = summary && summary.facts;
+                const factEntries = isPlainObject(facts) ? Object.entries(facts) : [];
+                const eventId = item && item.event_id;
+                if (
+                    !Number.isInteger(eventId)
+                    || eventId <= 0
+                    || seenEventIds.has(eventId)
+                    || item.subject_user_id !== expected.subjectUserId
+                    || !Number.isInteger(item.course_unit_id)
+                    || item.course_unit_id <= 0
+                    || !nullablePositiveInteger(item.assignment_id)
+                    || typeof item.activity_key !== 'string'
+                    || item.activity_key.length > 120
+                    || !ACTIVITY_KEY_PATTERN.test(item.activity_key)
+                    || (expected.activityKey !== undefined && item.activity_key !== expected.activityKey)
+                    || !DISCOVERABLE_EVENT_TYPES.has(item.event_type)
+                    || (expected.eventType !== undefined && item.event_type !== expected.eventType)
+                    || !DISCOVERABLE_PRODUCER_TYPES.has(item.producer_type)
+                    || !validReceiptTime(item.occurred_at)
+                    || !isPlainObject(summary)
+                    || !isPlainObject(facts)
+                    || factEntries.length > 12
+                    || !factEntries.every(([key, value]) => (
+                        /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(key)
+                        && teacherFactScalar(value)
+                    ))
+                    || typeof summary.truncated !== 'boolean'
+                    || !nullablePositiveInteger(item.corrects_event_id)
+                    || !nullablePositiveInteger(item.corrected_by_event_id)
+                ) return false;
+                seenEventIds.add(eventId);
+                return true;
+            });
+        const nextOffset = response && response.next_offset;
+        if (
+            !response
+            || response.class_id !== expected.classId
+            || response.course_id !== expected.courseId
+            || response.subject_user_id !== expected.subjectUserId
+            || !nonNegativeInteger(response.total)
+            || response.limit !== expected.limit
+            || response.offset !== expected.offset
+            || !validItems
+            || !(nextOffset === null || (
+                nonNegativeInteger(nextOffset)
+                && nextOffset > response.offset
+                && nextOffset <= response.total
+            ))
+            || items.length > response.total
+            || response.offset + items.length > response.total
+        ) {
+            throw clientError('teacher_events_schema_invalid', '教师学习证据响应与当前教学范围不一致。');
+        }
+        const safeItems = items.map(item => Object.freeze({
+            event_id: item.event_id,
+            subject_user_id: item.subject_user_id,
+            course_unit_id: item.course_unit_id,
+            assignment_id: item.assignment_id == null ? null : item.assignment_id,
+            activity_key: item.activity_key,
+            event_type: item.event_type,
+            producer_type: item.producer_type,
+            occurred_at: item.occurred_at,
+            evidence_summary: Object.freeze({
+                facts: Object.freeze(Object.assign({}, item.evidence_summary.facts)),
+                truncated: item.evidence_summary.truncated
+            }),
+            corrects_event_id: item.corrects_event_id == null ? null : item.corrects_event_id,
+            corrected_by_event_id: item.corrected_by_event_id == null ? null : item.corrected_by_event_id
+        }));
+        return Object.freeze({
+            class_id: response.class_id,
+            course_id: response.course_id,
+            subject_user_id: response.subject_user_id,
+            total: response.total,
+            limit: response.limit,
+            offset: response.offset,
+            next_offset: nextOffset,
+            items: Object.freeze(safeItems)
+        });
+    }
+
+    function validateCorrectionReceipt(receipt, payload) {
+        const outcome = String(receipt && receipt.outcome || '');
+        if (
+            !receipt
+            || !Number.isInteger(receipt.event_id)
+            || receipt.event_id <= 0
+            || receipt.client_event_id !== payload.client_event_id
+            || receipt.event_type !== 'administrative_correction'
+            || !['accepted', 'duplicate'].includes(outcome)
+            || !validReceiptTime(receipt.received_at)
+        ) {
+            throw clientError('correction_receipt_schema_invalid', '教师纠正回执与已发送命令不一致。', {
+                ambiguous: true,
+                confirmed: true,
+                mutation: true
+            });
+        }
+        return Object.freeze({
+            event_id: receipt.event_id,
+            client_event_id: receipt.client_event_id,
+            event_type: receipt.event_type,
+            outcome,
+            received_at: receipt.received_at
+        });
     }
 
     function validateReceipt(receipt, payload, expectedOutcome) {
@@ -982,7 +1113,7 @@
             || !validActivities
             || !validResume
         ) {
-            throw clientError('recovery_schema_invalid', '服务端 recovery 与当前作用域或冻结 schema 不一致。');
+            throw clientError('recovery_schema_invalid', '服务端学习状态与当前课程范围不一致。');
         }
         if (resume && !activities.some(item => (
             item.course_unit_id === resume.course_unit_id
@@ -1031,7 +1162,7 @@
             || !Number.isFinite(new Date(generatedAt).getTime())
             || !validActivities
         ) {
-            throw clientError('aggregate_schema_invalid', '服务端 aggregate 与当前作用域或冻结 schema 不一致。');
+            throw clientError('aggregate_schema_invalid', '服务端班级概况与当前教学范围不一致。');
         }
         return response;
     }
@@ -1072,10 +1203,113 @@
         const classId = positiveInteger(scope && scope.class_id, 'class_id');
         const courseId = positiveInteger(scope && scope.course_id, 'course_id');
         const response = await api().request(`${API_ROOT}/classes/${classId}/courses/${courseId}/aggregate`, {
+            baseUrl: options && options.baseUrl,
             signal: options && options.signal
         });
         if (!isCurrentAuthority(generation)) throw cancelledError();
         return assertAggregateResponse(response, classId, courseId);
+    }
+
+    async function teacherEvents(scope, filters, options) {
+        assertConfigured();
+        const generation = authorityGeneration;
+        const classId = positiveInteger(scope && scope.class_id, 'class_id');
+        const courseId = positiveInteger(scope && scope.course_id, 'course_id');
+        const subjectUserId = positiveInteger(scope && scope.subject_user_id, 'subject_user_id');
+        const settings = filters || {};
+        const limit = settings.limit === undefined ? 50 : settings.limit;
+        const offset = settings.offset === undefined ? 0 : settings.offset;
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !nonNegativeInteger(offset) || offset > 100000) {
+            throw clientError('invalid_teacher_events_page', '教师学习证据分页参数无效。');
+        }
+        const activityKey = settings.activity_key === undefined || settings.activity_key === null || settings.activity_key === ''
+            ? undefined
+            : String(settings.activity_key).trim().toLowerCase();
+        const eventType = settings.event_type === undefined || settings.event_type === null || settings.event_type === ''
+            ? undefined
+            : String(settings.event_type).trim().toLowerCase();
+        if (activityKey !== undefined && (!ACTIVITY_KEY_PATTERN.test(activityKey) || activityKey.length > 120)) {
+            throw clientError('invalid_activity_key', '教师学习证据活动筛选无效。');
+        }
+        if (eventType !== undefined && !DISCOVERABLE_EVENT_TYPES.has(eventType)) {
+            throw clientError('invalid_event_type', '教师学习证据事件筛选无效。');
+        }
+        const requestAuthority = authorityRequestSignal(options && options.signal, generation);
+        try {
+            const response = await api().request(
+                `${API_ROOT}/classes/${classId}/courses/${courseId}/events`,
+                {
+                    params: {
+                        subject_user_id: subjectUserId,
+                        activity_key: activityKey,
+                        event_type: eventType,
+                        limit,
+                        offset
+                    },
+                    baseUrl: options && options.baseUrl,
+                    signal: requestAuthority.signal
+                }
+            );
+            if (!isCurrentAuthority(generation)) throw cancelledError();
+            return assertTeacherEventsResponse(response, {
+                classId,
+                courseId,
+                subjectUserId,
+                activityKey,
+                eventType,
+                limit,
+                offset
+            });
+        } catch (rawError) {
+            if (!isCurrentAuthority(generation)) throw cancelledError();
+            const error = normalizeError(rawError);
+            if (error.code === 'unauthorized') await clearForUnauthorized();
+            throw error;
+        } finally {
+            requestAuthority.release();
+        }
+    }
+
+    async function appendTeacherCorrection(command, options) {
+        assertConfigured();
+        const generation = authorityGeneration;
+        const eventId = positiveInteger(command && command.event_id, 'event_id');
+        const reason = String(command && command.reason || '').trim();
+        if (!reason || reason.length > 1000 || !validUnicodeScalar(reason)) {
+            throw clientError('correction_reason_required', '教师纠正原因必须为 1—1000 个有效字符。');
+        }
+        const eventKey = String(command && command.client_event_id || `teacher-correction:${createEventId()}`);
+        if (!CLIENT_EVENT_ID_PATTERN.test(eventKey)) {
+            throw clientError('invalid_client_event_id', '教师纠正 client_event_id 不符合稳定标识合同。');
+        }
+        const payload = Object.freeze({
+            client_event_id: eventKey,
+            reason,
+            occurred_at: isoTime(command && command.occurred_at)
+        });
+        const requestAuthority = authorityRequestSignal(options && options.signal, generation);
+        try {
+            const rawReceipt = await api().request(`${API_ROOT}/events/${eventId}/corrections`, {
+                method: 'POST',
+                body: payload,
+                baseUrl: options && options.baseUrl,
+                signal: requestAuthority.signal
+            });
+            if (!isCurrentAuthority(generation)) throw cancelledError();
+            const receipt = validateCorrectionReceipt(rawReceipt, payload);
+            return Object.freeze({
+                outcome: receipt.outcome === 'duplicate' ? 'reconciled' : 'confirmed',
+                state: 'confirmed',
+                receipt
+            });
+        } catch (rawError) {
+            if (!isCurrentAuthority(generation)) throw cancelledError();
+            const error = normalizeError(rawError);
+            if (error.code === 'unauthorized') await clearForUnauthorized();
+            throw error;
+        } finally {
+            requestAuthority.release();
+        }
     }
 
     function projection(scope) {
@@ -1143,6 +1377,8 @@
         flush,
         recovery,
         teacherAggregate,
+        teacherEvents,
+        appendTeacherCorrection,
         projection,
         stateFor,
         pendingSummary,
