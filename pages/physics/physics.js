@@ -49,8 +49,17 @@ const PhysicsSim = {
 
         // ResizeObserver
         if (typeof ResizeObserver !== 'undefined') {
-            this._resizeObs = new ResizeObserver(() => this.resizeCanvas());
-            this._resizeObs.observe(this.canvas.parentElement);
+            const resizeContainer = this.canvas.parentElement;
+            this._resizeObs = new ResizeObserver(() => {
+                const zoom = window.PhysicsZoom;
+                if (
+                    zoom
+                    && typeof zoom.syncOriginalParentResize === 'function'
+                    && zoom.syncOriginalParentResize(this.canvas, resizeContainer)
+                ) return;
+                this.resizeCanvas();
+            });
+            this._resizeObs.observe(resizeContainer);
         }
         this._on(window, 'resize', () => this.resizeCanvas());
         this._on(this.canvas, 'astra:physics-zoom-restored', () => this.resizeCanvas());

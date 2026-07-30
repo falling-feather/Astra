@@ -2100,10 +2100,14 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(originalParent.canvasRestorations, 4);
   assert.equal(originalParent.placeholderRemovals, 4);
 
-  let responsiveWidth = 1015;
+  let responsiveWidth = 390;
+  let responsiveHostWidth = 360;
+  let responsiveHostHeight = 720;
   const combinedTransforms = [];
   const combinedFrames = [];
   const combinedBaseScales = [];
+  let combinedPinchCreates = 0;
+  let combinedPinchDestroys = 0;
   const combinedContext2d = {
     setTransform(...args) { combinedTransforms.push(args); },
     clearRect(...args) { combinedFrames.push(args); },
@@ -2113,12 +2117,15 @@ function runMechanicsZoomRestoreContract() {
     stroke() {},
     fillText() {}
   };
-  const combinedWindow = createEventTarget({ devicePixelRatio: 1 });
+  const combinedWindow = createEventTarget({ devicePixelRatio: 2 });
   const combinedModalClasses = new Set();
   const combinedClose = createZoomTarget();
   const combinedTitle = createZoomTarget({ textContent: '' });
   const combinedHost = createZoomTarget({
-    getBoundingClientRect: () => ({ width: 360, height: 720 }),
+    getBoundingClientRect: () => ({
+      width: responsiveHostWidth,
+      height: responsiveHostHeight
+    }),
     appendChild(node) {
       this.child = node;
       node.parentElement = this;
@@ -2204,10 +2211,11 @@ function runMechanicsZoomRestoreContract() {
     },
     TouchGestures: {
       enablePinchZoom() {
+        combinedPinchCreates += 1;
         return {
           setBaseScale(scale) { combinedBaseScales.push(scale); },
           reset() {},
-          destroy() {}
+          destroy() { combinedPinchDestroys += 1; }
         };
       }
     },
@@ -2220,19 +2228,17 @@ function runMechanicsZoomRestoreContract() {
   const combinedPhysics = combinedWindow.PhysicsSim;
   const combinedZoom = combinedWindow.PhysicsZoom;
   combinedPhysics.init();
+  const combinedResizeObserver = resizeObservers.at(-1);
+  const combinedResizeObserverCount = resizeObservers.length;
+  assert.equal(combinedResizeObserver.target, combinedOriginalParent);
   combinedZoom.init();
-  assert.equal(combinedCanvas.style.width, '1015px');
-  assert.equal(combinedCanvas.width, 1015);
+  assert.equal(combinedCanvas.style.width, '390px');
+  assert.equal(combinedCanvas.width, 780);
   const combinedTrigger = createZoomTarget();
   zoomActiveElement = combinedTrigger;
   combinedZoom.open(combinedCanvas, 'Mechanics', combinedTrigger);
   assert.equal(combinedModalClasses.has('open'), true);
   assert.equal(countListener(combinedWindow, 'resize'), 2, 'PhysicsSim and PhysicsZoom retain one resize owner each');
-
-  responsiveWidth = 390;
-  combinedWindow.devicePixelRatio = 2;
-  combinedWindow.dispatchEvent({ type: 'resize' });
-  assert.equal(combinedModalClasses.has('open'), true, 'the responsive recalibration runs before zoom closes');
   assert.equal(combinedCanvas.style.width, '390px');
   assert.equal(combinedCanvas.style.height, '320px');
   assert.equal(combinedCanvas.width, 780);
@@ -2240,21 +2246,59 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(combinedPhysics.W, 390);
   assert.equal(combinedPhysics.H, 320);
   assert.deepEqual(combinedTransforms.at(-1), [2, 0, 0, 2, 0, 0]);
-  assert.deepEqual(combinedFrames.at(-1), [0, 0, 390, 320], 'the resized mechanics bitmap must render immediately');
   assert.equal(combinedZoom.originalRect.width, 390);
   assert.equal(combinedZoom.originalRect.height, 320);
   assert.equal(
     combinedBaseScales.at(-1),
-    Math.min(360 / 390, 720 / 320),
-    'the open Zoom pinch baseline must refresh from the resized mechanics dimensions'
+    Math.min(1, 360 / 390, 720 / 320),
+    'opening Zoom at the mobile width must preserve fit-only base scaling'
   );
+  assert.equal(combinedZoom.syncOriginalParentResize({}, combinedOriginalParent), false);
+  assert.equal(combinedZoom.syncOriginalParentResize(combinedCanvas, {}), false);
+
+  responsiveWidth = 863;
+  responsiveHostWidth = 943;
+  responsiveHostHeight = 712.2;
+  combinedWindow.devicePixelRatio = 1;
+  combinedWindow.dispatchEvent({ type: 'resize' });
+  assert.equal(combinedCanvas.style.width, '863px');
+  assert.equal(combinedCanvas.width, 863);
+  assert.equal(
+    combinedBaseScales.at(-1),
+    1,
+    'a transient 863px bitmap must not be auto-upscaled into the settled 943px host'
+  );
+
+  responsiveWidth = 943;
+  combinedResizeObserver.callback([{ target: combinedOriginalParent }]);
+  assert.equal(resizeObservers.length, combinedResizeObserverCount, 'Zoom must reuse the mechanics ResizeObserver');
+  assert.equal(combinedCanvas.style.width, '943px');
+  assert.ok(Math.abs(Number.parseFloat(combinedCanvas.style.height) - 528.08) < 0.001);
+  assert.equal(combinedCanvas.width, 943);
+  assert.equal(combinedCanvas.height, 528);
+  assert.equal(combinedPhysics.W, 943);
+  assert.ok(Math.abs(combinedPhysics.H - 528.08) < 0.001);
+  assert.equal(combinedZoom.originalRect.width, 943);
+  assert.ok(Math.abs(combinedZoom.originalRect.height - 528.08) < 0.001);
+  assert.deepEqual(combinedFrames.at(-1), [0, 0, 943, 528.08]);
+  assert.equal(combinedBaseScales.at(-1), 1);
 
   combinedZoom.close();
   assert.equal(combinedCanvas.parentElement, combinedOriginalParent);
-  assert.equal(combinedCanvas.style.width, '390px');
-  assert.equal(combinedCanvas.width, 780, 'the existing restored event must preserve current DPR calibration');
+  assert.equal(combinedCanvas.style.width, '943px');
+  assert.equal(combinedCanvas.width, 943, 'the restored canvas must retain the settled desktop calibration');
+  combinedZoom.open(combinedCanvas, 'Mechanics', combinedTrigger);
+  assert.equal(combinedZoom.originalRect.width, 943);
+  assert.equal(combinedCanvas.width, 943);
+  assert.equal(combinedBaseScales.at(-1), 1, 'direct desktop reopen must match the settled resize path');
+  combinedZoom.close();
+  assert.equal(combinedCanvas.parentElement, combinedOriginalParent);
   combinedZoom.destroy();
   combinedPhysics.destroy();
+  assert.equal(combinedPinchCreates, 2);
+  assert.equal(combinedPinchDestroys, 2);
+  assert.equal(combinedResizeObserver.disconnected, true);
+  assert.equal(combinedZoom.movedCanvas, null);
   assert.equal(countListener(combinedWindow, 'resize'), 0);
   assert.equal(countListener(combinedDocument, 'keydown'), 0);
 }
