@@ -4,7 +4,6 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 import hashlib
 import json
-import math
 from threading import RLock
 from typing import Any
 
@@ -85,6 +84,7 @@ from app.services.learning_evidence_projection import (
     rebuild_subject_course_projections,
     scope_from_event,
 )
+from app.services.teacher_evidence_facts import teacher_evidence_facts
 
 
 MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
@@ -100,42 +100,6 @@ _DISCOVERABLE_EVENT_TYPES = (
     "completed",
     "transferred",
 )
-_SUMMARY_LEAF_POLICIES_BY_EVENT_TYPE = {
-    "started": {},
-    "predicted": {
-        ("prediction", "choice"): "text_metadata",
-        ("prediction", "kind"): "text_metadata",
-        ("prediction", "option_id"): "text_metadata",
-        ("prediction", "unit"): "text_metadata",
-        ("prediction", "value"): "number",
-    },
-    "attempted": {
-        ("operation",): "text_metadata",
-        ("reported_correct",): "bool_or_none",
-    },
-    "corrected": {
-        ("correction", "kind"): "text_metadata",
-        ("correction", "reason_code"): "text_metadata",
-        ("correction", "revision_kind"): "text_metadata",
-    },
-    "explained": {
-        ("artifact", "format"): "text_metadata",
-        ("artifact", "kind"): "text_metadata",
-        ("artifact", "ref"): "text_metadata",
-        ("artifact", "status"): "text_metadata",
-        ("artifact", "version"): "text_metadata",
-    },
-    "completed": {("source_ref",): "text_metadata"},
-    "transferred": {("source_ref",): "text_metadata"},
-}
-_SUMMARY_REDACTED_ROOT_BY_EVENT_TYPE = {
-    "predicted": "prediction",
-    "corrected": "correction",
-    "explained": "artifact",
-}
-_MAX_SUMMARY_FACTS = 12
-_MAX_SUMMARY_NUMBER_ABS = 1_000_000_000_000
-_SUMMARY_MISSING = object()
 
 
 class LearningEvidenceError(Exception):
@@ -1381,7 +1345,12 @@ def teacher_learning_evidence_events(
             "event_type": event.event_type,
             "producer_type": event.producer_type,
             "occurred_at": _as_utc(event.occurred_at),
-            "evidence_summary": _teacher_evidence_summary(event),
+            "evidence_summary": teacher_evidence_facts(
+                activity_key=event.activity_key,
+                event_schema_version=event.event_schema_version,
+                event_type=event.event_type,
+                evidence_json=event.evidence_json,
+            ),
             "corrects_event_id": event.corrects_event_id,
             "corrected_by_event_id": corrected_by_event_id,
         }
@@ -1979,113 +1948,6 @@ def _receipt(event: LearningEvidenceEvent, outcome: str) -> dict:
         "outcome": outcome,
         "received_at": _as_utc(event.received_at),
     }
-
-
-def _teacher_evidence_summary(event: LearningEvidenceEvent) -> dict:
-    evidence = dict(event.evidence_json or {})
-    policies = _SUMMARY_LEAF_POLICIES_BY_EVENT_TYPE.get(event.event_type, {})
-    observed_paths = _summary_leaf_paths(evidence)
-    allowed_paths = set(policies)
-    facts: dict[str, Any] = {}
-    truncated = any(path not in allowed_paths for path in observed_paths)
-
-    def append_fact(key: str, value: Any) -> None:
-        nonlocal truncated
-        if len(facts) >= _MAX_SUMMARY_FACTS:
-            truncated = True
-            return
-        facts[key] = value
-
-    redacted_root = _SUMMARY_REDACTED_ROOT_BY_EVENT_TYPE.get(event.event_type)
-    if redacted_root in evidence:
-        redacted_value = evidence[redacted_root]
-        value_type, value_size = _summary_structure_metadata(redacted_value)
-        append_fact(f"{redacted_root}.value_type", value_type)
-        append_fact(f"{redacted_root}.value_size", value_size)
-
-    for path, policy in policies.items():
-        value = _summary_value_at_path(evidence, path)
-        if value is _SUMMARY_MISSING:
-            continue
-        if policy == "text_metadata":
-            if not isinstance(value, str):
-                truncated = True
-                continue
-            value_type, value_size = _summary_structure_metadata(value)
-            fact_key = ".".join(path)
-            append_fact(f"{fact_key}.value_type", value_type)
-            append_fact(f"{fact_key}.value_size", value_size)
-            truncated = True
-            continue
-        accepted, projected = _project_summary_scalar(value, policy)
-        if not accepted:
-            truncated = True
-            continue
-        append_fact(".".join(path), projected)
-    return {"facts": facts, "truncated": truncated}
-
-
-def _summary_leaf_paths(
-    value: Any,
-    path: tuple[str, ...] = (),
-) -> set[tuple[str, ...]]:
-    if isinstance(value, dict):
-        if not value:
-            return {path} if path else set()
-        paths: set[tuple[str, ...]] = set()
-        for key, item in value.items():
-            paths.update(_summary_leaf_paths(item, (*path, str(key))))
-        return paths
-    if isinstance(value, list):
-        if not value:
-            return {path}
-        paths = set()
-        for index, item in enumerate(value):
-            paths.update(_summary_leaf_paths(item, (*path, str(index))))
-        return paths
-    return {path}
-
-
-def _summary_value_at_path(
-    evidence: dict[str, Any],
-    path: tuple[str, ...],
-) -> Any:
-    value: Any = evidence
-    for component in path:
-        if not isinstance(value, dict) or component not in value:
-            return _SUMMARY_MISSING
-        value = value[component]
-    return value
-
-
-def _project_summary_scalar(value: Any, policy: str) -> tuple[bool, Any]:
-    if policy == "bool_or_none":
-        return (
-            (True, value)
-            if value is None or isinstance(value, bool)
-            else (False, None)
-        )
-    if policy == "number":
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return False, None
-        if isinstance(value, float) and not math.isfinite(value):
-            return False, None
-        return (
-            (True, value)
-            if abs(value) <= _MAX_SUMMARY_NUMBER_ABS
-            else (False, None)
-        )
-    raise RuntimeError(f"Unsupported evidence summary policy: {policy}")
-
-
-def _summary_structure_metadata(value: Any) -> tuple[str, int]:
-    if isinstance(value, dict):
-        return "object", len(value)
-    if isinstance(value, list):
-        return "array", len(value)
-    if isinstance(value, str):
-        return "text", len(value)
-    return "scalar", 1
 
 
 def _rule_read(rule: LearningCompletionRule) -> dict:

@@ -69,6 +69,7 @@ from app.services import learning_evidence_access
 from app.services import learning_evidence_projection
 from app.services.access_control import lock_active_school_for_write
 from app.services.learning_evidence_projection import ActivityProjectionScope
+from app.services.teacher_evidence_facts import teacher_evidence_facts
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -135,7 +136,12 @@ def _login_again(client, identity: dict) -> str:
     return logged_in.json()["access_token"]
 
 
-def _learning_scope(client, slug: str = "default") -> dict:
+def _learning_scope(
+    client,
+    slug: str = "default",
+    *,
+    activity_keys: tuple[str, str] | None = None,
+) -> dict:
     teacher = _login(client, f"le_teacher_{slug}", "teacher")
     student = _login(client, f"le_student_{slug}", "student")
     other_student = _login(client, f"le_other_student_{slug}", "student")
@@ -174,10 +180,11 @@ def _learning_scope(client, slug: str = "default") -> dict:
     )
     assert attached.status_code == 201, attached.json()
     units = []
-    for position, activity_key in (
-        (1, f"evidence.{slug}-foundation"),
-        (2, f"evidence.{slug}-transfer"),
-    ):
+    scoped_activity_keys = activity_keys or (
+        f"evidence.{slug}-foundation",
+        f"evidence.{slug}-transfer",
+    )
+    for position, activity_key in enumerate(scoped_activity_keys, start=1):
         response = client.post(
             f"/api/courses/{course_id}/units",
             headers=_auth(teacher["token"]),
@@ -5212,25 +5219,7 @@ def test_teacher_learning_evidence_discovery_is_scoped_bounded_and_correctable(c
     assert explained_item["corrects_event_id"] is None
     assert explained_item["corrected_by_event_id"] is None
     summary = explained_item["evidence_summary"]
-    assert summary["truncated"] is True
-    assert len(summary["facts"]) <= 12
-    assert set(summary["facts"]) == {
-        "artifact.value_type",
-        "artifact.value_size",
-        "artifact.kind.value_type",
-        "artifact.kind.value_size",
-        "artifact.ref.value_type",
-        "artifact.ref.value_size",
-    }
-    assert summary["facts"]["artifact.value_type"] == "object"
-    assert summary["facts"]["artifact.kind.value_type"] == "text"
-    assert summary["facts"]["artifact.kind.value_size"] == len("explanation")
-    assert summary["facts"]["artifact.ref.value_type"] == "text"
-    assert summary["facts"]["artifact.ref.value_size"] == len("note-1")
-    assert all(
-        not isinstance(value, str) or len(value) <= 240
-        for value in summary["facts"].values()
-    )
+    assert summary == {"facts": {}, "truncated": True}
     serialized_page = json.dumps(
         {"first_page": first_page.json(), "second_page": second_page.json()},
         ensure_ascii=False,
@@ -5265,25 +5254,12 @@ def test_teacher_learning_evidence_discovery_is_scoped_bounded_and_correctable(c
     assert attempted.status_code == 200, attempted.json()
     assert attempted.json()["total"] == 1
     attempted_item = attempted.json()["items"][0]
-    assert attempted_item["evidence_summary"] == {
-        "facts": {
-            "operation.value_type": "text",
-            "operation.value_size": len("compare-momentum"),
-            "reported_correct": False,
-        },
-        "truncated": True,
-    }
+    assert attempted_item["evidence_summary"] == {"facts": {}, "truncated": True}
     predicted_item = next(
         item for item in second_page.json()["items"]
         if item["event_type"] == "predicted"
     )
-    assert predicted_item["evidence_summary"] == {
-        "facts": {
-            "prediction.value_type": "text",
-            "prediction.value_size": len(direct_source.strip()),
-        },
-        "truncated": True,
-    }
+    assert predicted_item["evidence_summary"] == {"facts": {}, "truncated": True}
     activity_filtered = client.get(
         path,
         headers=_auth(scope["teacher"]["token"]),
@@ -5429,6 +5405,100 @@ def test_teacher_learning_evidence_discovery_is_scoped_bounded_and_correctable(c
         assert stored_correction.producer_type == "teacher_correction"
 
 
+def test_teacher_learning_evidence_discovery_projects_registered_course_facts(client):
+    scope = _learning_scope(
+        client,
+        "discovery-course-facts",
+        activity_keys=(
+            "physics.mechanics",
+            "control-flow.loop-boundary",
+        ),
+    )
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    now = datetime.now(UTC) - timedelta(seconds=10)
+    events = [
+        _event_payload(
+            scope,
+            client_event_id="course-facts:physics:attempt:0001",
+            event_type="attempted",
+            occurred_at=now,
+            evidence={
+                "operation": "restitution_adjustment",
+                "cursor": {
+                    "stage": "after-observation",
+                    "trial": 80,
+                    "preset": {
+                        "restitution": 0.8,
+                        "drop_height_px": 200,
+                        "gravity_px_s2": 980,
+                        "radius_px": 16,
+                        "horizontal_velocity_px_s": 0,
+                        "damping": 0,
+                    },
+                    "observation": {
+                        "first_rebound_height_px": 122.0,
+                        "height_ratio": 0.61,
+                    },
+                },
+            },
+        ),
+        _event_payload(
+            scope,
+            client_event_id="course-facts:control:attempt:0001",
+            event_type="attempted",
+            occurred_at=now + timedelta(seconds=1),
+            unit="unit_two",
+            evidence={
+                "operation": "formal_oj_submission",
+                "cursor": {"judge": "judge_result_received"},
+            },
+        ),
+    ]
+    for event in events:
+        response = client.post(
+            "/api/learning-evidence/events",
+            headers=_auth(scope["student"]["token"]),
+            json=event,
+        )
+        assert response.status_code == 201, response.json()
+
+    page = client.get(
+        (
+            f"/api/learning-evidence/classes/{scope['class_id']}/courses/"
+            f"{scope['course_id']}/events"
+        ),
+        headers=_auth(scope["teacher"]["token"]),
+        params={"subject_user_id": scope["student"]["id"]},
+    )
+
+    assert page.status_code == 200, page.json()
+    assert page.json()["total"] == 2
+    items = {
+        item["activity_key"]: item["evidence_summary"]
+        for item in page.json()["items"]
+    }
+    assert items["control-flow.loop-boundary"] == {
+        "facts": {
+            "operation": "发起正式提交",
+            "cursor.judge": "正式提交响应已收到（结论另读）",
+        },
+        "truncated": False,
+    }
+    assert items["physics.mechanics"]["truncated"] is False
+    assert len(items["physics.mechanics"]["facts"]) == 11
+    assert (
+        items["physics.mechanics"]["facts"][
+            "cursor.observation.first_rebound_height_px"
+        ]
+        == "第一次反弹高度 h=122.0 px"
+    )
+    assert (
+        items["physics.mechanics"]["facts"]["cursor.observation.height_ratio"]
+        == "h/H=0.61"
+    )
+
+
 def test_teacher_evidence_summary_never_echoes_user_controlled_strings():
     direct_source = (
         "def solve_student_private(values):\n"
@@ -5443,52 +5513,49 @@ def test_teacher_evidence_summary_never_echoes_user_controlled_strings():
     api_key = "api-key-live-private-123456"
     pem = "-----BEGIN PRIVATE KEY-----\nstudent-private-pem\n-----END PRIVATE KEY-----"
     summaries = [
-        learning_evidence_service._teacher_evidence_summary(
-            LearningEvidenceEvent(
-                event_type="predicted",
-                evidence_json={"prediction": direct_source},
-            )
+        teacher_evidence_facts(
+            activity_key="physics.mechanics",
+            event_schema_version=1,
+            event_type="predicted",
+            evidence_json={"prediction": direct_source},
         ),
-        learning_evidence_service._teacher_evidence_summary(
-            LearningEvidenceEvent(
-                event_type="predicted",
-                evidence_json={
-                    "prediction": {
-                        "choice": jwt,
-                        "kind": stripe_secret,
-                        "option_id": api_key,
-                        "unit": pem,
-                    }
-                },
-            )
+        teacher_evidence_facts(
+            activity_key="physics.mechanics",
+            event_schema_version=1,
+            event_type="predicted",
+            evidence_json={
+                "prediction": {
+                    "choice": jwt,
+                    "kind": stripe_secret,
+                    "option_id": api_key,
+                    "unit": pem,
+                }
+            },
         ),
-        learning_evidence_service._teacher_evidence_summary(
-            LearningEvidenceEvent(
-                event_type="explained",
-                evidence_json={
-                    "artifact": {
-                        "ref": stripe_secret,
-                        "kind": jwt,
-                        "format": api_key,
-                        "version": pem,
-                        "arbitrary_raw": "student-private-value",
-                    }
-                },
-            )
+        teacher_evidence_facts(
+            activity_key="physics.mechanics",
+            event_schema_version=1,
+            event_type="explained",
+            evidence_json={
+                "artifact": {
+                    "ref": stripe_secret,
+                    "kind": jwt,
+                    "format": api_key,
+                    "version": pem,
+                    "arbitrary_raw": "student-private-value",
+                }
+            },
         ),
-        learning_evidence_service._teacher_evidence_summary(
-            LearningEvidenceEvent(
-                event_type="completed",
-                evidence_json={"source_ref": stripe_secret},
-            )
+        teacher_evidence_facts(
+            activity_key="physics.mechanics",
+            event_schema_version=1,
+            event_type="completed",
+            evidence_json={"source_ref": stripe_secret},
         ),
     ]
 
     assert all(summary["truncated"] is True for summary in summaries)
-    assert summaries[1]["facts"]["prediction.choice.value_type"] == "text"
-    assert summaries[2]["facts"]["artifact.ref.value_type"] == "text"
-    assert summaries[2]["facts"]["artifact.kind.value_type"] == "text"
-    assert summaries[3]["facts"]["source_ref.value_type"] == "text"
+    assert all(summary["facts"] == {} for summary in summaries)
     serialized = json.dumps(summaries, ensure_ascii=False).lower()
     for forbidden_fragment in (
         "solve_student_private",
