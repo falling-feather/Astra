@@ -10,7 +10,7 @@
 - Python/FastAPI 业务后端：认证、学校/班级/课程、作业、内容、学习分析、任务与审计。
 - Node/C++ 静态服务：只承担审核后的浏览器资源托管。
 
-V6.6.63 后端阶段已经完成；V7.4 完成项目对接、注册 / 生命周期、认证与角色资源、组织治理、统一三星系总览、单一全局治理和 9001 一键入口；V7.5 完成代码空间、未来星系、课程编排、教师进度、OJ 诚实降级和全仓 review。V7.6 由 `主开发` 作为集成分支，`main@V7.5.11` 保持公开稳定。V7.6.5 / BE-006、V7.8.0 / BE-007、V7.8.2 / BE-011、V7.9.4 / UI-003、V7.9.7 / DATA-001 与 V7.9.12 / DATA-002 均已进入当前集成线；`CONTENT-003 / V7.7.0` 已冻结未来星系六方向 / 18 门课程矩阵，`CONTENT-001 / V7.7.15` 已冻结三星系六门代表课程。`FE-012 / V7.7.22` 已集成精确单元访问处置接线、固定诊断、请求取消 / ABA 隔离与 Zoom 打开态 resize；`TOOLS-002 / V7.7.25` 已在 `de3afdbf` 集成 strict-readonly 外部 Python / venv 启动能力。`QA-014 / V7.7.26` 在 clean detached `b56e@de3afdbf` 上以 P0=0、P1=2、P2=2、P3=0 RETURN FE-012；`FE-012 / V7.7.27` 随后集中关闭四项缺口并以精确主线提交 `2d6a065` 进入集成线。`QA-014 / V7.7.28` 因原任务 systemError 后外部 Edge 目标页消失而 BLOCKED / NOT-RUN，非产品 RETURN；`QA-014 / V7.7.29` 已对相同产品 SHA 以全新 SQLite、正式 9001 与外部 Edge 完成 A03a，结论 PASS、P0—P3=0。并行的 `CONTENT-004 / V7.8.3` 只冻结六课教师有限事实契约，不写产品；后端和 DATA 必须等该契约集成后另行派单。A03a 已关闭，完整 FE-012 / QA-014 仍等待 Future A03b；FE-013 继续等待教师有限事实实现，FE-017 仍等待 26 号视觉规格与完整概念图两次用户确认。当前交付目标仍是课程作业 / 设计大赛的本地展示版：优先课程互动、学生—教师—管理员协同、SQLite 数据对账和 9001 一键启动；真实 MySQL、公网 R6、隔离 runner、压力测试、真实课堂试点与 AI 能力后置。任务、责任、版本与门禁只认 `doc/02-项目规划.md`。
+V6.6.63 后端阶段已经完成；V7.4 完成项目对接、注册 / 生命周期、认证与角色资源、组织治理、统一三星系总览、单一全局治理和 9001 一键入口；V7.5 完成代码空间、未来星系、课程编排、教师进度、OJ 诚实降级和全仓 review。V7.6 由 `主开发` 作为集成分支，`main@V7.5.11` 保持公开稳定。V7.6.5 / BE-006、V7.8.0 / BE-007、V7.8.2 / BE-011、V7.9.4 / UI-003、V7.9.7 / DATA-001 与 V7.9.12 / DATA-002 均已进入当前集成线；`CONTENT-003 / V7.7.0` 已冻结未来星系六方向 / 18 门课程矩阵，`CONTENT-001 / V7.7.15` 已冻结三星系六门代表课程。`FE-012 / V7.7.22` 已集成精确单元访问处置接线、固定诊断、请求取消 / ABA 隔离与 Zoom 打开态 resize；`TOOLS-002 / V7.7.25` 已在 `de3afdbf` 集成 strict-readonly 外部 Python / venv 启动能力。`QA-014 / V7.7.26` 在 clean detached `b56e@de3afdbf` 上以 P0=0、P1=2、P2=2、P3=0 RETURN FE-012；`FE-012 / V7.7.27` 随后集中关闭四项缺口并以精确主线提交 `2d6a065` 进入集成线。`QA-014 / V7.7.28` 因原任务 systemError 后外部 Edge 目标页消失而 BLOCKED / NOT-RUN，非产品 RETURN；`QA-014 / V7.7.29` 已对相同产品 SHA 以全新 SQLite、正式 9001 与外部 Edge 完成 A03a，结论 PASS、P0—P3=0。`CONTENT-004 / V7.8.3` 已冻结并集成六课教师有限事实契约；BE 与 DATA 仍须收到新的唯一任务卡、版本和 worktree 后才能实现。A03a 已关闭，完整 FE-012 / QA-014 仍等待 Future A03b；FE-013 继续等待教师有限事实实现，FE-017 仍等待 26 号视觉规格与完整概念图两次用户确认。当前交付目标仍是课程作业 / 设计大赛的本地展示版：优先课程互动、学生—教师—管理员协同、SQLite 数据对账和 9001 一键启动；真实 MySQL、公网 R6、隔离 runner、压力测试、真实课堂试点与 AI 能力后置。任务、责任、版本与门禁只认 `doc/02-项目规划.md`。
 
 当前增量：V7.7.27 在 `f27a` 独立工作树形成精确候选 `b450e33b30f8151aae428b35db2e9aa41ed48d72`（父 `0e159932715d34d1e6cf15e242f67cb933c38c94`），修改登记的 15 个前端、合同及受影响 01/08 文件。物理力学现在以固定落高和 `e=.40/.80` 两次受控试验形成 learner corrected 与服务端派生 completed，自由探索不写证据；所有 known Physics 路由统一先过发布 gate；Guide 取得 document-level 首个 Escape owner；recovery 有 `first_started_at` 时不再追加 started。首轮独立复审发现 owner reopen 状态分裂与 resize 旧高度夹取，两项已由原 owner 返修；第二轮复审 P0—P3=0。V7.7.29 在 clean detached `q28a@2d6a065` 使用全新 TEMP / SQLite、正式 9001 和外部 Edge 完成 A03a：fresh learner 原始链精确为 `1 started / 1 predicted / 2 attempted / 1 corrected / 1 explained / 1 rule-completed`，24/24 单元处置、双视口、44px、焦点、资源释放、console 分栏和最终只读账本均通过；服务由原 PTY Ctrl+C 正常关闭，9001=0。`f27a` clean、写入关闭，旧 `d6b6` 只保留审计，`a02c` 永久禁入。
 
@@ -18,7 +18,7 @@ DATA-001 与 DATA-002 已完成并集成；专业组保留在 `C:/Users/niu-h/.c
 
 BE-011 已完成并集成；专业组保留在 `C:/Users/niu-h/.codex/worktrees/0dce/工科实验室 / codex/be-v7.8-unit-access @ 35fa219`，工作树 clean、写入关闭。`V7.8.2` 只新增独立 course-unit-access schema / endpoint / service、router 注册和专项测试，未修改模型、迁移、冻结课程 endpoint/schema 或前端。
 
-CONTENT-004 / V7.8.3 已建立唯一任务卡：仅在新独立 worktree `C:/Users/niu-h/.codex/worktrees/c04e/工科实验室` / `codex/content-v7.8-teacher-evidence-contract` 修改 27、28 号冻结契约，定义六课 exact leaf / enum / numeric range / precision / 中文标签 / 权威依据与四课诚实降级。不得修改运行代码、01、02、03、29、后端、DATA、FE 或 `a02c`；候选完成前 BE-012 / DATA producer / FE-013 不得自行猜测字段。
+CONTENT-004 / V7.8.3 已完成并集成：c04e 最终候选 `100a619b` 只修改 27、28 号冻结契约，定义六课 exact leaf / enum / numeric range / precision / 中文标签 / 权威依据与四课诚实降级。首候选因理想 e² 重判真实离散观测及 runtime error 文案错误被退回；原 owner amend 后第二轮独立复审 P0—P3=0。内容组写入关闭；后续 BE / DATA / FE 只能消费主线合同，不得自行扩充字段或冒充 producer。
 
 FE-012 / V7.7.27 已集成且 A03a PASS；专业组树 `C:/Users/niu-h/.codex/worktrees/f27a/工科实验室` / `codex/fe-v7.7-a03a-four-fixes @ b450e33b` clean、写入关闭。完整 FE-012 与 QA-014 只等待 FE-017 后的 Future A03b，不恢复旧 FE 写入；旧 `d6b6@5db1112e` 只保留审计，两个 FE 树均不得继续写入、merge、push、rebase 或清理，不得触碰 Future 或 `a02c`。
 
@@ -43,7 +43,7 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 ## 项目对接与写入
 
 1. 当前“星序 Astra｜主开发｜总控”已经恢复，由主开发独占 `主开发` 根工作区和共享 `02/03`；`main` 只接收已收束的稳定版本，`houduan` 保留下一轮后端开发起点。
-2. 项目对接模式已经启用。CONTENT、FE、BE、QA 已按标准标题恢复并登记独立 worktree；QA 只读，写入组只在收到主开发的精确任务 / 版本 / 文件包后写各自物理目录。QA-014 / V7.7.29 已在 detached `q28a@2d6a065` 完成并暂停，CONTENT-004 / V7.8.3 只写新 c04e 中的 27 / 28 号契约并进入独立复审。原长期任务处于 systemError 时，只允许主开发登记的边界明确临时执行者接续同一任务编号，不创建竞争任务标题。BE、DATA、UI、TOOLS 与 FE 写入均关闭；不得复用旧 d6b6 / b56e。
+2. 项目对接模式已经启用。CONTENT、FE、BE、QA 已按标准标题恢复并登记独立 worktree；QA 只读，写入组只在收到主开发的精确任务 / 版本 / 文件包后写各自物理目录。QA-014 / V7.7.29 与 CONTENT-004 / V7.8.3 均已完成并暂停；q28a、c04e 与外部证据只保留审计。原长期任务处于 systemError 时，只允许主开发登记的边界明确临时执行者接续同一任务编号，不创建竞争任务标题。BE、DATA、UI、TOOLS、CONTENT 与 FE 写入均关闭；不得复用旧 d6b6 / b56e。
 3. `doc/02-项目规划.md` 与 `doc/03-开发历史.md` 由主开发集中写入；恢复后的专业组只维护各自专属实现文档差异并在 handoff 中提供任务 / 历史摘要，禁止并行修改共享 02/03 造成冲突。
 4. 恢复后的 QA 必须独立验收主开发或专业组交付；主开发自测不能替代 QA 回执。
 5. `qianduan` 旧 worktree 无唯一提交，已由 `ARCH-002 / V7.6.9` 删除；`qianduan` 分支与本地标签 `archive/qianduan-wip-before-main-sync-20260727` 继续保留，标签只用于恢复和审计，不是开发入口。
