@@ -503,7 +503,7 @@ const ModuleSelector = {
     },
 
     _requiresPublicationGate(page, moduleId) {
-        if (page !== 'physics' || moduleId !== 'mechanics') return false;
+        if (page !== 'physics' || !this._isStableModuleId(page, moduleId)) return false;
         const session = window.AstraApplicationSession;
         const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
         return Boolean(user && user.role === 'student');
@@ -587,6 +587,7 @@ const ModuleSelector = {
 
     _isUndiscoverablePublicationAccess(code) {
         return code === 'activity_hidden'
+            || code === 'activity_locked'
             || code === 'course_scope_missing';
     },
 
@@ -794,7 +795,8 @@ const ModuleSelector = {
                 galaxy_key: 'englab',
                 activity_key: 'physics.mechanics',
                 title: '力学实验学习证据',
-                operationLabel: '调整参数或发射小球并观察一次力学响应'
+                integrated: true,
+                operationLabel: '完成上方 e=0.40 / e=0.80 受控对照并修正判断'
             });
         }).catch(error => {
             if (this._isCurrentModuleTransition(page, moduleId, generation)) {

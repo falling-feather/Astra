@@ -336,8 +336,10 @@ function testStaticOwnershipAndSemantics() {
   assert.match(moduleSelectorSource.slice(leaveStart), /skipEvidenceCleanup: true/);
   assert.doesNotMatch(moduleSelectorSource, /LearningProgress\.markVisited/);
 
-  assert.match(physicsSource, /event_type: 'attempted'/);
-  assert.doesNotMatch(physicsSource, /event_type: 'corrected'/);
+  assert.match(physicsSource, /_dispatchEvidence\('predicted'/);
+  assert.match(physicsSource, /_dispatchEvidence\('attempted'/);
+  assert.match(physicsSource, /_dispatchEvidence\('corrected'/);
+  assert.doesNotMatch(physicsSource, /event_type:\s*'completed'/);
   assert.match(challengeSource, /typeof previousSource === 'string' && previousSource !== sourceCode/);
   assert.match(challengeSource, /reported_correct: Boolean\(localPass\)/);
   assert.doesNotMatch(challengeSource, /evidence:\s*\{[^}]*sourceCode/s);

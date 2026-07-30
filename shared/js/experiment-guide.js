@@ -8,6 +8,8 @@ var ExperimentGuide = {
     _helpBtn: null,
     _focusTimer: null,
     _currentModule: null,
+    _escapeOwnerHandler: null,
+    _escapeOwnerAttached: false,
     _seen: new Set(),
     _moduleAliases: {
         complex: 'complex-numbers',
@@ -814,6 +816,7 @@ var ExperimentGuide = {
         const card = this._overlay.querySelector('.guide-card');
         card.innerHTML = this._renderCard(guide);
         this._overlay.classList.add('active');
+        this._attachEscapeOwner();
 
         // Render lucide icons in the guide card
         if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [card] });
@@ -832,6 +835,7 @@ var ExperimentGuide = {
         this._focusTimer = null;
         const wasActive = !!(this._overlay && this._overlay.classList.contains('active'));
         if (this._overlay) this._overlay.classList.remove('active');
+        this._detachEscapeOwner();
         if (!wasActive || options.restoreFocus !== true) return;
         const current = this._currentModule;
         setTimeout(() => {
@@ -845,6 +849,44 @@ var ExperimentGuide = {
             );
             if (focusable) focusable.focus();
         }, 0);
+    },
+
+    _attachEscapeOwner() {
+        if (
+            this._escapeOwnerAttached
+            || typeof document === 'undefined'
+            || typeof document.addEventListener !== 'function'
+        ) return;
+        if (!this._escapeOwnerHandler) {
+            this._escapeOwnerHandler = (event) => {
+                if (
+                    !event
+                    || event.key !== 'Escape'
+                    || !this._overlay
+                    || !this._overlay.classList.contains('active')
+                ) return;
+                const zoomModal = document.querySelector(
+                    '.physics-zoom-modal.open, .biology-zoom-modal.open'
+                );
+                if (zoomModal) return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                this._dismiss({ restoreFocus: true });
+            };
+        }
+        document.addEventListener('keydown', this._escapeOwnerHandler, true);
+        this._escapeOwnerAttached = true;
+    },
+
+    _detachEscapeOwner() {
+        if (
+            !this._escapeOwnerAttached
+            || !this._escapeOwnerHandler
+            || typeof document === 'undefined'
+            || typeof document.removeEventListener !== 'function'
+        ) return;
+        document.removeEventListener('keydown', this._escapeOwnerHandler, true);
+        this._escapeOwnerAttached = false;
     },
 
     _inferCurrentModule() {
@@ -959,14 +1001,6 @@ var ExperimentGuide = {
         // Click dismiss button
         overlay.addEventListener('click', (e) => {
             if (e.target.closest('.guide-dismiss-btn')) this._dismiss({ restoreFocus: true });
-        });
-
-        // Esc to dismiss
-        overlay.addEventListener('keydown', (e) => {
-            if (e.key !== 'Escape') return;
-            e.preventDefault();
-            e.stopPropagation();
-            this._dismiss({ restoreFocus: true });
         });
 
         document.body.appendChild(overlay);

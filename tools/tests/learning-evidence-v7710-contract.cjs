@@ -812,6 +812,83 @@ function createActivityHarness(recordHandler, options = {}) {
   };
 }
 
+async function testRecoverySkipsDuplicateStartedAndDrainsPending() {
+  const recoveredProjection = (status) => ({
+    rule_version: 1,
+    activities: [{
+      course_unit_id: 37,
+      activity_key: 'physics.mechanics',
+      rule_version: 1,
+      status,
+      first_started_at: '2026-07-29T08:00:00Z',
+    }],
+  });
+
+  const harness = createActivityHarness(
+    (payload) => confirmed(payload),
+    {
+      recoveryHandler: () => recoveredProjection('in_progress'),
+    },
+  );
+  assert.equal(harness.emitDomain({
+    galaxy_key: 'englab',
+    activity_key: 'physics.mechanics',
+    event_type: 'attempted',
+    evidence: {
+      operation: 'restitution_adjustment',
+      cursor: {
+        stage: 'after-observation',
+        preset: { restitution: 0.4 },
+      },
+    },
+  }), true, 'a real pending course command must buffer during recovery');
+  await waitFor(
+    () => harness.calls.some((call) => call.payload.event_type === 'attempted')
+      && harness.predictedButton.disabled === false,
+    'recovered activity drains the pending command',
+  );
+  assert.deepEqual(
+    harness.calls.map((call) => call.payload.event_type),
+    ['attempted'],
+    'exact first_started_at recovery must not append started before draining pending work',
+  );
+
+  await harness.controller.refresh();
+  assert.deepEqual(
+    harness.calls.map((call) => call.payload.event_type),
+    ['attempted'],
+    'same-scope explicit refresh must not append started'
+  );
+
+  harness.emit({ type: 'identity-configured' });
+  await waitFor(
+    () => harness.calls.filter((call) => call.payload.event_type === 'started').length === 1
+      && harness.predictedButton.disabled === false,
+    'replacement authority writes its own started event',
+  );
+  assert.deepEqual(
+    harness.calls.map((call) => call.payload.event_type),
+    ['attempted', 'started'],
+    'authority replacement must not inherit the recovered started suppression'
+  );
+  harness.controller.destroy();
+
+  const completed = createActivityHarness(
+    (payload) => {
+      throw new Error(`completed recovery must not record ${payload.event_type}`);
+    },
+    {
+      recoveryHandler: () => recoveredProjection('completed'),
+    },
+  );
+  await waitFor(
+    () => completed.predictedButton.disabled === false,
+    'completed projection recovers without a write',
+  );
+  assert.deepEqual(completed.calls, [], 'completed recovery must not append started');
+  completed.controller.destroy();
+}
+
 async function createPeerActivityHarness(receiverQueue, predictedGate) {
   const document = new MiniDocument();
   const statusRenders = [];
@@ -3319,6 +3396,7 @@ function testFabEscapeStopsModuleOwnerOnSameDocumentTarget() {
 }
 
 (async () => {
+  await testRecoverySkipsDuplicateStartedAndDrainsPending();
   await testActivityClickUsesExactPredictedCommand();
   await testActivityOutcomesAndLeaveAreHonest();
   await testQueuedCommandAcceptsPeerConfirmation();

@@ -127,7 +127,8 @@
             recordOperations: new Map(),
             commandGeneration: 0,
             commandInFlight: false,
-            recordGeneration: 0
+            recordGeneration: 0,
+            forceStartedOnInitialize: false
         };
 
         function statusNode() {
@@ -246,6 +247,14 @@
         function clearProjection() {
             state.projection = null;
             renderProjection();
+        }
+
+        function projectionHasStarted() {
+            const value = state.projection && state.projection.first_started_at;
+            return Boolean(
+                value
+                && Number.isFinite(new Date(value).getTime())
+            );
         }
 
         function renderProjectionRefreshFailure(error) {
@@ -942,22 +951,25 @@
                     state.context = context;
                     state.ruleVersion = await resolveRule(context);
                     if (generation !== state.initializeGeneration || abort.signal.aborted) return;
-                    const startedAt = earliestPendingOccurredAt(state.pendingCommands);
-                    const started = await record('started', {
-                        cursor: {
-                            surface: mapping.galaxy_key,
-                            stage: 'entered'
+                    if (state.forceStartedOnInitialize || !projectionHasStarted()) {
+                        const startedAt = earliestPendingOccurredAt(state.pendingCommands);
+                        const started = await record('started', {
+                            cursor: {
+                                surface: mapping.galaxy_key,
+                                stage: 'entered'
+                            }
+                        }, startedAt ? { occurred_at: startedAt } : undefined);
+                        if (generation !== state.initializeGeneration || abort.signal.aborted) return;
+                        if (
+                            !started
+                            || !['confirmed', 'reconciled', 'queued'].includes(started.outcome)
+                        ) {
+                            const error = new Error('Initial learning evidence event is not durable');
+                            error.code = 'learning_evidence_failed';
+                            throw error;
                         }
-                    }, startedAt ? { occurred_at: startedAt } : undefined);
-                    if (generation !== state.initializeGeneration || abort.signal.aborted) return;
-                    if (
-                        !started
-                        || !['confirmed', 'reconciled', 'queued'].includes(started.outcome)
-                    ) {
-                        const error = new Error('Initial learning evidence event is not durable');
-                        error.code = 'learning_evidence_failed';
-                        throw error;
                     }
+                    state.forceStartedOnInitialize = false;
                     state.initialized = true;
                     await drainDomainCommands();
                     await refreshStatus();
@@ -1088,6 +1100,7 @@
             if (change && change.type === 'identity-configured') {
                 invalidateActiveCommand();
                 state.authorityInvalidated = false;
+                state.forceStartedOnInitialize = true;
                 state.initializeGeneration += 1;
                 state.initialized = false;
                 state.context = null;

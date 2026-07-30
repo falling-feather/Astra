@@ -129,7 +129,7 @@ const CONFIG = {
             { id: 'derivative-application', title: '导数应用', description: '切线/单调性/极值与最值的导数分析', icon: 'spline', variant: 'featured' }
         ],
         physics: [
-            { id: 'mechanics', title: '力学模拟', description: '重力、碰撞、弹簧', icon: 'gauge', variant: 'featured' },
+            { id: 'mechanics', title: '恢复系数与反弹高度', description: '固定落高，对照 e² 与第一次反弹峰值', icon: 'gauge', variant: 'featured' },
             { id: 'gas-laws', title: '气体实验定律', description: 'Boyle/Charles/理想气体状态方程', icon: 'thermometer', variant: 'featured' },
             { id: 'thermodynamics', title: '热力学基础', description: '第一定律·热机效率·熵增方向', icon: 'flame', variant: 'featured' },
             { id: 'electromagnetism', title: '电磁场', description: '电场和磁场分布', icon: 'zap', variant: 'featured' },
@@ -698,7 +698,7 @@ const CONFIG = {
             'spatial-vector': { tier: '拓展', scope: '分层学习', task: '在 3D 坐标中比较数量积、夹角和投影的几何意义。', note: '向量积偏大学内容，主线应服务线面角和距离问题。' },
             'derivative-application': { tier: '核心', scope: '基础主线', task: '找出导数零点，再用左右符号变化判断极值和单调区间。', note: '极值不只看 f’=0，还要看导数符号是否改变。' },
 
-            mechanics: { tier: '核心', scope: '模型近似', task: '改变摩擦或弹性，观察速度、能量损耗和运动轨迹的变化。', note: '模拟为理想模型，单位和受力方向需结合牛顿定律解释。' },
+            mechanics: { tier: '核心', scope: '模型近似', task: '先预测，再运行 e=0.40 与 e=0.80 两组固定落高对照，用 h/H 修正恢复系数与反弹高度的关系。', note: 'h/H≈e² 只适用于本页固定落高、竖直碰撞、忽略空气阻力与额外耗散的理想条件；自由滑块不计课程完成。' },
             'gas-laws': { tier: '核心', scope: '重点概念', task: '切换等温、等压、等容和等温等压情境，判断哪两个状态量成正比或反比。', note: '气体定律必须使用 Kelvin 温度；理想气体模型在低压、较高温时更可靠。' },
             thermodynamics: { tier: '核心', scope: '重点概念', task: '切换第一定律、PV 过程、热机和熵增，区分能量守恒与过程方向限制。', note: '采用 ΔU=Q-W（系统对外做功为正）的符号约定；Carnot 效率和熵计算必须使用 Kelvin 温度。' },
             electromagnetism: { tier: '核心', scope: '条件限定', task: '切换电场线和等势线，比较两者是否垂直。', note: '场线是可视化工具，不是空间中真实存在的细线。' },
