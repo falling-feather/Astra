@@ -21,6 +21,12 @@ const ModuleSelector = {
     _transitionTimers: {},
     _publicationGateNodes: {},
     _publicationGatePending: {},
+    _pageNames: Object.freeze(['mathematics', 'physics', 'chemistry', 'algorithms', 'biology']),
+    _booted: false,
+    _catalogueHandler: null,
+    _catalogueIdentity: '',
+    _keyboardHandler: null,
+    _backdrop: null,
     _pageEnhancementScripts: {
         physics: ['pages/physics/physics-zoom.js'],
         biology: ['pages/biology/biology.js?v=20260416b', 'pages/biology/biology-zoom.js?v=20260416b']
@@ -42,8 +48,10 @@ const ModuleSelector = {
     },
 
     init() {
-        const pages = ['mathematics', 'physics', 'chemistry', 'algorithms', 'biology'];
-        pages.forEach(page => {
+        if (this._booted) return;
+        this._booted = true;
+
+        this._pageNames.forEach(page => {
             const pageEl = document.getElementById(`page-${page}`);
             if (!pageEl) return;
 
@@ -52,27 +60,105 @@ const ModuleSelector = {
             this._sidebarOpen[page] = false;
             this._transitionGeneration[page] = 0;
             this._transitionTimers[page] = [];
-
-            this.createSidebar(page, pageEl);
-            this.createLearningOverview(page, pageEl);
-            this.createGallery(page, pageEl);
-            this.createLearningSources(page, pageEl);
         });
 
+        this._catalogueIdentity = this._currentCatalogueIdentity();
+        this._catalogueHandler = () => this.refreshCatalogueSurfaces();
+        window.addEventListener('astra:student-catalogue-ready', this._catalogueHandler);
+        this.refreshCatalogueSurfaces();
+
         // Create global backdrop for mobile
-        const backdrop = document.createElement('div');
-        backdrop.className = 'module-sidebar-backdrop';
-        backdrop.id = 'module-sidebar-backdrop';
-        backdrop.addEventListener('click', () => this._closeSidebarForCurrentPage());
-        document.body.appendChild(backdrop);
+        let backdrop = document.getElementById('module-sidebar-backdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.className = 'module-sidebar-backdrop';
+            backdrop.id = 'module-sidebar-backdrop';
+            backdrop.addEventListener('click', () => this._closeSidebarForCurrentPage());
+            document.body.appendChild(backdrop);
+        }
+        this._backdrop = backdrop;
 
         // ── E-04: Global keyboard navigation ──
         this._initKeyboardNav();
     },
 
-    createSidebar(page, pageEl) {
+    _currentCatalogueIdentity() {
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        if (!user) return 'anonymous';
+        return `${String(user.role || '')}:${String(user.id || user.user_id || '')}`;
+    },
+
+    _visibleExperiments(page) {
         const experiments = CONFIG.experiments[page];
-        if (!experiments || experiments.length === 0) return;
+        if (!Array.isArray(experiments)) return [];
+        return experiments.filter(exp => (
+            exp.variant !== 'upcoming' && this._allowsStudentActivity(page, exp.id)
+        ));
+    },
+
+    refreshCatalogueSurfaces() {
+        const nextIdentity = this._currentCatalogueIdentity();
+        const identityChanged = Boolean(
+            this._catalogueIdentity
+            && this._catalogueIdentity !== nextIdentity
+        );
+        this._catalogueIdentity = nextIdentity;
+
+        this._pageNames.forEach(page => {
+            const pageEl = document.getElementById(`page-${page}`);
+            if (!pageEl) return;
+
+            const activeModule = this.activeModule[page];
+            const activeAllowed = !activeModule || this._allowsStudentActivity(page, activeModule);
+            if (activeModule && (identityChanged || !activeAllowed)) {
+                this.closeModule(page);
+            }
+
+            const preservedModule = this.activeModule[page] && activeAllowed && !identityChanged
+                ? this.activeModule[page]
+                : null;
+            this._removeCatalogueSurface(page, pageEl);
+            this.createSidebar(page, pageEl);
+            this.createLearningOverview(page, pageEl);
+            this.createGallery(page, pageEl);
+            this.createLearningSources(page, pageEl);
+            if (preservedModule) this._restoreActiveCatalogueSurface(page, pageEl, preservedModule);
+        });
+    },
+
+    _removeCatalogueSurface(page, pageEl) {
+        [
+            `sidebar-${page}`,
+            `sidebar-toggle-${page}`,
+            `learning-overview-${page}`,
+            `gallery-${page}`,
+            `learning-sources-${page}`
+        ].forEach(id => {
+            document.querySelectorAll(`[id="${id}"]`).forEach(node => node.remove());
+        });
+        this._sidebars[page] = null;
+        this._sidebarOpen[page] = false;
+        pageEl.classList.remove('module-gallery-active');
+    },
+
+    _restoreActiveCatalogueSurface(page, pageEl, moduleId) {
+        const gallery = document.getElementById(`gallery-${page}`);
+        if (gallery) gallery.style.display = 'none';
+        pageEl.classList.remove('module-gallery-active');
+        const toggle = document.getElementById(`sidebar-toggle-${page}`);
+        if (toggle) toggle.style.display = 'flex';
+        const sidebar = this._sidebars[page];
+        if (sidebar) {
+            sidebar.querySelectorAll('.module-sidebar__item').forEach(item => {
+                item.classList.toggle('active', item.dataset.moduleTarget === moduleId);
+            });
+        }
+    },
+
+    createSidebar(page, pageEl) {
+        const experiments = this._visibleExperiments(page);
+        if (experiments.length === 0) return;
 
         // Sidebar container
         const sidebar = document.createElement('nav');
@@ -98,7 +184,6 @@ const ModuleSelector = {
 
         // Experiment items
         experiments.forEach((exp, idx) => {
-            if (exp.variant === 'upcoming' || !this._allowsStudentActivity(page, exp.id)) return;
             const item = document.createElement('button');
             item.className = 'module-sidebar__item';
             item.dataset.moduleTarget = exp.id;
@@ -135,15 +220,12 @@ const ModuleSelector = {
     },
 
     createLearningOverview(page, pageEl) {
-        const experiments = CONFIG.experiments[page];
+        const visibleExperiments = this._visibleExperiments(page);
         const hero = pageEl.querySelector('.page-hero');
         const learning = CONFIG.learningDesign;
         const subject = learning && learning.subjects ? learning.subjects[page] : null;
-        if (!experiments || !hero || !subject) return;
+        if (!visibleExperiments.length || !hero || !subject) return;
 
-        const visibleExperiments = experiments.filter(exp => (
-            exp.variant !== 'upcoming' && this._allowsStudentActivity(page, exp.id)
-        ));
         const activeCount = visibleExperiments.length;
         const label = this._escapeHtml(CONFIG.pages[page]?.label || page);
         const featured = visibleExperiments.slice(0, 3).map((exp, idx) => `
@@ -175,8 +257,8 @@ const ModuleSelector = {
     },
 
     createGallery(page, pageEl) {
-        const experiments = CONFIG.experiments[page];
-        if (!experiments || experiments.length === 0) return;
+        const experiments = this._visibleExperiments(page);
+        if (experiments.length === 0) return;
 
         const hero = pageEl.querySelector('.page-hero');
         if (!hero) return;
@@ -186,7 +268,6 @@ const ModuleSelector = {
         gallery.id = `gallery-${page}`;
 
         experiments.forEach((exp, idx) => {
-            if (exp.variant === 'upcoming' || !this._allowsStudentActivity(page, exp.id)) return;
             const meta = this.getLearningMeta(page, exp);
 
             const card = document.createElement('div');
@@ -1166,7 +1247,8 @@ const ModuleSelector = {
     // ── E-04: Keyboard Navigation ──
 
     _initKeyboardNav() {
-        document.addEventListener('keydown', (e) => {
+        if (this._keyboardHandler) return;
+        this._keyboardHandler = (e) => {
             // Skip if user is typing in an input/textarea/select
             const tag = (e.target.tagName || '').toLowerCase();
             if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
@@ -1209,7 +1291,8 @@ const ModuleSelector = {
                 this._sidebarArrowNav(page, e.key === 'ArrowDown' ? 1 : -1);
                 e.preventDefault();
             }
-        });
+        };
+        document.addEventListener('keydown', this._keyboardHandler);
     },
 
     _sidebarArrowNav(page, direction) {

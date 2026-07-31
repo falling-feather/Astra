@@ -76,8 +76,8 @@ assert.doesNotMatch(router, /\['mathematics', 'physics', 'chemistry', 'algorithm
 assert.match(router, /ModuleSelector\.leavePage\(page, \{ preserveHash: true \}\)/);
 assert.match(moduleSelector, /closeModule\(page, options = \{\}\)/);
 assert.match(moduleSelector, /if \(!options\.preserveHash\)/);
-assert.match(router, /module-selector\.js\?v=20260731v7969StudentUiP0/);
-assert.match(main, /module-selector\.js\?v=20260731v7969StudentUiP0/);
+assert.match(router, /module-selector\.js\?v=20260731v7971CatalogueCountP0/);
+assert.match(main, /module-selector\.js\?v=20260731v7971CatalogueCountP0/);
 assert.match(main, /page-registry\.js\?v=' \+ PAGE_REGISTRY_ASSET_VERSION/);
 assert.match(main, /AstraPageRegistry\.galaxyFor\(hash\)/);
 assert.match(main, /const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0'/);
