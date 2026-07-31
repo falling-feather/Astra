@@ -1576,6 +1576,10 @@
     border-radius: 2px;
 }
 
+.admin-auth-state .astra-sessions button {
+    min-height: 44px;
+}
+
 .admin-dashboard {
     display: block;
     margin-top: 0;

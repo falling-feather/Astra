@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -10,6 +11,13 @@ const course = read('pages/admin/admin-course-governance.js');
 const secondary = read('pages/admin/admin-secondary-governance.js');
 const styles = read('pages/admin/admin.css');
 const roleHome = read('shared/js/role-home-client.js');
+const sharedAuthStyles = read('shared/css/auth-ui.css');
+const sharedAuthRuntime = read('shared/js/auth-ui.js');
+const canonicalizeLf = (source) => source.replace(/\r\n?/g, '\n');
+const canonicalSha256 = (source) => crypto
+  .createHash('sha256')
+  .update(canonicalizeLf(source))
+  .digest('hex');
 
 async function main() {
 const roleHomeContext = { window: {} };
@@ -1802,6 +1810,31 @@ assert.match(styles, /\.admin-course-grid\s*\{[\s\S]*grid-template-columns:/);
 assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.admin-course-dialog\s*\{[\s\S]*width:\s*100vw;[\s\S]*height:\s*100dvh/);
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(styles, /\.admin-course-filters input,[\s\S]*min-height:\s*44px/);
+assert.equal(
+  Array.from(styles.matchAll(/\.astra-sessions\s+button/g)).length,
+  1,
+  'admin styles must keep exactly one page-scoped activity-session button rule',
+);
+assert.match(
+  styles,
+  /\.admin-auth-state\s+\.astra-sessions\s+button\s*\{\s*min-height:\s*44px;\s*\}/,
+  'admin activity-session actions must keep a page-scoped 44px minimum touch height',
+);
+assert.equal(
+  canonicalSha256('first\r\nsecond\rthird\n'),
+  canonicalSha256('first\nsecond\nthird\n'),
+  'canonical content SHA-256 must be identical for CRLF, isolated CR, and LF input',
+);
+assert.equal(
+  canonicalSha256(sharedAuthStyles),
+  '3aa283900a40068a6c3e788890c7a22f9f925897f1fba72a9f9c6539aebcbf3f',
+  'the shared auth-ui stylesheet must keep its V7.9.55 canonical content SHA-256',
+);
+assert.equal(
+  canonicalSha256(sharedAuthRuntime),
+  'da90cae4df569ef6e7781244359c9313c8b7792ad1c48a465b1a123229144f48',
+  'the shared auth-ui runtime must keep its V7.9.55 canonical content SHA-256',
+);
 
 const lineCount = admin.replace(/\r\n?/g, '\n').split('\n').length - (admin.endsWith('\n') ? 1 : 0);
 assert.ok(lineCount <= 2485, `admin.js must not grow beyond the frozen ceiling (${lineCount})`);
