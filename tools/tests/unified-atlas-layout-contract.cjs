@@ -58,6 +58,6 @@ assert.doesNotMatch(admin, /textarea[^>]+sql|execute\s+sql/i);
 for (const source of [html, planets, registry, main, serviceWorker]) {
     assert.match(source, /20260719v7437AstraWorkspaceP0/);
 }
-assert.match(registry, /20260729v794AdminGovernanceP0/, 'admin keeps its independently reviewed resource version');
+assert.match(registry, /20260731v7958AdminTouchTargetP0/, 'admin keeps its independently reviewed resource version');
 
 console.log('unified-atlas-layout-contract: ok');

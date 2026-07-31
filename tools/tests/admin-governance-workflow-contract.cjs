@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const admin = read('pages/admin/admin.js');
+const registrySource = read('shared/js/page-registry.js');
 const course = read('pages/admin/admin-course-governance.js');
 const secondary = read('pages/admin/admin-secondary-governance.js');
 const styles = read('pages/admin/admin.css');
@@ -1065,6 +1066,16 @@ const adminContext = {
 };
 vm.runInNewContext(admin, adminContext, { filename: 'pages/admin/admin.js' });
 const adminContract = adminContext.window.AdminGovernance.contract;
+const registryContext = { window: {} };
+vm.runInNewContext(registrySource, registryContext, { filename: 'shared/js/page-registry.js' });
+const registryAdminScript = registryContext.window.AstraPageRegistry.scriptFor('admin');
+const registryAdminGeneration = registryAdminScript.match(/\?v=([^&]+)$/)?.[1];
+const adminGeneration = adminContext.window.AdminGovernance.version;
+assert.equal(
+  adminGeneration,
+  registryAdminGeneration,
+  'page registry admin generation must equal AdminGovernance.version',
+);
 class OwnerScript {
   constructor(ownerDocument) {
     this.ownerDocument = ownerDocument;
@@ -1125,6 +1136,15 @@ assert.strictEqual(
 );
 const failedOwnerScripts = ownerDocument.scripts.slice();
 assert.equal(failedOwnerScripts.length, 2);
+const expectedOwnerSources = [
+  `pages/admin/admin-course-governance.js?v=${adminGeneration}`,
+  `pages/admin/admin-secondary-governance.js?v=${adminGeneration}`,
+];
+assert.deepEqual(
+  failedOwnerScripts.map((script) => script.src),
+  expectedOwnerSources,
+  'both admin-only owner scripts must use the registry and AdminGovernance generation',
+);
 failedOwnerScripts[0].dispatch('error');
 await assert.rejects(failedOwnerLoad, /治理模块加载失败/);
 assert.equal(ownerDocument.scripts.length, 0, 'one error must remove the entire owner-script batch before retry');
@@ -1139,6 +1159,11 @@ const retriedOwnerScripts = ownerDocument.scripts.slice();
 assert.equal(retriedOwnerScripts.length, 2, 'retry must create fresh owner script nodes');
 assert.ok(retriedOwnerScripts.every((script) => !failedOwnerScripts.includes(script)));
 assert.equal(ownerDocument.created.length, 4, 'retry must not reuse either node from the failed batch');
+assert.deepEqual(
+  retriedOwnerScripts.map((script) => script.src),
+  expectedOwnerSources,
+  'owner retry must preserve the same atomic admin generation',
+);
 adminContext.window.AdminCourseGovernance = {};
 adminContext.window.AdminSecondaryGovernance = secondaryValidationOwner;
 adminContext.AdminSecondaryGovernance = secondaryValidationOwner;

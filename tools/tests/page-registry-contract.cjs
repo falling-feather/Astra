@@ -49,7 +49,7 @@ assert.equal(registry.galaxyFor('cosmos'), 'frontier');
 assert.equal(registry.galaxyFor('unknown-page'), 'englab');
 assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260730v785TeacherNaturalWorkflowP0');
 assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260719v7437AstraWorkspaceP0');
-assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260729v794AdminGovernanceP0');
+assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260731v7958AdminTouchTargetP0');
 assert.equal(registry.isReady('teacher'), false);
 
 let entered = 0;
@@ -65,7 +65,7 @@ assert.equal(registry.enter('mathematics'), false);
 assert.equal(registry.leave('mathematics'), false);
 
 assert.match(html, /app-session\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/);
-assert.match(serviceWorker, /page-registry\.js\?v=20260719v75ReviewTeacherLayersP0/);
+assert.match(serviceWorker, /page-registry\.js\?v=20260731v7960AdminRegistryEntryP0/);
 assert.match(router, /AstraPageRegistry\.pagesByTag\('course'\)/);
 assert.match(router, /AstraPageRegistry\.galaxyFor\(page\)/);
 assert.match(router, /AstraPageRegistry\.scriptFor\(page\)/);

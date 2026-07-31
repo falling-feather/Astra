@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const ADMIN_ASSET_VERSION = '20260729v794AdminGovernanceP0';
+    const ADMIN_ASSET_VERSION = '20260731v7958AdminTouchTargetP0';
     const API_BASE_STORAGE_KEY = 'astra-admin-api-base';
 
     const state = {

@@ -21,7 +21,7 @@ const expected = [
 assert.deepEqual(styles, expected, 'teacher style layers must keep their cascade order');
 assert.deepEqual(
   Array.from(context.window.AstraPageRegistry.stylesForRole('admin')),
-  [...expected, 'pages/admin/admin.css?v=20260729v794AdminGovernanceP0'],
+  [...expected, 'pages/admin/admin.css?v=20260731v7958AdminTouchTargetP0'],
   'admin must reuse the complete teacher cascade before its governance overrides',
 );
 for (const resource of styles) {

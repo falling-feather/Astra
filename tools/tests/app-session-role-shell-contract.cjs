@@ -11,6 +11,14 @@ const sessionCss = read('shared/css/app-session.css');
 const main = read('shared/js/main.js');
 const router = read('shared/js/router.js');
 const admin = read('pages/admin/admin.js');
+const serviceWorker = read('sw.js');
+
+const PUBLIC_SHELL_VERSION = '20260731v7960AdminRegistryEntryP0';
+const capture = (source, pattern, label) => {
+    const match = source.match(pattern);
+    assert.ok(match, `${label} must remain structurally inspectable`);
+    return match[1];
+};
 
 assert.match(html, /shared\/css\/app-session\.css/);
 assert.match(html, /api-client\.js[\s\S]*auth-ui\.js[\s\S]*app-session\.js[\s\S]*router\.js[\s\S]*main\.js/);
@@ -41,9 +49,37 @@ assert.doesNotMatch(session, /localStorage|sessionStorage|Authorization\s*:|\.ac
 
 assert.match(main, /await window\.AstraApplicationSession\.bootstrap\(\);\s*initApp\(\)/);
 assert.match(main, /serviceWorker\.register\('\.\/sw\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION\)/);
-assert.match(html, /page-registry\.js\?v=20260719v75ReviewTeacherLayersP0[\s\S]*main\.js\?v=20260719v75ReviewTeacherLayersP0/);
 assert.match(main, /page-registry\.js\?v=' \+ PAGE_REGISTRY_ASSET_VERSION/);
 assert.match(main, /main\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
+
+const indexShellVersions = {
+    pageRegistry: capture(html, /<script src="shared\/js\/page-registry\.js\?v=([^"]+)"><\/script>/, 'index page registry query'),
+    router: capture(html, /<script src="shared\/js\/router\.js\?v=([^"]+)"><\/script>/, 'index router query'),
+    main: capture(html, /<script src="shared\/js\/main\.js\?v=([^"]+)"><\/script>/, 'index main query')
+};
+const mainShellVersions = {
+    pageRegistry: capture(main, /const PAGE_REGISTRY_ASSET_VERSION = '([^']+)'/, 'main page registry version'),
+    runtime: capture(main, /const SHELL_RUNTIME_ASSET_VERSION = '([^']+)'/, 'main shell runtime version')
+};
+const appShell = capture(serviceWorker, /const APP_SHELL = \[([\s\S]*?)\n\];/, 'Service Worker APP_SHELL');
+const serviceWorkerShellVersions = {
+    cache: capture(serviceWorker, /const CACHE_NAME = 'astra-static-v([^']+)'/, 'Service Worker cache suffix'),
+    pageRegistry: capture(appShell, /'\.\/shared\/js\/page-registry\.js\?v=([^']+)'/, 'Service Worker page registry query'),
+    router: capture(appShell, /'\.\/shared\/js\/router\.js\?v=([^']+)'/, 'Service Worker router query'),
+    main: capture(appShell, /'\.\/shared\/js\/main\.js\?v=([^']+)'/, 'Service Worker main query')
+};
+const shellVersions = [
+    ...Object.values(indexShellVersions),
+    ...Object.values(mainShellVersions),
+    ...Object.values(serviceWorkerShellVersions)
+];
+assert.equal(shellVersions.length, 9);
+assert.deepEqual(
+    [...new Set(shellVersions)],
+    [PUBLIC_SHELL_VERSION],
+    'index, main and Service Worker must publish one atomic public shell generation'
+);
+
 assert.doesNotMatch(main, /\ninitApp\(\);\s*$/);
 assert.match(router, /_guardParsedRoute\(this\._parseHash\(\)\)/);
 assert.match(router, /AstraApplicationSession\.canAccessPage\(page\)/);
