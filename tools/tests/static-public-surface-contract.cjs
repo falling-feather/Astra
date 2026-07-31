@@ -53,7 +53,7 @@ async function main() {
   const baseUrl = providedBaseUrl || `http://127.0.0.1:${port}`;
   try {
     await waitForServer(baseUrl);
-    for (const publicPath of ['/index.html', '/sw.js', '/LICENSE.md', '/shared/js/api-client.js', '/pages/student/student.js']) {
+    for (const publicPath of ['/index.html', '/sw.js', '/LICENSE.md', '/shared/js/api-client.js', '/pages/student/student-workbench.js']) {
       const response = await fetch(`${baseUrl}${publicPath}`, { cache: 'no-store' });
       assert.equal(response.status, 200, `${publicPath} should be public`);
       if (publicPath === '/LICENSE.md') {

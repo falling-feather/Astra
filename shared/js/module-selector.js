@@ -32,6 +32,15 @@ const ModuleSelector = {
         return typeof ExperimentGuide !== 'undefined' ? ExperimentGuide : null;
     },
 
+    _allowsStudentActivity(page, moduleId) {
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        if (!user || user.role !== 'student') return true;
+        const catalogue = window.AstraStudentCourseCatalogue;
+        if (!catalogue || typeof catalogue.allowsActivity !== 'function') return true;
+        return catalogue.allowsActivity(page, moduleId);
+    },
+
     init() {
         const pages = ['mathematics', 'physics', 'chemistry', 'algorithms', 'biology'];
         pages.forEach(page => {
@@ -47,6 +56,7 @@ const ModuleSelector = {
             this.createSidebar(page, pageEl);
             this.createLearningOverview(page, pageEl);
             this.createGallery(page, pageEl);
+            this.createLearningSources(page, pageEl);
         });
 
         // Create global backdrop for mobile
@@ -88,7 +98,7 @@ const ModuleSelector = {
 
         // Experiment items
         experiments.forEach((exp, idx) => {
-            if (exp.variant === 'upcoming') return;
+            if (exp.variant === 'upcoming' || !this._allowsStudentActivity(page, exp.id)) return;
             const item = document.createElement('button');
             item.className = 'module-sidebar__item';
             item.dataset.moduleTarget = exp.id;
@@ -131,37 +141,18 @@ const ModuleSelector = {
         const subject = learning && learning.subjects ? learning.subjects[page] : null;
         if (!experiments || !hero || !subject) return;
 
-        const activeCount = experiments.filter(exp => exp.variant !== 'upcoming').length;
+        const visibleExperiments = experiments.filter(exp => (
+            exp.variant !== 'upcoming' && this._allowsStudentActivity(page, exp.id)
+        ));
+        const activeCount = visibleExperiments.length;
         const label = this._escapeHtml(CONFIG.pages[page]?.label || page);
-        const methodText = subject.teachingNote || '建议先完成基础实验，再进入带有模型近似或跨学科背景的主题。每个实验都配有观察任务、可调参数和小测验。';
-        const featured = experiments.filter(exp => exp.variant !== 'upcoming').slice(0, 3).map((exp, idx) => `
+        const featured = visibleExperiments.slice(0, 3).map((exp, idx) => `
             <div class="learning-path__item">
                 <span class="learning-path__index">${String(idx + 1).padStart(2, '0')}</span>
                 <strong>${this._escapeHtml(exp.title)}</strong>
                 <p>${this._escapeHtml(exp.description || '')}</p>
             </div>
         `).join('');
-        const sourceLinks = (subject.sources || []).slice(0, 6).map(source => {
-            const item = this._normalizeLearningSource(source);
-            if (!item.label) return '';
-            if (item.url) {
-                return `<a href="${this._escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${this._escapeHtml(item.label)}</a>`;
-            }
-            return `<span>${this._escapeHtml(item.label)}</span>`;
-        }).join('');
-        const sourceBlock = sourceLinks ? `
-            <div class="learning-overview__sources" aria-label="${label}参考资料">
-                <span>参考资料</span>
-                ${sourceLinks}
-            </div>
-        ` : '';
-        const sourceNote = learning.sourceNote ? `
-            <div class="learning-overview__note" aria-label="${label}学习说明">
-                <i data-lucide="book-open"></i>
-                <p>${this._escapeHtml(learning.sourceNote)}</p>
-            </div>
-        ` : '';
-
         const overview = document.createElement('section');
         overview.className = 'learning-overview';
         overview.id = `learning-overview-${page}`;
@@ -177,12 +168,6 @@ const ModuleSelector = {
                 <div><span>学习方式</span><strong>互动观察</strong></div>
                 <div><span>练习入口</span><strong>小测验</strong></div>
             </div>
-            <div class="learning-overview__method">
-                <i data-lucide="route"></i>
-                <p>${this._escapeHtml(methodText)}</p>
-            </div>
-            ${sourceNote}
-            ${sourceBlock}
             <div class="learning-path" aria-label="${label}推荐学习起点">
                 ${featured}
             </div>
@@ -203,7 +188,7 @@ const ModuleSelector = {
         gallery.id = `gallery-${page}`;
 
         experiments.forEach((exp, idx) => {
-            if (exp.variant === 'upcoming') return;
+            if (exp.variant === 'upcoming' || !this._allowsStudentActivity(page, exp.id)) return;
             const meta = this.getLearningMeta(page, exp);
 
             const card = document.createElement('div');
@@ -247,6 +232,29 @@ const ModuleSelector = {
 
         // Show favorite indicators on gallery cards
         if (window.ExperimentFavorites) ExperimentFavorites.updateGalleryCards();
+    },
+
+    createLearningSources(page, pageEl) {
+        const learning = CONFIG.learningDesign;
+        const subject = learning && learning.subjects ? learning.subjects[page] : null;
+        const gallery = document.getElementById(`gallery-${page}`);
+        if (!subject || !gallery || document.getElementById(`learning-sources-${page}`)) return;
+        const label = this._escapeHtml(CONFIG.pages[page]?.label || page);
+        const sourceLinks = (subject.sources || []).slice(0, 6).map(source => {
+            const item = this._normalizeLearningSource(source);
+            if (!item.label) return '';
+            if (item.url) {
+                return `<a href="${this._escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${this._escapeHtml(item.label)}</a>`;
+            }
+            return `<span>${this._escapeHtml(item.label)}</span>`;
+        }).join('');
+        if (!sourceLinks) return;
+        const sources = document.createElement('section');
+        sources.className = 'learning-overview__sources learning-sources-section';
+        sources.id = `learning-sources-${page}`;
+        sources.setAttribute('aria-label', `${label}参考资料`);
+        sources.innerHTML = `<span>${label}参考资料</span>${sourceLinks}`;
+        gallery.insertAdjacentElement('afterend', sources);
     },
 
     getLearningMeta(page, exp) {
@@ -306,6 +314,22 @@ const ModuleSelector = {
     openModule(page, moduleId, options = {}) {
         const pageEl = document.getElementById(`page-${page}`);
         if (!pageEl) return false;
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        const catalogue = window.AstraStudentCourseCatalogue;
+        if (
+            user
+            && user.role === 'student'
+            && catalogue
+            && typeof catalogue.allowsActivity === 'function'
+            && catalogue.allowsActivity(page, moduleId) === false
+        ) {
+            try {
+                if (window.location.hash !== `#${page}`) history.replaceState(null, '', `#${page}`);
+            } catch (error) {}
+            this.closeModule(page);
+            return false;
+        }
 
         let registry = null;
         try {
@@ -544,8 +568,8 @@ const ModuleSelector = {
         }
 
         const gallery = document.getElementById(`gallery-${page}`);
-        if (gallery) gallery.style.display = 'none';
-        pageEl.classList.remove('module-gallery-active');
+        if (gallery) gallery.style.display = '';
+        pageEl.classList.add('module-gallery-active');
         const toggle = document.getElementById(`sidebar-toggle-${page}`);
         if (toggle) toggle.style.display = 'none';
         try {
@@ -555,8 +579,6 @@ const ModuleSelector = {
 
         const controller = new AbortController();
         this._publicationGatePending[page] = { moduleId, generation, controller };
-        this._renderPublicationGate(page, pageEl, 'checking');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
 
         this._resolvePublicationAccess(page, moduleId, controller.signal).then(access => {
             if (!this._isCurrentPublicationGate(page, moduleId, generation)) return;
@@ -576,11 +598,11 @@ const ModuleSelector = {
                 this.closeModule(page);
                 return;
             }
-            this._renderPublicationGate(page, pageEl, code === 'activity_locked' ? 'locked' : 'unavailable', code);
+            this.closeModule(page);
         }).catch(() => {
             if (!this._isCurrentPublicationGate(page, moduleId, generation)) return;
             delete this._publicationGatePending[page];
-            this._renderPublicationGate(page, pageEl, 'unavailable', 'publication_context_unavailable');
+            this.closeModule(page);
         });
         return true;
     },

@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const studentPath = path.resolve(__dirname, '../../pages/student/student.js');
+const studentPath = path.resolve(__dirname, '../../pages/student/student-workbench.js');
 
 function main() {
     global.window = global;

@@ -576,6 +576,110 @@
 .planets-galaxy-row__name {
     display: grid;
     gap: 8px;
+    min-height: 44px;
+    align-content: center;
+    border-radius: 2px;
+}
+
+.student-class-join-dialog {
+    width: min(430px, calc(100vw - 32px));
+    margin: auto;
+    padding: 0;
+    border: 1px solid rgba(110, 219, 255, 0.42);
+    border-radius: 4px;
+    color: #edf6ff;
+    background: #081321;
+    box-shadow: 0 26px 90px rgba(0, 0, 0, 0.62);
+}
+
+.student-class-join-dialog::backdrop {
+    background: rgba(2, 6, 13, 0.82);
+    backdrop-filter: blur(8px);
+}
+
+.student-class-join-dialog form {
+    display: grid;
+    gap: 16px;
+    padding: 28px;
+}
+
+.student-class-join-dialog__eyebrow {
+    color: #6edbff;
+    font: 0.63rem/1.2 'JetBrains Mono', monospace;
+    letter-spacing: 0.17em;
+}
+
+.student-class-join-dialog h2,
+.student-class-join-dialog p {
+    margin: 0;
+}
+
+.student-class-join-dialog h2 {
+    font-size: 1.7rem;
+    letter-spacing: -0.03em;
+}
+
+.student-class-join-dialog p,
+.student-class-join-dialog__status {
+    color: #9cabbf;
+    font-size: 0.82rem;
+    line-height: 1.65;
+}
+
+.student-class-join-dialog label {
+    display: grid;
+    gap: 8px;
+    color: #cbd8e7;
+    font-size: 0.76rem;
+}
+
+.student-class-join-dialog input {
+    width: 100%;
+    min-height: 48px;
+    box-sizing: border-box;
+    padding: 0 13px;
+    border: 1px solid rgba(142, 174, 204, 0.36);
+    border-radius: 2px;
+    color: #f4f8ff;
+    background: #050b14;
+    font: inherit;
+}
+
+.student-class-join-dialog input:focus-visible {
+    outline: 2px solid #6edbff;
+    outline-offset: 2px;
+}
+
+.student-class-join-dialog form > div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.student-class-join-dialog button {
+    min-height: 44px;
+    padding: 0 15px;
+    border: 1px solid rgba(110, 219, 255, 0.38);
+    border-radius: 2px;
+    color: #d8e5f2;
+    background: transparent;
+    cursor: pointer;
+}
+
+.student-class-join-dialog button[type='submit'] {
+    color: #06101b;
+    background: #6edbff;
+}
+
+.student-class-join-dialog button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.student-class-join-dialog button:disabled,
+.student-class-join-dialog input:disabled {
+    opacity: 0.55;
+    cursor: wait;
 }
 
 .planets-galaxy-row__name strong {
@@ -589,6 +693,16 @@
     color: var(--atlas-muted);
     font-size: 0.7rem;
     letter-spacing: 0.04em;
+}
+
+.planets-galaxy-row__name:hover strong,
+.planets-galaxy-row__name:focus-visible strong {
+    color: var(--atlas-cyan);
+}
+
+.planets-galaxy-row__name:focus-visible {
+    outline: 2px solid var(--atlas-cyan);
+    outline-offset: 4px;
 }
 
 .planets-galaxy-row__toggle {
@@ -616,7 +730,7 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    min-height: 38px;
+    min-height: 44px;
     border-bottom: 1px solid rgba(142, 174, 204, 0.12);
     color: #aebaca;
     font-size: 0.76rem;
@@ -704,7 +818,11 @@
     margin-top: clamp(64px, 10vh, 112px);
 }
 
-.planets-resource-index > a {
+.planets-resource-index > [data-planets-resource-index-list] {
+    display: contents;
+}
+
+.planets-resource-index > [data-planets-resource-index-list] > a {
     display: grid;
     grid-template-columns: minmax(120px, .7fr) minmax(240px, 2fr) auto;
     gap: 24px;
@@ -715,22 +833,22 @@
     font-size: 0.76rem;
 }
 
-.planets-resource-index > a:last-child {
+.planets-resource-index > [data-planets-resource-index-list] > a:last-child {
     border-bottom: 1px solid var(--atlas-line);
 }
 
-.planets-resource-index > a strong {
+.planets-resource-index > [data-planets-resource-index-list] > a strong {
     color: #cbd6e2;
     font-weight: 450;
 }
 
-.planets-resource-index > a i {
+.planets-resource-index > [data-planets-resource-index-list] > a i {
     color: #536276;
     font: normal 0.55rem/1 'JetBrains Mono', monospace;
 }
 
-.planets-resource-index > a:hover,
-.planets-resource-index > a:focus-visible {
+.planets-resource-index > [data-planets-resource-index-list] > a:hover,
+.planets-resource-index > [data-planets-resource-index-list] > a:focus-visible {
     color: var(--atlas-cyan);
     outline: 0;
 }
@@ -964,13 +1082,13 @@
         font-size: 0.69rem;
     }
 
-    .planets-resource-index > a {
+    .planets-resource-index > [data-planets-resource-index-list] > a {
         grid-template-columns: 92px minmax(0, 1fr);
         gap: 12px;
         min-height: 68px;
     }
 
-    .planets-resource-index > a i {
+    .planets-resource-index > [data-planets-resource-index-list] > a i {
         display: none;
     }
 }

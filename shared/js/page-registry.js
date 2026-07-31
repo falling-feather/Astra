@@ -4,11 +4,11 @@
 
     if (global.AstraPageRegistry) return;
 
-    const ROLE_RESOURCE_VERSION = '20260719v757StudentPublicationP0';
+    const ROLE_RESOURCE_VERSION = '20260731v7968StudentFlowP2';
     const TEACHER_RESOURCE_VERSION = '20260730v785TeacherNaturalWorkflowP0';
-    const FUTURE_RESOURCE_VERSION = '20260719v759A11yP0';
+    const FUTURE_RESOURCE_VERSION = '20260731v7968StudentFlowP2';
     const ADMIN_RESOURCE_VERSION = '20260729v794AdminGovernanceP0';
-    const PLANETS_RESOURCE_VERSION = '20260719v7437AstraWorkspaceP0';
+    const PLANETS_RESOURCE_VERSION = '20260731v7968StudentFlowP2';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
 
     const definePage = (config) => Object.freeze({
@@ -45,7 +45,7 @@
             galaxy: 'astra',
             roles: ['student'],
             styles: [`pages/student/student.css?v=${ROLE_RESOURCE_VERSION}`],
-            script: `pages/student/student.js?v=${ROLE_RESOURCE_VERSION}`,
+            script: `pages/student/student-workbench.js?v=${ROLE_RESOURCE_VERSION}`,
             ready: 'initStudent',
             enter: 'initStudent',
             leave: 'destroyStudent'

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-const studentSource = read('pages/student/student.js');
+const studentSource = read('pages/student/student-workbench.js');
 const publicationSource = read('shared/js/engineering-lab-publication-context.js');
 const experimentRegistrySource = read('shared/js/experiment-registry.js');
 const moduleSelectorSource = read('shared/js/module-selector.js');
@@ -478,7 +478,7 @@ function createStudentClassDriver(publication) {
     HTMLFormElement: class extends FakeElement {}
   };
   vm.createContext(context);
-  vm.runInContext(instrumentedStudent, context, { filename: 'pages/student/student.js' });
+  vm.runInContext(instrumentedStudent, context, { filename: 'pages/student/student-workbench.js' });
   const exported = context.module.exports;
   exported.state.root = rootElement;
   exported.state.active = true;
@@ -1297,9 +1297,10 @@ async function runProductionRouterPublicationContract() {
   await ambiguousListed.ready();
   await ambiguousListed.startRoute();
   assert.equal(ambiguousListed.selector._publicationGatePending.physics, undefined);
-  assert.deepEqual(
+  assert.equal(
     ambiguousListed.selector._publicationGateNodes.physics,
-    { state: 'unavailable', code: 'course_unit_ambiguous' }
+    undefined,
+    'an ambiguous authority result must return to the discoverable list without rendering unavailable course UI'
   );
   assert.equal(ambiguousListed.getOwnerInitializations(), 0);
   assert.equal(unitAccessCallCount(ambiguousListed), 0, 'ambiguous /units matches must fail without probing');
@@ -2392,7 +2393,7 @@ function runMechanicsZoomRestoreContract() {
     Intl
   };
   vm.createContext(studentContext);
-  vm.runInContext(studentSource, studentContext, { filename: 'pages/student/student.js' });
+  vm.runInContext(studentSource, studentContext, { filename: 'pages/student/student-workbench.js' });
   const { state, renderCoursePanel } = studentContext.module.exports;
   const coursePanel = { innerHTML: '' };
   state.root = {
@@ -2674,9 +2675,10 @@ function runMechanicsZoomRestoreContract() {
   const emptyHarness = createPublicationModuleHarness(productionPublication);
   assert.equal(emptyHarness.selector.openModule('physics', 'mechanics'), true);
   await settlePromises();
-  assert.deepEqual(
-    emptyHarness.gateStates.at(-1),
-    { state: 'unavailable', code: 'class_selection_required' }
+  assert.equal(
+    emptyHarness.selector._publicationGateNodes.physics,
+    undefined,
+    'a missing class scope must return to onboarding without rendering unavailable course UI'
   );
   assert.equal(emptyHarness.getOwnerInitializations(), 0);
   assert.equal(

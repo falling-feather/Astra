@@ -8,7 +8,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('index.html');
 const authUi = read('shared/js/auth-ui.js');
 const authCss = read('shared/css/auth-ui.css');
-const student = read('pages/student/student.js');
+const student = read('pages/student/student-workbench.js');
 const teacher = read('pages/teacher/teacher.js');
 const admin = read('pages/admin/admin.js');
 

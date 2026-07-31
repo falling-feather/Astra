@@ -8,7 +8,7 @@ function read(relativePath) {
 
 function main() {
     const teacher = read('pages/teacher/teacher.js');
-    const student = read('pages/student/student.js');
+    const student = read('pages/student/student-workbench.js');
     const studentEvidence = read('shared/js/student-learning-evidence.js');
     const admin = read('pages/admin/admin.js');
 

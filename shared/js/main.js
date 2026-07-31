@@ -188,7 +188,7 @@ function updateFooterVisibility() {
     const sync = () => {
         const active = document.querySelector('.page.active');
         const page = active && active.id ? active.id.replace(/^page-/, '') : 'planets';
-        const showFrontier = frontierPages.has(page);
+        const showFrontier = frontierPages.has(page) && page !== 'frontier';
         const galaxy = window.AstraPageRegistry && typeof window.AstraPageRegistry.galaxyFor === 'function'
             ? window.AstraPageRegistry.galaxyFor(page)
             : null;
@@ -219,10 +219,10 @@ function updateFooterVisibility() {
 window.updateFooterVisibility = updateFooterVisibility;
 
 const ENGLAB_ASSET_VERSION = '20260716v7427RoleWorkflowGateP0';
-const ROLE_LANDING_ASSET_VERSION = '20260719v7437AstraWorkspaceP0';
+const ROLE_LANDING_ASSET_VERSION = '20260731v7968StudentFlowP2';
 const SESSION_STYLE_ASSET_VERSION = '20260719v759A11yP0';
-const SHELL_RUNTIME_ASSET_VERSION = '20260719v75ReviewTeacherLayersP0';
-const PAGE_REGISTRY_ASSET_VERSION = '20260719v75ReviewTeacherLayersP0';
+const SHELL_RUNTIME_ASSET_VERSION = '20260731v7968StudentFlowP2';
+const PAGE_REGISTRY_ASSET_VERSION = '20260731v7968StudentFlowP2';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',
@@ -266,7 +266,7 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/chemistry/chemistry.css?v=20260618ionP1',
         './pages/algorithms/algorithms.css?v=20260618algoTextP1',
         './pages/biology/biology.css?v=20260618neuralP1',
-        './shared/js/module-selector.js?v=20260716v7427RoleWorkflowGateP0',
+        './shared/js/module-selector.js?v=20260731v7968StudentFlowP2',
         './shared/js/experiment-guide.js?v=20260716v7427RoleWorkflowGateP0',
         './shared/js/experiment-export.js?v=20260528v61f',
         './shared/js/quiz-data.js?v=20260618refsP1',
@@ -279,10 +279,10 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/home/home.js?v=20260704qianduanV70'
     ],
     frontier: [
-        './pages/frontier/frontier.css?v=20260719v759A11yP0',
+        './pages/frontier/frontier.css?v=20260731v7968StudentFlowP2',
         './pages/frontier/frontier-manifest.js?v=20260719v755Game001',
         './shared/js/frontier-publication-context.js?v=20260719v757FuturePublicationP0',
-        './shared/js/frontier-learning.js?v=20260719v759A11yP0'
+        './shared/js/frontier-learning.js?v=20260731v7968StudentFlowP2'
     ]
 };
 
@@ -475,6 +475,9 @@ function registerServiceWorker() {
         // Router and all role resources still wait for the server session below.
         registerServiceWorker();
         await window.AstraApplicationSession.bootstrap();
+        if (window.AstraStudentCourseCatalogue && typeof window.AstraStudentCourseCatalogue.refresh === 'function') {
+            await window.AstraStudentCourseCatalogue.refresh(window.AstraApplicationSession.getUser());
+        }
         initApp();
     } catch (error) {
         console.error('[App] authentication bootstrap failed', error);

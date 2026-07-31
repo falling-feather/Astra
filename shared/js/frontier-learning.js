@@ -29,6 +29,14 @@
         return availability.course_access[course.course_key] || { state: 'unavailable' };
     };
     const activityAccess = (availability, activity) => {
+        const session = global.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        const catalogue = global.AstraStudentCourseCatalogue;
+        if (user && user.role === 'student' && catalogue && typeof catalogue.allowsActivity === 'function') {
+            const page = String(activity && activity.activity_key || '').split('.')[0];
+            const moduleId = String(activity && activity.route_slug || '').trim();
+            if (!catalogue.allowsActivity(page, moduleId)) return { state: 'hidden' };
+        }
         if (availability.availability === 'default-open') return { state: 'open' };
         return availability.activity_access[activity.activity_key] || { state: 'unavailable' };
     };
@@ -72,7 +80,7 @@
         stylePromise = new Promise((resolve, reject) => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'pages/frontier/frontier.css?v=20260719v759A11yP0';
+            link.href = 'pages/frontier/frontier.css?v=20260731v7968StudentFlowP2';
             link.dataset.frontierCourseStyle = 'true';
             link.addEventListener('load', resolve, { once: true });
             link.addEventListener('error', () => reject(new Error('Future course style failed to load')), { once: true });
@@ -109,45 +117,63 @@
         const availability = manifest.resolveAvailability();
         const requestedActivity = activityFromHash();
         const defaultActivity = course.activities.find((item) => activityAccess(availability, item).state === 'open') || course.activities.find((item) => activityAccess(availability, item).state !== 'hidden') || course.activities[0];
-        const activity = course.activities.find((item) => item.route_slug === requestedActivity) || defaultActivity;
+        const requestedMatch = course.activities.find((item) => item.route_slug === requestedActivity);
+        const activity = requestedMatch && activityAccess(availability, requestedMatch).state !== 'hidden'
+            ? requestedMatch
+            : defaultActivity;
+        if (requestedActivity && requestedMatch && requestedMatch !== activity && activity) {
+            try {
+                global.history.replaceState(null, '', `#${page}/${activity.route_slug}`);
+            } catch (error) {}
+        }
         return { page, course, activity, availability, courseAccess: courseAccess(availability, course), access: activityAccess(availability, activity) };
     }
 
     function renderCatalogue(runtime, manifest) {
         const availability = manifest.resolveAvailability();
-        const visibleCourses = manifest.courses.filter((course) => course.activities.some((activity) => activityAccess(availability, activity).state !== 'hidden'));
-        const routes = visibleCourses.map((course, index) => {
-            const visibleActivities = course.activities.filter((activity) => activityAccess(availability, activity).state !== 'hidden');
-            const firstOpen = visibleActivities.find((activity) => activityAccess(availability, activity).state === 'open');
-            const access = firstOpen ? { state: 'open' } : courseAccess(availability, course);
-            const routeBody = `
-                <span class="fg-route-index">0${index + 1}</span>
-                <h3>${esc(course.title)}</h3>
-                <p>${esc(course.question)}</p>
-                <span class="fg-route-list">${visibleActivities.map((activity) => `<span data-activity-key="${esc(activity.activity_key)}">${esc(activity.title)}</span>`).join('')}</span>
-                <span class="fg-route-arrow" aria-hidden="true">${access.state === 'open' ? '↗' : '—'}</span>`;
-            if (access.state === 'open') return `<a class="fg-route" href="#${esc(course.page)}/${esc(firstOpen.route_slug)}" data-page="${esc(course.page)}" data-galaxy-key="${esc(course.galaxy_key)}" data-course-key="${esc(course.course_key)}">${routeBody}</a>`;
-            return `<div class="fg-route fg-route--${esc(access.state)}" data-galaxy-key="${esc(course.galaxy_key)}" data-course-key="${esc(course.course_key)}" aria-label="${esc(course.title)}目前不可用">${routeBody}</div>`;
+        const positions = [
+            ['16%', '24%'], ['49%', '10%'], ['82%', '24%'],
+            ['18%', '70%'], ['50%', '82%'], ['82%', '68%']
+        ];
+        const visibleCourses = manifest.courses.map((course) => {
+            const firstOpen = course.activities.find((activity) => activityAccess(availability, activity).state === 'open');
+            return firstOpen ? { course, firstOpen } : null;
+        }).filter(Boolean);
+        const routes = visibleCourses.map(({ course, firstOpen }, index) => {
+            const [x, y] = positions[index] || ['50%', '50%'];
+            return `
+                <a class="fg-star-route" style="--star-x:${x};--star-y:${y};--star-order:${index}" href="#${esc(course.page)}/${esc(firstOpen.route_slug)}" data-page="${esc(course.page)}" data-galaxy-key="${esc(course.galaxy_key)}" data-course-key="${esc(course.course_key)}">
+                    <span class="fg-star-route__signal" aria-hidden="true"><i></i></span>
+                    <span class="fg-star-route__copy">
+                        <small>0${index + 1} / ${esc(course.eyebrow)}</small>
+                        <strong>${esc(course.title)}</strong>
+                        <em>${esc(course.question)}</em>
+                    </span>
+                </a>`;
         }).join('');
-        const stateNotice = availability.availability === 'unavailable' ? '<aside class="fg-state" aria-live="polite"><strong>课程状态暂不可用</strong><span>请稍后再试。</span></aside>' : '';
+        const stateNotice = availability.availability === 'unavailable'
+            ? '<aside class="fg-atlas-state" aria-live="polite"><strong>课程星图暂不可用</strong><span>权威发布状态恢复后才会生成课程入口。</span></aside>'
+            : '';
         runtime.mount.innerHTML = `
             <main class="fg-shell fg-overview" data-galaxy-key="${esc(manifest.galaxy_key)}">
-                <section class="fg-hero" aria-labelledby="future-galaxy-title">
-                    <div>
-                        <div class="fg-eyebrow">FUTURE GALAXY / COURSE ATLAS</div>
-                        <h1 id="future-galaxy-title">把未来拆成<br>可操纵的问题</h1>
-                        <p>六条航线从一个问题开始：先作预测，再操纵变量、观察证据，最后写下能被检验的判断。</p>
+                <figure class="fg-atlas-sky" aria-hidden="true">
+                    <img src="UI/future-galaxy/orbit-observatory.webp" width="1600" height="900" alt="" fetchpriority="high" decoding="async">
+                    <span></span>
+                </figure>
+                <header class="fg-atlas-copy">
+                    <div class="fg-eyebrow">FUTURE GALAXY / LIVE COURSE ATLAS</div>
+                    <h1 id="future-galaxy-title">把未来拆成<br>可操纵的问题</h1>
+                    <p>选择一颗航标星，从预测开始；操纵变量、观察证据，再写下能被检验的判断。</p>
+                </header>
+                <section class="fg-orbit-map" aria-labelledby="future-catalogue-title">
+                    <div class="fg-orbit-map__core" aria-hidden="true">
+                        <span></span><i></i>
                     </div>
-                    <figure class="fg-observatory">
-                        <img src="UI/future-galaxy/orbit-observatory.webp" width="1600" height="900" alt="群山与星空下的天文观测站" loading="lazy" decoding="async">
-                        <figcaption>OBSERVATION IS A METHOD</figcaption>
-                    </figure>
-                </section>
-                ${stateNotice}
-                <section class="fg-catalogue" aria-labelledby="future-catalogue-title">
-                    <div class="fg-catalogue-head"><div><div class="fg-eyebrow">SIX ROUTES</div><h2 id="future-catalogue-title">课程目录</h2></div><p>内容范围由已发布的课程清单决定。</p></div>
+                    <h2 id="future-catalogue-title" class="sr-only">未来星系课程目录</h2>
                     ${routes}
                 </section>
+                ${stateNotice}
+                <div class="fg-atlas-legend" aria-hidden="true"><span>COURSE SIGNALS / ${String(visibleCourses.length).padStart(2, '0')}</span><span>OBSERVATION IS A METHOD</span></div>
             </main>`;
     }
 

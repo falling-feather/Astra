@@ -23,7 +23,7 @@ const Router = {
     _galaxyCacheVersion: '20260704qianduanV70',
     courseSupportScripts: [
         'shared/js/lucide.min.js?v=20260417d',
-        'shared/js/module-selector.js?v=20260716v7427RoleWorkflowGateP0'
+        'shared/js/module-selector.js?v=20260731v7968StudentFlowP2'
     ],
     galaxySupportScripts: {
         astra: [
@@ -47,7 +47,7 @@ const Router = {
         ],
         frontier: [
             'shared/js/lucide.min.js?v=20260417d',
-            'shared/js/frontier-learning.js?v=20260719v759A11yP0',
+            'shared/js/frontier-learning.js?v=20260731v7968StudentFlowP2',
             'shared/js/scroll-animations.js?v=20260630mainV64'
         ]
     },
@@ -85,7 +85,7 @@ const Router = {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return;
                     }
-                    this._pendingModule = null;
+                    this._pendingModule = page === 'student' && (this.coursePages.includes(this.currentPage) || (this.frontierPages.includes(this.currentPage) && this.currentPage !== 'frontier')) ? this.currentPage : null;
                     this._pendingAnchor = null;
                     this._lastAppliedAnchor = null;
                     // Use nav item center as transition origin
@@ -162,7 +162,7 @@ const Router = {
         const session = window.AstraApplicationSession;
         if (!session || typeof session.guardPage !== 'function') return route;
         const allowedPage = session.guardPage(route.page);
-        if (allowedPage === route.page) return route;
+        if (allowedPage === route.page) return window.AstraStudentCourseCatalogue && typeof window.AstraStudentCourseCatalogue.guardRoute === 'function' ? window.AstraStudentCourseCatalogue.guardRoute(route, this.coursePages, this.frontierPages) : route;
         const guarded = { page: allowedPage, moduleId: null, anchorId: null };
         if (window.location.hash.slice(1) !== allowedPage) {
             history.replaceState(null, '', `#${allowedPage}`);
@@ -684,7 +684,7 @@ const Router = {
             return;
         }
 
-        if (page === 'home' || page === 'planets') {
+        if (page === 'home' || page === 'planets' || page === 'frontier') {
             this.onPageEnter(page);
             return;
         }
@@ -887,7 +887,7 @@ const Router = {
             resetScroll();
             requestAnimationFrame(resetScroll);
         }
-        document.body.classList.toggle('home-scroll-locked', page === 'home');
+        document.body.classList.toggle('home-scroll-locked', page === 'home' || page === 'frontier');
 
         // v5.0锛氱Щ闄や寒鑹蹭富棰橈紝鍏ㄧ珯鍥哄畾 dark
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -1022,7 +1022,7 @@ const Router = {
     },
 
     onPageLeave(page) {
-        if (page === 'home') {
+        if (page === 'home' || page === 'frontier') {
             document.body.classList.remove('home-scroll-locked');
         }
         if (page !== 'home' && page !== 'planets' && typeof destroyHeroVisual === 'function') {
@@ -1096,7 +1096,7 @@ const Router = {
     _toggleGalaxyFooters(page) {
         const englabFooter = document.getElementById('site-footer');
         const frontierFooter = document.getElementById('frontier-footer');
-        const showFrontier = this._isFrontierPage(page);
+        const showFrontier = this._isFrontierPage(page) && page !== 'frontier';
         const showEnglab = this._usesEnglabFooter(page);
 
         if (englabFooter) englabFooter.style.display = showEnglab ? '' : 'none';

@@ -38,7 +38,7 @@ const ADMIN_DIAGNOSTIC_PATHS = Object.freeze([
 ]);
 const ROLE_RESOURCE_PATHS = Object.freeze([
   '/pages/student/student.css',
-  '/pages/student/student.js',
+  '/pages/student/student-workbench.js',
   '/pages/teacher/teacher-foundation.css',
   '/pages/teacher/teacher-workbench.css',
   '/pages/teacher/teacher-curriculum.css',
@@ -49,7 +49,7 @@ const ROLE_RESOURCE_PATHS = Object.freeze([
 const ROLE_RESOURCE_EXPECTATIONS = Object.freeze({
   student: Object.freeze({
     styles: Object.freeze(['/pages/student/student.css']),
-    scripts: Object.freeze(['/pages/student/student.js']),
+    scripts: Object.freeze(['/pages/student/student-workbench.js']),
   }),
   teacher: Object.freeze({
     styles: Object.freeze([
@@ -238,7 +238,7 @@ async function criticalArtifactHashes() {
     'shared/js/main.js',
     'shared/js/page-registry.js',
     'shared/js/router.js',
-    'pages/student/student.js',
+    'pages/student/student-workbench.js',
     'pages/teacher/teacher-foundation.css',
     'pages/teacher/teacher-workbench.css',
     'pages/teacher/teacher-curriculum.css',

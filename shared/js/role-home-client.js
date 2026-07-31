@@ -29,7 +29,13 @@
         pending: null,
         unsubscribe: null,
         clickHandler: null,
-        changeHandler: null
+        changeHandler: null,
+        joinDialog: null,
+        joinSubmitHandler: null,
+        joinCancelHandler: null,
+        joinBusy: false,
+        joinIssue: '',
+        joinUncertainClassId: ''
     };
 
     function api() {
@@ -256,7 +262,7 @@
         state.classes = classes;
         if (!classes.length) {
             state.phase = 'empty';
-            issue('class_scope_missing', '你尚未加入可用班级；请先通过“我的学习”加入班级。');
+            issue('class_scope_missing', '你尚未加入可用班级；请先输入教师提供的班级代码或 ID。');
             return;
         }
         if (classes.length === 1) {
@@ -847,6 +853,137 @@
         return `<div class="planets-priority__issue" role="status"><strong>${escapeHtml(state.issue.code)}</strong><p>${escapeHtml(state.issue.message)}</p><button type="button" data-role-home-retry>重新核对</button></div>`;
     }
 
+    function removeJoinPrompt() {
+        const dialog = state.joinDialog;
+        if (!dialog) return;
+        if (state.joinSubmitHandler) dialog.removeEventListener('submit', state.joinSubmitHandler);
+        if (state.joinCancelHandler) dialog.removeEventListener('cancel', state.joinCancelHandler);
+        try {
+            if (dialog.open && typeof dialog.close === 'function') dialog.close();
+        } catch (error) {}
+        dialog.remove();
+        state.joinDialog = null;
+        state.joinSubmitHandler = null;
+        state.joinCancelHandler = null;
+        state.joinBusy = false;
+        state.joinIssue = '';
+        state.joinUncertainClassId = '';
+    }
+
+    function joinPromptMarkup() {
+        const status = state.joinIssue
+            ? `<p class="student-class-join-dialog__status" role="status">${escapeHtml(state.joinIssue)}</p>`
+            : '<p class="student-class-join-dialog__status">加入成功后，系统才会读取本班已发布课程与学习任务。</p>';
+        return `
+            <form method="dialog" data-role-home-join-form>
+                <span class="student-class-join-dialog__eyebrow">LEARNER ONBOARDING</span>
+                <h2>先加入班级</h2>
+                <p>请输入教师提供的班级代码或数字 ID。</p>
+                <label>
+                    <span>班级代码 / ID</span>
+                    <input name="class_id" inputmode="numeric" pattern="[0-9]+" min="1" autocomplete="off" required${state.joinBusy || state.joinUncertainClassId ? ' disabled' : ''}>
+                </label>
+                ${status}
+                <div>
+                    <button type="submit"${state.joinBusy || state.joinUncertainClassId ? ' disabled' : ''}>${state.joinBusy ? '正在加入…' : state.joinUncertainClassId ? '等待权威对账' : '加入班级'}</button>
+                </div>
+            </form>`;
+    }
+
+    async function submitJoinPrompt(form) {
+        if (state.joinBusy || state.joinUncertainClassId || !state.user || state.user.role !== 'student') return;
+        const classId = positiveId(new FormData(form).get('class_id'));
+        if (!classId) {
+            state.joinIssue = '请输入有效的数字班级 ID。';
+            syncJoinPrompt();
+            return;
+        }
+        state.joinBusy = true;
+        state.joinIssue = '';
+        syncJoinPrompt();
+        let confirmed = false;
+        try {
+            await api().request(`/api/classes/${classId}/join`, {
+                method: 'POST',
+                body: { role: 'student' }
+            });
+            const classes = list(await api().request('/api/classes', { params: { mine: true } }));
+            confirmed = classes.some((item) => positiveId(item && item.id) === classId);
+            if (!confirmed) {
+                state.joinUncertainClassId = String(classId);
+                state.joinIssue = '加入请求已送达，但权威班级列表尚未确认；系统不会重复发送。';
+            }
+        } catch (error) {
+            const ambiguous = typeof api().isAmbiguousMutation === 'function' && api().isAmbiguousMutation(error);
+            if (ambiguous) {
+                state.joinUncertainClassId = String(classId);
+                try {
+                    const classes = list(await api().request('/api/classes', { params: { mine: true } }));
+                    confirmed = classes.some((item) => positiveId(item && item.id) === classId);
+                } catch (readError) {}
+                if (!confirmed) state.joinIssue = '加入结果暂未确认；系统没有自动重试，请稍后重新登录核对。';
+            } else {
+                state.joinIssue = typeof api().message === 'function'
+                    ? api().message(error)
+                    : '加入班级失败，请核对代码后重试。';
+            }
+        } finally {
+            state.joinBusy = false;
+        }
+        if (confirmed) {
+            removeJoinPrompt();
+            global.dispatchEvent(new CustomEvent('astra:class-membership-changed', {
+                detail: { class_id: classId }
+            }));
+            load();
+            return;
+        }
+        syncJoinPrompt();
+    }
+
+    function syncJoinPrompt() {
+        const shouldShow = Boolean(
+            state.user
+            && state.user.role === 'student'
+            && state.issue
+            && state.issue.code === 'class_scope_missing'
+        );
+        if (!shouldShow) {
+            if (state.joinDialog && state.user && state.user.role !== 'student') removeJoinPrompt();
+            return;
+        }
+        let dialog = state.joinDialog;
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.className = 'student-class-join-dialog';
+            dialog.setAttribute('aria-labelledby', 'student-class-join-title');
+            state.joinSubmitHandler = (event) => {
+                const form = event.target;
+                if (!(form instanceof HTMLFormElement) || !form.matches('[data-role-home-join-form]')) return;
+                event.preventDefault();
+                submitJoinPrompt(form);
+            };
+            state.joinCancelHandler = (event) => {
+                event.preventDefault();
+                requestAnimationFrame(() => dialog.querySelector('input:not(:disabled)')?.focus());
+            };
+            dialog.addEventListener('submit', state.joinSubmitHandler);
+            dialog.addEventListener('cancel', state.joinCancelHandler);
+            document.body.appendChild(dialog);
+            state.joinDialog = dialog;
+        }
+        dialog.innerHTML = joinPromptMarkup().replace('<h2>', '<h2 id="student-class-join-title">');
+        if (!dialog.open) {
+            try {
+                if (typeof dialog.showModal === 'function') dialog.showModal();
+                else dialog.setAttribute('open', '');
+            } catch (error) {
+                dialog.setAttribute('open', '');
+            }
+            requestAnimationFrame(() => dialog.querySelector('input:not(:disabled)')?.focus());
+        }
+    }
+
     function render() {
         if (!state.host || !state.user) return;
         const copy = ROLE_COPY[state.user.role] || ROLE_COPY.student;
@@ -857,6 +994,7 @@
             ? `<p class="planets-priority__pending">有 ${Number(state.pending.count)} 条学习证据尚未同步；联网后会自动使用原事件编号对账。</p>`
             : '';
         state.host.innerHTML = `<div class="planets-section-heading"><h2>${escapeHtml(copy.title)}</h2><span>${escapeHtml(copy.eyebrow)}</span></div>${controlsMarkup()}${pending}${sync}${issueMarkup()}${taskMarkup()}`;
+        syncJoinPrompt();
     }
 
     function mount(root, user) {
@@ -942,6 +1080,7 @@
         state.unsubscribe = null;
         state.clickHandler = null;
         state.changeHandler = null;
+        removeJoinPrompt();
         resetData();
         state.phase = 'idle';
     }

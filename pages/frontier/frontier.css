@@ -1,28 +1,253 @@
-/* GAME-001: a sparse, line-led shell for the Future Galaxy course catalogue. */
+/* FE-020: single-viewport star atlas plus the existing line-led course shell. */
 .frontier-page { color: #e8efff; background: #050b19; min-height: 100%; }
+.frontier-overview-page.active {
+  height: 100dvh;
+  min-height: 0;
+  padding-top: 0;
+  overflow: hidden;
+}
+.frontier-overview-page.active .frontier-runtime-mount { height: 100%; }
 .fg-shell { --fg-line: rgba(156, 190, 255, .24); --fg-muted: #9db0cc; --fg-accent: #8ce7ff; --fg-warm: #ffb86b; max-width: 1240px; margin: 0 auto; padding: 112px 34px 76px; font-family: var(--font-sans, "Noto Sans SC", system-ui, sans-serif); }
 .fg-eyebrow { display: flex; gap: 10px; align-items: center; color: var(--fg-accent); font: 600 11px/1.2 var(--font-mono, ui-monospace, monospace); letter-spacing: .16em; }
 .fg-eyebrow::before { content: ''; width: 22px; height: 1px; background: currentColor; }
-.fg-hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr); gap: 46px; align-items: end; padding-bottom: 36px; border-bottom: 1px solid var(--fg-line); }
-.fg-hero h1, .fg-course-head h1 { max-width: 780px; margin: 15px 0 16px; color: #f5f8ff; font-size: clamp(2.65rem, 6vw, 5.75rem); line-height: .98; font-weight: 650; letter-spacing: -.055em; }
-.fg-hero p, .fg-course-head p { max-width: 650px; color: var(--fg-muted); font-size: 16px; line-height: 1.8; }
-.fg-observatory { position: relative; min-height: 330px; overflow: hidden; border-left: 1px solid var(--fg-line); background: #071225; }
-.fg-observatory img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .84; }
-.fg-observatory figcaption { position: absolute; right: 14px; bottom: 12px; margin: 0; color: #dce7f9; font: 11px/1.4 var(--font-mono, ui-monospace, monospace); letter-spacing: .08em; }
-.fg-state { display: flex; justify-content: space-between; gap: 16px; margin: 27px 0 14px; padding: 12px 0; border-top: 1px solid var(--fg-line); border-bottom: 1px solid var(--fg-line); color: var(--fg-muted); font-size: 13px; }
-.fg-state strong { color: #dbe6fa; font-weight: 600; }
-.fg-catalogue { border-top: 1px solid var(--fg-line); }
-.fg-catalogue-head { display: flex; justify-content: space-between; align-items: end; gap: 22px; margin: 42px 0 12px; }
-.fg-catalogue-head h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.3rem); letter-spacing: -.035em; }
-.fg-catalogue-head p { margin: 0; color: var(--fg-muted); font-size: 13px; }
-.fg-route { display: grid; grid-template-columns: 52px minmax(160px, .7fr) minmax(230px, 1.2fr) minmax(160px, .75fr) 24px; gap: 18px; align-items: center; min-height: 100px; color: inherit; text-decoration: none; border-bottom: 1px solid var(--fg-line); transition: background-color .2s ease, padding .2s ease; }
-.fg-route:hover, .fg-route:focus-visible { padding-inline: 13px; background: rgba(130, 195, 255, .08); outline: none; }
-.fg-route-index { color: var(--fg-accent); font: 500 12px var(--font-mono, ui-monospace, monospace); }
-.fg-route h3 { margin: 0; color: #f3f7ff; font-size: 21px; letter-spacing: -.025em; }
-.fg-route p, .fg-route span { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.6; }
-.fg-route-arrow { color: var(--fg-accent); font-size: 20px; }
-.fg-route-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.fg-route-list span { padding-bottom: 2px; border-bottom: 1px solid rgba(140,231,255,.38); }
+.fg-overview {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: clamp(80px, 10vh, 104px) clamp(20px, 4.2vw, 68px) 24px;
+  background: #030817;
+}
+.fg-atlas-sky {
+  position: absolute;
+  z-index: -3;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  background: #030817;
+}
+.fg-atlas-sky img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 58% 52%;
+  opacity: .53;
+  filter: saturate(.82) contrast(1.1);
+  transform: scale(1.04);
+  animation: fg-sky-breathe 18s ease-in-out infinite alternate;
+}
+.fg-atlas-sky::before,
+.fg-atlas-sky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.fg-atlas-sky::before {
+  background:
+    radial-gradient(circle at 52% 46%, rgba(86, 158, 235, .1), transparent 21%),
+    linear-gradient(90deg, rgba(2, 8, 23, .92) 0%, rgba(2, 8, 23, .56) 38%, rgba(2, 8, 23, .36) 70%, rgba(2, 8, 23, .78) 100%),
+    linear-gradient(180deg, rgba(3, 8, 20, .34), rgba(3, 8, 20, .66));
+}
+.fg-atlas-sky::after {
+  opacity: .5;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.9) 0 1px, transparent 1.3px),
+    radial-gradient(circle, rgba(140,231,255,.7) 0 1px, transparent 1.5px);
+  background-position: 13px 21px, 61px 97px;
+  background-size: 163px 163px, 247px 247px;
+  animation: fg-stars-drift 24s linear infinite alternate;
+}
+.fg-atlas-sky > span {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 15%, rgba(2, 7, 18, .2) 58%, rgba(2, 7, 18, .76) 100%);
+}
+.fg-atlas-copy {
+  position: relative;
+  z-index: 4;
+  width: min(500px, 45vw);
+  pointer-events: none;
+}
+.fg-atlas-copy h1 {
+  margin: 14px 0 13px;
+  color: #f4f7ff;
+  font-size: clamp(2.2rem, 4.8vw, 5.1rem);
+  font-weight: 620;
+  line-height: .98;
+  letter-spacing: -.06em;
+  text-wrap: balance;
+}
+.fg-atlas-copy p {
+  max-width: 470px;
+  margin: 0;
+  color: #acbdd5;
+  font-size: clamp(.78rem, 1.2vw, .98rem);
+  line-height: 1.75;
+}
+.fg-orbit-map {
+  position: absolute;
+  z-index: 2;
+  inset: clamp(250px, 29vh, 286px) clamp(24px, 5vw, 78px) 44px clamp(24px, 4vw, 68px);
+  border: 1px solid rgba(140, 231, 255, .13);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, rgba(117, 189, 255, .13) 0 1px, transparent 2px),
+    radial-gradient(circle at center, transparent 0 21%, rgba(140,231,255,.11) 21.2% 21.5%, transparent 21.8% 39%, rgba(140,231,255,.09) 39.2% 39.45%, transparent 39.8% 57%, rgba(140,231,255,.07) 57.2% 57.4%, transparent 57.8%);
+  box-shadow: inset 0 0 90px rgba(33, 105, 173, .06);
+}
+.fg-orbit-map::before,
+.fg-orbit-map::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+.fg-orbit-map::before {
+  inset: 50% -8%;
+  border-top: 1px solid rgba(140, 231, 255, .11);
+  transform: rotate(-12deg);
+}
+.fg-orbit-map::after {
+  inset: -6% 50%;
+  border-left: 1px solid rgba(140, 231, 255, .1);
+  transform: rotate(19deg);
+}
+.fg-orbit-map__core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(72px, 8vw, 116px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(140,231,255,.38);
+  border-radius: 50%;
+  box-shadow: 0 0 45px rgba(88, 179, 255, .18), inset 0 0 28px rgba(88, 179, 255, .1);
+}
+.fg-orbit-map__core::before,
+.fg-orbit-map__core::after {
+  content: '';
+  position: absolute;
+  border: 1px solid rgba(140,231,255,.22);
+  border-radius: 50%;
+}
+.fg-orbit-map__core::before { inset: 14%; }
+.fg-orbit-map__core::after { inset: 33%; background: #9befff; box-shadow: 0 0 24px rgba(140,231,255,.8); }
+.fg-star-route {
+  position: absolute;
+  left: var(--star-x);
+  top: var(--star-y);
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: clamp(142px, 15vw, 220px);
+  min-height: 58px;
+  padding: 7px 9px 7px 3px;
+  color: inherit;
+  text-decoration: none;
+  transform: translate(-50%, -50%);
+  border: 1px solid transparent;
+  background: linear-gradient(90deg, rgba(5, 15, 34, .64), rgba(5, 15, 34, .08));
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+.fg-star-route:hover,
+.fg-star-route:focus-visible {
+  border-color: rgba(140,231,255,.5);
+  background: rgba(7, 25, 50, .8);
+  outline: 0;
+  transform: translate(-50%, -50%) scale(1.035);
+}
+.fg-star-route__signal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(140,231,255,.36);
+  border-radius: 50%;
+}
+.fg-star-route__signal::before,
+.fg-star-route__signal::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(140,231,255,.16);
+}
+.fg-star-route__signal::before { inset: -6px; }
+.fg-star-route__signal::after { inset: 8px; }
+.fg-star-route__signal i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a8f2ff;
+  box-shadow: 0 0 16px #8ce7ff;
+}
+.fg-star-route__copy { display: grid; min-width: 0; }
+.fg-star-route__copy small {
+  overflow: hidden;
+  color: #78bad6;
+  font: 500 8px/1.3 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: .08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fg-star-route__copy strong {
+  margin-top: 3px;
+  color: #f1f6ff;
+  font-size: clamp(.82rem, 1.18vw, 1.02rem);
+  font-weight: 580;
+}
+.fg-star-route__copy em {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #8fa3bf;
+  font-size: clamp(.58rem, .78vw, .7rem);
+  font-style: normal;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fg-atlas-state {
+  position: absolute;
+  z-index: 5;
+  right: clamp(20px, 4vw, 60px);
+  bottom: 54px;
+  display: grid;
+  gap: 5px;
+  max-width: 330px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,184,107,.38);
+  color: #adbbcf;
+  background: rgba(5, 12, 27, .86);
+  font-size: 11px;
+}
+.fg-atlas-state strong { color: #ffd2a1; }
+.fg-atlas-legend {
+  position: absolute;
+  z-index: 4;
+  left: clamp(20px, 4.2vw, 68px);
+  right: clamp(20px, 4.2vw, 68px);
+  bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 9px;
+  border-top: 1px solid rgba(156, 190, 255, .22);
+  color: #66809f;
+  font: 8px/1.2 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: .13em;
+}
+@keyframes fg-sky-breathe {
+  from { transform: scale(1.04) translate3d(-.3%, 0, 0); }
+  to { transform: scale(1.075) translate3d(.4%, -.5%, 0); }
+}
+@keyframes fg-stars-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(12px, -8px, 0); }
+}
 .fg-footer-note { margin: 38px 0 0; color: var(--fg-muted); font-size: 12px; line-height: 1.7; }
 
 .fg-course { padding-top: 92px; }
@@ -96,6 +321,39 @@
 
 @media (max-width: 760px) {
   .fg-shell { padding: 86px 18px 50px; }
+  .fg-overview { height: 100dvh; padding: 70px 14px 14px; }
+  .fg-atlas-sky img { object-position: 62% 50%; opacity: .42; }
+  .fg-atlas-copy { width: min(100%, 350px); }
+  .fg-atlas-copy .fg-eyebrow { font-size: 8px; }
+  .fg-atlas-copy h1 { margin: 10px 0 8px; font-size: clamp(2.05rem, 10vw, 2.75rem); }
+  .fg-atlas-copy p { max-width: 330px; font-size: .72rem; line-height: 1.55; }
+  .fg-orbit-map {
+    inset: 218px 8px 36px;
+    border-radius: 42%;
+    background:
+      radial-gradient(circle at center, rgba(117, 189, 255, .15) 0 1px, transparent 2px),
+      radial-gradient(circle at center, transparent 0 23%, rgba(140,231,255,.1) 23.2% 23.6%, transparent 24% 48%, rgba(140,231,255,.08) 48.2% 48.5%, transparent 49%);
+  }
+  .fg-orbit-map__core { width: 64px; opacity: .62; }
+  .fg-star-route {
+    width: 44%;
+    min-height: 56px;
+    grid-template-columns: 31px minmax(0, 1fr);
+    gap: 7px;
+    padding: 5px 5px 5px 1px;
+  }
+  .fg-star-route:nth-of-type(1) { left: 25% !important; top: 18% !important; }
+  .fg-star-route:nth-of-type(2) { left: 75% !important; top: 18% !important; }
+  .fg-star-route:nth-of-type(3) { left: 25% !important; top: 48% !important; }
+  .fg-star-route:nth-of-type(4) { left: 75% !important; top: 48% !important; }
+  .fg-star-route:nth-of-type(5) { left: 25% !important; top: 78% !important; }
+  .fg-star-route:nth-of-type(6) { left: 75% !important; top: 78% !important; }
+  .fg-star-route__signal { width: 29px; height: 29px; }
+  .fg-star-route__copy small { font-size: 6.5px; }
+  .fg-star-route__copy strong { font-size: .78rem; }
+  .fg-star-route__copy em { display: none; }
+  .fg-atlas-state { left: 14px; right: 14px; bottom: 38px; max-width: none; }
+  .fg-atlas-legend { left: 14px; right: 14px; bottom: 9px; font-size: 6.5px; }
   .fg-hero, .fg-course-head, .fg-lab { grid-template-columns: 1fr; gap: 25px; }
   .fg-hero h1 { font-size: clamp(2.7rem, 14vw, 4.15rem); }
   .fg-observatory { min-height: 235px; border-left: 0; border-top: 1px solid var(--fg-line); }
@@ -116,5 +374,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fg-route { transition: none; }
+  .fg-route,
+  .fg-star-route { transition: none; }
+  .fg-atlas-sky img,
+  .fg-atlas-sky::after { animation: none; }
 }

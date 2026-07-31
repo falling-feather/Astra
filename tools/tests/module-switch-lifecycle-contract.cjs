@@ -369,7 +369,11 @@ function configureStudentPublication(harness, access) {
   pendingSwitch.selector._initModule = (page, id) => pendingSwitch.order.push(`pending-switch-init:${page}:${id}`);
   assert.equal(pendingSwitch.selector.openModule('physics', 'mechanics'), true);
   assert.ok(pendingSwitch.selector._publicationGatePending.physics);
-  assert.equal(pendingSwitch.selector._publicationGateNodes.physics.state, 'checking');
+  assert.equal(
+    pendingSwitch.selector._publicationGateNodes.physics,
+    undefined,
+    'authority checks stay behind the discoverable list instead of rendering a course gate'
+  );
   const pendingSwitchSignal = pendingSwitch.selector._publicationGatePending.physics.controller.signal;
   assert.equal(pendingSwitchSignal.aborted, false);
   assert.equal(pendingSwitch.selector.openModule('physics', 'gas-laws'), true);
@@ -398,8 +402,8 @@ function configureStudentPublication(harness, access) {
   assert.equal(pendingClose.selector.openModule('physics', 'mechanics'), true);
   assert.equal(
     pendingClose.order.filter(item => item === 'publication-gate:checking:').length,
-    1,
-    'reopening the same pending module must not leak another gate'
+    0,
+    'reopening the same pending module must keep authority work invisible'
   );
   const pendingCloseSignal = pendingClose.selector._publicationGatePending.physics.controller.signal;
   assert.equal(pendingCloseSignal.aborted, false);

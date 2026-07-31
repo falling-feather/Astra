@@ -8,6 +8,25 @@
         linear-gradient(180deg, #07131e 0%, #091722 46%, #07121c 100%);
 }
 
+.student-page .student-shared-rail {
+    --atlas-bg: #060a12;
+    --atlas-line: rgba(142, 174, 204, 0.18);
+    --atlas-text: #edf6ff;
+    --atlas-muted: #8291a5;
+    --atlas-cyan: #6edbff;
+    width: 232px;
+    padding: 28px 20px 24px;
+}
+
+.student-page .student-shared-rail .planets-role-nav a[aria-current='page'] {
+    color: var(--atlas-text);
+    background: linear-gradient(90deg, rgba(110, 219, 255, 0.08), transparent);
+}
+
+.student-page .student-shared-rail .planets-role-nav a[aria-current='page']::before {
+    height: 24px;
+}
+
 .student-workbench {
     --student-green: #43c98d;
     --student-green-strong: #20b874;
@@ -82,12 +101,142 @@
 }
 
 .student-workbench__controls[hidden],
+.student-scope-control[hidden],
 .student-dashboard[hidden],
 .student-layout[hidden],
 .student-join-state[hidden],
 .student-network[hidden],
 .student-flash[hidden] {
     display: none !important;
+}
+
+.student-panel--context {
+    grid-column: 1 / -1;
+}
+
+.student-course-context__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--student-border);
+}
+
+.student-course-context__header > div > span {
+    color: var(--student-green);
+    font: 0.68rem/1.2 var(--font-mono, monospace);
+    letter-spacing: 0.14em;
+}
+
+.student-course-context__header h2 {
+    margin: 8px 0 6px;
+    color: #f4fbf8;
+    font-size: clamp(1.35rem, 2vw, 1.9rem);
+}
+
+.student-course-context__header p {
+    max-width: 720px;
+    margin: 0;
+    color: var(--student-muted);
+    font-size: 0.82rem;
+    line-height: 1.65;
+}
+
+.student-course-context__header a {
+    display: inline-flex;
+    align-items: center;
+    align-self: start;
+    gap: 7px;
+    min-height: 44px;
+    padding: 0 13px;
+    border: 1px solid var(--student-border-strong);
+    border-radius: 5px;
+    color: #dbe9e4;
+    text-decoration: none;
+}
+
+.student-course-context__header a svg {
+    width: 16px;
+    height: 16px;
+}
+
+.student-course-context__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    padding: 1px 24px 0;
+}
+
+.student-course-context__metrics div {
+    display: grid;
+    gap: 6px;
+    min-height: 92px;
+    align-content: center;
+    padding: 14px 18px;
+    border: 1px solid var(--student-border);
+    background: rgba(4, 15, 23, 0.45);
+}
+
+.student-course-context__metrics span {
+    color: var(--student-muted);
+    font-size: 0.72rem;
+}
+
+.student-course-context__metrics strong {
+    color: #eff9f5;
+    font-size: 1.35rem;
+}
+
+.student-course-context__bar {
+    height: 3px;
+    margin: 16px 24px 0;
+    overflow: hidden;
+    background: rgba(151, 177, 191, 0.16);
+}
+
+.student-course-context__bar span {
+    display: block;
+    height: 100%;
+    background: var(--student-green);
+    transition: width 180ms ease;
+}
+
+.student-course-note {
+    display: grid;
+    gap: 9px;
+    padding: 20px 24px 24px;
+    color: #dce8e4;
+    font-size: 0.8rem;
+}
+
+.student-course-note > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.student-course-note small,
+.student-course-note output {
+    color: var(--student-muted);
+    font-size: 0.7rem;
+}
+
+.student-course-note textarea {
+    width: 100%;
+    min-height: 112px;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 13px 14px;
+    border: 1px solid var(--student-border);
+    border-radius: 5px;
+    color: #edf7f3;
+    background: rgba(5, 16, 24, 0.74);
+    font: inherit;
+    line-height: 1.65;
+}
+
+.student-course-note output {
+    justify-self: end;
 }
 
 .student-scope-control {
@@ -204,6 +353,67 @@
     width: 100%;
 }
 
+.student-add-class-dialog {
+    width: min(440px, calc(100vw - 32px));
+    padding: 0;
+    border: 1px solid rgba(101, 217, 157, 0.4);
+    border-radius: 10px;
+    color: #edf7f2;
+    background: #0a1924;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+}
+
+.student-add-class-dialog::backdrop {
+    background: rgba(2, 8, 13, 0.76);
+    backdrop-filter: blur(5px);
+}
+
+.student-add-class-dialog form {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+}
+
+.student-add-class-dialog form > span {
+    color: var(--student-green);
+    font: 0.68rem/1.2 var(--font-mono, monospace);
+    letter-spacing: 0.14em;
+}
+
+.student-add-class-dialog h2,
+.student-add-class-dialog p {
+    margin: 0;
+}
+
+.student-add-class-dialog p {
+    color: var(--student-muted);
+    line-height: 1.65;
+}
+
+.student-add-class-dialog label {
+    display: grid;
+    gap: 8px;
+    color: #dce8e4;
+    font-size: 0.8rem;
+}
+
+.student-add-class-dialog input {
+    min-height: 46px;
+    padding: 0 13px;
+    border: 1px solid var(--student-border-strong);
+    border-radius: 7px;
+    outline: 0;
+    color: #f2faf7;
+    background: rgba(3, 13, 20, 0.78);
+    font: inherit;
+}
+
+.student-add-class-dialog form > div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 .student-auth-card,
 .student-panel,
 .student-empty-hero {
@@ -296,6 +506,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr);
     grid-template-areas:
+        "context context"
         "today progress"
         "course submission"
         "assignments submission"
@@ -311,6 +522,7 @@
 }
 
 .student-panel--today { grid-area: today; }
+.student-panel--context { grid-area: context; padding: 0; }
 .student-panel--progress { grid-area: progress; }
 .student-panel--course { grid-area: course; }
 .student-panel--assignments { grid-area: assignments; }
@@ -1203,6 +1415,7 @@
     .student-layout {
         grid-template-columns: 1fr;
         grid-template-areas:
+            "context"
             "today"
             "course"
             "assignments"
@@ -1259,6 +1472,36 @@
     .student-panel {
         padding: 15px;
         border-radius: 8px;
+    }
+
+    .student-panel--context {
+        padding: 0;
+    }
+
+    .student-course-context__header {
+        display: grid;
+        padding: 18px;
+    }
+
+    .student-course-context__metrics {
+        grid-template-columns: 1fr;
+        padding-inline: 18px;
+    }
+
+    .student-course-context__metrics div {
+        min-height: 72px;
+    }
+
+    .student-course-context__bar {
+        margin-inline: 18px;
+    }
+
+    .student-course-note {
+        padding: 18px;
+    }
+
+    .student-course-note > span {
+        display: grid;
     }
 
     .student-panel__header {

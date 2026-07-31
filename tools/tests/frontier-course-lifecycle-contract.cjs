@@ -154,7 +154,7 @@ assert.ok(humanities._buildModel().coTerms.length <= baselineHumanities.coTerms.
   'renderer.renderLists.dispose', 'renderer.dispose', 'renderer.forceContextLoss', 'setAnimationLoop(null)',
   "import('../../shared/vendor/three-r185/three.module.js')", 'mountCanvasVisual'
 ].forEach((token) => assert.ok(runtime.includes(token), `future lifecycle must include ${token}`));
-assert.match(runtime, /course\.activities\.some\(\(activity\) => activityAccess\(availability, activity\)\.state !== 'hidden'\)/, 'courses with only hidden activity must not render in catalogue');
+assert.match(runtime, /course\.activities\.find\(\(activity\) => activityAccess\(availability, activity\)\.state === 'open'\)/, 'courses without an open activity must not render in catalogue');
 assert.ok(runtime.includes('activityAccess(route.availability, item)'), 'activity access must drive child lesson links');
 assert.ok(runtime.includes('route_slug'), 'hash routes must use manifest route slugs');
 assert.ok(!runtime.includes('href="#${esc(course.page)}/${esc(item.activity_key)}"'), 'stable activity keys must not leak into hashes');
@@ -192,7 +192,7 @@ assert.doesNotMatch(index, /<script src="shared\/js\/frontier-learning\.js/, 'Fu
 
 const main = read('shared/js/main.js');
 assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=20260719v755Game001'"));
-assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260719v759A11yP0'"));
+assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260731v7968StudentFlowP2'"));
 assert.ok(!main.includes("'./pages/cosmos/earth-sun.js?v=20260630mainV64'"), 'future galaxy must not warm every legacy activity');
 const registry = read('shared/js/page-registry.js');
 assert.ok(registry.includes("ready: 'initFrontierCourse'"));
@@ -217,7 +217,8 @@ const serviceWorker = read('sw.js');
 });
 assert.doesNotMatch(baseCss, /future-galaxy-hero-(?:sky|nebula)\.png/);
 assert.doesNotMatch(serviceWorker, /future-galaxy-hero-(?:sky|nebula)\.(?:png|webp)/, 'future-only backgrounds must not inflate the global app shell');
-assert.match(baseCss, /\.frontier-overview-page\.active\s*\{[\s\S]*?height:\s*auto;[\s\S]*?max-height:\s*none;[\s\S]*?overflow:\s*hidden;/, 'the catalogue must grow below one viewport while clipping decorative overflow');
+assert.match(frontierCss, /\.frontier-overview-page\.active\s*\{[\s\S]*?height:\s*100dvh;[\s\S]*?padding-top:\s*0;[\s\S]*?overflow:\s*hidden;/, 'the star catalogue must remain a single non-scrolling viewport');
+assert.match(main, /const showFrontier = frontierPages\.has\(page\) && page !== 'frontier'/, 'the single-screen catalogue must not render a second footer below the viewport');
 const networkRuntime = read('pages/infotech/network-layers.js');
 assert.match(networkRuntime, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);
 assert.match(networkRuntime, /Math\.min\(window\.devicePixelRatio \|\| 1, this\.reducedMotion \? 1 : 1\.5\)/, 'Canvas DPR must be bounded');

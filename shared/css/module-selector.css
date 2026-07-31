@@ -338,6 +338,14 @@
     border-color: var(--card-accent, var(--accent-blue));
 }
 
+.learning-sources-section {
+    max-width: 1180px;
+    margin: var(--space-5) auto var(--space-7);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
 .learning-path {
     grid-column: 1 / -1;
     display: grid;
@@ -638,7 +646,8 @@
     display: none;
 }
 
-.page:not(.module-gallery-active) .learning-overview {
+.page:not(.module-gallery-active) .learning-overview,
+.page:not(.module-gallery-active) .learning-sources-section {
     display: none;
 }
 
