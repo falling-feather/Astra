@@ -165,8 +165,6 @@ const ModuleSelector = {
             </div>
             <div class="learning-overview__ledger" aria-label="学习概览">
                 <div><span>实验数</span><strong>${activeCount}</strong></div>
-                <div><span>学习方式</span><strong>互动观察</strong></div>
-                <div><span>练习入口</span><strong>小测验</strong></div>
             </div>
             <div class="learning-path" aria-label="${label}推荐学习起点">
                 ${featured}

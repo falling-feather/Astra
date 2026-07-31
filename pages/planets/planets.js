@@ -4,7 +4,7 @@
 (function attachPlanetsOverview(global) {
     'use strict';
 
-    const PLANETS_ASSET_VERSION = '20260731v7968StudentFlowP2';
+    const PLANETS_ASSET_VERSION = '20260731v7969StudentUiP0';
     const ROLE_VIEW = Object.freeze({
         student: Object.freeze({
             label: '学生',
@@ -97,6 +97,45 @@
         const parsed = Number(value);
         return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
     }
+
+    let rememberedStudentScope = Object.freeze({ user_id: 0, class_id: 0, course_id: 0 });
+
+    global.AstraStudentScopeSelection = Object.freeze({
+        read(user) {
+            const userId = positiveId(user && (user.id || user.user_id));
+            if (!userId || String(user && user.role || '') !== 'student' || rememberedStudentScope.user_id !== userId) {
+                return Object.freeze({ class_id: 0, course_id: 0 });
+            }
+            return Object.freeze({
+                class_id: rememberedStudentScope.class_id,
+                course_id: rememberedStudentScope.course_id
+            });
+        },
+        update(user, classId, courseId) {
+            const userId = positiveId(user && (user.id || user.user_id));
+            if (!userId || String(user && user.role || '') !== 'student') return false;
+            rememberedStudentScope = Object.freeze({
+                user_id: userId,
+                class_id: positiveId(classId),
+                course_id: positiveId(courseId)
+            });
+            try {
+                global.dispatchEvent(new CustomEvent('astra:student-scope-selected', {
+                    detail: {
+                        class_id: rememberedStudentScope.class_id,
+                        course_id: rememberedStudentScope.course_id
+                    }
+                }));
+            } catch (error) {}
+            return true;
+        },
+        clear(user) {
+            const userId = positiveId(user && (user.id || user.user_id));
+            if (userId && rememberedStudentScope.user_id !== userId) return false;
+            rememberedStudentScope = Object.freeze({ user_id: 0, class_id: 0, course_id: 0 });
+            return true;
+        }
+    });
 
     function courseIdentity(course) {
         return `${String(course && course.galaxy_key || '')}:${String(course && course.course_key || '')}`;

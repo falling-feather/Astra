@@ -107,6 +107,20 @@
         state.issue = Object.freeze({ code, message });
     }
 
+    function rememberedStudentScope() {
+        const owner = global.AstraStudentScopeSelection;
+        if (!owner || typeof owner.read !== 'function' || !state.user) {
+            return { class_id: 0, course_id: 0 };
+        }
+        return owner.read(state.user) || { class_id: 0, course_id: 0 };
+    }
+
+    function rememberStudentScope(classId, courseId) {
+        const owner = global.AstraStudentScopeSelection;
+        if (!owner || typeof owner.update !== 'function' || !state.user) return;
+        owner.update(state.user, classId, courseId);
+    }
+
     function evidenceAuthorityIssue(change) {
         if (!change || change.type !== 'authority-cleared') return null;
         return Object.freeze({
@@ -265,6 +279,13 @@
             issue('class_scope_missing', '你尚未加入可用班级；请先输入教师提供的班级代码或 ID。');
             return;
         }
+        const remembered = rememberedStudentScope();
+        const rememberedClass = classes.find(item => positiveId(item && item.id) === positiveId(remembered.class_id));
+        if (rememberedClass) {
+            state.selected.class_id = String(rememberedClass.id);
+            await loadStudentClass(scope, rememberedClass.id);
+            return;
+        }
         if (classes.length === 1) {
             state.selected.class_id = String(classes[0].id);
             await loadStudentClass(scope, classes[0].id);
@@ -285,20 +306,23 @@
         state.task = null;
         state.recovery = null;
         if (!courses.length) {
+            rememberStudentScope(classId, 0);
             state.phase = 'empty';
             issue('course_scope_missing', '当前班级尚未发布可用课程，请联系教师。');
             return;
         }
-        if (courses.length === 1) {
-            state.selected.course_id = String(courses[0].id);
-            await loadStudentScope(scope, classId, courses[0].id);
-            return;
-        }
-        state.phase = 'scope-required';
-        issue('course_selection_required', '当前班级有多个课程，请明确选择后再恢复学习。');
+        const remembered = rememberedStudentScope();
+        const rememberedCourse = positiveId(remembered.class_id) === positiveId(classId)
+            ? courses.find(item => positiveId(item && item.id) === positiveId(remembered.course_id))
+            : null;
+        const preferredCourse = rememberedCourse || courses[0];
+        state.selected.course_id = String(preferredCourse.id);
+        rememberStudentScope(classId, preferredCourse.id);
+        await loadStudentScope(scope, classId, preferredCourse.id);
     }
 
     async function loadStudentScope(scope, classId, courseId) {
+        rememberStudentScope(classId, courseId);
         state.phase = 'loading';
         state.issue = null;
         const pendingRefreshGeneration = ++state.pendingRefreshGeneration;

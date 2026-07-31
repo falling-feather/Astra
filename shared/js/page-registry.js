@@ -4,11 +4,11 @@
 
     if (global.AstraPageRegistry) return;
 
-    const ROLE_RESOURCE_VERSION = '20260731v7968StudentFlowP2';
+    const ROLE_RESOURCE_VERSION = '20260731v7969StudentUiP0';
     const TEACHER_RESOURCE_VERSION = '20260730v785TeacherNaturalWorkflowP0';
     const FUTURE_RESOURCE_VERSION = '20260731v7968StudentFlowP2';
     const ADMIN_RESOURCE_VERSION = '20260729v794AdminGovernanceP0';
-    const PLANETS_RESOURCE_VERSION = '20260731v7968StudentFlowP2';
+    const PLANETS_RESOURCE_VERSION = '20260731v7969StudentUiP0';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
 
     const definePage = (config) => Object.freeze({

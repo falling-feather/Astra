@@ -12,6 +12,7 @@ const GlobalSearch = {
     isOpen: false,
     _trigger: null,
     _initialized: false,
+    _catalogueHandler: null,
 
     init() {
         if (this._initialized) return;
@@ -36,6 +37,10 @@ const GlobalSearch = {
                 else this._activate();
             }
         });
+        this._catalogueHandler = () => {
+            if (this.isOpen) this._updateResults();
+        };
+        window.addEventListener('astra:student-catalogue-ready', this._catalogueHandler);
         this._initialized = true;
     },
 
@@ -134,13 +139,14 @@ const GlobalSearch = {
 
     _updateResults() {
         const q = (this.input.value || '').trim().toLowerCase();
+        const discoverableItems = this.items.filter((item) => this._isDiscoverable(item));
         if (!q) {
             // 空查询：展示前 12 条作为推荐
-            this.results = this.items.slice(0, 12);
+            this.results = discoverableItems.slice(0, 12);
         } else {
             const tokens = q.split(/\s+/).filter(Boolean);
             const scored = [];
-            for (const it of this.items) {
+            for (const it of discoverableItems) {
                 const hay = (it.title + ' ' + it.description + ' ' + it.subjectLabel).toLowerCase();
                 let score = 0;
                 let allMatch = true;
@@ -157,6 +163,20 @@ const GlobalSearch = {
         }
         this.activeIndex = 0;
         this._render();
+    },
+
+    _isDiscoverable(item) {
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        if (!user || user.role !== 'student') return true;
+        const catalogue = window.AstraStudentCourseCatalogue;
+        if (
+            !catalogue
+            || typeof catalogue.allowsPage !== 'function'
+            || typeof catalogue.allowsActivity !== 'function'
+        ) return false;
+        return catalogue.allowsPage(item.subjectId) === true
+            && catalogue.allowsActivity(item.subjectId, item.id) === true;
     },
 
     _render() {
@@ -217,7 +237,10 @@ const GlobalSearch = {
 
     _activate() {
         const it = this.results[this.activeIndex];
-        if (!it) return;
+        if (!it || !this._isDiscoverable(it)) {
+            this._updateResults();
+            return;
+        }
         this.close();
         // 触发跳转：先 hash → router 进入学科 → ModuleSelector.openModule
         if (location.hash !== '#' + it.subjectId) {

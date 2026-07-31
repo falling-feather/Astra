@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const studentRuntimeVersion = '20260731v7968StudentFlowP2';
+    const studentRuntimeVersion = '20260731v7969StudentUiP0';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
     const ASSIGNMENT_PAGE_LIMIT = 8;
@@ -78,7 +78,10 @@
         onOnline: null,
         onOffline: null,
         onAuthRequired: null,
-        onHashChange: null
+        onHashChange: null,
+        railToggleButton: null,
+        onRailToggle: null,
+        railCollapsed: false
     };
 
     function initStudent() {
@@ -100,6 +103,7 @@
             state.initialized = true;
         }
         bindRuntimeEvents();
+        applyRailState();
         refreshAll();
     }
 
@@ -358,11 +362,13 @@
                 state.selected.courseId = '';
                 state.selected.assignmentId = '';
                 state.pagination.assignmentOffset = 0;
+                rememberSelectedScope();
                 refreshClassScope();
             } else if (scope === 'courseId') {
                 state.selected.courseId = target.value;
                 state.selected.assignmentId = '';
                 state.pagination.assignmentOffset = 0;
+                rememberSelectedScope();
                 refreshCourseScope();
             }
         });
@@ -400,6 +406,12 @@
 
     function bindRuntimeEvents() {
         if (state.runtimeBound) return;
+        state.railToggleButton = document.querySelector('[data-student-rail-toggle]');
+        state.onRailToggle = () => {
+            state.railCollapsed = !state.railCollapsed;
+            applyRailState();
+        };
+        if (state.railToggleButton) state.railToggleButton.addEventListener('click', state.onRailToggle);
         state.onOnline = () => {
             state.online = true;
             if (state.active) refreshAll();
@@ -478,11 +490,34 @@
         window.removeEventListener('offline', state.onOffline);
         window.removeEventListener('astra:api-auth-required', state.onAuthRequired);
         if (state.onHashChange) window.removeEventListener('hashchange', state.onHashChange);
+        if (state.railToggleButton && state.onRailToggle) {
+            state.railToggleButton.removeEventListener('click', state.onRailToggle);
+        }
         state.onOnline = null;
         state.onOffline = null;
         state.onAuthRequired = null;
         state.onHashChange = null;
+        state.railToggleButton = null;
+        state.onRailToggle = null;
         state.runtimeBound = false;
+    }
+
+    function applyRailState() {
+        const page = document.getElementById('page-student');
+        const shell = page && page.querySelector('.astra-workspace-shell');
+        const button = page && page.querySelector('[data-student-rail-toggle]');
+        if (shell) shell.classList.toggle('is-student-rail-collapsed', state.railCollapsed);
+        if (!button) return;
+        button.setAttribute('aria-expanded', String(!state.railCollapsed));
+        button.setAttribute('aria-label', state.railCollapsed ? '展开星序角色导航' : '收起星序角色导航');
+        button.title = state.railCollapsed ? '展开导航' : '收起导航';
+        button.innerHTML = `
+            <i data-lucide="${state.railCollapsed ? 'panel-left-open' : 'panel-left-close'}" aria-hidden="true"></i>
+            <span>${state.railCollapsed ? '展开导航' : '收起导航'}</span>
+        `;
+        if (typeof lucide !== 'undefined' && lucide && typeof lucide.createIcons === 'function') {
+            try { lucide.createIcons({ attrs: { 'stroke-width': 1.8 }, root: button }); } catch (error) {}
+        }
     }
 
     function futureGalaxyPublicationContext() {
@@ -557,6 +592,10 @@
             });
             if (!isCurrentScope(scope)) return;
             state.data.classes = normalizeList(classPayload);
+            const rememberedScope = readRememberedScope();
+            if (!state.selected.classId && rememberedScope.classId) {
+                state.selected.classId = rememberedScope.classId;
+            }
             if (state.uncertainJoinClassId) {
                 const pendingClassId = state.uncertainJoinClassId;
                 const joined = state.data.classes.some((item) => String(entityId(item)) === String(pendingClassId));
@@ -656,6 +695,14 @@
         }
 
         state.selected.courseId = normalizeEntityId(state.selected.courseId, state.data.courses);
+        const rememberedScope = readRememberedScope();
+        if (
+            !state.selected.courseId
+            && rememberedScope.classId === String(classId)
+            && rememberedScope.courseId
+        ) {
+            state.selected.courseId = normalizeEntityId(rememberedScope.courseId, state.data.courses);
+        }
         const contextualCourse = contextCourseFrom(state.data.courses);
         if (state.contextPage && contextualCourse) {
             state.selected.courseId = String(entityId(contextualCourse));
@@ -664,9 +711,10 @@
             if (window.location.hash.startsWith('#student/')) {
                 history.replaceState(null, '', '#student');
             }
-        } else if (!state.selected.courseId && state.data.courses.length === 1) {
+        } else if (!state.selected.courseId && state.data.courses.length) {
             state.selected.courseId = String(entityId(state.data.courses[0]));
         }
+        rememberSelectedScope();
         await loadCourseScope(scope);
         if (!isCurrentScope(scope)) return;
         state.loadingScope = false;
@@ -1710,6 +1758,24 @@
 
     function getDashboard() {
         return state.root && state.root.querySelector('[data-student-dashboard]');
+    }
+
+    function readRememberedScope() {
+        const owner = window.AstraStudentScopeSelection;
+        if (!owner || typeof owner.read !== 'function' || !state.user) {
+            return { classId: '', courseId: '' };
+        }
+        const remembered = owner.read(state.user) || {};
+        return {
+            classId: String(remembered.class_id || ''),
+            courseId: String(remembered.course_id || '')
+        };
+    }
+
+    function rememberSelectedScope() {
+        const owner = window.AstraStudentScopeSelection;
+        if (!owner || typeof owner.update !== 'function' || !state.user) return;
+        owner.update(state.user, state.selected.classId, state.selected.courseId);
     }
 
     function panel(name) {

@@ -241,8 +241,13 @@
 
 .learning-overview__ledger {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
+}
+
+.module-card[hidden],
+.module-sidebar__item[hidden] {
+    display: none !important;
 }
 
 .learning-overview__ledger div,

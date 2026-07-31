@@ -1,11 +1,25 @@
 .student-page {
     min-height: 100vh;
-    overflow-x: clip;
     color: #eef6f2;
     background:
         radial-gradient(circle at 14% 2%, rgba(42, 179, 126, 0.11), transparent 30%),
         radial-gradient(circle at 88% 12%, rgba(218, 166, 58, 0.08), transparent 28%),
         linear-gradient(180deg, #07131e 0%, #091722 46%, #07121c 100%);
+}
+
+.student-page .astra-workspace-shell {
+    --student-rail-width: 232px;
+    grid-template-columns: var(--student-rail-width) minmax(0, 1fr);
+    transition: grid-template-columns 180ms ease;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed {
+    --student-rail-width: 76px;
+}
+
+.student-page .astra-workspace-stage {
+    min-width: 0;
+    container: student-stage / inline-size;
 }
 
 .student-page .student-shared-rail {
@@ -14,8 +28,10 @@
     --atlas-text: #edf6ff;
     --atlas-muted: #8291a5;
     --atlas-cyan: #6edbff;
-    width: 232px;
+    width: 100%;
     padding: 28px 20px 24px;
+    overflow: hidden;
+    transition: width 180ms ease, padding 180ms ease;
 }
 
 .student-page .student-shared-rail .planets-role-nav a[aria-current='page'] {
@@ -25,6 +41,84 @@
 
 .student-page .student-shared-rail .planets-role-nav a[aria-current='page']::before {
     height: 24px;
+}
+
+.student-rail-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 18px;
+    padding: 0 10px;
+    border: 1px solid rgba(110, 219, 255, 0.16);
+    border-radius: 7px;
+    color: var(--atlas-muted);
+    background: rgba(110, 219, 255, 0.045);
+    cursor: pointer;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.student-rail-toggle:hover,
+.student-rail-toggle:focus-visible {
+    color: var(--atlas-text);
+    border-color: rgba(110, 219, 255, 0.42);
+    background: rgba(110, 219, 255, 0.1);
+    outline: 2px solid rgba(110, 219, 255, 0.42);
+    outline-offset: 2px;
+}
+
+.student-rail-toggle svg,
+.student-rail-toggle i {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.student-page .student-shared-rail .planets-rail__session {
+    flex: 0 0 auto;
+    margin-top: auto;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .student-shared-rail {
+    padding-inline: 16px;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-brand {
+    justify-content: center;
+    padding-inline: 0;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-brand > span:last-child,
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-role-nav a span,
+.student-page .astra-workspace-shell.is-student-rail-collapsed .student-rail-toggle span,
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-rail__session div {
+    display: none;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .student-rail-toggle,
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-role-nav a {
+    width: 44px;
+    padding-inline: 0;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-role-nav {
+    justify-items: center;
+    margin-top: 32px;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-role-nav a {
+    justify-content: center;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-role-nav a::before {
+    left: -16px;
+}
+
+.student-page .astra-workspace-shell.is-student-rail-collapsed .planets-rail__session {
+    justify-content: center;
+    padding-inline: 0;
 }
 
 .student-workbench {
@@ -39,7 +133,8 @@
     --student-border: rgba(151, 177, 191, 0.22);
     --student-border-strong: rgba(151, 177, 191, 0.34);
     --student-muted: #9eb0b8;
-    width: min(1480px, calc(100vw - 48px));
+    width: min(1480px, calc(100% - 48px));
+    max-width: 100%;
     min-height: calc(100vh - 76px);
     margin: 0 auto;
     padding: 34px 0 54px;
@@ -66,8 +161,8 @@
 
 .student-workbench__header {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
+    align-items: stretch;
+    flex-direction: column;
     gap: 28px;
     margin-bottom: 18px;
 }
@@ -95,8 +190,10 @@
 .student-workbench__controls {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 10px;
+    width: 100%;
     min-width: 0;
 }
 
@@ -504,16 +601,42 @@
 
 .student-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-        "context context"
-        "today progress"
-        "course submission"
-        "assignments submission"
-        "assignments knowledge"
-        "assignments points";
+        "context"
+        "today"
+        "course"
+        "assignments"
+        "submission"
+        "progress"
+        "knowledge"
+        "points";
     align-items: start;
     gap: 14px;
+}
+
+@container student-stage (min-width: 1180px) {
+    .student-workbench__header {
+        align-items: flex-end;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+    .student-workbench__controls {
+        justify-content: flex-end;
+        width: auto;
+    }
+
+    .student-layout {
+        grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr);
+        grid-template-areas:
+            "context context"
+            "today progress"
+            "course submission"
+            "assignments submission"
+            "assignments knowledge"
+            "assignments points";
+    }
 }
 
 .student-panel {
@@ -1392,9 +1515,6 @@
         justify-content: flex-start;
     }
 
-    .student-layout {
-        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-    }
 }
 
 @media (max-width: 840px) {
@@ -1431,6 +1551,14 @@
 
     .student-join-form {
         grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .student-page .astra-workspace-shell,
+    .student-page .student-shared-rail,
+    .student-rail-toggle {
+        transition: none;
     }
 }
 

@@ -218,11 +218,11 @@ function updateFooterVisibility() {
 
 window.updateFooterVisibility = updateFooterVisibility;
 
-const ENGLAB_ASSET_VERSION = '20260716v7427RoleWorkflowGateP0';
-const ROLE_LANDING_ASSET_VERSION = '20260731v7968StudentFlowP2';
+const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0';
+const ROLE_LANDING_ASSET_VERSION = '20260731v7969StudentUiP0';
 const SESSION_STYLE_ASSET_VERSION = '20260719v759A11yP0';
-const SHELL_RUNTIME_ASSET_VERSION = '20260731v7968StudentFlowP2';
-const PAGE_REGISTRY_ASSET_VERSION = '20260731v7968StudentFlowP2';
+const SHELL_RUNTIME_ASSET_VERSION = '20260731v7969StudentUiP0';
+const PAGE_REGISTRY_ASSET_VERSION = '20260731v7969StudentUiP0';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',
@@ -231,7 +231,7 @@ const CORE_HTTP_FALLBACK_ASSETS = [
     './shared/css/base.css?v=' + BASE_STYLE_ASSET_VERSION,
     './shared/css/typography.css?v=20260526v61c',
     './shared/css/navbar.css?v=' + ENGLAB_ASSET_VERSION,
-    './shared/css/page-layout.css?v=20260606v62e',
+    './shared/css/page-layout.css?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/responsive.css?v=' + ENGLAB_ASSET_VERSION,
     './shared/js/lucide.min.js?v=20260417d',
     './shared/js/config.js?v=' + ENGLAB_ASSET_VERSION,
@@ -253,7 +253,7 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/planets/planets.js?v=' + ROLE_LANDING_ASSET_VERSION
     ],
     englab: [
-        './shared/css/module-selector.css?v=20260630mainV64',
+        './shared/css/module-selector.css?v=20260731v7969StudentUiP0',
         './shared/css/experiment-guide.css?v=20260630mainV64',
         './shared/css/experiment-export.css?v=20260424v44a',
         './shared/css/experiment-quiz.css?v=20260422z',
@@ -266,14 +266,15 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/chemistry/chemistry.css?v=20260618ionP1',
         './pages/algorithms/algorithms.css?v=20260618algoTextP1',
         './pages/biology/biology.css?v=20260618neuralP1',
-        './shared/js/module-selector.js?v=20260731v7968StudentFlowP2',
+        './shared/js/module-selector.js?v=20260731v7969StudentUiP0',
+        './shared/js/scroll-animations.js?v=20260731v7969StudentUiP0',
         './shared/js/experiment-guide.js?v=20260716v7427RoleWorkflowGateP0',
         './shared/js/experiment-export.js?v=20260528v61f',
         './shared/js/quiz-data.js?v=20260618refsP1',
         './shared/js/experiment-quiz.js?v=20260606fix1',
         './shared/js/experiment-favorites.js?v=20260423q',
         './shared/js/experiment-rating.js?v=20260418g',
-        './shared/js/global-search.js?v=20260424v45a',
+        './shared/js/global-search.js?v=20260731v7969StudentUiP0',
         './shared/js/keyboard-shortcuts.js?v=20260424v45b',
         './shared/js/related-experiments.js?v=20260424v45c',
         './pages/home/home.js?v=20260704qianduanV70'

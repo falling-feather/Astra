@@ -146,6 +146,10 @@
     position: relative;
 }
 
+.nav-item[hidden] {
+    display: none !important;
+}
+
 .nav-item:hover {
     color: var(--text-primary);
 }

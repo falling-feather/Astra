@@ -16,9 +16,9 @@
     <link rel="stylesheet" href="shared/css/tokens.css?v=20260424ss">
     <link rel="stylesheet" href="shared/css/base.css?v=20260719v758ReleaseAuditP0">
     <link rel="stylesheet" href="shared/css/typography.css?v=20260526v61c">
-    <link rel="stylesheet" href="shared/css/navbar.css?v=20260716v7427RoleWorkflowGateP0">
-    <link rel="stylesheet" href="shared/css/page-layout.css?v=20260606v62e">
-    <link rel="stylesheet" href="shared/css/module-selector.css?v=20260731v7968StudentFlowP2">
+    <link rel="stylesheet" href="shared/css/navbar.css?v=20260731v7969StudentUiP0">
+    <link rel="stylesheet" href="shared/css/page-layout.css?v=20260731v7969StudentUiP0">
+    <link rel="stylesheet" href="shared/css/module-selector.css?v=20260731v7969StudentUiP0">
     <link rel="stylesheet" href="shared/css/backend-content.css?v=20260716v7427RoleWorkflowGateP0">
     <link rel="stylesheet" href="shared/css/experiment-guide.css?v=20260630mainV64">
     <link rel="stylesheet" href="shared/css/experiment-export.css?v=20260424v44a">
@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="shared/css/fab-trigger.css?v=20260630mainV64">
     <!-- CSS: Pages -->
     <link rel="stylesheet" href="pages/home/home.css?v=20260715v7420HomeViewportClipP1">
-    <link rel="stylesheet" href="pages/planets/planets.css?v=20260731v7968StudentFlowP2">
+    <link rel="stylesheet" href="pages/planets/planets.css?v=20260731v7969StudentUiP0">
     <link rel="stylesheet" href="pages/cosmos/cosmos.css?v=20260630mainV64">
     <link rel="stylesheet" href="pages/datascience/datascience.css?v=20260630mainV64">
     <link rel="stylesheet" href="pages/infotech/infotech.css?v=20260630mainV64">
@@ -3559,7 +3559,11 @@
                         <span class="planets-brand__signal" aria-hidden="true"></span>
                         <span><strong>星序</strong><small>ASTRA</small></span>
                     </a>
-                    <nav class="planets-role-nav" aria-label="当前身份可用入口">
+                    <button class="student-rail-toggle" type="button" data-student-rail-toggle aria-expanded="true" aria-controls="student-role-navigation">
+                        <i data-lucide="panel-left-close" aria-hidden="true"></i>
+                        <span>收起导航</span>
+                    </button>
+                    <nav class="planets-role-nav" id="student-role-navigation" aria-label="当前身份可用入口">
                         <a href="#planets"><i data-lucide="orbit"></i><span>星序总览</span></a>
                         <a href="#student" data-app-roles="student" aria-current="page"><i data-lucide="graduation-cap"></i><span>我的学习</span></a>
                         <a href="#teacher" data-app-roles="teacher,admin"><i data-lucide="presentation"></i><span>教学工作台</span></a>
@@ -3701,10 +3705,10 @@
     <script src="shared/js/experiment-registry.js?v=20260716v7427RoleWorkflowGateP0"></script>
     <script src="pages/frontier/frontier-manifest.js?v=20260719v755Game001"></script>
     <script src="shared/js/frontier-publication-context.js?v=20260719v757FuturePublicationP0"></script>
-    <script src="pages/planets/planets.js?v=20260731v7968StudentFlowP2"></script>
-    <script src="shared/js/page-registry.js?v=20260731v7968StudentFlowP2"></script>
-    <script src="shared/js/router.js?v=20260731v7968StudentFlowP2"></script>
-    <script src="shared/js/main.js?v=20260731v7968StudentFlowP2"></script>
+    <script src="pages/planets/planets.js?v=20260731v7969StudentUiP0"></script>
+    <script src="shared/js/page-registry.js?v=20260731v7969StudentUiP0"></script>
+    <script src="shared/js/router.js?v=20260731v7969StudentUiP0"></script>
+    <script src="shared/js/main.js?v=20260731v7969StudentUiP0"></script>
     <script>
         (function () {
             try {

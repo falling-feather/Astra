@@ -323,9 +323,13 @@
 
 .planets-priority__scope {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
     margin-bottom: 22px;
+    padding: 12px;
+    border: 1px solid var(--atlas-line);
+    border-radius: 8px;
+    background: rgba(6, 15, 27, 0.68);
 }
 
 .planets-priority__scope label {
@@ -365,7 +369,7 @@
     gap: .45rem;
     padding: .9rem 1rem;
     border: 1px solid color-mix(in srgb, var(--accent-gold, #f5c451) 42%, transparent);
-    border-radius: 14px;
+    border-radius: 8px;
     background: color-mix(in srgb, var(--accent-gold, #f5c451) 8%, transparent);
 }
 
@@ -578,7 +582,7 @@
     gap: 8px;
     min-height: 44px;
     align-content: center;
-    border-radius: 2px;
+    border-radius: 7px;
 }
 
 .student-class-join-dialog {

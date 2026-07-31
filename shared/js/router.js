@@ -23,7 +23,7 @@ const Router = {
     _galaxyCacheVersion: '20260704qianduanV70',
     courseSupportScripts: [
         'shared/js/lucide.min.js?v=20260417d',
-        'shared/js/module-selector.js?v=20260731v7968StudentFlowP2'
+        'shared/js/module-selector.js?v=20260731v7969StudentUiP0'
     ],
     galaxySupportScripts: {
         astra: [
@@ -35,23 +35,23 @@ const Router = {
             'shared/js/back-to-top.js?v=20260424rr',
             'shared/js/fab-trigger.js?v=20260528v61g',
             'shared/js/touch-gestures.js?v=20260418a',
+            'shared/js/scroll-animations.js?v=20260731v7969StudentUiP0',
             'shared/js/experiment-guide.js?v=20260716v7427RoleWorkflowGateP0',
             'shared/js/experiment-export.js?v=20260528v61f',
             'shared/js/quiz-data.js?v=20260618refsP1',
             'shared/js/experiment-quiz.js?v=20260606fix1',
             'shared/js/experiment-favorites.js?v=20260423q',
             'shared/js/experiment-rating.js?v=20260418g',
-            'shared/js/global-search.js?v=20260424v45a',
+            'shared/js/global-search.js?v=20260731v7969StudentUiP0',
             'shared/js/keyboard-shortcuts.js?v=20260424v45b',
             'shared/js/related-experiments.js?v=20260424v45c'
         ],
         frontier: [
             'shared/js/lucide.min.js?v=20260417d',
             'shared/js/frontier-learning.js?v=20260731v7968StudentFlowP2',
-            'shared/js/scroll-animations.js?v=20260630mainV64'
+            'shared/js/scroll-animations.js?v=20260731v7969StudentUiP0'
         ]
     },
-    // Store origin point for radial wipe (set by selectModule or default center)
     transitionOrigin: { x: 50, y: 50 },
 
     init() {

@@ -97,6 +97,10 @@ const HeroVisualRuntime = {
 };
 
 function requestHeroFrame(page, callback) {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        delete HeroVisualRuntime.frames[page];
+        return;
+    }
     HeroVisualRuntime.frames[page] = requestAnimationFrame(callback);
 }
 
@@ -119,6 +123,7 @@ function destroyHeroVisual(page) {
 
     const canvas = document.getElementById(`hero-canvas-${page}`);
     if (canvas) {
+        if (canvas.parentElement) canvas.parentElement.classList.remove('hero-visual--fallback');
         delete canvas.dataset.initialized;
         if (typeof canvas.getContext === 'function') {
             const ctx = canvas.getContext('2d');
@@ -138,6 +143,7 @@ function initHeroVisual(page) {
         canvas.dataset.initialized === 'pending' || canvas.dataset.initialized === 'waiting') return;
     if (typeof canvas.getContext !== 'function') {
         canvas.dataset.initialized = 'unsupported';
+        if (canvas.parentElement) canvas.parentElement.classList.add('hero-visual--fallback');
         return;
     }
 
@@ -159,8 +165,10 @@ function initHeroVisual(page) {
     const ctx = canvas.getContext('2d');
     if (!ctx) {
         canvas.dataset.initialized = 'unsupported';
+        if (canvas.parentElement) canvas.parentElement.classList.add('hero-visual--fallback');
         return;
     }
+    if (canvas.parentElement) canvas.parentElement.classList.remove('hero-visual--fallback');
 
     const drawers = {
         mathematics: drawLissajous,
@@ -223,8 +231,8 @@ function drawLissajous(page, ctx, w, h) {
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
         }
-        ctx.strokeStyle = 'rgba(91,141,206,0.25)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(91,141,206,0.58)';
+        ctx.lineWidth = 1.8;
         ctx.stroke();
 
         // Dot at current position
@@ -232,7 +240,7 @@ function drawLissajous(page, ctx, w, h) {
         const dotY = cy + Math.sin(t * 2) * scale * 0.8;
         ctx.beginPath();
         ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(91,141,206,0.5)';
+        ctx.fillStyle = 'rgba(126,177,238,0.86)';
         ctx.fill();
 
         t += 0.008;
@@ -614,6 +622,15 @@ window.initPageScrollAnimations = initPageScrollAnimations;
 window.initHeroVisual = initHeroVisual;
 window.destroyHeroVisual = destroyHeroVisual;
 window.destroyAllHeroVisuals = destroyAllHeroVisuals;
+
+const activeEnglabPage = document.querySelector('.page.active[id^="page-"]');
+if (activeEnglabPage && typeof Router !== 'undefined') {
+    const page = activeEnglabPage.id.replace(/^page-/, '');
+    if (Router._galaxyForPage(page) === 'englab') {
+        initPageScrollAnimations(page);
+        initHeroVisual(page);
+    }
+}
 
 // ── DNA double helix for Biology ──
 function drawDNAHelix(page, ctx, w, h) {
