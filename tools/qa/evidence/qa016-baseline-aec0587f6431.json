@@ -1,0 +1,401 @@
+{
+  "schema": "astra.qa016.critical-journeys.v1",
+  "task": "QA-016",
+  "version": "V8.0.1",
+  "baseline_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+  "observed_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+  "revision_matches_assignment": true,
+  "generated_at": "2026-08-09T02:52:04.493Z",
+  "environment": {
+    "frontend_probe": "Node.js VM executing current tracked owners",
+    "backend_probe": {
+      "cleanup": "verified-removed",
+      "created_by": "QA-016",
+      "data_directory_kind": "system-temp",
+      "data_directory_leaf": "astra-qa016-she7rp06",
+      "repository_external": true
+    }
+  },
+  "semantics": {
+    "baseline_assertion": "PASS means the assigned defect was honestly reproduced.",
+    "desired_gate": "PASS means repaired product semantics; current baseline is expected to FAIL."
+  },
+  "summary": {
+    "issues": {
+      "FUTURE-01": {
+        "defect_observed": true,
+        "baseline_assertion": "PASS",
+        "desired_gate": "FAIL"
+      },
+      "FUTURE-02": {
+        "defect_observed": true,
+        "baseline_assertion": "PASS",
+        "desired_gate": "FAIL"
+      },
+      "TEACH-01": {
+        "defect_observed": true,
+        "baseline_assertion": "PASS",
+        "desired_gate": "FAIL"
+      },
+      "CODE-01": {
+        "defect_observed": true,
+        "baseline_assertion": "PASS",
+        "desired_gate": "FAIL"
+      },
+      "MECH-01": {
+        "defect_observed": true,
+        "baseline_assertion": "PASS",
+        "desired_gate": "FAIL"
+      },
+      "DEMO-01": {
+        "defect_observed": true,
+        "baseline_assertion": "PASS",
+        "desired_gate": "FAIL"
+      }
+    },
+    "all_expected_defects_observed": true,
+    "desired_gate_passed": false
+  },
+  "issues": {
+    "FUTURE-01": {
+      "owner": "FE-024",
+      "preconditions": [
+        "学生拥有一门 open Future 活动。",
+        "进入活动后不触发任何学生输入、变量变化或观察确认。"
+      ],
+      "steps": [
+        "选中一个判断答案。",
+        "直接触发 data-fg-submit。",
+        "检查本地反馈、输入事件和活动状态。"
+      ],
+      "expected": "未产生有效变量变化和观察快照时，判断提交必须被阻止。",
+      "actual": "零变量变化、零观察确认时，正确选项仍直接得到“观察支持”的本地成功反馈。",
+      "request_response": {
+        "action": "click [data-fg-submit]",
+        "response": "这个解释可以由本课观察支持：判断证据",
+        "response_before": ""
+      },
+      "database_or_state_evidence": {
+        "user_input_change_count": 0,
+        "observation_checkpoint_count": 0,
+        "submit_disabled_before_click": false,
+        "accepted_locally": true
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "defect_observed": true,
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "FUTURE-02": {
+      "owner": "FE-024",
+      "preconditions": [
+        "学生拥有一门 open Future 活动。",
+        "捕获 fetch、学习证据客户端和学习领域命令。"
+      ],
+      "steps": [
+        "选中正确判断。",
+        "触发 data-fg-submit。",
+        "核对反馈变化、网络请求和权威证据命令。"
+      ],
+      "expected": "判断必须形成可由教师回读的权威学习证据，而不只是修改本地反馈文本。",
+      "actual": "判断只修改 data-fg-feedback；没有网络写入、证据客户端调用或学习领域命令。",
+      "request_response": {
+        "action": "click [data-fg-submit]",
+        "local_response": "这个解释可以由本课观察支持：判断证据",
+        "network_request_count": 0,
+        "learning_evidence_client_call_count": 0,
+        "learning_domain_command_count": 0
+      },
+      "database_or_state_evidence": {
+        "authoritative_event_created": false,
+        "teacher_readback_possible_from_this_action": false
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "defect_observed": true,
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "TEACH-01": {
+      "owner": "FE-023",
+      "preconditions": [
+        "同一班级至少有 Physics 与其他课程。",
+        "其他课程存在 submitted 待批改项，当前选择 Physics。"
+      ],
+      "steps": [
+        "加载教师 class scope。",
+        "记录 pending 请求参数和响应课程集合。",
+        "渲染待批改队列并检查非 Physics 行。"
+      ],
+      "expected": "选择 Physics 后，pending 请求必须携带 course_id，DOM 只能包含 Physics。",
+      "actual": "当前选中 Physics，但 pending 请求只携带 class_id，返回并渲染了 Control Flow 行。",
+      "request_response": {
+        "frontend_runtime": {
+          "request": {
+            "path": "/api/admin/submissions/pending",
+            "params": {
+              "class_id": "11",
+              "status": "submitted",
+              "limit": 50,
+              "offset": 0
+            }
+          },
+          "response": {
+            "items": [
+              {
+                "id": 901,
+                "student_id": 31,
+                "student_username": "student",
+                "assignment_title": "Physics review",
+                "course_title": "Physics",
+                "course_id": 101,
+                "status": "submitted",
+                "submitted_at": "2026-08-09T01:00:00Z"
+              },
+              {
+                "id": 902,
+                "student_id": 31,
+                "student_username": "student",
+                "assignment_title": "Loop review",
+                "course_title": "Control Flow",
+                "course_id": 202,
+                "status": "submitted",
+                "submitted_at": "2026-08-09T01:01:00Z"
+              }
+            ],
+            "total": 2,
+            "limit": 50,
+            "offset": 0,
+            "next_offset": null
+          }
+        },
+        "live_api": {
+          "control_request": {
+            "method": "GET",
+            "path": "/api/admin/submissions/pending?class_id=1&status=submitted&limit=50&offset=0&course_id=1",
+            "status": 200
+          },
+          "control_response": {
+            "course_ids": [],
+            "total": 0
+          },
+          "frontend_shaped_request": {
+            "method": "GET",
+            "path": "/api/admin/submissions/pending?class_id=1&status=submitted&limit=50&offset=0",
+            "status": 200
+          },
+          "frontend_shaped_response": {
+            "course_ids": [
+              4,
+              14
+            ],
+            "course_titles": [
+              "Control Flow",
+              "Humanities Futures"
+            ],
+            "total": 2
+          }
+        }
+      },
+      "database_or_state_evidence": {
+        "frontend_runtime": {
+          "selected_course_id": 101,
+          "selected_course_title": "Physics",
+          "state_submission_course_ids": [
+            101,
+            202
+          ],
+          "foreign_course_row_rendered": true
+        },
+        "live_database": {
+          "assignment_submission_ledger": [
+            {
+              "course_id": 1,
+              "course_title": "Physics",
+              "status": "graded",
+              "submission_id": 1
+            },
+            {
+              "course_id": 14,
+              "course_title": "Humanities Futures",
+              "status": "submitted",
+              "submission_id": 2
+            },
+            {
+              "course_id": 4,
+              "course_title": "Control Flow",
+              "status": "submitted",
+              "submission_id": 3
+            }
+          ],
+          "selected_physics_course_id": 1
+        }
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "defect_observed": true,
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "CODE-01": {
+      "owner": "BE-014",
+      "preconditions": [
+        "同一学生、班级和题目版本已有一次正式提交。",
+        "第二次提交使用不同源码。"
+      ],
+      "steps": [
+        "读取第一次提交和源码摘要。",
+        "向同一题目版本 POST 修改后的源码。",
+        "读取响应、code_submissions 和 code_judge_attempts。"
+      ],
+      "expected": "不同源码的第二次学生修订应创建第二条 submission；网络重放才返回原提交。",
+      "actual": "同学生、同班、同题版本修改源码后第二次正式提交返回 409，数据库仍只有一条 submission。",
+      "request_response": {
+        "first_submission_id": 1,
+        "second_request": {
+          "class_id": 1,
+          "client_submission_id": "00000000-0000-4000-8000-00000000a016",
+          "language": "python",
+          "method": "POST",
+          "path": "/api/code-problems/1/submissions",
+          "source_sha256": "22c552a8a09ffb03bb0a5ae32ed7cd1189c0e9aa931f72d1ac6515d6b45f067d"
+        },
+        "second_response": {
+          "body": {
+            "detail": "Submission idempotency key conflicts with different content"
+          },
+          "status": 409
+        }
+      },
+      "database_or_state_evidence": {
+        "attempt_count": 1,
+        "source_sha256": [
+          "e79ff264b705ea851e6e0dba05c013a1a79d9d2a227a4038550fde9a62fd6113"
+        ],
+        "submission_count": 1,
+        "submission_ids": [
+          1
+        ]
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "defect_observed": true,
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "MECH-01": {
+      "owner": "FE-025",
+      "preconditions": [
+        "力学课程已记录合法预测。",
+        "e=0.40 尚未运行或记录观察。"
+      ],
+      "steps": [
+        "提交预测。",
+        "检查 e=0.80 控件状态。",
+        "在 e=0.40 前直接启动 e=0.80。"
+      ],
+      "expected": "e=0.80 必须在 e=0.40 权威观察完成前保持不可执行。",
+      "actual": "预测后 e=0.40 与 e=0.80 同时启用，且 e=0.80 可在任何 e=0.40 观察前启动。",
+      "request_response": {
+        "action": "_submitCoursePrediction() then _startControlledTrial(0.80)",
+        "prediction_accepted": true,
+        "start_080_returned": true
+      },
+      "database_or_state_evidence": {
+        "trial_080_disabled_after_prediction": false,
+        "measurement_040_exists": false,
+        "active_controlled_trial_restitution": 0.8,
+        "emitted_event_types": [
+          "predicted"
+        ]
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "defect_observed": true,
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "DEMO-01": {
+      "owner": "PM（建立 DATA 后续任务）",
+      "preconditions": [
+        "使用全新仓库外 SQLite 数据目录。",
+        "仅执行一次正式演示初始化，学生尚未进行现场学习。"
+      ],
+      "steps": [
+        "运行 initialize_demo_data。",
+        "读取初始化响应中的 representative_evidence。",
+        "查询学习证据事件和活动投影。"
+      ],
+      "expected": "全新演示学生应默认为 not_started，不应在首次学习前具有 completed 投影。",
+      "actual": "全新演示初始化在任何现场学习前已生成 completed 代表活动与完整学习事件。",
+      "request_response": {
+        "initializer_completed_activity_keys": [
+          "control-flow.loop-boundary",
+          "debugging-testing.minimal-case",
+          "engineering.load-path",
+          "humanities.claim-review",
+          "mathematics.derivative-application",
+          "physics.mechanics"
+        ],
+        "initializer_status": "initialized",
+        "student_recovery_request": {
+          "method": "GET",
+          "path": "/api/learning-evidence/me/recovery?class_id=1&course_id=1",
+          "status": 200
+        },
+        "student_recovery_statuses": [
+          "completed"
+        ]
+      },
+      "database_or_state_evidence": {
+        "completed_projection_count": 6,
+        "event_count": 57,
+        "projection_count": 6,
+        "projections": [
+          {
+            "activity_key": "control-flow.loop-boundary",
+            "attempt_count": 2,
+            "learner_event_count": 6,
+            "status": "completed"
+          },
+          {
+            "activity_key": "debugging-testing.minimal-case",
+            "attempt_count": 4,
+            "learner_event_count": 8,
+            "status": "completed"
+          },
+          {
+            "activity_key": "engineering.load-path",
+            "attempt_count": 3,
+            "learner_event_count": 7,
+            "status": "completed"
+          },
+          {
+            "activity_key": "humanities.claim-review",
+            "attempt_count": 2,
+            "learner_event_count": 6,
+            "status": "completed"
+          },
+          {
+            "activity_key": "mathematics.derivative-application",
+            "attempt_count": 2,
+            "learner_event_count": 6,
+            "status": "completed"
+          },
+          {
+            "activity_key": "physics.mechanics",
+            "attempt_count": 2,
+            "learner_event_count": 6,
+            "status": "completed"
+          }
+        ]
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "defect_observed": true,
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    }
+  }
+}

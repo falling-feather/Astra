@@ -1,0 +1,180 @@
+{
+  "schema": "astra.qa016.browser-evidence.v1",
+  "task": "QA-016",
+  "version": "V8.0.1",
+  "revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+  "browser_backend": "external Edge/Chrome extension",
+  "service": {
+    "origin": "http://127.0.0.1:19116",
+    "data_scope": "fresh repo-external QA-016 temp SQLite",
+    "cleanup_status": "listener-stopped-and-task-data-verified-removed"
+  },
+  "journeys": {
+    "FUTURE-01": {
+      "precondition": "Open Future activity, no learner variable change or observation checkpoint after page load.",
+      "steps": [
+        "Keep year date 172, latitude 40 and hour 12 unchanged.",
+        "Select 地轴倾角改变了不同半球的受光条件.",
+        "Activate 提交判断."
+      ],
+      "expected": "Submission is blocked until a meaningful variable change and observation exist.",
+      "actual": "The unchanged default state is accepted and receives local success feedback.",
+      "request_response": {
+        "action": "browser click 提交判断",
+        "response": "这个解释可以由本课观察支持：选择最能解释季节差异的结论。"
+      },
+      "database_or_state_evidence": {
+        "variable_values": {
+          "year_date": 172,
+          "latitude": 40,
+          "hour": 12
+        },
+        "variable_changes_before_submit": 0,
+        "evidence_event_count_before": 0,
+        "evidence_event_count_after": 0
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "owner": "FE-024",
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "FUTURE-02": {
+      "precondition": "Capture the same Future answer action and query authoritative evidence for the disposable student.",
+      "steps": [
+        "Activate the correct answer.",
+        "Observe local success.",
+        "Query learning_evidence_events for cosmos.day-season in the same temporary database."
+      ],
+      "expected": "The answer produces authoritative evidence that can be read back by the teacher.",
+      "actual": "Local success is visible but no authoritative event is created.",
+      "request_response": {
+        "action": "browser click 提交判断",
+        "local_success_visible": true,
+        "server_evidence_created": false
+      },
+      "database_or_state_evidence": {
+        "evidence_event_count_before": 0,
+        "evidence_event_count_after": 0,
+        "teacher_authoritative_evidence_available": false
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "owner": "FE-024",
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "MECH-01": {
+      "precondition": "A valid mechanics prediction is recorded while e=0.40 has no measurement.",
+      "steps": [
+        "Record higher-080 and four-times prediction.",
+        "Observe the instruction 请先运行 e=0.40.",
+        "Focus e=0.80 and press Enter before running e=0.40."
+      ],
+      "expected": "e=0.80 remains disabled until the authoritative e=0.40 observation completes.",
+      "actual": "Both run buttons are enabled; Enter starts e=0.80 immediately.",
+      "request_response": {
+        "trigger": "keyboard Enter on e=0.80",
+        "announced_stage": "预测已记录 · 请先运行 e=0.40",
+        "observed_stage": "正在观察 e=0.80 的第一次反弹"
+      },
+      "database_or_state_evidence": {
+        "run_040_enabled": true,
+        "run_080_enabled": true,
+        "e_040_measurement_at_trigger": "待测"
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "owner": "FE-025",
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    },
+    "TEACH-01": {
+      "precondition": "The disposable teacher has one class with Physics and submitted work in other courses.",
+      "steps": [
+        "Open the teacher workspace.",
+        "Select Physics in the course combobox.",
+        "Inspect the pending request and rendered action queue."
+      ],
+      "expected": "The request carries course_id=1 and the queue contains only Physics work.",
+      "actual": "The request omits course_id and renders Humanities Futures plus Control Flow while Physics is selected.",
+      "request_response": {
+        "selected_course": {
+          "id": 1,
+          "title": "Physics"
+        },
+        "request": "/api/admin/submissions/pending?class_id=1&status=submitted&limit=50&offset=0",
+        "status": 200,
+        "rendered_rows": [
+          "演示学生#3 Humanities claim reviewHumanities Futures submitted 08/09 02:33",
+          "演示学生#3 Loop boundary reviewControl Flow submitted 08/09 02:33"
+        ]
+      },
+      "database_or_state_evidence": {
+        "contains_non_physics_courses": [
+          "Humanities Futures",
+          "Control Flow"
+        ],
+        "physics_row_count": 0
+      },
+      "exact_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+      "reproducible_command": "node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python",
+      "owner": "FE-023",
+      "baseline_assertion": "PASS",
+      "desired_gate": "FAIL"
+    }
+  },
+  "responsive_accessibility": {
+    "viewport": "390x844",
+    "future": {
+      "root_client_width": 384,
+      "root_scroll_width": 384,
+      "horizontal_overflow": false,
+      "submit_button": {
+        "width": 348,
+        "height": 45,
+        "visible": true
+      },
+      "feedback_aria_live": "polite"
+    },
+    "mechanics": {
+      "root_client_width": 384,
+      "root_scroll_width": 384,
+      "horizontal_overflow": false,
+      "prediction_button_height": 44,
+      "trial_button_height": 44,
+      "feedback_aria_live": "polite",
+      "keyboard_path": "e=0.80 activated with Enter"
+    },
+    "teacher": {
+      "root_client_width": 384,
+      "root_scroll_width": 384,
+      "horizontal_overflow": false,
+      "course_combobox": {
+        "width": 356,
+        "height": 44,
+        "selected_text": "Physics"
+      },
+      "action_table": {
+        "container_client_width": 354,
+        "container_scroll_width": 610,
+        "table_width": 610
+      },
+      "tabs": [
+        {
+          "name": "教学总览",
+          "selected": true
+        },
+        {
+          "name": "课程节奏",
+          "selected": false
+        },
+        {
+          "name": "批改与学情",
+          "selected": false
+        }
+      ]
+    },
+    "app_origin_console_warn_error_count": 0
+  }
+}
