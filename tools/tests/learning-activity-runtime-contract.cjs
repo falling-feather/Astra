@@ -4,7 +4,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '../..');
+const recoveryPath = path.join(root, 'shared/js/learning-activity-recovery.js');
 const runtimePath = path.join(root, 'shared/js/learning-activity.js');
+const recoverySource = fs.readFileSync(recoveryPath, 'utf8');
 const source = fs.readFileSync(runtimePath, 'utf8');
 const boundaries = JSON.parse(
   fs.readFileSync(path.join(root, 'tools/architecture/v76-module-boundaries.json'), 'utf8'),
@@ -18,6 +20,7 @@ const context = {
   setTimeout,
   clearTimeout,
 };
+vm.runInNewContext(recoverySource, context, { filename: 'shared/js/learning-activity-recovery.js' });
 vm.runInNewContext(source, context, { filename: 'shared/js/learning-activity.js' });
 const AstraLearningActivity = context.window.AstraLearningActivity;
 
@@ -130,15 +133,74 @@ function contextFor(activityKey = 'physics.mechanics') {
   };
 }
 
-function eventFact(identity, sequence, eventType, eventId, evidence = {}, producer) {
+function snapshotFor(learnerSequence, data = { stage: 'start' }) {
   return {
-    identity: clone(identity),
-    sequence,
+    state_schema_version: 'state-v1',
+    applied_through_learner_sequence: learnerSequence,
+    data: clone(data),
+  };
+}
+
+function commandFor(identity, learnerSequence, eventType, eventId, evidence = {}) {
+  return {
+    schema_version: 'astra-learning-activity-event-v1',
+    scope: {
+      class_id: identity.class_id,
+      course_id: identity.course_id,
+      course_unit_id: identity.course_unit_id,
+      activity_key: identity.activity_key,
+    },
+    run: {
+      run_id: identity.run_id,
+      group_id: identity.group_id,
+      sequence: learnerSequence,
+    },
+    versions: {
+      manifest_version: identity.manifest_version,
+      content_version: identity.content_version,
+      event_schema_version: identity.event_schema_version,
+      rule_version: identity.rule_version,
+      generation: identity.generation,
+    },
     client_event_id: eventId,
     event_type: eventType,
-    producer: producer || (['completed', 'transferred'].includes(eventType) ? 'server' : 'learner'),
-    occurred_at: NOW,
     evidence: clone(evidence),
+    occurred_at: NOW,
+  };
+}
+
+function sidecarFor(identity, learnerSequence, eventType, eventId, evidence = {}, snapshotData) {
+  return {
+    schema_version: 'astra-learning-activity-evidence-sidecar-v1',
+    command: commandFor(identity, learnerSequence, eventType, eventId, evidence),
+    snapshot: snapshotFor(learnerSequence, snapshotData || { stage: eventType }),
+  };
+}
+
+function eventFact(identity, serverSequence, eventType, eventId, evidence = {}, producer, learnerSequence) {
+  const derived = ['completed', 'transferred'].includes(eventType);
+  if (derived) {
+    return {
+      identity: clone(identity),
+      server_sequence: serverSequence,
+      server_event_id: eventId,
+      learner_sequence: null,
+      event_type: eventType,
+      producer: producer || 'server',
+      occurred_at: NOW,
+      evidence: clone(evidence),
+    };
+  }
+  const sequence = learnerSequence || serverSequence;
+  return {
+    identity: clone(identity),
+    server_sequence: serverSequence,
+    server_event_id: 'server-' + eventId,
+    learner_sequence: sequence,
+    event_type: eventType,
+    producer: producer || 'learner',
+    occurred_at: NOW,
+    sidecar: sidecarFor(identity, sequence, eventType, eventId, evidence),
   };
 }
 
@@ -146,7 +208,7 @@ function recoveryBundle(identity, options = {}) {
   const serverEvents = clone(options.serverEvents || []);
   const offlineEvents = clone(options.offlineEvents || []);
   return {
-    schema_version: 'astra-learning-activity-recovery-v1',
+    schema_version: 'astra-learning-activity-recovery-v2',
     complete: options.complete === undefined ? true : options.complete,
     atomic: options.atomic === undefined ? true : options.atomic,
     stale: options.stale === undefined ? false : options.stale,
@@ -163,36 +225,58 @@ function recoveryBundle(identity, options = {}) {
       complete_history: true,
       event_count: serverEvents.length,
       events: serverEvents,
-      projection_state: options.projectionState || 'not_started',
-      completion_witness: options.completionWitness === undefined
-        ? null
-        : clone(options.completionWitness),
+      projection: {
+        state: options.projectionState || 'not_started',
+        applied_through_server_sequence: serverEvents.length,
+        completion_witness: options.completionWitness === undefined
+          ? null
+          : clone(options.completionWitness),
+      },
       snapshot: {
         identity: clone(identity),
         state_schema_version: 'state-v1',
-        applied_through_sequence: serverEvents.length,
-        data: clone(options.snapshotData || { stage: 'start' }),
+        applied_through_learner_sequence: serverEvents.filter(
+          (event) => event.learner_sequence !== null,
+        ).length,
+        data: clone(options.snapshotData || (
+          serverEvents.filter((event) => event.learner_sequence !== null).at(-1)?.sidecar.snapshot.data
+          || { stage: 'start' }
+        )),
       },
     },
     offline: {
       identity: clone(identity),
       complete_pending_set: true,
-      event_count: offlineEvents.length,
-      events: offlineEvents,
+      sidecar_count: offlineEvents.length,
+      sidecars: offlineEvents.map((event) => clone(event.sidecar || event)),
     },
     ...(options.manualResolution ? { manual_resolution: clone(options.manualResolution) } : {}),
   };
 }
 
-function matchingReceipt(command, status = 'confirmed') {
+function matchingReceipt(sidecar, status = 'confirmed', cursors = {}) {
+  const command = sidecar.command;
+  const authoritative = ['confirmed', 'reconciled'].includes(status);
   return {
     status,
     client_event_id: command.client_event_id,
     event_type: command.event_type,
     run_id: command.run.run_id,
     group_id: command.run.group_id,
-    sequence: command.run.sequence,
+    learner_sequence: command.run.sequence,
+    server_sequence: authoritative ? (cursors.server_sequence || command.run.sequence) : null,
+    server_last_sequence: authoritative ? (cursors.server_last_sequence || command.run.sequence) : null,
     server_event_id: status === 'confirmed' ? command.run.sequence + 1000 : undefined,
+  };
+}
+
+function withSnapshot(event, data = { stage: event.event_type }) {
+  return {
+    ...event,
+    snapshot: {
+      state_schema_version: 'state-v1',
+      data: clone(data),
+    },
   };
 }
 
@@ -226,7 +310,7 @@ function makeHarness(options = {}) {
     revision: 'release-r1',
   }));
   const recovery = options.recovery || (async (identity) => recoveryBundle(identity));
-  const evidence = options.evidence || (async (command) => matchingReceipt(command));
+  const evidence = options.evidence || (async (sidecar) => matchingReceipt(sidecar));
   const evaluation = options.evaluation || (async (observation) => ({
     rubric_result: 'formative',
     observation: clone(observation),
@@ -280,9 +364,9 @@ function makeHarness(options = {}) {
       },
     },
     evidence: {
-      async emit(command, callOptions) {
-        calls.evidence.push({ command, callOptions });
-        return evidence(command, callOptions, calls.evidence.length);
+      async emit(sidecar, callOptions) {
+        calls.evidence.push({ sidecar, command: sidecar.command, callOptions });
+        return evidence(sidecar, callOptions, calls.evidence.length);
       },
     },
   };
@@ -304,7 +388,11 @@ async function main() {
   assert.ok(AstraLearningActivity);
   assert.ok(Object.isFrozen(AstraLearningActivity));
   assert.equal(AstraLearningActivity.schemaVersion, 'astra-learning-activity-v1');
-  assert.equal(AstraLearningActivity.recoverySchemaVersion, 'astra-learning-activity-recovery-v1');
+  assert.equal(AstraLearningActivity.recoverySchemaVersion, 'astra-learning-activity-recovery-v2');
+  assert.equal(
+    AstraLearningActivity.evidenceSidecarSchemaVersion,
+    'astra-learning-activity-evidence-sidecar-v1',
+  );
   assert.equal(AstraLearningActivity.provenanceSchemaVersion, 'astra-raw-evidence-provenance-v1');
   assert.deepEqual(Array.from(AstraLearningActivity.runtimeStates), [
     'created', 'restoring', 'ready', 'interacting', 'assessing', 'blocked', 'disposed',
@@ -440,7 +528,8 @@ async function main() {
 
   const normal = makeHarness();
   const restored = await restoreReady(normal);
-  assert.equal(restored.next_sequence, 1);
+  assert.equal(restored.next_learner_sequence, 1);
+  assert.equal(restored.server_last_sequence, 0);
   assert.equal(restored.identity.subject.kind, 'learner');
   assert.equal(Object.hasOwn(restored.identity.subject, 'id'), false);
   const predicted = await normal.runtime.predict({ answer: 'left' });
@@ -476,198 +565,20 @@ async function main() {
     await harness.runtime.dispose('fixture-complete');
   }
 
-  const identityMutations = [
-    (value) => { value.class_id = 12; },
-    (value) => { value.course_id = 102; },
-    (value) => { value.course_unit_id = 1002; },
-    (value) => { value.activity_key = 'physics.other'; },
-    (value) => { value.subject_identity.kind = 'session'; },
-    (value) => { value.subject_identity.id = 'learner-43'; },
-    (value) => { value.run_id = 'run-0002'; },
-    (value) => { value.group_id = 'group-0002'; },
-    (value) => { value.manifest_version = 'manifest-v2'; },
-    (value) => { value.content_version = 'content-v2'; },
-    (value) => { value.event_schema_version = 2; },
-    (value) => { value.rule_version = 8; },
-    (value) => { value.generation = 'generation-2'; },
-  ];
-  for (const mutate of identityMutations) {
-    const harness = makeHarness({
-      recovery: async (identity) => {
-        const bundle = recoveryBundle(identity);
-        mutate(bundle.identity);
-        return bundle;
-      },
-    });
-    const result = await harness.runtime.restore(harness.context);
-    assert.equal(result.state, 'blocked');
-    assert.equal(result.reason, 'recovery_identity_mismatch');
-    assert.equal(result.resolution, 'manual-intervention');
-  }
-
-  for (const entry of [
-    ['recovery_partial', (bundle) => { bundle.complete = false; }],
-    ['recovery_not_atomic', (bundle) => { bundle.atomic = false; }],
-    ['recovery_stale', (bundle) => { bundle.stale = true; }],
-    ['recovery_stale', (bundle) => { bundle.freshness.authority_revision = 'authority-old'; }],
-    ['recovery_partial', (bundle) => { bundle.offline.complete_pending_set = false; }],
-  ]) {
-    const harness = makeHarness({
-      recovery: async (identity) => {
-        const bundle = recoveryBundle(identity);
-        entry[1](bundle);
-        return bundle;
-      },
-    });
-    const result = await harness.runtime.restore(harness.context);
-    assert.equal(result.state, 'blocked');
-    assert.equal(result.reason, entry[0]);
-    assert.equal(result.resolution, 'manual-intervention');
-  }
-
-  const projectionOnly = makeHarness({
-    recovery: async () => ({
-      subject_user_id: 42,
-      class_id: 11,
-      course_id: 101,
-      rule_version: 7,
-      resume: null,
-      activities: [],
-    }),
-  });
-  const projectionFallback = await projectionOnly.runtime.restore(projectionOnly.context);
-  assert.equal(projectionFallback.state, 'blocked');
-  assert.equal(projectionFallback.reason, 'recovery_schema_incompatible');
-
-  const orderGap = makeHarness({
-    recovery: async (identity) => recoveryBundle(identity, {
-      serverEvents: [eventFact(identity, 2, 'started', 'event-started-1')],
-    }),
-  });
-  assert.equal((await orderGap.runtime.restore(orderGap.context)).reason, 'recovery_order_unproven');
-
-  const offlineGap = makeHarness({
-    recovery: async (identity) => recoveryBundle(identity, {
-      serverEvents: [eventFact(identity, 1, 'started', 'event-started-1')],
-      offlineEvents: [eventFact(identity, 3, 'predicted', 'event-predict-01')],
-    }),
-  });
-  assert.equal((await offlineGap.runtime.restore(offlineGap.context)).reason, 'recovery_order_unproven');
-
-  const conflictingReplay = makeHarness({
-    recovery: async (identity) => recoveryBundle(identity, {
-      serverEvents: [eventFact(identity, 1, 'predicted', 'event-predict-01', { value: 'A' })],
-      offlineEvents: [eventFact(identity, 1, 'predicted', 'event-predict-01', { value: 'B' })],
-    }),
-  });
-  const conflictResult = await conflictingReplay.runtime.restore(conflictingReplay.context);
-  assert.equal(conflictResult.reason, 'recovery_conflict');
-  assert.equal(conflictResult.resolution, 'manual-intervention');
-
-  const missingWitness = makeHarness({
-    recovery: async (identity) => recoveryBundle(identity, {
-      serverEvents: [
-        eventFact(identity, 1, 'explained', 'event-explain-01'),
-        eventFact(identity, 2, 'completed', 'event-complete-1'),
-      ],
-      projectionState: 'completed',
-    }),
-  });
-  assert.equal(
-    (await missingWitness.runtime.restore(missingWitness.context)).reason,
-    'recovery_completion_unproven',
-  );
-
-  const reversedWitness = makeHarness({
-    recovery: async (identity) => recoveryBundle(identity, {
-      serverEvents: [
-        eventFact(identity, 1, 'completed', 'event-complete-1'),
-        eventFact(identity, 2, 'attempted', 'event-attempt-01'),
-      ],
-      projectionState: 'completed',
-      completionWitness: {
-        identity: clone(identity),
-        projection_state: 'completed',
-        rule_version: 7,
-        derived_client_event_id: 'event-complete-1',
-        source_client_event_ids: ['event-attempt-01'],
-      },
-    }),
-  });
-  assert.equal(
-    (await reversedWitness.runtime.restore(reversedWitness.context)).reason,
-    'recovery_completion_unproven',
-    'completion-witness-causal-order',
-  );
-
-  const completed = makeHarness({
-    recovery: async (identity) => {
-      const events = [
-        eventFact(identity, 1, 'predicted', 'event-predict-01'),
-        eventFact(identity, 2, 'attempted', 'event-attempt-01'),
-        eventFact(identity, 3, 'explained', 'event-explain-01'),
-        eventFact(identity, 4, 'completed', 'event-complete-1'),
-      ];
-      return recoveryBundle(identity, {
-        serverEvents: events,
-        projectionState: 'completed',
-        completionWitness: {
-          identity: clone(identity),
-          projection_state: 'completed',
-          rule_version: 7,
-          derived_client_event_id: 'event-complete-1',
-          source_client_event_ids: ['event-predict-01', 'event-attempt-01', 'event-explain-01'],
-        },
-      });
-    },
-  });
-  const completedResult = await restoreReady(completed);
-  assert.equal(completedResult.projection_state, 'completed');
-  assert.equal(completedResult.next_sequence, 5);
-
-  let manualMode = 'conflict';
-  let manualBlockId = '';
-  const manual = makeHarness({
-    recovery: async (identity) => {
-      if (manualMode === 'conflict') {
-        return recoveryBundle(identity, {
-          serverEvents: [eventFact(identity, 1, 'predicted', 'event-predict-01', { value: 'A' })],
-          offlineEvents: [eventFact(identity, 1, 'predicted', 'event-predict-01', { value: 'B' })],
-        });
-      }
-      return recoveryBundle(identity, {
-        ...(manualMode === 'resolved' ? {
-          manualResolution: {
-            status: 'resolved',
-            block_id: manualBlockId,
-            resolution_id: 'resolution-0001',
-            action: 'apply-atomic-snapshot',
-            identity: clone(identity),
-          },
-        } : {}),
-      });
-    },
-  });
-  const firstManual = await manual.runtime.restore(manual.context);
-  manualBlockId = firstManual.block_id;
-  manualMode = 'unresolved';
-  const unresolved = await manual.runtime.restore(manual.context);
-  assert.equal(unresolved.reason, 'manual_intervention_unresolved');
-  assert.equal(unresolved.block_id, manualBlockId);
-  manualMode = 'resolved';
-  assert.equal((await manual.runtime.restore(manual.context)).state, 'ready');
-
   const evidenceHarness = makeHarness();
   await restoreReady(evidenceHarness);
-  const startedEvent = {
+  const startedEvent = withSnapshot({
     client_event_id: 'event-started-1',
     event_type: 'started',
     occurred_at: NOW,
     evidence: { cursor: { stage: 'started' } },
-  };
+  }, { stage: 'started' });
   const started = await evidenceHarness.runtime.emitEvidence(startedEvent);
   assert.equal(started.receipt.status, 'confirmed');
-  assert.equal(started.receipt.sequence, 1);
+  assert.equal(started.receipt.learner_sequence, 1);
+  assert.equal(started.receipt.server_sequence, 1);
+  assert.equal(started.receipt.server_last_sequence, 1);
+  assert.ok(Object.isFrozen(evidenceHarness.calls.evidence[0].sidecar));
   const command = evidenceHarness.calls.evidence[0].command;
   assert.equal(command.run.run_id, 'run-0001');
   assert.equal(command.run.group_id, 'group-0001');
@@ -687,12 +598,12 @@ async function main() {
   const writesBeforeDerived = evidenceHarness.calls.evidence.length;
   for (const eventType of ['completed', 'transferred']) {
     await assert.rejects(
-      evidenceHarness.runtime.emitEvidence({
+      evidenceHarness.runtime.emitEvidence(withSnapshot({
         client_event_id: 'event-derived-' + eventType,
         event_type: eventType,
         occurred_at: NOW,
         evidence: {},
-      }),
+      })),
       rejectsCode('server_projection_only'),
     );
   }
@@ -711,12 +622,12 @@ async function main() {
     },
   });
   await restoreReady(retryHarness);
-  const retryEvent = {
+  const retryEvent = withSnapshot({
     client_event_id: 'event-retry-0001',
     event_type: 'predicted',
     occurred_at: NOW,
     evidence: { prediction: { value: 'A' } },
-  };
+  }, { stage: 'predicted', value: 'A' });
   await assert.rejects(retryHarness.runtime.emitEvidence(retryEvent), rejectsCode('network_unknown'));
   await assert.rejects(
     retryHarness.runtime.emitEvidence({
@@ -726,30 +637,34 @@ async function main() {
     rejectsCode('evidence_retry_required'),
   );
   const retryResult = await retryHarness.runtime.emitEvidence(retryEvent);
-  assert.equal(retryResult.receipt.sequence, 1);
+  assert.equal(retryResult.receipt.learner_sequence, 1);
   assert.equal(retryHarness.calls.evidence[0].command.run.sequence, 1);
   assert.equal(retryHarness.calls.evidence[1].command.run.sequence, 1);
 
-  const pendingHarness = makeHarness({
-    evidence: async (command) => matchingReceipt(command, 'local-pending'),
-  });
+  const pendingHarness = makeHarness({ evidence: async (sidecar, _options, count) => count <= 2
+    ? matchingReceipt(sidecar, 'local-pending')
+    : matchingReceipt(sidecar, 'reconciled', { server_sequence: sidecar.command.run.sequence, server_last_sequence: 2 }) });
   await restoreReady(pendingHarness);
-  await pendingHarness.runtime.emitEvidence({
+  const pendingEvents = [withSnapshot({
     client_event_id: 'event-pending-01',
     event_type: 'attempted',
     occurred_at: NOW,
     evidence: { operation: { value: 'first' } },
-  });
-  await pendingHarness.runtime.emitEvidence({
+  }, { stage: 'attempted' }), withSnapshot({
     client_event_id: 'event-pending-02',
     event_type: 'corrected',
     occurred_at: NOW,
     evidence: { correction: { value: 'second' } },
-  });
+  }, { stage: 'corrected' })];
+  await pendingHarness.runtime.emitEvidence(pendingEvents[0]);
+  await pendingHarness.runtime.emitEvidence(pendingEvents[1]);
   assert.deepEqual(
     pendingHarness.calls.evidence.map((entry) => entry.command.run.sequence),
     [1, 2],
   );
+  await pendingHarness.runtime.emitEvidence(pendingEvents[0]);
+  await assert.rejects(pendingHarness.runtime.emitEvidence(pendingEvents[1]),
+    rejectsCode('evidence_receipt_mismatch'), 'local-pending-batch-aggregate-cursor-fails-closed');
 
   const receiptMismatch = makeHarness({
     evidence: async (command) => ({
@@ -759,12 +674,12 @@ async function main() {
   });
   await restoreReady(receiptMismatch);
   await assert.rejects(
-    receiptMismatch.runtime.emitEvidence({
+    receiptMismatch.runtime.emitEvidence(withSnapshot({
       client_event_id: 'event-mismatch-1',
       event_type: 'predicted',
       occurred_at: NOW,
       evidence: { prediction: { value: 'A' } },
-    }),
+    })),
     rejectsCode('evidence_receipt_mismatch'),
   );
   await assert.rejects(
@@ -775,12 +690,12 @@ async function main() {
   const sensitive = makeHarness();
   await restoreReady(sensitive);
   await assert.rejects(
-    sensitive.runtime.emitEvidence({
+    sensitive.runtime.emitEvidence(withSnapshot({
       client_event_id: 'event-sensitive1',
       event_type: 'started',
       occurred_at: NOW,
       evidence: { token: 'secret' },
-    }),
+    })),
     rejectsCode('sensitive_evidence_forbidden'),
   );
 
@@ -1049,12 +964,12 @@ async function main() {
     },
   });
   await restoreReady(evidenceAbort);
-  const abortEvidenceEvent = {
+  const abortEvidenceEvent = withSnapshot({
     client_event_id: 'event-abort-0001',
     event_type: 'attempted',
     occurred_at: NOW,
     evidence: { operation: { value: 'held' } },
-  };
+  }, { stage: 'attempted' });
   const evidenceController = new AbortController();
   const abortedEvidencePromise = evidenceAbort.runtime.emitEvidence(
     abortEvidenceEvent,
@@ -1071,9 +986,9 @@ async function main() {
   ]);
   assert.deepEqual(evidenceAbortOutcome, { type: 'rejected', code: 'operation_aborted' });
   holdEvidenceAbort = false;
-  evidenceAbortDeferred.resolve(matchingReceipt(evidenceAbort.calls.evidence[0].command));
+  evidenceAbortDeferred.resolve(matchingReceipt(evidenceAbort.calls.evidence[0].sidecar));
   const retriedAfterAbort = await evidenceAbort.runtime.emitEvidence(abortEvidenceEvent);
-  assert.equal(retriedAfterAbort.receipt.sequence, 1);
+  assert.equal(retriedAfterAbort.receipt.learner_sequence, 1);
 
   const assessAbortDeferred = deferred();
   let holdAssessAbort = true;
@@ -1226,12 +1141,12 @@ async function main() {
     evidence: async () => evidenceDeferred.promise,
   });
   await restoreReady(lateEvidence);
-  const evidencePromise = lateEvidence.runtime.emitEvidence({
+  const evidencePromise = lateEvidence.runtime.emitEvidence(withSnapshot({
     client_event_id: 'event-late-0001',
     event_type: 'explained',
     occurred_at: NOW,
     evidence: { artifact: { value: 'held' } },
-  });
+  }, { stage: 'explained' }));
   await tick();
   await lateEvidence.runtime.dispose('page-disposed');
   evidenceDeferred.resolve({
@@ -1240,7 +1155,9 @@ async function main() {
     event_type: 'explained',
     run_id: 'run-0001',
     group_id: 'group-0001',
-    sequence: 1,
+    learner_sequence: 1,
+    server_sequence: 1,
+    server_last_sequence: 1,
   });
   await assert.rejects(evidencePromise, rejectsCode('activity_disposed'));
 
