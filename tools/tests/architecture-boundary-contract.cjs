@@ -157,6 +157,7 @@ function contentModuleViolations(relativePath, source) {
 }
 
 const architectureContract = manifest.architecture_contract;
+const activityRuntimeContract = manifest.activity_runtime_contract;
 const learningActivityContract = manifest.learning_activity_contract;
 const contractDocument = read(architectureContract.document);
 
@@ -176,6 +177,180 @@ assert.deepEqual(architectureContract.allowed_write_paths, [
   'tools/architecture/v76-module-boundaries.json',
   'tools/tests/architecture-boundary-contract.cjs',
 ]);
+assert.equal(activityRuntimeContract.task_id, 'ARCH-004');
+assert.equal(activityRuntimeContract.version_token, 'V8.0.9');
+assert.equal(activityRuntimeContract.baseline_revision, 'f925f658442352cdc93f81768f1d7fb93553b863');
+assert.equal(activityRuntimeContract.owner_global, 'AstraLearningActivity');
+assert.equal(activityRuntimeContract.owner_path, 'shared/js/learning-activity.js');
+assert.equal(activityRuntimeContract.runtime_test, 'tools/tests/learning-activity-runtime-contract.cjs');
+assert.equal(activityRuntimeContract.schema_version, 'astra-learning-activity-v1');
+assert.equal(activityRuntimeContract.recovery_schema_version, 'astra-learning-activity-recovery-v1');
+assert.equal(activityRuntimeContract.event_envelope_schema_version, 'astra-learning-activity-event-v1');
+assert.equal(activityRuntimeContract.provenance_schema_version, 'astra-raw-evidence-provenance-v1');
+assert.deepEqual(activityRuntimeContract.allowed_write_paths, [
+  'shared/js/learning-activity.js',
+  'tools/architecture/v76-module-boundaries.json',
+  'tools/tests/architecture-boundary-contract.cjs',
+  'tools/tests/learning-activity-runtime-contract.cjs',
+  'doc/02-子文档/24-V7.6全栈模块边界契约.md',
+]);
+assert.deepEqual(activityRuntimeContract.runtime_identity_fields, [
+  'class_id',
+  'course_id',
+  'course_unit_id',
+  'activity_key',
+  'subject_identity',
+  'run_id',
+  'group_id',
+  'manifest_version',
+  'content_version',
+  'event_schema_version',
+  'rule_version',
+  'generation',
+]);
+assert.deepEqual(activityRuntimeContract.manifest_canonical_fields, [
+  'identity.galaxy_key',
+  'identity.course_key',
+  'identity.activity_key',
+  'identity.manifest_version',
+  'identity.content_version',
+  'identity.event_schema_version',
+  'route.canonical',
+  'owner_adapter.id',
+  'content.state_schema_version',
+  'assessment.rubric_id',
+  'assessment.rubric_version',
+]);
+assert.deepEqual(activityRuntimeContract.manifest_release_scope_contract, {
+  required: ['class_id', 'course_id', 'course_unit_id'],
+  optional: ['activity_key'],
+  unique: true,
+});
+assert.deepEqual(activityRuntimeContract.subject_identity_kinds, ['learner', 'session']);
+assert.equal(activityRuntimeContract.caller_abort_code, 'operation_aborted');
+assert.equal(activityRuntimeContract.dispose_code, 'activity_disposed');
+assert.deepEqual(activityRuntimeContract.release_scope_fields, [
+  'class_id',
+  'course_id',
+  'course_unit_id',
+]);
+assert.deepEqual(activityRuntimeContract.release_optional_scope_fields, ['activity_key']);
+assert.deepEqual(activityRuntimeContract.release_forbidden_identity_fields, [
+  'subject_identity',
+  'run_id',
+  'group_id',
+  'manifest_version',
+  'content_version',
+  'event_schema_version',
+  'rule_version',
+  'generation',
+]);
+assert.match(activityRuntimeContract.manual_latch, /identity-bound/);
+assert.match(activityRuntimeContract.manual_latch, /same-identity resolution or dispose/);
+assert.deepEqual(activityRuntimeContract.required_injected_ports, {
+  authority: 'verify',
+  release: 'resolve',
+  recovery: 'load',
+  evaluation: 'assess',
+  evidence: 'emit',
+});
+assert.deepEqual(
+  activityRuntimeContract.required_adapter_methods,
+  ['restore', 'predict', 'observe', 'dispose'],
+);
+assert.deepEqual(activityRuntimeContract.adapter_effect_contract, {
+  atomicity_scope: 'runtime-state-only',
+  prepare_phase: 'adapter methods prepare and return domain state; they must not commit DOM, Canvas, storage or other external state before the runtime promise succeeds',
+  commit_phase: 'the page owner commits prepared external effects only after the runtime promise succeeds',
+  long_lived_effects: 'an adapter that starts a long-lived effect must observe the injected AbortSignal and release that effect from dispose',
+  known_limit: 'the kernel discards late adapter results but cannot roll back external effects produced by an adapter that ignores AbortSignal',
+  negative_fixture: 'adapter-side-effect-after-abort',
+});
+assert.deepEqual(activityRuntimeContract.binding_query_contract, {
+  rounds: 'pre-operation and post-operation',
+  within_round: 'authority.verify and release.resolve start concurrently and keep independent owners',
+  failure: 'each port validates its resolved result inside its own promise chain; resolved denial, malformed result or rejected error aborts the peer and fails closed with the original business error',
+  performance_claim: 'concurrent scheduling is contracted; real network latency, cache behavior and p95 remain NOT-RUN',
+});
+assert.deepEqual(activityRuntimeContract.manual_resolution_actions, [
+  'apply-atomic-snapshot',
+  'verified-safe-restart',
+]);
+assert.ok(activityRuntimeContract.recovery_guards.includes('causal_completion_witness'));
+assert.deepEqual(activityRuntimeContract.raw_source_kinds, ['request', 'response', 'state', 'dom']);
+assert.equal(activityRuntimeContract.provenance_assurance, 'consistency-only');
+assert.deepEqual(activityRuntimeContract.reference_adapter_kinds, ['simulation', 'code', 'future']);
+assert.match(activityRuntimeContract.current_backend_recovery_capability, /projection-only/);
+assert.ok(activityRuntimeContract.forbidden_runtime_dependencies.length >= 6);
+assert.equal(
+  manifest.current_learning_architecture.activity_runtime,
+  activityRuntimeContract.owner_path,
+);
+
+const activityRuntimeSource = read(activityRuntimeContract.owner_path);
+const activityRuntimeTestSource = read(activityRuntimeContract.runtime_test);
+assert.ok(
+  lineCount(activityRuntimeSource) <= activityRuntimeContract.runtime_line_ceiling,
+  'AstraLearningActivity exceeds its architecture ceiling',
+);
+assert.doesNotMatch(
+  activityRuntimeSource,
+  /\b(?:fetch|XMLHttpRequest|localStorage|sessionStorage|indexedDB)\b/,
+  'the architecture kernel cannot own HTTP or browser storage',
+);
+assert.doesNotMatch(
+  activityRuntimeSource,
+  /AstraLearningEvidence(?:Client|Activity|Queue)/,
+  'the architecture kernel must consume injected ports instead of product globals',
+);
+const activityRuntimeContext = { window: {}, AbortController, Date };
+vm.runInNewContext(activityRuntimeSource, activityRuntimeContext, {
+  filename: activityRuntimeContract.owner_path,
+});
+const activityRuntimeApi = activityRuntimeContext.window.AstraLearningActivity;
+assert.ok(activityRuntimeApi && Object.isFrozen(activityRuntimeApi));
+assert.equal(activityRuntimeApi.schemaVersion, activityRuntimeContract.schema_version);
+assert.equal(activityRuntimeApi.recoverySchemaVersion, activityRuntimeContract.recovery_schema_version);
+assert.equal(
+  activityRuntimeApi.eventEnvelopeSchemaVersion,
+  activityRuntimeContract.event_envelope_schema_version,
+);
+assert.equal(activityRuntimeApi.provenanceSchemaVersion, activityRuntimeContract.provenance_schema_version);
+assert.deepEqual(Array.from(activityRuntimeApi.runtimeStates), learningActivityContract.runtime_states);
+assert.deepEqual(Array.from(activityRuntimeApi.projectionStates), learningActivityContract.projection_states);
+assert.deepEqual(Array.from(activityRuntimeApi.learnerEventTypes), learningActivityContract.learner_event_types);
+assert.deepEqual(
+  Array.from(activityRuntimeApi.serverDerivedEventTypes),
+  learningActivityContract.server_derived_event_types,
+);
+assert.deepEqual(Array.from(activityRuntimeApi.rawSourceKinds), activityRuntimeContract.raw_source_kinds);
+assert.ok(
+  activityRuntimeTestSource.includes(activityRuntimeContract.adapter_effect_contract.negative_fixture),
+  'runtime contract must execute the adapter side-effect limitation fixture',
+);
+assert.ok(
+  activityRuntimeTestSource.includes('binding-round-concurrent-start')
+    && activityRuntimeTestSource.includes('binding-peer-failure-aborts-round'),
+  'runtime contract must execute concurrent binding and peer-failure fixtures',
+);
+assert.ok(
+  activityRuntimeTestSource.includes('binding-resolved-authority-denial-fail-fast')
+    && activityRuntimeTestSource.includes('binding-resolved-release-denial-fail-fast'),
+  'runtime contract must execute resolved-negative fail-fast fixtures in both directions',
+);
+assert.ok(
+  activityRuntimeTestSource.includes('manifest-whitespace-fail-closed')
+    && activityRuntimeTestSource.includes('manifest-release-scope-exact')
+    && activityRuntimeTestSource.includes('completion-witness-causal-order'),
+  'runtime contract must execute factory canonicalization and causal witness fixtures',
+);
+for (const fixtureKind of activityRuntimeContract.reference_adapter_kinds) {
+  assert.ok(
+    activityRuntimeTestSource.includes("['" + fixtureKind + "'")
+      || activityRuntimeTestSource.includes("'" + fixtureKind + "'"),
+    'runtime contract must execute the ' + fixtureKind + ' conformance fixture',
+  );
+}
 
 for (const token of [
   architectureContract.task_id,
@@ -184,6 +359,56 @@ for (const token of [
   ...Object.values(architectureContract.decision_vocabulary),
 ]) {
   assert.ok(contractDocument.includes(token), `architecture document must contain ${token}`);
+}
+for (const token of [
+  activityRuntimeContract.task_id,
+  activityRuntimeContract.version_token,
+  activityRuntimeContract.baseline_revision,
+  activityRuntimeContract.schema_version,
+  activityRuntimeContract.recovery_schema_version,
+  activityRuntimeContract.event_envelope_schema_version,
+  activityRuntimeContract.provenance_schema_version,
+  ...activityRuntimeContract.runtime_identity_fields,
+  activityRuntimeContract.caller_abort_code,
+  activityRuntimeContract.dispose_code,
+  ...Object.keys(activityRuntimeContract.required_injected_ports),
+  ...activityRuntimeContract.manual_resolution_actions,
+  ...activityRuntimeContract.raw_source_kinds,
+]) {
+  const tick = String.fromCharCode(96);
+  assert.ok(
+    contractDocument.includes(tick + token + tick),
+    'architecture document must explain ARCH-004 token ' + token,
+  );
+}
+const arch004Document = contractDocument.slice(contractDocument.indexOf('## 17. ARCH-004'));
+assert.ok(arch004Document.length > 0, 'architecture document must contain the ARCH-004 section');
+for (const phrase of [
+  'subgraph Ports["五个显式注入端口"]',
+  'ready --> interacting: predict() / observe()',
+  'Kernel->>Adapter: restore(frozen prepared input, signal)',
+  'subgraph RawBoundary["共同 raw 来源边界（本片不证明真实性）"]',
+  'prepare/return',
+  'runtime Promise 成功后 commit',
+  '必须由 `Promise.all` 并发启动',
+  '每个 port promise 必须在自己的 chain 内立即执行 `authorityResult` / `releaseResult` 语义校验',
+  '网络时延和 p95 均为 **NOT-RUN**',
+  '`manifest-whitespace-fail-closed`',
+  'manifest 的 `release.scope_fields` 必须唯一且精确包含',
+  '每个 source sequence 必须严格早于 derived sequence',
+]) {
+  assert.ok(arch004Document.includes(phrase), `ARCH-004 layered analysis must contain ${phrase}`);
+}
+assert.ok(
+  arch004Document.includes('`' + activityRuntimeContract.adapter_effect_contract.atomicity_scope + '`')
+    && arch004Document.includes('`' + activityRuntimeContract.adapter_effect_contract.negative_fixture + '`'),
+  'architecture document must freeze the adapter atomicity scope and its negative fixture',
+);
+for (const heading of ['**当前能证明**', '**当前不能证明**', '**后续接入点**']) {
+  assert.ok(
+    arch004Document.split(heading).length - 1 >= 4,
+    `each ARCH-004 layered diagram must explain ${heading}`,
+  );
 }
 
 for (const relativePath of Object.values(manifest.current_learning_architecture)) {
@@ -619,7 +844,7 @@ assert.deepEqual(
     owner: 'shared/js/learning-activity.js',
     valid: false,
   }],
-  'the reserved LearningActivity runtime owner must be detectable before implementation',
+  'a duplicate LearningActivity runtime owner must remain detectable after implementation',
 );
 assert.equal(isFrontendScript('pages/planets/architecture-negative-fixture.mjs'), true);
 assert.equal(isFrontendScript('pages/planets/architecture-negative-fixture.cjs'), true);

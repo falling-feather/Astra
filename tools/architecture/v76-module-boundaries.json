@@ -18,8 +18,156 @@
       "tools/tests/architecture-boundary-contract.cjs"
     ]
   },
+  "activity_runtime_contract": {
+    "task_id": "ARCH-004",
+    "version_token": "V8.0.9",
+    "baseline_revision": "f925f658442352cdc93f81768f1d7fb93553b863",
+    "owner_global": "AstraLearningActivity",
+    "owner_path": "shared/js/learning-activity.js",
+    "runtime_test": "tools/tests/learning-activity-runtime-contract.cjs",
+    "schema_version": "astra-learning-activity-v1",
+    "recovery_schema_version": "astra-learning-activity-recovery-v1",
+    "event_envelope_schema_version": "astra-learning-activity-event-v1",
+    "provenance_schema_version": "astra-raw-evidence-provenance-v1",
+    "runtime_line_ceiling": 980,
+    "allowed_write_paths": [
+      "shared/js/learning-activity.js",
+      "tools/architecture/v76-module-boundaries.json",
+      "tools/tests/architecture-boundary-contract.cjs",
+      "tools/tests/learning-activity-runtime-contract.cjs",
+      "doc/02-子文档/24-V7.6全栈模块边界契约.md"
+    ],
+    "runtime_identity_fields": [
+      "class_id",
+      "course_id",
+      "course_unit_id",
+      "activity_key",
+      "subject_identity",
+      "run_id",
+      "group_id",
+      "manifest_version",
+      "content_version",
+      "event_schema_version",
+      "rule_version",
+      "generation"
+    ],
+    "manifest_canonical_fields": [
+      "identity.galaxy_key",
+      "identity.course_key",
+      "identity.activity_key",
+      "identity.manifest_version",
+      "identity.content_version",
+      "identity.event_schema_version",
+      "route.canonical",
+      "owner_adapter.id",
+      "content.state_schema_version",
+      "assessment.rubric_id",
+      "assessment.rubric_version"
+    ],
+    "manifest_release_scope_contract": {
+      "required": [
+        "class_id",
+        "course_id",
+        "course_unit_id"
+      ],
+      "optional": [
+        "activity_key"
+      ],
+      "unique": true
+    },
+    "subject_identity_kinds": [
+      "learner",
+      "session"
+    ],
+    "caller_abort_code": "operation_aborted",
+    "dispose_code": "activity_disposed",
+    "release_scope_fields": [
+      "class_id",
+      "course_id",
+      "course_unit_id"
+    ],
+    "release_optional_scope_fields": [
+      "activity_key"
+    ],
+    "release_forbidden_identity_fields": [
+      "subject_identity",
+      "run_id",
+      "group_id",
+      "manifest_version",
+      "content_version",
+      "event_schema_version",
+      "rule_version",
+      "generation"
+    ],
+    "manual_latch": "identity-bound and persistent across transient authority/release failures until same-identity resolution or dispose",
+    "required_injected_ports": {
+      "authority": "verify",
+      "release": "resolve",
+      "recovery": "load",
+      "evaluation": "assess",
+      "evidence": "emit"
+    },
+    "required_adapter_methods": [
+      "restore",
+      "predict",
+      "observe",
+      "dispose"
+    ],
+    "adapter_effect_contract": {
+      "atomicity_scope": "runtime-state-only",
+      "prepare_phase": "adapter methods prepare and return domain state; they must not commit DOM, Canvas, storage or other external state before the runtime promise succeeds",
+      "commit_phase": "the page owner commits prepared external effects only after the runtime promise succeeds",
+      "long_lived_effects": "an adapter that starts a long-lived effect must observe the injected AbortSignal and release that effect from dispose",
+      "known_limit": "the kernel discards late adapter results but cannot roll back external effects produced by an adapter that ignores AbortSignal",
+      "negative_fixture": "adapter-side-effect-after-abort"
+    },
+    "binding_query_contract": {
+      "rounds": "pre-operation and post-operation",
+      "within_round": "authority.verify and release.resolve start concurrently and keep independent owners",
+      "failure": "each port validates its resolved result inside its own promise chain; resolved denial, malformed result or rejected error aborts the peer and fails closed with the original business error",
+      "performance_claim": "concurrent scheduling is contracted; real network latency, cache behavior and p95 remain NOT-RUN"
+    },
+    "recovery_guards": [
+      "complete_history",
+      "complete_pending_set",
+      "atomic_snapshot",
+      "current_authority_revision",
+      "current_release_revision",
+      "exact_runtime_identity",
+      "contiguous_event_sequence",
+      "completion_witness",
+      "causal_completion_witness",
+      "explicit_manual_resolution"
+    ],
+    "manual_resolution_actions": [
+      "apply-atomic-snapshot",
+      "verified-safe-restart"
+    ],
+    "raw_source_kinds": [
+      "request",
+      "response",
+      "state",
+      "dom"
+    ],
+    "provenance_assurance": "consistency-only",
+    "reference_adapter_kinds": [
+      "simulation",
+      "code",
+      "future"
+    ],
+    "current_backend_recovery_capability": "projection-only; exact run/group/generation history and atomic domain snapshot are unavailable, so the runtime must return blocked until an adapter supplies the full recovery contract",
+    "forbidden_runtime_dependencies": [
+      "product page or DOM ownership",
+      "direct HTTP or database access",
+      "offline storage implementation",
+      "release or completion business truth",
+      "teacher projection computation",
+      "product adapter registration"
+    ]
+  },
   "current_learning_architecture": {
     "catalog": "shared/js/learning-activity-catalog.js",
+    "activity_runtime": "shared/js/learning-activity.js",
     "activity_controller": "shared/js/learning-evidence-activity.js",
     "evidence_client": "shared/js/learning-evidence-client.js",
     "offline_queue": "shared/js/learning-evidence-queue.js",
@@ -33,7 +181,8 @@
     "backend_projection": "backend/app/services/learning_evidence_projection.py",
     "teacher_projection": "backend/app/services/teacher_evidence_facts.py",
     "known_gaps": [
-      "the current activity controller exposes record/refresh/context/destroy instead of the unified LearningActivity port",
+      "the unified runtime kernel is present but deliberately unwired; current pages still consume record/refresh/context/destroy from the existing activity controller",
+      "the current backend recovery DTO has projection and resume cursor data but no exact run/group/generation event history or atomic domain snapshot",
       "the Future Galaxy catalog is not yet backed by one canonical activity runtime",
       "teacher facts are authoritative but course-specific projections remain partial"
     ]
