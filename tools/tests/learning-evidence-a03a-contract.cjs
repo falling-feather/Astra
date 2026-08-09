@@ -2314,6 +2314,7 @@ function runMechanicsZoomRestoreContract() {
   const prepareAbortCalls = [];
   const prepareAbortWindow = {
     addEventListener() {},
+    location: { hash: '#physics/mechanics' },
     AstraApplicationSession: { getUser: () => prepareSessionUser },
     AstraApiClient: {
       request(route, options = {}) {
@@ -2564,6 +2565,7 @@ function runMechanicsZoomRestoreContract() {
   const productionPublication = productionWindow.AstraEngineeringLabPublicationContext;
   const studentUser = { id: 7, role: 'student' };
   assert.equal((await productionPublication.switchClass(studentUser, 41)).class_id, 41);
+  productionWindow.location.hash = '#physics/mechanics';
   const classDriver = createStudentClassDriver(productionPublication);
   classDriver.state.selected.classId = '41';
   const activity = {
@@ -2590,6 +2592,7 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(lateACall.signal.aborted, true, 'the production A→B switch must abort the in-flight A resolve');
   assert.equal(productionPublication.snapshot().class_id, 42, 'the production class change must synchronize B');
   const bHarness = createPublicationModuleHarness(productionPublication);
+  productionWindow.location.hash = '#physics/mechanics';
   assert.equal(bHarness.selector.openModule('physics', 'mechanics'), true);
   await settlePromises();
   assert.equal(
@@ -2607,6 +2610,7 @@ function runMechanicsZoomRestoreContract() {
   const productionHidden = createPublicationModuleHarness(productionPublication, {
     initialHash: '#physics/hidden-qa-v7718'
   });
+  productionWindow.location.hash = '#physics/hidden-qa-v7718';
   assert.equal(productionHidden.selector.openModule('physics', 'hidden-qa-v7718'), true);
   await settlePromises();
   assert.equal(productionHidden.windowObject.location.hash, '#physics');
@@ -2625,6 +2629,7 @@ function runMechanicsZoomRestoreContract() {
   const productionLocked = createPublicationModuleHarness(productionPublication, {
     initialHash: '#physics/locked-only-unit'
   });
+  productionWindow.location.hash = '#physics/locked-only-unit';
   assert.equal(productionLocked.selector.openModule('physics', 'locked-only-unit'), true);
   await settlePromises();
   assert.equal(productionLocked.windowObject.location.hash, '#physics');
@@ -2645,6 +2650,7 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(productionPublication.snapshot().class_id, 42, 'late A must not restore the old class');
 
   deferNextHiddenUnitAccess = true;
+  productionWindow.location.hash = '#physics/hidden-qa-v7718';
   const pendingUnitAccess = productionPublication.resolve({
     galaxy_key: 'englab',
     course_key: 'physics',
@@ -2673,6 +2679,7 @@ function runMechanicsZoomRestoreContract() {
   await classDriver.changeClass('');
   assert.equal(productionPublication.snapshot().class_id, null, 'A→empty must clear selectedClassId');
   const emptyHarness = createPublicationModuleHarness(productionPublication);
+  productionWindow.location.hash = '#physics/mechanics';
   assert.equal(emptyHarness.selector.openModule('physics', 'mechanics'), true);
   await settlePromises();
   assert.equal(

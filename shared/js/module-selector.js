@@ -887,21 +887,113 @@ const ModuleSelector = {
             || moduleId !== 'mechanics'
             || !window.AstraLearningEvidenceLoader
         ) return;
-        window.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true }).then(() => {
+        const evidenceError = code => {
+            const error = new Error(code || 'publication_context_unavailable');
+            error.code = code || 'publication_context_unavailable';
+            return error;
+        };
+        const blockOwner = error => {
+            if (!this._isCurrentModuleTransition(page, moduleId, generation)) return;
+            const owner = window.PhysicsSim;
+            if (owner && typeof owner.blockCourseEvidence === 'function') owner.blockCourseEvidence(error);
+        };
+        let evidenceController = null;
+        const destroyEvidenceController = () => {
+            const controller = evidenceController;
+            evidenceController = null;
+            if (controller && typeof controller.destroy === 'function') controller.destroy();
+        };
+        window.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true }).then(async () => {
             if (!this._isCurrentModuleTransition(page, moduleId, generation)) return;
             const host = Array.from(sections).find(section => section.isConnected && section.classList.contains('module-active'));
-            if (!host || !pageEl.isConnected || !window.AstraLearningEvidenceActivity) return;
-            window.AstraLearningEvidenceActivity.mount({
+            const activity = window.AstraLearningEvidenceActivity;
+            const provider = window.AstraEngineeringLabPublicationContext;
+            const evidenceClient = window.AstraLearningEvidenceClient;
+            const catalog = window.AstraLearningActivityCatalog;
+            const owner = window.PhysicsSim;
+            if (
+                !host
+                || !pageEl.isConnected
+                || !activity
+                || !provider
+                || !evidenceClient
+                || !catalog
+                || !owner
+                || typeof activity.mount !== 'function'
+                || typeof provider.resolve !== 'function'
+                || typeof provider.sameLearningEvidenceAuthority !== 'function'
+                || typeof evidenceClient.pendingFor !== 'function'
+            ) throw evidenceError('publication_context_unavailable');
+            const mapping = catalog.resolve('englab', 'physics.mechanics');
+            if (!mapping || mapping.representative !== true) throw evidenceError('activity_mapping_missing');
+            const isActive = () => this._isCurrentModuleTransition(page, moduleId, generation)
+                && pageEl.isConnected
+                && host.isConnected
+                && window.location.hash === '#physics/mechanics';
+            const resolveAuthority = async (expected, signal) => {
+                const assertActive = () => {
+                    if ((signal && signal.aborted) || !isActive()) throw evidenceError('cancelled');
+                };
+                assertActive();
+                await evidenceClient.pendingFor(expected);
+                assertActive();
+                const current = await provider.resolve(mapping, { signal });
+                assertActive();
+                if (!provider.sameLearningEvidenceAuthority(expected, current)) {
+                    throw evidenceError(current && current.error_code || 'identity_required');
+                }
+                return current;
+            };
+            const controller = activity.mount({
                 host,
                 galaxy_key: 'englab',
                 activity_key: 'physics.mechanics',
                 title: '力学实验学习证据',
                 integrated: true,
-                operationLabel: '完成上方 e=0.40 / e=0.80 受控对照并修正判断'
+                structuredOnly: true,
+                reusePendingStarted: true,
+                authorizeAfterRecord: true,
+                requireAuthoritativeResult: true,
+                operationLabel: '完成上方 e=0.40 / e=0.80 受控对照并修正判断',
+                authorizeRecord: async request => {
+                    if (
+                        request.event_type !== 'started'
+                        && !owner.authorizeCourseRecord(request.event_type, request.evidence)
+                    ) throw evidenceError('publication_context_unavailable');
+                    return resolveAuthority(request.context, request.signal);
+                },
+                commandEnabled: command => isActive()
+                    && owner.canUseCourseEvidenceCommand(command),
+                beforeCommand: detail => owner.beginCourseEvidenceCommand(detail),
+                onCommandResult: detail => owner.completeCourseEvidenceCommand(detail),
+                onCommandError: error => owner.failCourseEvidenceCommand(error)
             });
+            if (!controller || typeof controller.ready !== 'function') {
+                throw evidenceError('publication_context_unavailable');
+            }
+            evidenceController = controller;
+            await controller.ready();
+            if (!isActive()) {
+                destroyEvidenceController();
+                return;
+            }
+            const context = controller.context && controller.context();
+            await resolveAuthority(context);
+            if (!isActive()) {
+                destroyEvidenceController();
+                return;
+            }
+            if (!owner.bindCourseEvidence(controller, {
+                resolveAuthority,
+                sameAuthority: provider.sameLearningEvidenceAuthority,
+                isActive
+            })) throw evidenceError('publication_context_unavailable');
+            if (typeof controller.refreshCommands === 'function') controller.refreshCommands();
         }).catch(error => {
+            destroyEvidenceController();
             if (this._isCurrentModuleTransition(page, moduleId, generation)) {
                 window.AstraLearningEvidenceLoader.clearDomainCommands('englab', 'physics.mechanics');
+                blockOwner(error);
                 console.warn('[ModuleSelector] learning evidence unavailable', error && (error.code || error.message));
             }
         });

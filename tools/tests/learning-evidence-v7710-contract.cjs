@@ -238,18 +238,29 @@ class MiniElement {
     domainStatus.hidden = true;
     const projection = create('p', 'data-evidence-projection');
     projection.hidden = true;
-    const controls = create('div', 'data-evidence-controls');
-    controls.hidden = true;
-    const prediction = create('select', 'data-evidence-value', 'prediction');
-    prediction.value = 'expect-change';
-    const predicted = create('button', 'data-evidence-command', 'predicted');
-    const explanation = create('select', 'data-evidence-value', 'explanation');
-    explanation.value = 'claim-supported';
-    const explained = create('button', 'data-evidence-command', 'explained');
-    controls.append(prediction, predicted, explanation, explained);
-    const freeText = create('textarea', 'data-evidence-free-text');
-    const explainedText = create('button', 'data-evidence-command', 'explained-text');
-    this.append(scope, status, domainStatus, projection, controls, freeText, explainedText);
+    this.append(scope, status, domainStatus, projection);
+    if (this._innerHTML.includes('data-evidence-controls')) {
+      const controls = create('div', 'data-evidence-controls');
+      controls.hidden = true;
+      if (this._innerHTML.includes('data-evidence-command="predicted"')) {
+        const prediction = create('select', 'data-evidence-value', 'prediction');
+        prediction.value = 'expect-change';
+        const predicted = create('button', 'data-evidence-command', 'predicted');
+        controls.append(prediction, predicted);
+      }
+      if (this._innerHTML.includes('data-evidence-command="explained"')) {
+        const explanation = create('select', 'data-evidence-value', 'explanation');
+        explanation.value = 'claim-supported';
+        const explained = create('button', 'data-evidence-command', 'explained');
+        controls.append(explanation, explained);
+      }
+      this.appendChild(controls);
+    }
+    if (this._innerHTML.includes('data-evidence-free-text')) {
+      const freeText = create('textarea', 'data-evidence-free-text');
+      const explainedText = create('button', 'data-evidence-command', 'explained-text');
+      this.append(freeText, explainedText);
+    }
   }
 
   _notifyAttribute(name) {
@@ -688,8 +699,8 @@ function createActivityHarness(recordHandler, options = {}) {
     async flush() {
       return { outcome: 'empty' };
     },
-    async record(payload, options) {
-      calls.push({ payload, options });
+    async record(payload, requestOptions) {
+      calls.push({ payload, options: requestOptions });
       emit({
         type: 'syncing',
         state: 'syncing',
@@ -699,8 +710,8 @@ function createActivityHarness(recordHandler, options = {}) {
       });
       let result;
       try {
-        result = await recordHandler(payload, options, calls);
-        if (result && result.state) {
+        result = await recordHandler(payload, requestOptions, calls);
+        if (options.emitRecordState !== false && result && result.state) {
           emit({
             type: result.state === 'confirmed' ? 'confirmed' : result.state,
             state: result.state,
@@ -784,6 +795,7 @@ function createActivityHarness(recordHandler, options = {}) {
     galaxy_key: 'englab',
     activity_key: 'physics.mechanics',
     resolveContext: async () => contextValue,
+    ...(options.mountOptions || {}),
   });
   const host = parent.querySelector('[data-learning-evidence-activity]');
   return {
@@ -796,6 +808,7 @@ function createActivityHarness(recordHandler, options = {}) {
     warnings,
     statusRenders,
     emit,
+    listenerCount: () => listeners.size,
     emitDomain(detail, occurredAt = '2026-07-29T08:05:00Z') {
       assert.equal(typeof domainCommand, 'function', 'domain command consumer must be claimed');
       return domainCommand(detail, occurredAt);
@@ -3395,6 +3408,1245 @@ function testFabEscapeStopsModuleOwnerOnSameDocumentTarget() {
   );
 }
 
+async function testPhysicsStructuredOwnerCommandOptIn() {
+  let enabled = false;
+  let ownerBusy = false;
+  let authorizeCalls = 0;
+  let resultCalls = 0;
+  let activityController = null;
+  const harness = createActivityHarness(
+    (payload) => confirmed(payload),
+    {
+      recoveryHandler: () => ({
+        rule_version: 1,
+        activities: [{
+          course_unit_id: 37,
+          activity_key: 'physics.mechanics',
+          rule_version: 1,
+          status: 'in_progress',
+          first_started_at: '2026-08-09T08:00:00Z',
+        }],
+      }),
+      mountOptions: {
+        integrated: true,
+        structuredOnly: true,
+        authorizeAfterRecord: true,
+        requireAuthoritativeResult: true,
+        commandEnabled: command => command === 'explained' && enabled && !ownerBusy,
+        authorizeRecord: async ({ context }) => {
+          authorizeCalls += 1;
+          return context;
+        },
+        beforeCommand: ({ event_type }) => {
+          if (event_type !== 'explained' || ownerBusy) return null;
+          ownerBusy = true;
+          return Object.freeze({
+            client_event_id: 'physics-explained-fixed',
+            owner_generation: 9,
+            binding_generation: 17,
+            authority_generation: 5,
+          });
+        },
+        onCommandResult: detail => {
+          const accepted = activityController.consumeCommandReceipt(detail.receipt, {
+            permit: detail.permit,
+            result: detail.result,
+            evidence: detail.evidence,
+            event_type: detail.event_type,
+            client_event_id: detail.client_event_id,
+            owner_generation: detail.permit.owner_generation,
+            binding_generation: detail.permit.binding_generation,
+            authority_generation: detail.permit.authority_generation,
+          });
+          assert.ok(accepted, 'the owner receives a one-use receipt from the actual record operation');
+          resultCalls += 1;
+          ownerBusy = false;
+        },
+        onCommandError: () => { ownerBusy = false; },
+      },
+    }
+  );
+  activityController = harness.controller;
+  await harness.controller.ready();
+  assert.equal(harness.freeText, null, 'structuredOnly must remove the online free-text shortcut');
+  assert.equal(harness.explainedTextButton, null);
+  assert.equal(harness.predictedButton, null, 'integrated Physics keeps prediction in its domain owner');
+  assert.equal(harness.explainedButton.disabled, true);
+  assert.equal(harness.explainedButton.getAttribute('aria-disabled'), 'true');
+  enabled = true;
+  harness.controller.refreshCommands();
+  assert.equal(harness.explainedButton.disabled, false);
+  assert.equal(harness.explainedButton.getAttribute('aria-disabled'), 'false');
+  harness.explainedButton.click();
+  harness.explainedButton.click();
+  await waitFor(() => resultCalls === 1, 'Physics structured explanation result');
+  assert.equal(harness.calls.length, 1, 'the atomic owner hook must collapse a double click');
+  assert.equal(harness.calls[0].payload.client_event_id, 'physics-explained-fixed');
+  assert.equal(harness.calls[0].payload.event_type, 'explained');
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.calls[0].payload.evidence)), {
+    artifact: { kind: 'claim-evidence-link', value: 'claim-supported' },
+    cursor: { stage: 'explained' },
+  });
+  assert.equal(authorizeCalls, 2, 'explicit Physics opt-in must authorize before and after the request');
+}
+
+function createPhysicsAuthoritativeHarness(recordHandler, options = {}) {
+  const mapInstances = [];
+  class TrackingMap extends Map {
+    constructor(...args) {
+      super(...args);
+      mapInstances.push(this);
+    }
+  }
+  const results = [];
+  const errors = [];
+  const authorizeCalls = [];
+  let ownerBusy = false;
+  let commandId = options.commandId || 'physics-authoritative-fixed';
+  let commandEvidence = null;
+  let activityController = null;
+  const harness = createActivityHarness(recordHandler, {
+    Map: TrackingMap,
+    emitRecordState: options.emitRecordState,
+    recoveryHandler: () => ({
+      rule_version: 1,
+      activities: [{
+        course_unit_id: 37,
+        activity_key: 'physics.mechanics',
+        rule_version: 1,
+        status: 'in_progress',
+        first_started_at: '2026-08-09T08:00:00Z',
+      }],
+    }),
+    mountOptions: {
+      integrated: true,
+      structuredOnly: true,
+      reusePendingStarted: true,
+      authorizeAfterRecord: true,
+      requireAuthoritativeResult: true,
+      commandEnabled: command => command === 'explained' && !ownerBusy,
+      authorizeRecord: async request => {
+        authorizeCalls.push(request);
+        if (typeof options.authorizeHandler === 'function') {
+          return options.authorizeHandler(request, authorizeCalls.length);
+        }
+        return request.context;
+      },
+      beforeCommand: detail => {
+        if (detail.event_type !== 'explained' || ownerBusy) return null;
+        ownerBusy = true;
+        commandEvidence = detail.evidence;
+        return Object.freeze({
+          client_event_id: commandId,
+          owner_generation: 31,
+          binding_generation: 37,
+          authority_generation: 5,
+        });
+      },
+      onCommandResult: detail => {
+        const accepted = activityController.consumeCommandReceipt(detail.receipt, {
+          permit: detail.permit,
+          result: detail.result,
+          evidence: detail.evidence,
+          event_type: detail.event_type,
+          client_event_id: detail.client_event_id,
+          owner_generation: detail.permit.owner_generation,
+          binding_generation: detail.permit.binding_generation,
+          authority_generation: detail.permit.authority_generation,
+        });
+        results.push({ detail, accepted });
+        ownerBusy = false;
+      },
+      onCommandError: error => {
+        errors.push(error);
+        ownerBusy = false;
+      },
+    },
+  });
+  activityController = harness.controller;
+  return {
+    ...harness,
+    results,
+    errors,
+    authorizeCalls,
+    get ownerBusy() { return ownerBusy; },
+    get commandId() { return commandId; },
+    set commandId(value) { commandId = String(value); },
+    get commandEvidence() { return commandEvidence; },
+    operationTable() {
+      assert.equal(mapInstances.length, 1, 'the activity owns one operation identity table');
+      return mapInstances[0];
+    },
+  };
+}
+
+function exactPhysicsChange(type, state, clientEventId, overrides = {}) {
+  return {
+    type,
+    state,
+    client_event_id: clientEventId,
+    event_type: 'explained',
+    projection: {
+      class_id: 41,
+      course_id: 13,
+      course_unit_id: 37,
+      activity_key: 'physics.mechanics',
+      rule_version: 1,
+      last_event_type: 'explained',
+      ...(overrides.projection || {}),
+    },
+    ...overrides,
+  };
+}
+
+function createHeldRecordTransport({ honorSignal = false } = {}) {
+  const records = [];
+  return {
+    records,
+    handler(payload, requestOptions = {}) {
+      const gate = deferred();
+      const signal = requestOptions.signal;
+      const record = { payload, requestOptions, signal, gate };
+      records.push(record);
+      if (honorSignal) {
+        const rejectCancelled = () => {
+          const error = new Error('held transport cancelled');
+          error.code = 'cancelled';
+          gate.reject(error);
+        };
+        if (signal && signal.aborted) rejectCancelled();
+        else if (signal) signal.addEventListener('abort', rejectCancelled, { once: true });
+      }
+      return gate.promise;
+    },
+    resolve(index, result) {
+      const record = records[index];
+      record.gate.resolve(result || confirmed(record.payload));
+    },
+  };
+}
+
+function createCountingAbortSource() {
+  const listeners = new Set();
+  let removeCalls = 0;
+  const signal = {
+    aborted: false,
+    addEventListener(type, listener) {
+      if (type === 'abort') listeners.add(listener);
+    },
+    removeEventListener(type, listener) {
+      if (type !== 'abort') return;
+      removeCalls += 1;
+      listeners.delete(listener);
+    },
+  };
+  return {
+    signal,
+    abort() {
+      if (signal.aborted) return;
+      signal.aborted = true;
+      const pending = [...listeners];
+      listeners.clear();
+      pending.forEach(listener => listener({ type: 'abort', target: signal }));
+    },
+    listenerCount: () => listeners.size,
+    removeCalls: () => removeCalls,
+  };
+}
+
+function captureDisposition(promise) {
+  const disposition = { value: null };
+  promise.then(
+    value => { disposition.value = { outcome: 'resolved', value }; },
+    error => { disposition.value = { outcome: 'rejected', error }; },
+  );
+  return disposition;
+}
+
+function armSameIdentityReentry(harness, change, evidence, clientEventId) {
+  let disposition = null;
+  let attempts = 0;
+  const unsubscribe = harness.client.subscribe(value => {
+    if (value !== change || attempts) return;
+    attempts += 1;
+    disposition = captureDisposition(harness.controller.record('explained', evidence, {
+      client_event_id: clientEventId,
+    }));
+  });
+  return {
+    unsubscribe,
+    attempts: () => attempts,
+    disposition: () => disposition,
+  };
+}
+
+function earlyTerminalVariant(kind, clientEventId) {
+  if (kind === 'confirmed') {
+    return {
+      change: exactPhysicsChange('confirmed', 'confirmed', clientEventId),
+      expected: { outcome: 'resolved', result: 'confirmed' },
+    };
+  }
+  if (kind === 'manual') {
+    return {
+      change: exactPhysicsChange('manual-intervention', 'manual-intervention', clientEventId),
+      expected: { outcome: 'resolved', result: 'manual-intervention' },
+    };
+  }
+  return {
+    change: exactPhysicsChange('manual-intervention', 'confirmed', clientEventId),
+    expected: { outcome: 'rejected', result: 'evidence_terminal_invalid' },
+  };
+}
+
+function queuedFor(record) {
+  return {
+    outcome: 'queued',
+    state: 'local-pending',
+    client_event_id: record.payload.client_event_id,
+    event_type: record.payload.event_type,
+  };
+}
+
+function assertTerminalDisposition(disposition, expected) {
+  assert.ok(disposition && disposition.value, 'the first record must settle once');
+  assert.equal(disposition.value.outcome, expected.outcome);
+  if (expected.outcome === 'resolved') {
+    assert.equal(disposition.value.value.outcome, expected.result);
+  } else {
+    assert.equal(disposition.value.error.code, expected.result);
+  }
+}
+
+async function testPhysicsEarlyTerminalCannotReleaseAuthoritativeFence() {
+  for (const phase of ['pre-authorize', 'initial-transport']) {
+    for (const terminal of ['confirmed', 'manual', 'invalid']) {
+      const authorization = deferred();
+      const transport = createHeldRecordTransport();
+      const clientEventId = `physics-${phase}-${terminal}`;
+      const harness = createPhysicsAuthoritativeHarness(
+        transport.handler,
+        {
+          emitRecordState: false,
+          commandId: clientEventId,
+          authorizeHandler: phase === 'pre-authorize'
+            ? (request, callNumber) => (callNumber === 1 ? authorization.promise : request.context)
+            : undefined,
+        },
+      );
+      await harness.controller.ready();
+      const evidence = { cursor: { stage: 'explained' } };
+      const first = captureDisposition(harness.controller.record('explained', evidence, {
+        client_event_id: clientEventId,
+      }));
+      if (phase === 'pre-authorize') {
+        await waitFor(() => harness.authorizeCalls.length === 1, `${phase} ${terminal} authorization held`);
+        assert.equal(harness.calls.length, 0);
+      } else {
+        await waitFor(() => harness.calls.length === 1, `${phase} ${terminal} transport held`);
+      }
+      assert.equal(harness.operationTable().size, 1);
+
+      const variant = earlyTerminalVariant(terminal, clientEventId);
+      const reentry = armSameIdentityReentry(harness, variant.change, evidence, clientEventId);
+      harness.emit(variant.change);
+      await settle();
+      assert.equal(reentry.attempts(), 1, 'the peer subscriber must run in the same notification stack');
+      assert.equal(
+        harness.calls.length,
+        phase === 'pre-authorize' ? 0 : 1,
+        'an exact early terminal cannot admit a second real transport',
+      );
+      assert.ok(reentry.disposition() && reentry.disposition().value);
+      assert.equal(reentry.disposition().value.outcome, 'rejected');
+      assert.equal(reentry.disposition().value.error.code, 'evidence_operation_in_flight');
+      assert.equal(harness.operationTable().size, 1, 'the first outer record remains the fence owner');
+      reentry.unsubscribe();
+
+      if (phase === 'pre-authorize') {
+        authorization.resolve(harness.authorizeCalls[0].context);
+        await waitFor(() => harness.calls.length === 1, `${phase} ${terminal} first transport`);
+      }
+      transport.resolve(0, queuedFor(transport.records[0]));
+      await waitFor(() => first.value !== null, `${phase} ${terminal} first settlement`);
+      assertTerminalDisposition(first, variant.expected);
+      assert.equal(harness.operationTable().size, 0);
+
+      const retry = captureDisposition(harness.controller.record('explained', evidence, {
+        client_event_id: clientEventId,
+      }));
+      await waitFor(() => harness.calls.length === 2, `${phase} ${terminal} safe retry`);
+      transport.resolve(1);
+      await waitFor(() => retry.value !== null, `${phase} ${terminal} retry settlement`);
+      assert.equal(retry.value.outcome, 'resolved');
+      assert.equal(retry.value.value.outcome, 'confirmed');
+      assert.equal(harness.operationTable().size, 0);
+      harness.controller.destroy();
+      assert.equal(harness.listenerCount(), 0);
+    }
+  }
+}
+
+async function testPhysicsEarlyTerminalCancellationSettlesOnce() {
+  const unhandled = [];
+  const onUnhandled = reason => { unhandled.push(reason); };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    const cases = [
+      {
+        ending: 'destroy',
+        terminal: 'confirmed',
+        lateResult: record => queuedFor(record),
+      },
+      {
+        ending: 'authority-cleared',
+        terminal: 'manual',
+        lateResult: record => confirmed(record.payload),
+      },
+    ];
+    for (const item of cases) {
+      const transport = createHeldRecordTransport();
+      const clientEventId = `physics-early-${item.ending}`;
+      const harness = createPhysicsAuthoritativeHarness(
+        transport.handler,
+        { emitRecordState: false, commandId: clientEventId },
+      );
+      await harness.controller.ready();
+      harness.controller.refreshCommands();
+      harness.explainedButton.click();
+      await waitFor(() => harness.calls.length === 1 && harness.ownerBusy, `${item.ending} early terminal held`);
+      const evidence = harness.calls[0].payload.evidence;
+      const variant = earlyTerminalVariant(item.terminal, clientEventId);
+      const reentry = armSameIdentityReentry(harness, variant.change, evidence, clientEventId);
+      harness.emit(variant.change);
+      await settle();
+      assert.equal(reentry.disposition().value.outcome, 'rejected');
+      assert.equal(reentry.disposition().value.error.code, 'evidence_operation_in_flight');
+      assert.equal(harness.calls.length, 1);
+      assert.equal(harness.operationTable().size, 1);
+      reentry.unsubscribe();
+
+      if (item.ending === 'destroy') harness.controller.destroy();
+      else harness.emit({ type: 'authority-cleared' });
+      await waitFor(() => harness.errors.length === 1, `${item.ending} early terminal cancellation`);
+      assert.equal(harness.errors[0].code, 'cancelled');
+      assert.equal(harness.results.length, 0);
+      assert.equal(harness.ownerBusy, false);
+      assert.equal(harness.operationTable().size, 0);
+      transport.resolve(0, item.lateResult(transport.records[0]));
+      await settle();
+      assert.equal(harness.errors.length, 1, 'late transport cannot call the owner twice');
+      assert.equal(harness.results.length, 0, 'late transport cannot mint a receipt');
+      if (item.ending === 'authority-cleared') harness.controller.destroy();
+      assert.equal(harness.listenerCount(), 0);
+    }
+
+    const callerTransport = createHeldRecordTransport();
+    const caller = createPhysicsAuthoritativeHarness(
+      callerTransport.handler,
+      { emitRecordState: false, commandId: 'physics-early-caller' },
+    );
+    await caller.controller.ready();
+    const source = createCountingAbortSource();
+    const evidence = { cursor: { stage: 'explained' } };
+    const first = captureDisposition(caller.controller.record('explained', evidence, {
+      client_event_id: 'physics-early-caller',
+      signal: source.signal,
+    }));
+    await waitFor(() => caller.calls.length === 1, 'caller early terminal held');
+    const variant = earlyTerminalVariant('invalid', 'physics-early-caller');
+    const reentry = armSameIdentityReentry(caller, variant.change, evidence, 'physics-early-caller');
+    caller.emit(variant.change);
+    await settle();
+    assert.equal(reentry.disposition().value.outcome, 'rejected');
+    assert.equal(reentry.disposition().value.error.code, 'evidence_operation_in_flight');
+    assert.equal(caller.calls.length, 1);
+    assert.equal(caller.operationTable().size, 1);
+    reentry.unsubscribe();
+    source.abort();
+    await waitFor(() => first.value !== null, 'caller early terminal cancellation');
+    assert.equal(first.value.outcome, 'rejected');
+    assert.equal(first.value.error.code, 'cancelled');
+    assert.equal(source.listenerCount(), 0);
+    assert.equal(caller.operationTable().size, 0);
+    callerTransport.resolve(0, {
+      outcome: 'manual-intervention',
+      state: 'manual-intervention',
+      client_event_id: 'physics-early-caller',
+      event_type: 'explained',
+    });
+    await settle();
+    assert.equal(first.value.error.code, 'cancelled');
+    caller.controller.destroy();
+    assert.equal(caller.listenerCount(), 0);
+
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(unhandled, [], 'early terminal cancellation cannot leak unhandled rejections');
+  } finally {
+    process.removeListener('unhandledRejection', onUnhandled);
+  }
+}
+
+async function testPhysicsHeldAuthorizationLifecycleIsCancellable() {
+  const unhandled = [];
+  const onUnhandled = reason => { unhandled.push(reason); };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    for (const ending of ['destroy', 'authority-cleared']) {
+      const authorization = deferred();
+      const harness = createPhysicsAuthoritativeHarness(
+        async payload => confirmed(payload),
+        {
+          emitRecordState: false,
+          commandId: `physics-held-authorize-${ending}`,
+          authorizeHandler: (request, callNumber) => (
+            callNumber === 1 ? authorization.promise : request.context
+          ),
+        },
+      );
+      await harness.controller.ready();
+      harness.controller.refreshCommands();
+      harness.explainedButton.click();
+      await waitFor(
+        () => harness.authorizeCalls.length === 1 && harness.ownerBusy,
+        `${ending} held initial authorization`,
+      );
+      const authorizationSignal = harness.authorizeCalls[0].signal;
+      assert.ok(authorizationSignal, 'initial authorization receives the composed request signal');
+      assert.equal(authorizationSignal.aborted, false);
+      assert.equal(harness.operationTable().size, 1, 'identity fence exists before authorization settles');
+      assert.equal(harness.calls.length, 0, 'held authorization cannot enter client.record');
+
+      if (ending === 'destroy') harness.controller.destroy();
+      else harness.emit({ type: 'authority-cleared' });
+      await waitFor(() => harness.errors.length === 1, `${ending} authorization cancellation`);
+      assert.equal(authorizationSignal.aborted, true);
+      assert.equal(harness.errors[0].code, 'cancelled');
+      assert.equal(harness.results.length, 0);
+      assert.equal(harness.calls.length, 0);
+      assert.equal(harness.ownerBusy, false);
+      assert.equal(harness.explainedButton.disabled, true);
+      assert.equal(harness.operationTable().size, 0);
+
+      authorization.resolve(harness.authorizeCalls[0].context);
+      await settle();
+      assert.equal(harness.calls.length, 0, 'late authorization cannot start a record');
+      assert.equal(harness.results.length, 0, 'late authorization cannot mint a receipt');
+      assert.equal(harness.errors.length, 1, 'late authorization cannot call the owner twice');
+      if (ending === 'authority-cleared') harness.controller.destroy();
+      assert.equal(harness.listenerCount(), 0);
+    }
+
+    const authorization = deferred();
+    const caller = createPhysicsAuthoritativeHarness(
+      async payload => confirmed(payload),
+      {
+        emitRecordState: false,
+        commandId: 'physics-held-authorize-caller',
+        authorizeHandler: (request, callNumber) => (
+          callNumber === 1 ? authorization.promise : request.context
+        ),
+      },
+    );
+    await caller.controller.ready();
+    const callerSource = createCountingAbortSource();
+    const evidence = { cursor: { stage: 'explained' } };
+    const first = captureDisposition(caller.controller.record('explained', evidence, {
+      client_event_id: 'physics-held-authorize-caller',
+      signal: callerSource.signal,
+    }));
+    await waitFor(() => caller.authorizeCalls.length === 1, 'caller-held initial authorization');
+    const mergedSignal = caller.authorizeCalls[0].signal;
+    assert.ok(mergedSignal && mergedSignal !== callerSource.signal);
+    assert.equal(caller.operationTable().size, 1);
+
+    const duplicate = captureDisposition(caller.controller.record('explained', evidence, {
+      client_event_id: 'physics-held-authorize-caller',
+    }));
+    await waitFor(() => duplicate.value !== null, 'held authorization duplicate rejection');
+    assert.equal(duplicate.value.outcome, 'rejected');
+    assert.equal(duplicate.value.error.code, 'evidence_operation_in_flight');
+    assert.equal(caller.authorizeCalls.length, 1, 'duplicate is fenced before a second authorization');
+    assert.equal(caller.calls.length, 0);
+
+    callerSource.abort();
+    await waitFor(() => first.value !== null, 'caller abort settles held authorization');
+    assert.equal(first.value.outcome, 'rejected');
+    assert.equal(first.value.error.code, 'cancelled');
+    assert.equal(mergedSignal.aborted, true);
+    assert.equal(callerSource.listenerCount(), 0);
+    assert.equal(callerSource.removeCalls(), 1);
+    assert.equal(caller.operationTable().size, 0);
+    assert.equal(caller.calls.length, 0);
+    authorization.resolve(caller.authorizeCalls[0].context);
+    await settle();
+    assert.equal(caller.calls.length, 0);
+    assert.equal(caller.results.length, 0);
+    caller.controller.destroy();
+    assert.equal(caller.listenerCount(), 0);
+
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(unhandled, [], 'authorization cancellation cannot leak unhandled rejections');
+  } finally {
+    process.removeListener('unhandledRejection', onUnhandled);
+  }
+}
+
+async function testPhysicsInitialTransportFenceSurvivesQueueLoss() {
+  for (const reason of ['expired-pruned', 'removed']) {
+    const transport = createHeldRecordTransport();
+    const harness = createPhysicsAuthoritativeHarness(
+      transport.handler,
+      { emitRecordState: false, commandId: `physics-initial-${reason}` },
+    );
+    await harness.controller.ready();
+    harness.controller.refreshCommands();
+    harness.explainedButton.click();
+    await waitFor(() => harness.calls.length === 1 && harness.ownerBusy, `${reason} held initial transport`);
+    const original = harness.calls[0];
+    assert.equal(harness.operationTable().size, 1);
+    harness.emit(exactPhysicsChange('confirmed', 'confirmed', 'wrong-initial-id'));
+    harness.emit(exactPhysicsChange('confirmed', 'confirmed', original.payload.client_event_id, {
+      event_type: 'corrected',
+    }));
+    harness.emit({ type: 'removed', state: 'removed' });
+    harness.emit({ type: 'queue-capacity-released', reason });
+    await settle();
+    assert.equal(harness.errors.length, 0, 'queue loss cannot release an initial transport prematurely');
+    assert.equal(harness.results.length, 0);
+    assert.equal(harness.ownerBusy, true);
+    assert.equal(original.options.signal.aborted, false);
+    assert.equal(harness.operationTable().size, 1, 'initial transport keeps its identity fence');
+
+    const duplicate = captureDisposition(harness.controller.record(
+      original.payload.event_type,
+      original.payload.evidence,
+      { client_event_id: original.payload.client_event_id },
+    ));
+    await waitFor(() => duplicate.value !== null, `${reason} initial duplicate rejection`);
+    assert.equal(duplicate.value.outcome, 'rejected');
+    assert.equal(duplicate.value.error.code, 'evidence_operation_in_flight');
+    assert.equal(harness.calls.length, 1, 'same identity cannot start a second real transport');
+
+    transport.resolve(0, {
+      outcome: 'queued',
+      state: 'local-pending',
+      client_event_id: original.payload.client_event_id,
+      event_type: original.payload.event_type,
+    });
+    await waitFor(() => harness.errors.length === 1, `${reason} queued result consumes latched queue loss`);
+    assert.equal(harness.errors[0].code, 'evidence_pending_unavailable');
+    assert.equal(harness.ownerBusy, false);
+    assert.equal(harness.operationTable().size, 0);
+    assert.equal(harness.results.length, 0);
+
+    harness.explainedButton.click();
+    await waitFor(() => harness.calls.length === 2, `${reason} safe retry transport`);
+    assert.equal(harness.calls[1].payload.client_event_id, original.payload.client_event_id);
+    transport.resolve(1);
+    await waitFor(() => harness.results.length === 1, `${reason} safe retry confirmation`);
+    assert.ok(harness.results[0].accepted);
+    assert.equal(harness.operationTable().size, 0);
+    harness.controller.destroy();
+    assert.equal(harness.listenerCount(), 0);
+  }
+
+  const sameTickTransport = createHeldRecordTransport();
+  const sameTick = createPhysicsAuthoritativeHarness(
+    sameTickTransport.handler,
+    { emitRecordState: false, commandId: 'physics-initial-queue-loss-same-tick' },
+  );
+  await sameTick.controller.ready();
+  sameTick.controller.refreshCommands();
+  sameTick.explainedButton.click();
+  await waitFor(() => sameTick.calls.length === 1 && sameTick.ownerBusy, 'same-tick initial transport');
+  const request = sameTick.calls[0];
+  sameTickTransport.resolve(0, {
+    outcome: 'queued',
+    state: 'local-pending',
+    client_event_id: request.payload.client_event_id,
+    event_type: request.payload.event_type,
+  });
+  sameTick.emit({ type: 'queue-capacity-released', reason: 'removed' });
+  await waitFor(() => sameTick.errors.length === 1, 'same-tick queued queue-loss settlement');
+  assert.equal(sameTick.errors[0].code, 'evidence_pending_unavailable');
+  assert.equal(sameTick.results.length, 0);
+  assert.equal(sameTick.ownerBusy, false);
+  assert.equal(sameTick.operationTable().size, 0);
+  sameTick.controller.destroy();
+  assert.equal(sameTick.listenerCount(), 0);
+}
+
+async function testPhysicsHeldRecordLifecycleIsCancellable() {
+  const unhandled = [];
+  const onUnhandled = reason => { unhandled.push(reason); };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    const destroyTransport = createHeldRecordTransport();
+    const destroyed = createPhysicsAuthoritativeHarness(
+      destroyTransport.handler,
+      { emitRecordState: false, commandId: 'physics-held-destroy' },
+    );
+    await destroyed.controller.ready();
+    destroyed.controller.refreshCommands();
+    destroyed.explainedButton.click();
+    await waitFor(() => destroyed.calls.length === 1 && destroyed.ownerBusy, 'held record before destroy');
+    const destroySignal = destroyed.calls[0].options.signal;
+    assert.ok(destroySignal, 'the evidence client receives a session-bound request signal');
+    assert.equal(destroySignal.aborted, false);
+    destroyed.controller.destroy();
+    await waitFor(() => destroyed.errors.length === 1, 'held record destroy cancellation');
+    assert.equal(destroySignal.aborted, true);
+    assert.equal(destroyed.results.length, 0);
+    assert.equal(destroyed.errors[0].code, 'cancelled');
+    assert.equal(destroyed.ownerBusy, false);
+    assert.equal(destroyed.explainedButton.disabled, true);
+    assert.equal(destroyed.operationTable().size, 0);
+    assert.equal(destroyed.listenerCount(), 0);
+    assert.equal(destroyed.completions.length, 0, 'an ignoring transport can remain held without holding the activity chain');
+    destroyTransport.resolve(0);
+    await settle();
+    assert.equal(destroyed.completions.length, 1, 'the ignored late transport may finish only inside the stub');
+    assert.equal(destroyed.results.length, 0, 'late confirmed cannot mint a receipt after destroy');
+    assert.equal(destroyed.errors.length, 1, 'late confirmed cannot call the owner twice');
+
+    const authorityTransport = createHeldRecordTransport({ honorSignal: true });
+    const revoked = createPhysicsAuthoritativeHarness(
+      authorityTransport.handler,
+      { emitRecordState: false, commandId: 'physics-held-authority' },
+    );
+    await revoked.controller.ready();
+    revoked.controller.refreshCommands();
+    revoked.explainedButton.click();
+    await waitFor(() => revoked.calls.length === 1 && revoked.ownerBusy, 'first held authority request');
+    const secondDisposition = { value: null };
+    revoked.controller.record('corrected', { cursor: { stage: 'corrected' } }, {
+      client_event_id: 'physics-held-authority-second',
+    }).then(
+      value => { secondDisposition.value = { outcome: 'resolved', value }; },
+      error => { secondDisposition.value = { outcome: 'rejected', error }; },
+    );
+    await waitFor(() => revoked.calls.length === 2, 'second held authority request');
+    const authoritySignals = revoked.calls.map(call => call.options.signal);
+    assert.ok(authoritySignals.every(signal => signal && !signal.aborted));
+    assert.equal(revoked.operationTable().size, 2);
+    revoked.emit({ type: 'authority-cleared' });
+    await waitFor(
+      () => revoked.errors.length === 1 && secondDisposition.value !== null,
+      'all held authority requests cancelled',
+    );
+    assert.ok(authoritySignals.every(signal => signal.aborted));
+    assert.equal(revoked.results.length, 0);
+    assert.equal(revoked.errors[0].code, 'cancelled');
+    assert.equal(revoked.ownerBusy, false);
+    assert.equal(revoked.operationTable().size, 0);
+    assert.equal(secondDisposition.value.outcome, 'resolved');
+    assert.equal(secondDisposition.value.value.outcome, 'cancelled');
+    assert.equal(revoked.completions.length, 2, 'a signal-aware client terminates both transports');
+    revoked.controller.destroy();
+    assert.equal(revoked.listenerCount(), 0);
+
+    const callerTransport = createHeldRecordTransport();
+    const caller = createPhysicsAuthoritativeHarness(
+      callerTransport.handler,
+      { emitRecordState: false, commandId: 'physics-held-caller' },
+    );
+    await caller.controller.ready();
+    const callerSource = createCountingAbortSource();
+    const callerDispositions = Array.from({ length: 3 }, () => ({ value: null }));
+    callerDispositions.forEach((disposition, index) => {
+      caller.controller.record('explained', { cursor: { stage: 'explained' } }, {
+        client_event_id: `physics-held-caller-${index + 1}`,
+        signal: callerSource.signal,
+      }).then(
+        value => { disposition.value = { outcome: 'resolved', value }; },
+        error => { disposition.value = { outcome: 'rejected', error }; },
+      );
+    });
+    await waitFor(() => caller.calls.length === 3, 'held caller requests');
+    const mergedCallerSignals = caller.calls.map(call => call.options.signal);
+    assert.ok(mergedCallerSignals.every(signal => signal));
+    assert.ok(mergedCallerSignals.every(signal => signal !== callerSource.signal), 'caller signal is composed, not discarded or passed alone');
+    callerSource.abort();
+    await waitFor(() => callerDispositions.every(item => item.value !== null), 'caller cancellation');
+    assert.equal(callerSource.signal.aborted, true);
+    assert.ok(mergedCallerSignals.every(signal => signal.aborted));
+    callerDispositions.forEach(disposition => {
+      assert.equal(disposition.value.outcome, 'rejected');
+      assert.equal(disposition.value.error.code, 'cancelled');
+    });
+    assert.equal(caller.operationTable().size, 0);
+    assert.equal(callerSource.listenerCount(), 0);
+    assert.equal(callerSource.removeCalls(), 3, 'each composed caller listener is removed after settlement');
+    callerTransport.resolve(0, confirmed(callerTransport.records[0].payload));
+    callerTransport.resolve(1, {
+      outcome: 'queued',
+      state: 'local-pending',
+      client_event_id: callerTransport.records[1].payload.client_event_id,
+      event_type: callerTransport.records[1].payload.event_type,
+    });
+    callerTransport.resolve(2, {
+      outcome: 'manual-intervention',
+      state: 'manual-intervention',
+      client_event_id: callerTransport.records[2].payload.client_event_id,
+      event_type: callerTransport.records[2].payload.event_type,
+    });
+    await settle();
+    assert.ok(callerDispositions.every(item => item.value.outcome === 'rejected'), 'late confirmed/queued/manual cannot replace caller cancellation');
+    caller.controller.destroy();
+    assert.equal(caller.listenerCount(), 0);
+
+    const raceTransport = createHeldRecordTransport();
+    const raced = createPhysicsAuthoritativeHarness(
+      raceTransport.handler,
+      { emitRecordState: false, commandId: 'physics-held-race' },
+    );
+    await raced.controller.ready();
+    raced.controller.refreshCommands();
+    raced.explainedButton.click();
+    await waitFor(() => raced.calls.length === 1 && raced.ownerBusy, 'held same-tick race');
+    const raceSignal = raced.calls[0].options.signal;
+    raceTransport.resolve(0);
+    raced.controller.destroy();
+    await waitFor(() => raced.errors.length === 1, 'same-tick resolve/destroy cancellation');
+    assert.equal(raceSignal.aborted, true);
+    assert.equal(raced.results.length, 0);
+    assert.equal(raced.errors[0].code, 'cancelled');
+    assert.equal(raced.ownerBusy, false);
+    assert.equal(raced.operationTable().size, 0);
+    assert.equal(raced.listenerCount(), 0);
+    await settle();
+    assert.equal(raced.results.length, 0, 'same-tick confirmed remains stale after destroy');
+
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(unhandled, [], 'held request cancellation cannot leak unhandled rejections');
+  } finally {
+    process.removeListener('unhandledRejection', onUnhandled);
+  }
+}
+
+async function testPhysicsAuthoritativeIdentityCannotBeOverwritten() {
+  const harness = createPhysicsAuthoritativeHarness(
+    async payload => ({
+      outcome: 'queued',
+      state: 'local-pending',
+      client_event_id: payload.client_event_id,
+      event_type: payload.event_type,
+    }),
+    { emitRecordState: false, commandId: 'physics-same-operation' },
+  );
+  await harness.controller.ready();
+  harness.controller.refreshCommands();
+  harness.explainedButton.click();
+  await waitFor(() => harness.calls.length === 1 && harness.ownerBusy, 'first authoritative operation');
+  assert.equal(harness.operationTable().size, 1);
+  const duplicateState = { value: null };
+  harness.controller.record('explained', harness.commandEvidence, {
+    client_event_id: harness.commandId,
+  }).then(
+    value => { duplicateState.value = { outcome: 'resolved', value }; },
+    error => { duplicateState.value = { outcome: 'rejected', error }; },
+  );
+  await waitFor(
+    () => duplicateState.value !== null || harness.calls.length > 1,
+    'duplicate authoritative disposition',
+  );
+  assert.equal(harness.calls.length, 1, 'same identity cannot start or overwrite a second real record');
+  assert.equal(duplicateState.value.outcome, 'rejected');
+  assert.equal(duplicateState.value.error.code, 'evidence_operation_in_flight');
+  assert.equal(harness.operationTable().size, 1, 'the first waiter remains addressable');
+  harness.emit(exactPhysicsChange('confirmed', 'confirmed', harness.commandId));
+  await waitFor(() => harness.results.length === 1, 'first waiter exact confirmation');
+  assert.ok(harness.results[0].accepted);
+  assert.equal(harness.ownerBusy, false);
+  assert.equal(harness.explainedButton.disabled, false);
+  assert.equal(harness.operationTable().size, 0);
+  harness.controller.destroy();
+  assert.equal(harness.listenerCount(), 0);
+}
+
+async function testPhysicsAuthoritativeResultDtoIsBound() {
+  const scenarios = [
+    ['wrong client id', payload => ({ ...confirmed(payload), client_event_id: `${payload.client_event_id}-wrong` })],
+    ['missing client id', payload => {
+      const result = confirmed(payload);
+      delete result.client_event_id;
+      return result;
+    }],
+    ['wrong event type', payload => ({ ...confirmed(payload), event_type: 'corrected' })],
+    ['missing event type', payload => {
+      const result = confirmed(payload);
+      delete result.event_type;
+      return result;
+    }],
+    ['contradictory outcome/state', payload => ({
+      outcome: 'queued',
+      state: 'confirmed',
+      client_event_id: payload.client_event_id,
+      event_type: payload.event_type,
+    })],
+  ];
+  for (const [label, invalidResult] of scenarios) {
+    let attempt = 0;
+    const harness = createPhysicsAuthoritativeHarness(
+      async payload => attempt++ === 0 ? invalidResult(payload) : confirmed(payload),
+      { emitRecordState: false, commandId: `physics-dto-${label.replace(/\s+/g, '-')}` },
+    );
+    await harness.controller.ready();
+    harness.controller.refreshCommands();
+    harness.explainedButton.click();
+    await waitFor(
+      () => harness.errors.length === 1 || harness.results.length === 1,
+      `${label} rejection`,
+    );
+    assert.equal(harness.results.length, 0, `${label} cannot mint a receipt`);
+    assert.equal(harness.errors.length, 1);
+    assert.match(harness.errors[0].code, /^evidence_result_/);
+    assert.equal(harness.ownerBusy, false);
+    assert.equal(harness.explainedButton.disabled, false);
+    assert.equal(harness.operationTable().size, 0);
+    const firstId = harness.calls[0].payload.client_event_id;
+    harness.explainedButton.click();
+    await waitFor(() => harness.results.length === 1, `${label} correct retry`);
+    assert.ok(harness.results[0].accepted);
+    assert.equal(harness.calls[1].payload.client_event_id, firstId, `${label} retry keeps the client id`);
+    assert.equal(harness.operationTable().size, 0);
+    harness.controller.destroy();
+    assert.equal(harness.listenerCount(), 0);
+  }
+
+  const reconciled = createPhysicsAuthoritativeHarness(
+    async payload => ({
+      outcome: 'reconciled',
+      state: 'confirmed',
+      client_event_id: payload.client_event_id,
+      event_type: payload.event_type,
+    }),
+    { emitRecordState: false, commandId: 'physics-dto-reconciled' },
+  );
+  await reconciled.controller.ready();
+  reconciled.controller.refreshCommands();
+  reconciled.explainedButton.click();
+  await waitFor(() => reconciled.results.length === 1, 'consistent reconciled result');
+  assert.ok(reconciled.results[0].accepted);
+  assert.equal(reconciled.results[0].accepted.result.outcome, 'reconciled');
+  reconciled.controller.destroy();
+  assert.equal(reconciled.listenerCount(), 0);
+}
+
+async function testPhysicsAuthoritativeTerminalMatrixIsStrict() {
+  const contradictions = [
+    ['manual with confirmed state', 'manual-intervention', 'confirmed'],
+    ['confirmed with manual state', 'confirmed', 'manual-intervention'],
+    ['state-changed with confirmed state', 'state-changed', 'confirmed'],
+    ['unknown terminal', 'unexpected-terminal', 'unexpected-state'],
+  ];
+  for (const [label, type, state] of contradictions) {
+    let queued = true;
+    const harness = createPhysicsAuthoritativeHarness(
+      async payload => queued
+        ? {
+            outcome: 'queued',
+            state: 'local-pending',
+            client_event_id: payload.client_event_id,
+            event_type: payload.event_type,
+          }
+        : confirmed(payload),
+      { emitRecordState: false, commandId: `physics-terminal-${type}` },
+    );
+    await harness.controller.ready();
+    harness.controller.refreshCommands();
+    harness.explainedButton.click();
+    await waitFor(() => harness.calls.length === 1 && harness.ownerBusy, `${label} queued`);
+    harness.emit(exactPhysicsChange(type, state, harness.commandId));
+    await waitFor(
+      () => harness.errors.length === 1 || harness.results.length === 1,
+      `${label} disposition`,
+    );
+    assert.equal(harness.results.length, 0, `${label} cannot confirm the waiter`);
+    assert.equal(harness.errors[0].code, 'evidence_terminal_invalid');
+    assert.equal(harness.operationTable().size, 0);
+    assert.equal(harness.ownerBusy, false);
+    assert.equal(harness.explainedButton.disabled, false);
+    queued = false;
+    harness.explainedButton.click();
+    await waitFor(() => harness.results.length === 1, `${label} retry`);
+    assert.ok(harness.results[0].accepted);
+    assert.equal(harness.calls[1].payload.client_event_id, harness.calls[0].payload.client_event_id);
+    harness.controller.destroy();
+    assert.equal(harness.listenerCount(), 0);
+  }
+
+  const reconciled = createPhysicsAuthoritativeHarness(
+    async payload => ({
+      outcome: 'queued',
+      state: 'local-pending',
+      client_event_id: payload.client_event_id,
+      event_type: payload.event_type,
+    }),
+    { emitRecordState: false, commandId: 'physics-terminal-reconciled' },
+  );
+  await reconciled.controller.ready();
+  reconciled.controller.refreshCommands();
+  reconciled.explainedButton.click();
+  await waitFor(() => reconciled.calls.length === 1 && reconciled.ownerBusy, 'reconciled terminal queued');
+  reconciled.emit(exactPhysicsChange('reconciled', 'confirmed', reconciled.commandId));
+  await waitFor(() => reconciled.results.length === 1, 'consistent reconciled peer terminal');
+  assert.ok(reconciled.results[0].accepted);
+  assert.equal(reconciled.operationTable().size, 0);
+  reconciled.controller.destroy();
+  assert.equal(reconciled.listenerCount(), 0);
+
+  const mismatched = createPhysicsAuthoritativeHarness(
+    async payload => ({
+      outcome: 'queued',
+      state: 'local-pending',
+      client_event_id: payload.client_event_id,
+      event_type: payload.event_type,
+    }),
+    { emitRecordState: false, commandId: 'physics-terminal-mismatch' },
+  );
+  await mismatched.controller.ready();
+  mismatched.controller.refreshCommands();
+  mismatched.explainedButton.click();
+  await waitFor(() => mismatched.calls.length === 1 && mismatched.ownerBusy, 'mismatched terminal queued');
+  mismatched.emit(exactPhysicsChange('confirmed', 'confirmed', mismatched.commandId, {
+    projection: { course_id: 99 },
+  }));
+  mismatched.emit(exactPhysicsChange('confirmed', 'confirmed', mismatched.commandId, {
+    event_type: 'corrected',
+  }));
+  await settle();
+  assert.equal(mismatched.results.length, 0);
+  assert.equal(mismatched.errors.length, 0);
+  assert.equal(mismatched.operationTable().size, 1, 'wrong scope/type cannot consume the exact waiter');
+  mismatched.controller.destroy();
+  await waitFor(() => mismatched.errors.length === 1, 'mismatched waiter destroy cancellation');
+  assert.equal(mismatched.errors[0].code, 'cancelled');
+  assert.equal(mismatched.operationTable().size, 0);
+  assert.equal(mismatched.ownerBusy, false);
+  assert.equal(mismatched.listenerCount(), 0);
+}
+
+async function testPhysicsAuthoritativeWaitersReleaseOnQueueLoss() {
+  for (const reason of ['expired-pruned', 'removed']) {
+    let queued = true;
+    const harness = createPhysicsAuthoritativeHarness(
+      async payload => queued
+        ? {
+            outcome: 'queued',
+            state: 'local-pending',
+            client_event_id: payload.client_event_id,
+            event_type: payload.event_type,
+          }
+        : confirmed(payload),
+      { emitRecordState: false, commandId: `physics-queue-${reason}` },
+    );
+    await harness.controller.ready();
+    harness.controller.refreshCommands();
+    harness.explainedButton.click();
+    await waitFor(() => harness.calls.length === 1 && harness.ownerBusy, `${reason} queued`);
+    const originalId = harness.calls[0].payload.client_event_id;
+    const queueLoss = { type: 'queue-capacity-released', reason };
+    const reentry = armSameIdentityReentry(
+      harness,
+      queueLoss,
+      harness.calls[0].payload.evidence,
+      originalId,
+    );
+    harness.emit(queueLoss);
+    await settle();
+    assert.equal(reentry.disposition().value.outcome, 'rejected');
+    assert.equal(reentry.disposition().value.error.code, 'evidence_operation_in_flight');
+    assert.equal(harness.calls.length, 1, 'queue-loss subscriber cannot release the fence in its own stack');
+    reentry.unsubscribe();
+    await waitFor(() => harness.errors.length === 1, `${reason} waiter release`);
+    assert.equal(harness.results.length, 0);
+    assert.equal(harness.errors[0].code, 'evidence_pending_unavailable');
+    assert.equal(harness.operationTable().size, 0);
+    assert.equal(harness.ownerBusy, false);
+    assert.equal(harness.explainedButton.disabled, false);
+    queued = false;
+    harness.explainedButton.click();
+    await waitFor(() => harness.results.length === 1, `${reason} safe retry`);
+    assert.equal(harness.calls[1].payload.client_event_id, originalId);
+    assert.ok(harness.results[0].accepted);
+    harness.controller.destroy();
+    assert.equal(harness.listenerCount(), 0);
+  }
+
+  for (const ending of ['authority-cleared', 'destroy']) {
+    const harness = createPhysicsAuthoritativeHarness(
+      async payload => ({
+        outcome: 'queued',
+        state: 'local-pending',
+        client_event_id: payload.client_event_id,
+        event_type: payload.event_type,
+      }),
+      { emitRecordState: false, commandId: `physics-ending-${ending}` },
+    );
+    await harness.controller.ready();
+    harness.controller.refreshCommands();
+    harness.explainedButton.click();
+    await waitFor(() => harness.calls.length === 1 && harness.ownerBusy, `${ending} queued`);
+    if (ending === 'authority-cleared') harness.emit({ type: 'authority-cleared' });
+    else harness.controller.destroy();
+    await waitFor(() => harness.errors.length === 1, `${ending} waiter cancellation`);
+    assert.equal(harness.results.length, 0);
+    assert.equal(harness.errors[0].code, 'cancelled');
+    assert.equal(harness.operationTable().size, 0);
+    assert.equal(harness.ownerBusy, false);
+    assert.equal(harness.explainedButton.disabled, true);
+    if (ending === 'authority-cleared') harness.controller.destroy();
+    assert.equal(harness.listenerCount(), 0);
+  }
+}
+
+async function testPhysicsAuthoritativeResultWaitsForPeerTerminal() {
+  let ownerBusy = false;
+  let resultCalls = 0;
+  let errorCalls = 0;
+  let lastError = null;
+  let commandId = 'physics-explained-queued';
+  const acceptedRecords = [];
+  let activityController = null;
+  const harness = createActivityHarness(
+    async payload => ({
+      outcome: 'queued',
+      state: 'local-pending',
+      client_event_id: payload.client_event_id,
+      event_type: payload.event_type,
+    }),
+    {
+      recoveryHandler: () => ({
+        rule_version: 1,
+        activities: [{
+          course_unit_id: 37,
+          activity_key: 'physics.mechanics',
+          rule_version: 1,
+          status: 'in_progress',
+          first_started_at: '2026-08-09T08:00:00Z',
+        }],
+      }),
+      mountOptions: {
+        integrated: true,
+        structuredOnly: true,
+        reusePendingStarted: true,
+        authorizeAfterRecord: true,
+        requireAuthoritativeResult: true,
+        commandEnabled: command => command === 'explained' && !ownerBusy,
+        authorizeRecord: async ({ context }) => context,
+        beforeCommand: ({ event_type }) => {
+          if (event_type !== 'explained' || ownerBusy) return null;
+          ownerBusy = true;
+          return Object.freeze({
+            client_event_id: commandId,
+            owner_generation: 11,
+            binding_generation: 19,
+            authority_generation: 5,
+          });
+        },
+        onCommandResult: detail => {
+          acceptedRecords.push(activityController.consumeCommandReceipt(detail.receipt, {
+            permit: detail.permit,
+            result: detail.result,
+            evidence: detail.evidence,
+            event_type: detail.event_type,
+            client_event_id: detail.client_event_id,
+            owner_generation: detail.permit.owner_generation,
+            binding_generation: detail.permit.binding_generation,
+            authority_generation: detail.permit.authority_generation,
+          }));
+          resultCalls += 1;
+          ownerBusy = false;
+        },
+        onCommandError: error => {
+          errorCalls += 1;
+          lastError = error;
+          ownerBusy = false;
+        },
+      },
+    }
+  );
+  activityController = harness.controller;
+  await harness.controller.ready();
+  harness.controller.refreshCommands();
+  harness.explainedButton.click();
+  await waitFor(() => harness.calls.length === 1, 'Physics queued explanation record');
+  await waitFor(
+    () => harness.statusNode.dataset.evidenceState === 'local-pending',
+    'Physics queued explanation status'
+  );
+  assert.equal(resultCalls, 0, 'local-pending cannot reach the Physics completion callback');
+  assert.equal(harness.explainedButton.disabled, true, 'the same queued command remains in flight');
+
+  harness.emit({
+    type: 'confirmed',
+    state: 'confirmed',
+    client_event_id: 'physics-explained-queued',
+    event_type: 'explained',
+    projection: {
+      class_id: 41,
+      course_id: 13,
+      course_unit_id: 37,
+      activity_key: 'physics.mechanics',
+      rule_version: 1,
+      last_event_type: 'explained',
+    },
+  });
+  await waitFor(() => resultCalls === 1, 'Physics peer terminal explanation result');
+  assert.ok(acceptedRecords[0], 'the exact peer terminal resolves the original record operation');
+  assert.equal(acceptedRecords[0].client_event_id, 'physics-explained-queued');
+  harness.emit({
+    type: 'confirmed',
+    state: 'confirmed',
+    client_event_id: 'physics-explained-queued',
+    event_type: 'explained',
+    projection: {
+      class_id: 41,
+      course_id: 13,
+      course_unit_id: 37,
+      activity_key: 'physics.mechanics',
+      rule_version: 1,
+      last_event_type: 'explained',
+    },
+  });
+  await Promise.resolve();
+  assert.equal(resultCalls, 1, 'duplicate peer terminal cannot complete the owner twice');
+
+  commandId = 'physics-explained-manual';
+  harness.controller.refreshCommands();
+  harness.explainedButton.click();
+  await waitFor(() => harness.calls.length === 2, 'Physics manual explanation record');
+  harness.emit({
+    type: 'manual-intervention',
+    state: 'manual-intervention',
+    client_event_id: commandId,
+    event_type: 'explained',
+    projection: {
+      class_id: 41,
+      course_id: 13,
+      course_unit_id: 37,
+      activity_key: 'physics.mechanics',
+      rule_version: 1,
+      last_event_type: 'explained',
+    },
+  });
+  await waitFor(() => resultCalls === 2, 'Physics peer manual explanation result');
+  assert.equal(acceptedRecords[1].result.outcome, 'manual-intervention');
+  assert.equal(acceptedRecords[1].result.state, 'manual-intervention');
+
+  commandId = 'physics-explained-stale';
+  harness.controller.refreshCommands();
+  harness.explainedButton.click();
+  await waitFor(() => harness.calls.length === 3, 'Physics stale explanation record');
+  harness.emit({ type: 'identity-configured' });
+  await waitFor(() => errorCalls === 1, 'Physics queued identity invalidation');
+  assert.equal(resultCalls, 2, 'identity invalidation cannot mint an authoritative receipt');
+  assert.equal(lastError && lastError.code, 'cancelled');
+  harness.controller.destroy();
+}
+
 (async () => {
   await testRecoverySkipsDuplicateStartedAndDrainsPending();
   await testActivityClickUsesExactPredictedCommand();
@@ -3415,6 +4667,17 @@ function testFabEscapeStopsModuleOwnerOnSameDocumentTarget() {
   await testDomainCommandBackpressureIsBounded();
   await testAuthorityClearsProjectionImmediately();
   await testClientTransientFailureQueuesAndAutoFlushesExactEvent();
+  await testPhysicsStructuredOwnerCommandOptIn();
+  await testPhysicsEarlyTerminalCannotReleaseAuthoritativeFence();
+  await testPhysicsEarlyTerminalCancellationSettlesOnce();
+  await testPhysicsHeldAuthorizationLifecycleIsCancellable();
+  await testPhysicsInitialTransportFenceSurvivesQueueLoss();
+  await testPhysicsHeldRecordLifecycleIsCancellable();
+  await testPhysicsAuthoritativeIdentityCannotBeOverwritten();
+  await testPhysicsAuthoritativeResultDtoIsBound();
+  await testPhysicsAuthoritativeTerminalMatrixIsStrict();
+  await testPhysicsAuthoritativeWaitersReleaseOnQueueLoss();
+  await testPhysicsAuthoritativeResultWaitsForPeerTerminal();
   testFabFocusLifecycle();
   testFabEscapeStopsModuleOwnerOnSameDocumentTarget();
   console.log('learning evidence V7.7.10 interaction contract passed');

@@ -109,7 +109,7 @@ const expectedValidated = {
         owner: 'ModelingNumerical'
     },
     'physics:mechanics': {
-        script: 'pages/physics/physics.js?v=20260715v7417CandidateCleanupP1',
+        script: 'pages/physics/physics.js?v=20260809v805MechanicsSequenceP0',
         initHook: 'initPhysics',
         owner: 'PhysicsSim'
     },
@@ -414,9 +414,9 @@ assert.ok(
 assert.doesNotMatch(router, /\bconst destroyMap\s*=/);
 assert.match(router, /ModuleSelector\.leavePage\(page, \{ preserveHash: true \}\)/);
 assert.match(html, /config\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/);
-assert.match(main, /experiment-registry\.js\?v=20260716v7427RoleWorkflowGateP0/);
-assert.match(main, /module-selector\.js\?v=20260731v7971CatalogueCountP0/);
-assert.match(serviceWorker, /experiment-registry\.js\?v=20260716v7427RoleWorkflowGateP0/);
-assert.match(serviceWorker, /astra-static-v20260809v804FutureEvidenceP0/);
+assert.match(main, /experiment-registry\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
+assert.match(main, /module-selector\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
+assert.match(serviceWorker, /experiment-registry\.js\?v=20260809v805MechanicsSequenceP0/);
+assert.match(serviceWorker, /astra-static-v20260809v805MechanicsSequenceP0/);
 
 console.log('experiment-registry-contract: ok');

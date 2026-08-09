@@ -5,12 +5,14 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260809v804FutureEvidenceP0';
+const generation = '20260809v805MechanicsSequenceP0';
+const frontierGeneration = '20260809v804FutureEvidenceP0';
 
 const html = read('index.html');
 const router = read('shared/js/router.js');
 const session = read('shared/js/app-session.js');
 const loader = read('shared/js/learning-evidence-loader.js');
+const experimentRegistry = read('shared/js/experiment-registry.js');
 const main = read('shared/js/main.js');
 const serviceWorker = read('sw.js');
 const developerDoc = read('doc/01-开发者文档.md');
@@ -46,24 +48,28 @@ class FakeResource {
 }
 
 function testStaticGenerationChain() {
-  for (const asset of ['app-session', 'page-registry', 'router', 'main']) {
+  for (const asset of ['app-session', 'experiment-registry', 'page-registry', 'router', 'main']) {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`),
-      `index direct boot must request ${asset}.js from the V804 generation`,
+      `index direct boot must request ${asset}.js from the V805 generation`,
     );
   }
-  assert.match(router, new RegExp(`shared/js/frontier-learning\\.js\\?v=${generation}`));
+  assert.match(router, new RegExp(`shared/js/module-selector\\.js\\?v=${generation}`));
+  assert.match(router, new RegExp(`shared/js/frontier-learning\\.js\\?v=${frontierGeneration}`));
+  assert.match(experimentRegistry, new RegExp(`pages/physics/physics\\.js\\?v=${generation}`));
   assert.match(main, new RegExp(`const SHELL_RUNTIME_ASSET_VERSION = '${generation}'`));
   assert.match(main, new RegExp(`const PAGE_REGISTRY_ASSET_VERSION = '${generation}'`));
   assert.match(main, /'\.\/shared\/js\/app-session\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
+  assert.match(main, /'\.\/shared\/js\/experiment-registry\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
+  assert.match(main, /'\.\/shared\/js\/module-selector\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
   assert.match(main, /serviceWorker\.register\('\.\/sw\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION\)/);
   assert.match(serviceWorker, new RegExp(`const CACHE_NAME = 'astra-static-v${generation}'`));
-  for (const asset of ['app-session', 'page-registry', 'router', 'main']) {
+  for (const asset of ['app-session', 'experiment-registry', 'page-registry', 'router', 'main']) {
     assert.match(
       serviceWorker,
       new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`),
-      `service-worker app shell must precache ${asset}.js from the V804 generation`,
+      `service-worker app shell must precache ${asset}.js from the V805 generation`,
     );
   }
   for (const document of [developerDoc, frontendDoc]) {
@@ -117,7 +123,7 @@ async function testAppSessionCreatesVersionedLoader() {
   await context.__fe024EnsureLearningEvidenceLoader();
   assert.deepEqual(createdScripts, [
     `https://astra.test/shared/js/learning-evidence-loader.js?v=${generation}`,
-  ], 'app-session must propagate its exact V804 query to the loader it actually creates');
+  ], 'app-session must propagate its exact V805 query to the loader it actually creates');
 }
 
 async function testLoaderCreatesVersionedChildren() {
@@ -135,6 +141,7 @@ async function testLoaderCreatesVersionedChildren() {
     'learning-evidence-client.js': 'AstraLearningEvidenceClient',
     'learning-evidence-status.js': 'AstraLearningEvidenceStatus',
     'learning-activity-catalog.js': 'AstraLearningActivityCatalog',
+    'engineering-lab-publication-context.js': 'AstraEngineeringLabPublicationContext',
     'learning-evidence-activity.js': 'AstraLearningEvidenceActivity',
   };
   const document = {
@@ -179,10 +186,10 @@ async function testLoaderCreatesVersionedChildren() {
   context.window = context;
   vm.createContext(context);
   vm.runInContext(loader, context, { filename: 'learning-evidence-loader.js' });
-  await context.AstraLearningEvidenceLoader.ensure({ activity: true });
+  await context.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true });
   assert.deepEqual(childScripts, Object.keys(ownerByFile).map((file) => (
     `https://astra.test/shared/js/${file}?v=${generation}`
-  )), 'loader must propagate V804 to every queue/client/status/catalog/activity script it actually creates');
+  )), 'loader must propagate V805 to every queue/client/status/catalog/engineering-context/activity script it creates');
 }
 
 async function run() {

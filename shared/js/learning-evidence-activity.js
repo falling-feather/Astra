@@ -64,9 +64,20 @@
             online_required: '自由文本解释不会保存在本机，请联网后重试。',
             evidence_memory_buffer_full: '活动操作暂存已满，请等待当前事件写入完成后重试本次操作。',
             evidence_peer_identity_full: '本活动等待跨标签确认的证据身份已达上限，请等待已有事件同步后重试。',
+            evidence_operation_in_flight: '同一证据事件仍在等待权威终态，不能重复发起。',
+            evidence_result_identity_invalid: '证据回执与本次事件身份不一致，当前步骤未推进。',
+            evidence_result_terminal_invalid: '证据回执终态不一致，当前步骤未推进。',
+            evidence_terminal_invalid: '证据同步终态互相矛盾，当前步骤未推进。',
+            evidence_pending_unavailable: '待同步证据已从队列移除，当前步骤未推进，请使用原事件编号重试。',
             queue_limit_reached: '共享待同步证据队列已满；本次操作仍保留在当前页面，请等待真实队列容量释放后重试。'
         };
         return messages[code] || '学习证据暂不可用，请稍后重试。';
+    }
+
+    function evidenceError(code) {
+        const error = new Error(stateMessage(code));
+        error.code = code;
+        return error;
     }
 
     function earliestPendingOccurredAt(commands) {
@@ -88,7 +99,7 @@
                 <div class="astra-evidence-panel__domain"><span>2–3 · 操作与修正</span><b>${escapeHtml(options.operationLabel || '请在上方真实活动中完成操作')}</b><small>实际控件会自动记录有界领域事件，不需要另点“记录操作”。</small></div>
                 <label><span>4 · 结构化解释</span><select data-evidence-value="explanation"><option value="claim-supported">证据支持判断</option><option value="claim-needs-review">判断仍需复核</option></select><button type="button" data-evidence-command="explained">记录解释</button></label>
             </div>`;
-        const onlineExplanation = domainOnly ? '' : `<details class="astra-evidence-panel__online">
+        const onlineExplanation = domainOnly || options.structuredOnly === true ? '' : `<details class="astra-evidence-panel__online">
                 <summary>补充自由文本解释（仅联网）</summary>
                 <label><span>解释不会进入离线队列</span><textarea maxlength="800" data-evidence-free-text></textarea></label>
                 <button type="button" data-evidence-command="explained-text">联网提交解释</button>
@@ -104,6 +115,7 @@
 
     function createSession(host, options, mapping) {
         const abort = new AbortController();
+        const commandReceipts = new WeakMap();
         const state = {
             host,
             options,
@@ -131,6 +143,7 @@
             recentUntrackedCommand: null,
             recentDomainCommand: null,
             recordOperations: new Map(),
+            requestOperations: new Set(),
             commandGeneration: 0,
             commandInFlight: false,
             recordGeneration: 0,
@@ -343,17 +356,21 @@
             ));
         }
 
-        async function authorizeRecord(eventType, evidence) {
+        async function authorizeRecord(eventType, evidence, signal) {
             if (typeof options.authorizeRecord !== 'function') return;
+            if (signal && signal.aborted) throw evidenceError('cancelled');
             const context = state.context;
             const generation = state.recordGeneration;
             const authorized = await options.authorizeRecord(Object.freeze({
                 mapping,
                 context,
                 event_type: eventType,
-                evidence
+                evidence,
+                signal
             }));
             if (
+                (signal && signal.aborted)
+                ||
                 abort.signal.aborted
                 || state.authorityInvalidated
                 || generation !== state.recordGeneration
@@ -457,6 +474,156 @@
             return true;
         }
 
+        function authoritativeResultDisposition(result, expected) {
+            if (!result || typeof result !== 'object' || Array.isArray(result)) {
+                throw evidenceError('evidence_result_identity_invalid');
+            }
+            if (
+                !expected
+                || result.client_event_id !== expected.client_event_id
+                || result.event_type !== expected.event_type
+            ) {
+                throw evidenceError('evidence_result_identity_invalid');
+            }
+            const pair = `${result.outcome || ''}:${result.state || ''}`;
+            if (pair === 'confirmed:confirmed' || pair === 'reconciled:confirmed') return 'confirmed';
+            if (pair === 'queued:local-pending') return 'pending';
+            if (pair === 'manual-intervention:manual-intervention') return 'manual-intervention';
+            throw evidenceError('evidence_result_terminal_invalid');
+        }
+
+        function authoritativeChangeDisposition(value) {
+            const pair = `${value && value.type || ''}:${value && value.state || ''}`;
+            if (pair === 'confirmed:confirmed' || pair === 'reconciled:confirmed') return 'confirmed';
+            if (pair === 'manual-intervention:manual-intervention') return 'manual-intervention';
+            if (pair === 'syncing:syncing' || pair === 'local-pending:local-pending') return 'pending';
+            return 'invalid';
+        }
+
+        function settleAuthoritativeRecord(value) {
+            const operation = state.recordOperations.get(recordOperationKey(value));
+            if (!operation || typeof operation.resolveAuthoritative !== 'function') return false;
+            const disposition = authoritativeChangeDisposition(value);
+            if (disposition === 'pending') return 'pending';
+            if (disposition === 'invalid') {
+                const reject = operation.rejectAuthoritative;
+                const error = evidenceError('evidence_terminal_invalid');
+                operation.authoritativeFailure = error;
+                operation.resolveAuthoritative = null;
+                operation.rejectAuthoritative = null;
+                if (typeof reject === 'function') reject(error);
+                return 'invalid';
+            }
+            let result = null;
+            if (disposition === 'confirmed') {
+                result = Object.freeze({
+                    outcome: 'confirmed',
+                    state: 'confirmed',
+                    client_event_id: operation.client_event_id,
+                    event_type: operation.event_type
+                });
+            } else if (disposition === 'manual-intervention') {
+                result = Object.freeze({
+                    outcome: 'manual-intervention',
+                    state: 'manual-intervention',
+                    client_event_id: operation.client_event_id,
+                    event_type: operation.event_type
+                });
+            }
+            if (!result) return false;
+            const resolve = operation.resolveAuthoritative;
+            operation.resolveAuthoritative = null;
+            operation.rejectAuthoritative = null;
+            operation.phase = 'peer-terminal-settled';
+            operation.queue_loss_reason = '';
+            resolve(result);
+            return 'settled';
+        }
+
+        function createRecordRequestLifecycle(callerSignal) {
+            const controller = new AbortController();
+            const sources = Array.from(new Set([abort.signal, callerSignal].filter(signal => (
+                signal
+                && typeof signal.aborted === 'boolean'
+                && typeof signal.addEventListener === 'function'
+                && typeof signal.removeEventListener === 'function'
+            ))));
+            const sourceListeners = [];
+            let rejectCancellation = null;
+            const onRequestAbort = () => {
+                if (typeof rejectCancellation !== 'function') return;
+                const reject = rejectCancellation;
+                rejectCancellation = null;
+                reject(evidenceError('cancelled'));
+            };
+            const cancellation = new Promise((resolve, reject) => {
+                rejectCancellation = reject;
+                if (controller.signal.aborted) onRequestAbort();
+                else controller.signal.addEventListener('abort', onRequestAbort, { once: true });
+            });
+            cancellation.catch(() => {});
+            const abortRequest = () => {
+                if (!controller.signal.aborted) controller.abort();
+            };
+            sources.forEach(source => {
+                if (source.aborted) {
+                    abortRequest();
+                    return;
+                }
+                source.addEventListener('abort', abortRequest, { once: true });
+                sourceListeners.push(source);
+            });
+            return Object.freeze({
+                signal: controller.signal,
+                cancellation,
+                abort: abortRequest,
+                cleanup() {
+                    sourceListeners.forEach(source => {
+                        source.removeEventListener('abort', abortRequest);
+                    });
+                    controller.signal.removeEventListener('abort', onRequestAbort);
+                    rejectCancellation = null;
+                }
+            });
+        }
+
+        function cancelRecordOperations() {
+            state.requestOperations.forEach(operation => {
+                if (operation.requestLifecycle) operation.requestLifecycle.abort();
+            });
+            state.requestOperations.clear();
+            state.recordOperations.forEach(operation => {
+                if (typeof operation.resolveAuthoritative !== 'function') return;
+                const resolve = operation.resolveAuthoritative;
+                operation.resolveAuthoritative = null;
+                operation.rejectAuthoritative = null;
+                resolve(Object.freeze({
+                    outcome: 'cancelled',
+                    state: '',
+                    client_event_id: operation.client_event_id,
+                    event_type: operation.event_type
+                }));
+            });
+        }
+
+        function noteAuthoritativeQueueLoss(reason) {
+            Array.from(state.recordOperations.values()).forEach(operation => {
+                if (typeof operation.rejectAuthoritative !== 'function') return;
+                if (operation.phase !== 'peer-terminal-pending') {
+                    if (['pre-authorize', 'initial-transport'].includes(operation.phase)) {
+                        operation.queue_loss_reason = reason;
+                    }
+                    return;
+                }
+                const reject = operation.rejectAuthoritative;
+                const error = evidenceError('evidence_pending_unavailable');
+                operation.authoritativeFailure = error;
+                operation.resolveAuthoritative = null;
+                operation.rejectAuthoritative = null;
+                reject(error);
+            });
+        }
+
         function waitsForPeerTerminal(result) {
             return Boolean(
                 result
@@ -465,6 +632,17 @@
                     || result.state === 'local-pending'
                 )
             );
+        }
+
+        function staleRecordResult(operation, result) {
+            return options.requireAuthoritativeResult === true
+                ? Object.freeze({
+                    outcome: 'cancelled',
+                    state: '',
+                    client_event_id: operation.client_event_id,
+                    event_type: operation.event_type
+                })
+                : result;
         }
 
         function peerIdentityCapacityError() {
@@ -539,6 +717,7 @@
         }
 
         function invalidateActiveCommand() {
+            cancelRecordOperations();
             state.recordGeneration += 1;
             state.commandGeneration += 1;
             state.activeCommand = null;
@@ -556,7 +735,18 @@
                 || state.commandInFlight
             );
             host.querySelectorAll('[data-evidence-command]').forEach(button => {
-                button.disabled = disabled;
+                let ownerDisabled = false;
+                if (!disabled && typeof options.commandEnabled === 'function') {
+                    try {
+                        ownerDisabled = options.commandEnabled(button.dataset.evidenceCommand) !== true;
+                    } catch (error) {
+                        ownerDisabled = true;
+                    }
+                }
+                button.disabled = disabled || ownerDisabled;
+                if (typeof options.commandEnabled === 'function') {
+                    button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
+                }
             });
         }
 
@@ -615,6 +805,17 @@
             renderDomainStatus('manual-intervention', '操作证据尚未获得权威确认，请稍后重试或人工核对。');
         }
 
+        function renderRecordResult(recordOperation, trackedCommand, untrackedCommand, result) {
+            if (trackedCommand) {
+                renderCommandResult(trackedCommand, result);
+            } else if (untrackedCommand) {
+                renderUntrackedCommandResult(untrackedCommand, result);
+            }
+            if (recordOperation.domain_command) {
+                renderDomainRecordResult(recordOperation, result);
+            }
+        }
+
         function shouldWarnCommandError(error) {
             const code = error && error.code || '';
             return Boolean(
@@ -624,6 +825,11 @@
                     'cancelled',
                     'identity_required',
                     'evidence_peer_identity_full',
+                    'evidence_operation_in_flight',
+                    'evidence_result_identity_invalid',
+                    'evidence_result_terminal_invalid',
+                    'evidence_terminal_invalid',
+                    'evidence_pending_unavailable',
                     'queue_limit_reached'
                 ].includes(code)
             );
@@ -635,6 +841,9 @@
             if (!available) {
                 host.querySelectorAll('[data-evidence-command]').forEach(button => {
                     button.disabled = true;
+                    if (typeof options.commandEnabled === 'function') {
+                        button.setAttribute('aria-disabled', 'true');
+                    }
                 });
                 return;
             }
@@ -647,9 +856,6 @@
                 error.code = 'publication_context_unavailable';
                 throw error;
             }
-            if (typeof options.authorizeRecord === 'function') {
-                await authorizeRecord(eventType, evidence);
-            }
             const commandSettings = settings || {};
             const clientEventId = commandSettings.client_event_id || createClientEventId(eventType);
             const recordOperation = {
@@ -660,9 +866,17 @@
                 course_id: Number(state.context.course_id),
                 course_unit_id: Number(state.context.course_unit_id),
                 activity_key: state.context.activity_key,
-                record_generation: state.recordGeneration
+                record_generation: state.recordGeneration,
+                phase: 'pre-authorize',
+                queue_loss_reason: ''
             };
             const operationKey = recordOperationKey(recordOperation);
+            if (
+                options.requireAuthoritativeResult === true
+                && state.recordOperations.has(operationKey)
+            ) {
+                throw evidenceError('evidence_operation_in_flight');
+            }
             if (
                 !state.recordOperations.has(operationKey)
                 && state.recordOperations.size >= PEER_IDENTITY_CAPACITY
@@ -672,6 +886,16 @@
                 else showError(error);
                 throw error;
             }
+            if (options.requireAuthoritativeResult === true) {
+                recordOperation.authoritative = new Promise((resolve, reject) => {
+                    recordOperation.resolveAuthoritative = resolve;
+                    recordOperation.rejectAuthoritative = reject;
+                });
+                recordOperation.authoritative.catch(() => {});
+            }
+            const requestLifecycle = createRecordRequestLifecycle(commandSettings.signal);
+            recordOperation.requestLifecycle = requestLifecycle;
+            state.requestOperations.add(recordOperation);
             state.recordOperations.set(operationKey, recordOperation);
             if (recordOperation.domain_command) {
                 recordOperation.state = 'syncing';
@@ -706,12 +930,72 @@
                         : undefined);
             }
             try {
+                if (typeof options.authorizeRecord === 'function') {
+                    await Promise.race([
+                        authorizeRecord(eventType, evidence, requestLifecycle.signal),
+                        requestLifecycle.cancellation
+                    ]);
+                    if (!isCurrentRecord(recordOperation)) {
+                        return staleRecordResult(recordOperation);
+                    }
+                }
+                recordOperation.phase = 'initial-transport';
                 const payload = Object.assign(
                     commandPayload(eventType, evidence, commandSettings.occurred_at),
                     { client_event_id: clientEventId }
                 );
-                const result = await client().record(payload, commandSettings);
-                if (!isCurrentRecord(recordOperation)) return result;
+                const clientSettings = Object.assign({}, commandSettings, {
+                    signal: requestLifecycle.signal
+                });
+                if (requestLifecycle.signal.aborted) throw evidenceError('cancelled');
+                const clientRecord = client().record(payload, clientSettings);
+                let result = options.requireAuthoritativeResult === true || commandSettings.signal
+                    ? await Promise.race([clientRecord, requestLifecycle.cancellation])
+                    : await clientRecord;
+                if (recordOperation.authoritativeFailure) throw recordOperation.authoritativeFailure;
+                if (!isCurrentRecord(recordOperation)) {
+                    return staleRecordResult(recordOperation, result);
+                }
+                let authoritativeDisposition = '';
+                if (
+                    options.requireAuthoritativeResult === true
+                    && result && result.outcome !== 'cancelled'
+                ) {
+                    authoritativeDisposition = authoritativeResultDisposition(result, recordOperation);
+                }
+                if (
+                    options.requireAuthoritativeResult === true
+                    && authoritativeDisposition === 'pending'
+                    && recordOperation.authoritative
+                ) {
+                    if (
+                        recordOperation.queue_loss_reason
+                        && recordOperation.phase !== 'peer-terminal-settled'
+                    ) {
+                        throw evidenceError('evidence_pending_unavailable');
+                    }
+                    if (recordOperation.phase !== 'peer-terminal-settled') {
+                        recordOperation.phase = 'peer-terminal-pending';
+                    }
+                    retainRecordOperation = true;
+                    renderRecordResult(recordOperation, trackedCommand, untrackedCommand, result);
+                    result = await Promise.race([
+                        recordOperation.authoritative,
+                        requestLifecycle.cancellation
+                    ]);
+                    if (!isCurrentRecord(recordOperation)) return staleRecordResult(recordOperation, result);
+                    authoritativeDisposition = authoritativeResultDisposition(result, recordOperation);
+                }
+                if (
+                    options.authorizeAfterRecord === true
+                    && typeof options.authorizeRecord === 'function'
+                ) {
+                    await Promise.race([
+                        authorizeRecord(eventType, evidence, requestLifecycle.signal),
+                        requestLifecycle.cancellation
+                    ]);
+                    if (!isCurrentRecord(recordOperation)) return staleRecordResult(recordOperation, result);
+                }
                 if (result.outcome === 'cancelled') {
                     const error = new Error(stateMessage('identity_required'));
                     error.code = 'identity_required';
@@ -728,14 +1012,7 @@
                     waitsForPeerTerminal(result)
                     && state.recordOperations.get(operationKey) === recordOperation
                 );
-                if (trackedCommand) {
-                    renderCommandResult(trackedCommand, result);
-                } else if (untrackedCommand) {
-                    renderUntrackedCommandResult(untrackedCommand, result);
-                }
-                if (recordOperation.domain_command) {
-                    renderDomainRecordResult(recordOperation, result);
-                }
+                renderRecordResult(recordOperation, trackedCommand, untrackedCommand, result);
                 if (eventType === 'explained' && result.state === 'confirmed') {
                     const context = state.context;
                     if (context && canRenderRecordResult(trackedCommand, untrackedCommand)) {
@@ -788,6 +1065,8 @@
                 if (!retainRecordOperation) {
                     releaseRecordOperation(recordOperation, recordOperation);
                 }
+                requestLifecycle.cleanup();
+                state.requestOperations.delete(recordOperation);
                 if (trackedCommand && isCurrentCommand(trackedCommand)) {
                     state.commandInFlight = false;
                 }
@@ -1062,9 +1341,65 @@
             return operation;
         }
 
+        async function ready() {
+            if (state.initialized && state.context && state.ruleVersion) return state.context;
+            await initialize();
+            if (state.initialized && state.context && state.ruleVersion) return state.context;
+            if (state.initializationError) throw state.initializationError;
+            const error = new Error(stateMessage(
+                state.authorityInvalidated || abort.signal.aborted
+                    ? 'identity_required'
+                    : 'publication_context_unavailable'
+            ));
+            error.code = state.authorityInvalidated || abort.signal.aborted
+                ? 'identity_required'
+                : 'publication_context_unavailable';
+            throw error;
+        }
+
         function controlValue(name) {
             const node = host.querySelector(`[data-evidence-value="${name}"]`);
             return node && node.value || '';
+        }
+
+        function issueCommandReceipt(record) {
+            if (options.requireAuthoritativeResult === true) {
+                const disposition = authoritativeResultDisposition(record && record.result, record);
+                if (!['confirmed', 'manual-intervention'].includes(disposition)) {
+                    throw evidenceError('evidence_result_terminal_invalid');
+                }
+            }
+            const receipt = Object.freeze({});
+            commandReceipts.set(receipt, Object.freeze(Object.assign({}, record, {
+                authoritative: options.requireAuthoritativeResult === true
+            })));
+            return receipt;
+        }
+
+        function consumeCommandReceipt(receipt, expected) {
+            const record = receipt && commandReceipts.get(receipt);
+            if (
+                !record
+                || !expected
+                || record.permit !== expected.permit
+                || record.result !== expected.result
+                || record.evidence !== expected.evidence
+                || record.event_type !== expected.event_type
+                || record.client_event_id !== expected.client_event_id
+                || record.owner_generation !== expected.owner_generation
+                || record.binding_generation !== expected.binding_generation
+                || record.authority_generation !== expected.authority_generation
+            ) return null;
+            if (record.authoritative) {
+                try {
+                    const disposition = authoritativeResultDisposition(record.result, record);
+                    if (!['confirmed', 'manual-intervention'].includes(disposition)) return null;
+                } catch (error) {
+                    return null;
+                }
+            }
+            commandReceipts.delete(receipt);
+            return record;
         }
 
         host.addEventListener('click', async event => {
@@ -1078,27 +1413,80 @@
             ) return;
             const command = button.dataset.evidenceCommand;
             try {
+                let eventType = '';
+                let evidence = null;
+                const recordSettings = { trackStatus: true };
                 if (command === 'predicted') {
-                    await record('predicted', {
+                    eventType = 'predicted';
+                    evidence = {
                         prediction: { choice: controlValue('prediction') },
                         cursor: { stage: 'predicted' }
-                    }, { trackStatus: true });
+                    };
                 } else if (command === 'explained') {
-                    await record('explained', {
+                    eventType = 'explained';
+                    evidence = {
                         artifact: { kind: 'claim-evidence-link', value: controlValue('explanation') },
                         cursor: { stage: 'explained' }
-                    }, { trackStatus: true });
+                    };
                 } else if (command === 'explained-text') {
                     const textarea = host.querySelector('[data-evidence-free-text]');
                     const value = String(textarea && textarea.value || '').trim();
                     if (!value) return;
-                    await record('explained', {
+                    eventType = 'explained';
+                    evidence = {
                         artifact: { kind: 'free-text', text: value },
                         cursor: { stage: 'explained-online' }
-                    }, { onlineOnly: true, trackStatus: true });
-                    textarea.value = '';
+                    };
+                    recordSettings.onlineOnly = true;
+                }
+                if (!eventType || !evidence) return;
+                let ownerPermit = null;
+                if (typeof options.beforeCommand === 'function') {
+                    ownerPermit = options.beforeCommand(Object.freeze({
+                        command,
+                        event_type: eventType,
+                        evidence
+                    }));
+                    if (!ownerPermit) return;
+                    if (ownerPermit.client_event_id) {
+                        recordSettings.client_event_id = ownerPermit.client_event_id;
+                    }
+                }
+                const result = await record(eventType, evidence, recordSettings);
+                if (result && result.outcome === 'cancelled') {
+                    const error = new Error(stateMessage('identity_required'));
+                    error.code = 'cancelled';
+                    throw error;
+                }
+                if (command === 'explained-text') {
+                    const textarea = host.querySelector('[data-evidence-free-text]');
+                    if (textarea) textarea.value = '';
+                }
+                if (typeof options.onCommandResult === 'function') {
+                    const receipt = issueCommandReceipt({
+                        permit: ownerPermit,
+                        result,
+                        evidence,
+                        event_type: eventType,
+                        client_event_id: recordSettings.client_event_id || '',
+                        owner_generation: ownerPermit && ownerPermit.owner_generation,
+                        binding_generation: ownerPermit && ownerPermit.binding_generation,
+                        authority_generation: ownerPermit && ownerPermit.authority_generation
+                    });
+                    await options.onCommandResult(Object.freeze({
+                        command,
+                        event_type: eventType,
+                        evidence,
+                        result,
+                        permit: ownerPermit,
+                        client_event_id: recordSettings.client_event_id || '',
+                        receipt
+                    }));
                 }
             } catch (error) {
+                if (typeof options.onCommandError === 'function') {
+                    try { await options.onCommandError(error); } catch (callbackError) {}
+                }
                 if (shouldWarnCommandError(error) && error.code !== 'online_required') {
                     global.console && global.console.warn('[LearningEvidenceActivity] command failed', error.code || error.message);
                 }
@@ -1181,6 +1569,12 @@
             }
             if (change && change.type === 'queue-capacity-released') {
                 if (
+                    options.requireAuthoritativeResult === true
+                    && ['expired-pruned', 'removed'].includes(change.reason)
+                ) {
+                    noteAuthoritativeQueueLoss(change.reason);
+                }
+                if (
                     state.domainBlockReason === 'shared-queue-full'
                     && state.initialized
                     && state.pendingCommands.length
@@ -1201,6 +1595,14 @@
                 || scope.activity_key !== state.context.activity_key
             ) return;
             const knownRecordChange = isKnownRecordOperation(change);
+            const authoritativeDisposition = knownRecordChange
+                ? settleAuthoritativeRecord(change)
+                : '';
+            if (authoritativeDisposition === 'invalid') return;
+            const authoritativeFence = Boolean(
+                options.requireAuthoritativeResult === true
+                && knownRecordChange
+            );
             const currentRecordChange = Boolean(
                 knownRecordChange
                 || matchesActiveCommand(change)
@@ -1228,13 +1630,13 @@
                 && (!hasEventIdentity(change) || currentRecordChange)
             ) {
                 scheduleProjectionRecovery(change);
-                releaseRecordOperation(change);
+                if (!authoritativeFence) releaseRecordOperation(change);
             } else if (
                 currentRecordChange
                 && change.state
                 && !['local-pending', 'syncing'].includes(change.state)
             ) {
-                releaseRecordOperation(change);
+                if (!authoritativeFence) releaseRecordOperation(change);
             }
         });
         initialize();
@@ -1242,7 +1644,10 @@
         return Object.freeze({
             record,
             refresh: initialize,
+            ready,
             context: () => state.context,
+            consumeCommandReceipt,
+            refreshCommands: syncCommandButtons,
             destroy() {
                 abort.abort();
                 cancelProjectionRecovery();

@@ -7,6 +7,7 @@
         user: null,
         classes: [],
         selectedClassId: 0,
+        authorityGeneration: 0,
         generation: 0,
         controller: null,
         navigationGeneration: 0,
@@ -31,6 +32,28 @@
     function id(value) {
         const parsed = Number(value);
         return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    function identityKey(user) {
+        return user && user.id != null ? `${user.role || ''}:${user.id}` : '';
+    }
+
+    function setUser(user) {
+        const next = user || null;
+        if (identityKey(next) !== identityKey(state.user)) state.authorityGeneration += 1;
+        state.user = next;
+    }
+
+    function setSelectedClassId(value) {
+        const next = id(value);
+        if (next !== state.selectedClassId) state.authorityGeneration += 1;
+        state.selectedClassId = next;
+    }
+
+    function routeMatchesActivity(activityKey) {
+        const parts = String((global.location && global.location.hash) || '').replace(/^#/, '').split('/');
+        const expected = String(activityKey || '').split('.');
+        return parts[0] === expected[0] && parts[1] === expected.slice(1).join('.');
     }
 
     function validPhysicsActivity(activity) {
@@ -71,7 +94,7 @@
     async function prepare(user, options = {}) {
         const session = global.AstraApplicationSession;
         const sessionUser = session && typeof session.getUser === 'function' ? session.getUser() : null;
-        state.user = user || sessionUser || null;
+        setUser(user || sessionUser || null);
         if (!state.user || state.user.role !== 'student') {
             return Object.freeze({ available: false, error_code: 'student_role_required', classes: [] });
         }
@@ -89,8 +112,8 @@
             }));
             if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled', classes: [] });
             state.classes = classes;
-            if (!classes.some(item => id(item.id) === state.selectedClassId)) state.selectedClassId = 0;
-            if (classes.length === 1) state.selectedClassId = id(classes[0].id);
+            if (!classes.some(item => id(item.id) === state.selectedClassId)) setSelectedClassId(0);
+            if (classes.length === 1) setSelectedClassId(classes[0].id);
             return Object.freeze({
                 available: Boolean(state.selectedClassId),
                 error_code: state.selectedClassId ? '' : classes.length ? 'class_selection_required' : 'class_scope_missing',
@@ -156,6 +179,7 @@
         if (state.controller) state.controller.abort();
         state.controller = null;
         state.generation += 1;
+        state.authorityGeneration += 1;
         state.selectedClassId = 0;
     }
 
@@ -163,7 +187,7 @@
         const selected = classes.find(item => id(item.id) === id(classId));
         if (!selected) return false;
         state.classes = classes.slice();
-        state.selectedClassId = id(selected.id);
+        setSelectedClassId(selected.id);
         return true;
     }
 
@@ -178,7 +202,7 @@
         invalidatePublicationScope();
         const session = global.AstraApplicationSession;
         const sessionUser = session && typeof session.getUser === 'function' ? session.getUser() : null;
-        state.user = user || sessionUser || null;
+        setUser(user || sessionUser || null);
         if (!classKey) {
             return Object.freeze({
                 available: false,
@@ -190,7 +214,7 @@
         try {
             const prepared = await prepare(state.user, options);
             if (prepared.error_code === 'cancelled' || prepared.error_code === 'student_role_required') return prepared;
-            state.selectedClassId = 0;
+            setSelectedClassId(0);
             if (!selectPreparedClass(classKey, prepared.classes || [])) {
                 return Object.freeze({
                     available: false,
@@ -258,6 +282,9 @@
         if (!validPhysicsActivity(activity)) {
             return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
         }
+        if (!routeMatchesActivity(activity.activity_key)) {
+            return Object.freeze({ available: false, error_code: 'activity_hidden' });
+        }
         try {
             if (!state.user || state.user.role !== 'student' || !state.classes.length) {
                 const prepared = await prepare(state.user, { signal: externalSignal });
@@ -273,6 +300,9 @@
         }
         if (!state.user || state.user.role !== 'student') {
             return Object.freeze({ available: false, error_code: 'student_role_required' });
+        }
+        if (state.user.id == null || String(state.user.id).trim() === '') {
+            return Object.freeze({ available: false, error_code: 'identity_required' });
         }
         if (!state.selectedClassId) {
             return Object.freeze({
@@ -314,6 +344,9 @@
             }
             if (matchesUnits.length === 1) {
                 const unit = matchesUnits[0];
+                if (!routeMatchesActivity(activity.activity_key)) {
+                    return Object.freeze({ available: false, error_code: 'cancelled' });
+                }
                 if (unit.effective_release_state === 'locked') {
                     return Object.freeze({ available: false, error_code: 'activity_locked' });
                 }
@@ -330,7 +363,10 @@
                     course_unit_id: id(unit.id),
                     activity_key: activity.activity_key,
                     galaxy_key: 'englab',
-                    course_key: 'physics'
+                    course_key: 'physics',
+                    identity_id: String(state.user.id),
+                    authority_generation: state.authorityGeneration,
+                    access_state: 'open'
                 });
             }
 
@@ -365,8 +401,16 @@
 
     function close() {
         invalidatePublicationScope();
-        state.user = null;
+        setUser(null);
         state.classes = [];
+    }
+
+    function sameLearningEvidenceAuthority(expected, currentContext) {
+        if (!expected || !currentContext || expected.available !== true || currentContext.available !== true) return false;
+        return [
+            'class_id', 'course_id', 'course_unit_id', 'activity_key',
+            'identity_id', 'authority_generation', 'access_state'
+        ].every(key => String(expected[key]) === String(currentContext[key]));
     }
 
     global.addEventListener('astra:session-ready', event => {
@@ -389,10 +433,13 @@
         describeStudentUnit,
         navigateStudent,
         resolve,
+        sameLearningEvidenceAuthority,
         close,
         snapshot: () => Object.freeze({
             class_id: state.selectedClassId || null,
-            classes: state.classes.slice()
+            classes: state.classes.slice(),
+            identity_id: state.user && state.user.id != null ? String(state.user.id) : '',
+            authority_generation: state.authorityGeneration
         })
     });
 })(window);
