@@ -7,16 +7,19 @@ runner may implement the adapter protocol after an explicit security review.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from hashlib import sha256
 import json
+import re
+from threading import RLock
 from typing import Any, Protocol
 from uuid import uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models import CodeJudgeAttempt, CodeProblem, CodeProblemVersion, CodeSubmission, CourseUnit
 from app.models.base import utc_now
@@ -40,6 +43,23 @@ TERMINAL_STATUSES = {
 }
 ALL_STATUSES = {QUEUED, RUNNER_UNAVAILABLE, RUNNING, *TERMINAL_STATUSES}
 EXPIRED_CLAIM_RECOVERY_BATCH_SIZE = 100
+_CLIENT_SUBMISSION_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}")
+_SQLITE_SUBMISSION_WRITE_LOCK = RLock()
+_SUBMISSION_STATUS_PRIORITY = {
+    "accepted": 120,
+    "partial": 110,
+    "wrong_answer": 100,
+    "compile_error": 90,
+    "runtime_error": 80,
+    "time_limit": 70,
+    "memory_limit": 60,
+    "output_limit": 50,
+    "internal_error": 40,
+    RUNNING: 30,
+    QUEUED: 20,
+    RUNNER_UNAVAILABLE: 10,
+    "cancelled": 0,
+}
 
 
 @dataclass(frozen=True)
@@ -83,6 +103,20 @@ class SubmissionCreateResult:
     submission: CodeSubmission
     created: bool
     idempotent_replay: bool
+
+
+@contextmanager
+def code_submission_write_guard(db: Session):
+    """Serialize only single-process local SQLite writes.
+
+    This is not a production/distributed lock. MySQL correctness comes from
+    row locking plus the actor/scope/client unique key and savepoint re-read.
+    """
+    if db.get_bind().dialect.name == "sqlite":
+        with _SQLITE_SUBMISSION_WRITE_LOCK:
+            yield
+        return
+    yield
 
 
 def create_problem(
@@ -199,22 +233,33 @@ def create_code_submission(
     language: str,
     source_code: str,
     stdin: str,
+    client_submission_id: str | None = None,
     adapter: CodeRunnerAdapter | None = None,
 ) -> SubmissionCreateResult:
-    _validate_submission_payload(version, language=language, source_code=source_code, stdin=stdin)
+    if version.problem_id != problem.id:
+        raise ValueError("problem version does not belong to code problem")
     source_sha256 = _sha256_text(source_code)
     input_sha256 = _sha256_text(stdin)
-    existing = db.scalar(
-        select(CodeSubmission).where(
-            CodeSubmission.student_id == student_id,
-            CodeSubmission.problem_version_id == version.id,
-            CodeSubmission.class_id == class_id,
-        )
+    stable_client_id = _normalize_client_submission_id(
+        client_submission_id,
+        language=language,
+        problem_version_id=version.id,
+        source_sha256=source_sha256,
+        input_sha256=input_sha256,
+    )
+    existing = _idempotent_submission(
+        db,
+        student_id=student_id,
+        problem_id=problem.id,
+        class_id=class_id,
+        client_submission_id=stable_client_id,
+        locking_read=True,
     )
     if existing is not None:
         _assert_idempotent_match(existing, language, source_sha256, input_sha256)
         return SubmissionCreateResult(existing, created=False, idempotent_replay=True)
 
+    _validate_submission_payload(version, language=language, source_code=source_code, stdin=stdin)
     availability = (adapter or DisabledCodeRunnerAdapter()).availability()
     initial_status = QUEUED if availability.available else RUNNER_UNAVAILABLE
     snapshot = problem_snapshot(problem, version)
@@ -227,6 +272,7 @@ def create_code_submission(
         problem_id=problem.id,
         problem_version_id=version.id,
         student_id=student_id,
+        client_submission_id=stable_client_id,
         language=language,
         source_code=source_code,
         stdin=stdin,
@@ -254,18 +300,85 @@ def create_code_submission(
             db.add(attempt)
             db.flush()
     except IntegrityError:
-        existing = db.scalar(
-            select(CodeSubmission).where(
-                CodeSubmission.student_id == student_id,
-                CodeSubmission.problem_version_id == version.id,
-                CodeSubmission.class_id == class_id,
-            )
+        existing = _idempotent_submission(
+            db,
+            student_id=student_id,
+            problem_id=problem.id,
+            class_id=class_id,
+            client_submission_id=stable_client_id,
+            locking_read=True,
         )
         if existing is None:
             raise
         _assert_idempotent_match(existing, language, source_sha256, input_sha256)
         return SubmissionCreateResult(existing, created=False, idempotent_replay=True)
     return SubmissionCreateResult(submission, created=True, idempotent_replay=False)
+
+
+def submission_projection_columns():
+    """Return correlated latest/best ids for a submission list row."""
+    latest_candidate = aliased(CodeSubmission)
+    best_candidate = aliased(CodeSubmission)
+    latest_id = (
+        select(latest_candidate.id)
+        .where(
+            latest_candidate.student_id == CodeSubmission.student_id,
+            latest_candidate.problem_id == CodeSubmission.problem_id,
+            latest_candidate.class_id == CodeSubmission.class_id,
+        )
+        .order_by(latest_candidate.created_at.desc(), latest_candidate.id.desc())
+        .limit(1)
+        .correlate(CodeSubmission)
+        .scalar_subquery()
+    )
+    best_id = (
+        select(best_candidate.id)
+        .where(
+            best_candidate.student_id == CodeSubmission.student_id,
+            best_candidate.problem_id == CodeSubmission.problem_id,
+            best_candidate.class_id == CodeSubmission.class_id,
+        )
+        .order_by(
+            _submission_status_priority(best_candidate.status).desc(),
+            best_candidate.created_at.desc(),
+            best_candidate.id.desc(),
+        )
+        .limit(1)
+        .correlate(CodeSubmission)
+        .scalar_subquery()
+    )
+    return latest_id, best_id
+
+
+def submission_projection_flags(db: Session, submission: CodeSubmission) -> tuple[bool, bool]:
+    latest_id = (
+        select(CodeSubmission.id)
+        .where(
+            CodeSubmission.student_id == submission.student_id,
+            CodeSubmission.problem_id == submission.problem_id,
+            CodeSubmission.class_id == submission.class_id,
+        )
+        .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    best_id = (
+        select(CodeSubmission.id)
+        .where(
+            CodeSubmission.student_id == submission.student_id,
+            CodeSubmission.problem_id == submission.problem_id,
+            CodeSubmission.class_id == submission.class_id,
+        )
+        .order_by(
+            _submission_status_priority(CodeSubmission.status).desc(),
+            CodeSubmission.created_at.desc(),
+            CodeSubmission.id.desc(),
+        )
+        .limit(1)
+        .scalar_subquery()
+    )
+    projection = db.execute(select(latest_id.label("latest_id"), best_id.label("best_id"))).one()
+    return submission.id == projection.latest_id, submission.id == projection.best_id
 
 
 def claim_next_code_judge_attempt(
@@ -505,6 +618,55 @@ def _assert_idempotent_match(
         or submission.input_sha256 != input_sha256
     ):
         raise ValueError("idempotency_conflict")
+
+
+def _idempotent_submission(
+    db: Session,
+    *,
+    student_id: int,
+    problem_id: int,
+    class_id: int,
+    client_submission_id: str,
+    locking_read: bool,
+) -> CodeSubmission | None:
+    statement = select(CodeSubmission).where(
+        CodeSubmission.student_id == student_id,
+        CodeSubmission.problem_id == problem_id,
+        CodeSubmission.class_id == class_id,
+        CodeSubmission.client_submission_id == client_submission_id,
+    )
+    if locking_read:
+        statement = statement.with_for_update()
+    return db.scalar(statement.execution_options(populate_existing=True))
+
+
+def _normalize_client_submission_id(
+    value: str | None,
+    *,
+    language: str,
+    problem_version_id: int,
+    source_sha256: str,
+    input_sha256: str,
+) -> str:
+    if value is None:
+        return "legacy:" + _sha256_json(
+            {
+                "language": language,
+                "problem_version_id": problem_version_id,
+                "source_sha256": source_sha256,
+                "input_sha256": input_sha256,
+            }
+        )
+    if value.startswith("legacy:") or not _CLIENT_SUBMISSION_ID_PATTERN.fullmatch(value):
+        raise ValueError("client_submission_id must be an opaque stable identifier")
+    return value
+
+
+def _submission_status_priority(status_column):
+    return case(
+        *((status_column == status_name, priority) for status_name, priority in _SUBMISSION_STATUS_PRIORITY.items()),
+        else_=-1,
+    )
 
 
 def _requeue_expired_claims(db: Session, now_value: datetime) -> int:

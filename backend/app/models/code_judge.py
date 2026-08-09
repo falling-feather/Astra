@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy import JSON
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, utc_now
@@ -12,6 +13,13 @@ _CODE_JUDGE_STATES = (
     "'compile_error', 'runtime_error', 'time_limit', 'memory_limit', 'output_limit', "
     "'internal_error', 'cancelled'"
 )
+
+
+def _client_submission_id_type():
+    return String(128).with_variant(
+        mysql.VARCHAR(length=128, charset="ascii", collation="ascii_bin"),
+        "mysql",
+    )
 
 
 class CodeProblem(TimestampMixin, Base):
@@ -63,9 +71,10 @@ class CodeSubmission(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint(
             "student_id",
-            "problem_version_id",
+            "problem_id",
             "class_id",
-            name="uq_code_submissions_student_version_class",
+            "client_submission_id",
+            name="uq_code_submissions_actor_scope_client",
         ),
         Index("ix_code_submissions_class_course_activity_created", "class_id", "course_id", "activity_key", "created_at", "id"),
         Index("ix_code_submissions_student_created", "student_id", "created_at", "id"),
@@ -82,6 +91,7 @@ class CodeSubmission(TimestampMixin, Base):
     problem_id: Mapped[int] = mapped_column(ForeignKey("code_problems.id"), index=True, nullable=False)
     problem_version_id: Mapped[int] = mapped_column(ForeignKey("code_problem_versions.id"), index=True, nullable=False)
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    client_submission_id: Mapped[str] = mapped_column(_client_submission_id_type(), nullable=False)
     language: Mapped[str] = mapped_column(String(24), nullable=False)
     source_code: Mapped[str] = mapped_column(Text, nullable=False)
     stdin: Mapped[str] = mapped_column(Text, default="", nullable=False)

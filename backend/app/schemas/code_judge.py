@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -33,6 +34,7 @@ _LANGUAGE_ALIASES = {
     "c++": "cpp",
     "cxx": "cpp",
 }
+_CLIENT_SUBMISSION_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}")
 
 
 def canonical_language(value: str) -> str:
@@ -128,6 +130,7 @@ class CodeProblemRead(BaseModel):
 
 
 class CodeSubmissionCreate(BaseModel):
+    client_submission_id: str | None = Field(default=None, min_length=8, max_length=128)
     class_id: int
     language: str = Field(min_length=1, max_length=24)
     source_code: str = Field(min_length=1, max_length=1_048_576)
@@ -137,6 +140,15 @@ class CodeSubmissionCreate(BaseModel):
     @classmethod
     def canonicalize_language(cls, value: str) -> str:
         return canonical_language(value)
+
+    @field_validator("client_submission_id")
+    @classmethod
+    def validate_client_submission_id(cls, value: str | None) -> str | None:
+        if value is not None and (
+            value.startswith("legacy:") or not _CLIENT_SUBMISSION_ID_PATTERN.fullmatch(value)
+        ):
+            raise ValueError("client_submission_id must be an opaque stable identifier")
+        return value
 
 
 class CodeSubmissionRead(BaseModel):
@@ -151,6 +163,7 @@ class CodeSubmissionRead(BaseModel):
     problem_id: int
     problem_version_id: int
     student_id: int
+    client_submission_id: str
     language: CodeLanguage
     status: CodeSubmissionStatus
     result_summary: dict = Field(default_factory=dict)
@@ -158,6 +171,8 @@ class CodeSubmissionRead(BaseModel):
     created_at: datetime
     judged_at: datetime | None = None
     idempotent_replay: bool = False
+    is_latest_revision: bool = False
+    is_best_revision: bool = False
 
 
 class CodeSubmissionSourceRead(BaseModel):

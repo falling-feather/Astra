@@ -45,9 +45,12 @@ from app.services.audit import record_audit_log
 from app.services.code_judge import (
     DisabledCodeRunnerAdapter,
     active_problem_version,
+    code_submission_write_guard,
     create_code_submission,
     create_problem,
     create_problem_version,
+    submission_projection_columns,
+    submission_projection_flags,
 )
 from app.services.course_release_plans import (
     effective_unit_access,
@@ -255,6 +258,39 @@ def create_student_code_submission(
 ) -> CodeSubmissionRead:
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can create code submissions")
+    actor_id = current_user.id
+    sqlite_write = db.get_bind().dialect.name == "sqlite"
+    if sqlite_write:
+        # Authentication has already opened a read transaction. End it before
+        # waiting for the SQLite process lock so a waiting reader cannot block
+        # the winning writer's commit.
+        db.rollback()
+    with code_submission_write_guard(db):
+        if sqlite_write:
+            current_user = db.get(User, actor_id)
+            if current_user is None or current_user.status != "active":
+                raise HTTPException(status_code=401, detail="Invalid user")
+            if current_user.role != "student":
+                raise HTTPException(status_code=403, detail="Only students can create code submissions")
+        return _create_student_code_submission_in_transaction(
+            problem_id=problem_id,
+            payload=payload,
+            request=request,
+            response=response,
+            current_user=current_user,
+            db=db,
+        )
+
+
+def _create_student_code_submission_in_transaction(
+    *,
+    problem_id: int,
+    payload: CodeSubmissionCreate,
+    request: Request,
+    response: Response,
+    current_user: User,
+    db: Session,
+) -> CodeSubmissionRead:
     problem = _problem_or_404(db, problem_id)
     if problem.status != "active":
         raise HTTPException(status_code=409, detail="Code problem is not active")
@@ -275,6 +311,7 @@ def create_student_code_submission(
             language=payload.language,
             source_code=payload.source_code,
             stdin=payload.stdin,
+            client_submission_id=payload.client_submission_id,
             adapter=DisabledCodeRunnerAdapter(),
         )
     except ValueError as exc:
@@ -293,8 +330,9 @@ def create_student_code_submission(
         request=request,
         snapshot={
             "problem_id": problem.id,
-            "problem_version_id": version.id,
+            "problem_version_id": result.submission.problem_version_id,
             "activity_key": problem.activity_key,
+            "client_submission_id": result.submission.client_submission_id,
             "language": payload.language,
             "source_sha256": result.submission.source_sha256,
             "input_sha256": result.submission.input_sha256,
@@ -305,7 +343,13 @@ def create_student_code_submission(
     db.commit()
     if not result.created:
         response.status_code = status.HTTP_200_OK
-    return _submission_read(result.submission, idempotent_replay=result.idempotent_replay)
+    is_latest_revision, is_best_revision = submission_projection_flags(db, result.submission)
+    return _submission_read(
+        result.submission,
+        idempotent_replay=result.idempotent_replay,
+        is_latest_revision=is_latest_revision,
+        is_best_revision=is_best_revision,
+    )
 
 
 @router.get("/code-submissions", response_model=CodeSubmissionPage)
@@ -374,10 +418,27 @@ def list_code_submissions(
         if activity_key is not None:
             statement = statement.where(CodeSubmission.activity_key == activity_key)
     total = int(db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0)
-    rows = list(db.scalars(statement.offset(offset).limit(limit)).all())
+    latest_id, best_id = submission_projection_columns()
+    rows = list(
+        db.execute(
+            statement.add_columns(
+                latest_id.label("latest_submission_id"),
+                best_id.label("best_submission_id"),
+            )
+            .offset(offset)
+            .limit(limit)
+        ).all()
+    )
     next_offset = offset + len(rows)
     return CodeSubmissionPage(
-        items=[_submission_read(row) for row in rows],
+        items=[
+            _submission_read(
+                row[0],
+                is_latest_revision=row[0].id == row.latest_submission_id,
+                is_best_revision=row[0].id == row.best_submission_id,
+            )
+            for row in rows
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -393,7 +454,12 @@ def read_code_submission(
 ) -> CodeSubmissionRead:
     submission = _submission_or_404(db, submission_id)
     _authorize_submission_read(db, current_user, submission, enforce_student_visibility=True)
-    return _submission_read(submission)
+    is_latest_revision, is_best_revision = submission_projection_flags(db, submission)
+    return _submission_read(
+        submission,
+        is_latest_revision=is_latest_revision,
+        is_best_revision=is_best_revision,
+    )
 
 
 @router.get("/code-submissions/{submission_id}/source", response_model=CodeSubmissionSourceRead)
@@ -616,7 +682,13 @@ def _problem_read(problem: CodeProblem, version: CodeProblemVersion, state: str 
     )
 
 
-def _submission_read(submission: CodeSubmission, *, idempotent_replay: bool = False) -> CodeSubmissionRead:
+def _submission_read(
+    submission: CodeSubmission,
+    *,
+    idempotent_replay: bool = False,
+    is_latest_revision: bool = False,
+    is_best_revision: bool = False,
+) -> CodeSubmissionRead:
     return CodeSubmissionRead(
         id=submission.id,
         school_id=submission.school_id,
@@ -627,6 +699,7 @@ def _submission_read(submission: CodeSubmission, *, idempotent_replay: bool = Fa
         problem_id=submission.problem_id,
         problem_version_id=submission.problem_version_id,
         student_id=submission.student_id,
+        client_submission_id=submission.client_submission_id,
         language=submission.language,
         status=submission.status,
         result_summary=dict(submission.result_summary_json or {}),
@@ -634,4 +707,6 @@ def _submission_read(submission: CodeSubmission, *, idempotent_replay: bool = Fa
         created_at=submission.created_at,
         judged_at=submission.judged_at,
         idempotent_replay=idempotent_replay,
+        is_latest_revision=is_latest_revision,
+        is_best_revision=is_best_revision,
     )
