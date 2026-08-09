@@ -76,7 +76,17 @@ function testStaticGenerationChain() {
     assert.match(document, new RegExp(generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
     assert.match(document, /ARCH-004/);
-    assert.match(document, /Browser[^\n]*NOT-RUN|Browser NOT-RUN/);
+    const v805EvidenceLine = document
+      .split(/\r?\n/)
+      .find((line) => line.includes('V8.0.5') && line.includes(generation));
+    assert.ok(v805EvidenceLine, 'V8.0.5 documentation must identify the exact V805 cache generation');
+    assert.match(v805EvidenceLine, /external Edge/);
+    assert.match(v805EvidenceLine, /V804→V805/);
+    assert.doesNotMatch(
+      v805EvidenceLine,
+      /NOT-RUN/,
+      'post-integration V8.0.5 documentation must not retain the candidate-stage Browser NOT-RUN claim',
+    );
   }
 }
 
