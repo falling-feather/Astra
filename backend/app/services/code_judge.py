@@ -7,6 +7,7 @@ runner may implement the adapter protocol after an explicit security review.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -17,9 +18,9 @@ from threading import RLock
 from typing import Any, Protocol
 from uuid import uuid4
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import and_, case, func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session
 
 from app.models import CodeJudgeAttempt, CodeProblem, CodeProblemVersion, CodeSubmission, CourseUnit
 from app.models.base import utc_now
@@ -315,39 +316,81 @@ def create_code_submission(
     return SubmissionCreateResult(submission, created=True, idempotent_replay=False)
 
 
-def submission_projection_columns():
-    """Return correlated latest/best ids for a submission list row."""
-    latest_candidate = aliased(CodeSubmission)
-    best_candidate = aliased(CodeSubmission)
-    latest_id = (
-        select(latest_candidate.id)
-        .where(
-            latest_candidate.student_id == CodeSubmission.student_id,
-            latest_candidate.problem_id == CodeSubmission.problem_id,
-            latest_candidate.class_id == CodeSubmission.class_id,
+SubmissionRevisionScope = tuple[int, int, int]
+SubmissionProjectionIds = tuple[int, int]
+
+
+def _submission_projection_statement(page_submission_ids: Sequence[int]):
+    """Build one candidate query for every complete revision scope on a page."""
+    page_scopes = (
+        select(
+            CodeSubmission.student_id.label("student_id"),
+            CodeSubmission.problem_id.label("problem_id"),
+            CodeSubmission.class_id.label("class_id"),
         )
-        .order_by(latest_candidate.created_at.desc(), latest_candidate.id.desc())
-        .limit(1)
-        .correlate(CodeSubmission)
-        .scalar_subquery()
+        .where(CodeSubmission.id.in_(tuple(page_submission_ids)))
+        .distinct()
+        .cte("page_submission_scopes")
     )
-    best_id = (
-        select(best_candidate.id)
-        .where(
-            best_candidate.student_id == CodeSubmission.student_id,
-            best_candidate.problem_id == CodeSubmission.problem_id,
-            best_candidate.class_id == CodeSubmission.class_id,
-        )
-        .order_by(
-            _submission_status_priority(best_candidate.status).desc(),
-            best_candidate.created_at.desc(),
-            best_candidate.id.desc(),
-        )
-        .limit(1)
-        .correlate(CodeSubmission)
-        .scalar_subquery()
+    in_page_scope = and_(
+        CodeSubmission.student_id == page_scopes.c.student_id,
+        CodeSubmission.problem_id == page_scopes.c.problem_id,
+        CodeSubmission.class_id == page_scopes.c.class_id,
     )
-    return latest_id, best_id
+    return select(
+        CodeSubmission.student_id,
+        CodeSubmission.problem_id,
+        CodeSubmission.class_id,
+        CodeSubmission.id.label("submission_id"),
+        CodeSubmission.status,
+        CodeSubmission.created_at,
+    ).join(page_scopes, in_page_scope)
+
+
+def submission_projection_ids_for_page(
+    db: Session,
+    submissions: Sequence[CodeSubmission],
+) -> dict[SubmissionRevisionScope, SubmissionProjectionIds]:
+    """Fold one candidate query into latest/status-best ids.
+
+    The round-trip count is fixed, but candidate rows equal the complete
+    revision history of every distinct scope represented on the page.
+    """
+    if not submissions:
+        return {}
+    page_ids = tuple(sorted({submission.id for submission in submissions}))
+    expected_scopes = {
+        (submission.student_id, submission.problem_id, submission.class_id)
+        for submission in submissions
+    }
+    projections: dict[SubmissionRevisionScope, SubmissionProjectionIds] = {}
+    latest_keys: dict[SubmissionRevisionScope, tuple[datetime, int]] = {}
+    best_keys: dict[SubmissionRevisionScope, tuple[int, datetime, int]] = {}
+    for row in db.execute(_submission_projection_statement(page_ids)):
+        scope = (row.student_id, row.problem_id, row.class_id)
+        latest_key = (row.created_at, row.submission_id)
+        best_key = (
+            _SUBMISSION_STATUS_PRIORITY.get(row.status, -1),
+            row.created_at,
+            row.submission_id,
+        )
+        current = projections.get(scope)
+        if current is None:
+            projections[scope] = (row.submission_id, row.submission_id)
+            latest_keys[scope] = latest_key
+            best_keys[scope] = best_key
+            continue
+        latest_id, best_id = current
+        if latest_key > latest_keys[scope]:
+            latest_id = row.submission_id
+            latest_keys[scope] = latest_key
+        if best_key > best_keys[scope]:
+            best_id = row.submission_id
+            best_keys[scope] = best_key
+        projections[scope] = (latest_id, best_id)
+    if projections.keys() != expected_scopes:
+        raise RuntimeError("Code submission projection scope mismatch")
+    return projections
 
 
 def submission_projection_flags(db: Session, submission: CodeSubmission) -> tuple[bool, bool]:

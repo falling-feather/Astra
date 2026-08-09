@@ -171,8 +171,17 @@ class CodeSubmissionRead(BaseModel):
     created_at: datetime
     judged_at: datetime | None = None
     idempotent_replay: bool = False
-    is_latest_revision: bool = False
-    is_best_revision: bool = False
+    is_latest_revision: bool = Field(
+        default=False,
+        description="Latest revision in the same student, problem, and class scope by created_at then id.",
+    )
+    is_best_revision: bool = Field(
+        default=False,
+        description=(
+            "Status-priority best revision in the same student, problem, and class scope, "
+            "with created_at then id as tie-breakers; this is not the highest numeric score."
+        ),
+    )
 
 
 class CodeSubmissionSourceRead(BaseModel):

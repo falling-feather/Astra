@@ -5,7 +5,9 @@ from hashlib import sha256
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from statistics import median
 from threading import Barrier
+from time import perf_counter
 
 from alembic import command
 from alembic.config import Config
@@ -15,12 +17,25 @@ import pytest
 from sqlalchemy import create_engine, event, func, inspect, select, text
 from sqlalchemy.dialects import mysql
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import aliased
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.core.config import get_settings
 from app.db.session import get_session_factory, make_engine, reset_database_state
 from app.main import create_app
-from app.models import CodeJudgeAttempt, CodeProblem, CodeProblemVersion, CodeSubmission, Course, User
+from app.models import (
+    ClassMembership,
+    CodeJudgeAttempt,
+    CodeProblem,
+    CodeProblemVersion,
+    CodeSubmission,
+    Course,
+    CourseClass,
+    CourseUnit,
+    CourseUnitClassPlan,
+    SchoolMembership,
+    User,
+)
 from app.services.code_judge import (
     EXPIRED_CLAIM_RECOVERY_BATCH_SIZE,
     TERMINAL_STATUSES,
@@ -750,12 +765,12 @@ def test_code_submission_list_is_database_paginated(client):
         )
         assert created.status_code == 201
 
-    statements: list[str] = []
+    submission_statements: list[str] = []
     engine = make_engine(get_settings().database_url)
 
     def capture_statement(_connection, _cursor, statement, _parameters, _context, _executemany):
-        if statement.lstrip().upper().startswith("SELECT"):
-            statements.append(statement)
+        if "code_submissions" in statement.lower():
+            submission_statements.append(statement)
 
     event.listen(engine, "before_cursor_execute", capture_statement)
     try:
@@ -766,9 +781,514 @@ def test_code_submission_list_is_database_paginated(client):
     assert page.json()["total"] == 6
     assert len(page.json()["items"]) == 3
     assert page.json()["next_offset"] == 3
-    # Authentication and class-scope checks account for the fixed overhead;
-    # the page itself is one count plus one limited SQL query, not per row.
-    assert len(statements) <= 8
+    # The list data path is one count, one limited page, and one projection
+    # query for every non-empty page. Authentication/scope reads are separate.
+    assert len(submission_statements) == 3
+    assert sum(statement.lstrip().upper().startswith("WITH") for statement in submission_statements) == 1
+
+
+def test_be016_projection_2500_rows_is_fixed_query_global_and_explainable(client):
+    teacher, student, class_id, course_id, problem_id = _submission_scope(client, "be016_projection")
+    with get_session_factory(get_settings().database_url)() as db:
+        problem = db.get(CodeProblem, problem_id)
+        version = db.scalar(
+            select(CodeProblemVersion)
+            .where(CodeProblemVersion.problem_id == problem_id)
+            .order_by(CodeProblemVersion.version_number.desc())
+        )
+        student_user = db.scalar(select(User).where(User.username == "be016_projection_student"))
+        assert problem is not None and version is not None and student_user is not None
+        school_id = problem.school_id
+
+    second_class_id = _class(client, teacher, school_id, "BE-016 second projection class")
+    _attach(client, teacher, course_id, second_class_id)
+
+    statuses = ("accepted", "wrong_answer", "queued", "partial", "runtime_error")
+    revision_count = len(statuses)
+    student_count = 50
+    problem_count = 10
+    base_created_at = datetime(2026, 8, 9, tzinfo=UTC)
+    empty_sha256 = sha256(b"").hexdigest()
+    with get_session_factory(get_settings().database_url)() as db:
+        problem = db.get(CodeProblem, problem_id)
+        version = db.scalar(
+            select(CodeProblemVersion)
+            .where(CodeProblemVersion.problem_id == problem_id)
+            .order_by(CodeProblemVersion.version_number.desc())
+        )
+        student_user = db.scalar(select(User).where(User.username == "be016_projection_student"))
+        teacher_user = db.scalar(select(User).where(User.username == "be016_projection_teacher"))
+        assert problem is not None and version is not None
+        assert student_user is not None and teacher_user is not None
+
+        students = [student_user]
+        for student_index in range(1, student_count):
+            benchmark_student = User(
+                username=f"be016_projection_student_{student_index:02d}",
+                normalized_username=f"be016_projection_student_{student_index:02d}",
+                display_name=f"BE-016 projection student {student_index:02d}",
+                password_hash=student_user.password_hash,
+                role="student",
+                status="active",
+            )
+            db.add(benchmark_student)
+            students.append(benchmark_student)
+        db.flush()
+
+        for student_index, benchmark_student in enumerate(students[1:], start=1):
+            scope_class_id = class_id if student_index < student_count // 2 else second_class_id
+            db.add(
+                SchoolMembership(
+                    school_id=school_id,
+                    user_id=benchmark_student.id,
+                    role="student",
+                    status="active",
+                )
+            )
+            db.add(
+                ClassMembership(
+                    class_id=scope_class_id,
+                    user_id=benchmark_student.id,
+                    role="student",
+                    status="active",
+                )
+            )
+
+        units = [db.get(CourseUnit, problem.course_unit_id)]
+        problems = [problem]
+        versions = [version]
+        assert units[0] is not None
+        for problem_index in range(1, problem_count):
+            unit = CourseUnit(
+                course_id=course_id,
+                activity_key=f"be016.problem.{problem_index}",
+                title=f"BE-016 problem unit {problem_index}",
+                position=problem_index + 1,
+                status="published",
+            )
+            db.add(unit)
+            db.flush()
+            benchmark_problem = CodeProblem(
+                school_id=school_id,
+                course_id=course_id,
+                course_unit_id=unit.id,
+                activity_key=unit.activity_key,
+                title=f"BE-016 problem {problem_index}",
+                status="active",
+                created_by_user_id=teacher_user.id,
+            )
+            db.add(benchmark_problem)
+            db.flush()
+            benchmark_version = CodeProblemVersion(
+                problem_id=benchmark_problem.id,
+                version_number=1,
+                status="active",
+                statement_markdown=version.statement_markdown,
+                test_spec_json=dict(version.test_spec_json),
+                language_allowlist_json=list(version.language_allowlist_json),
+                resource_policy_json=dict(version.resource_policy_json),
+                source_max_bytes=version.source_max_bytes,
+                input_max_bytes=version.input_max_bytes,
+                output_max_bytes=version.output_max_bytes,
+                spec_sha256=version.spec_sha256,
+                created_by_user_id=teacher_user.id,
+            )
+            db.add(benchmark_version)
+            units.append(unit)
+            problems.append(benchmark_problem)
+            versions.append(benchmark_version)
+        db.flush()
+
+        course_classes = list(
+            db.scalars(
+                select(CourseClass).where(
+                    CourseClass.course_id == course_id,
+                    CourseClass.class_id.in_((class_id, second_class_id)),
+                )
+            ).all()
+        )
+        assert len(course_classes) == 2
+        for course_class in course_classes:
+            planned_unit_ids = set(
+                db.scalars(
+                    select(CourseUnitClassPlan.course_unit_id).where(
+                        CourseUnitClassPlan.course_class_id == course_class.id
+                    )
+                ).all()
+            )
+            for position, unit in enumerate(units, start=1):
+                if unit.id not in planned_unit_ids:
+                    db.add(
+                        CourseUnitClassPlan(
+                            course_class_id=course_class.id,
+                            course_unit_id=unit.id,
+                            position=position,
+                            release_mode="open",
+                        )
+                    )
+        db.flush()
+
+        student_ids = [benchmark_student.id for benchmark_student in students]
+        problem_ids = [benchmark_problem.id for benchmark_problem in problems]
+        activity_keys = [benchmark_problem.activity_key for benchmark_problem in problems]
+        rows = []
+        for student_index, benchmark_student in enumerate(students):
+            scope_class_id = class_id if student_index < student_count // 2 else second_class_id
+            for problem_index, (benchmark_problem, benchmark_version) in enumerate(
+                zip(problems, versions, strict=True)
+            ):
+                for revision_index, submission_status in enumerate(statuses):
+                    source = (
+                        f"print({scope_class_id}, {student_index}, {problem_index}, {revision_index})"
+                    )
+                    scope_index = student_index * problem_count + problem_index
+                    created_at = base_created_at + timedelta(
+                        seconds=revision_index * student_count * problem_count + scope_index
+                    )
+                    rows.append(
+                        {
+                            "school_id": school_id,
+                            "course_id": course_id,
+                            "class_id": scope_class_id,
+                            "course_unit_id": benchmark_problem.course_unit_id,
+                            "activity_key": benchmark_problem.activity_key,
+                            "problem_id": benchmark_problem.id,
+                            "problem_version_id": benchmark_version.id,
+                            "student_id": benchmark_student.id,
+                            "client_submission_id": (
+                                f"be016:{scope_class_id}:{student_index}:{problem_index}:{revision_index}"
+                            ),
+                            "language": "python",
+                            "source_code": source,
+                            "stdin": "",
+                            "source_sha256": sha256(source.encode("utf-8")).hexdigest(),
+                            "input_sha256": empty_sha256,
+                            "problem_snapshot_json": {"problem_id": benchmark_problem.id},
+                            "resource_policy_snapshot_json": dict(benchmark_version.resource_policy_json),
+                            "status": submission_status,
+                            # The accepted row deliberately has the lowest score:
+                            # status-best must never turn into numeric-score best.
+                            "result_summary_json": {
+                                "score": 1 if submission_status == "accepted" else 999
+                            },
+                            "judged_at": created_at if submission_status != "queued" else None,
+                            "created_at": created_at,
+                            "updated_at": created_at,
+                        }
+                    )
+        assert len(rows) == 2_500
+        db.execute(CodeSubmission.__table__.insert(), rows)
+        db.commit()
+        assert db.execute(text("PRAGMA foreign_key_check")).all() == []
+
+    engine = make_engine(get_settings().database_url)
+
+    def request_with_submission_sql(url: str, token: str = teacher):
+        statements: list[str] = []
+
+        def capture_statement(_connection, _cursor, statement, _parameters, _context, _executemany):
+            if "code_submissions" in statement.lower():
+                statements.append(statement)
+
+        event.listen(engine, "before_cursor_execute", capture_statement)
+        try:
+            response = client.get(url, headers=_auth(token))
+        finally:
+            event.remove(engine, "before_cursor_execute", capture_statement)
+        return response, statements
+
+    first_page, first_page_sql = request_with_submission_sql(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}&limit=1&offset=250"
+    )
+    large_page, large_page_sql = request_with_submission_sql(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}&limit=200&offset=0"
+    )
+    empty_page, empty_page_sql = request_with_submission_sql(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}&limit=200&offset=5000"
+    )
+    assert first_page.status_code == 200, first_page.json()
+    assert large_page.status_code == 200, large_page.json()
+    assert empty_page.status_code == 200, empty_page.json()
+    assert len(first_page_sql) == len(large_page_sql) == 3
+    assert len(empty_page_sql) == 2
+    assert not any(statement.lstrip().upper().startswith("WITH") for statement in empty_page_sql)
+    assert first_page.json()["total"] == large_page.json()["total"] == 1_250
+    assert empty_page.json()["total"] == 1_250
+    assert empty_page.json()["items"] == []
+    assert empty_page.json()["next_offset"] is None
+    assert len(first_page.json()["items"]) == 1
+    assert len(large_page.json()["items"]) == 200
+    assert large_page.json()["limit"] == 200
+    assert large_page.json()["offset"] == 0
+    assert large_page.json()["next_offset"] == 200
+    # The first 250 rows are the latest revision from every class scope;
+    # offset=250 starts the previous revision layer, so both flags are global.
+    assert first_page.json()["items"][0]["is_latest_revision"] is False
+    assert first_page.json()["items"][0]["is_best_revision"] is False
+    assert sum(item["is_latest_revision"] for item in large_page.json()["items"]) == 200
+    assert sum(item["is_best_revision"] for item in large_page.json()["items"]) == 0
+    assert not any(
+        item["is_latest_revision"] and item["is_best_revision"]
+        for item in large_page.json()["items"]
+    )
+
+    activity_page, activity_page_sql = request_with_submission_sql(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}"
+        f"&activity_key={activity_keys[0]}&limit=200"
+    )
+    assert activity_page.status_code == 200, activity_page.json()
+    assert len(activity_page_sql) == 3
+    assert activity_page.json()["total"] == 25 * revision_count
+    assert sum(item["is_latest_revision"] for item in activity_page.json()["items"]) == 25
+    assert sum(item["is_best_revision"] for item in activity_page.json()["items"]) == 25
+
+    with get_session_factory(get_settings().database_url)() as db:
+        expected_ids = list(
+            db.scalars(
+                select(CodeSubmission.id)
+                .where(CodeSubmission.class_id == class_id, CodeSubmission.course_id == course_id)
+                .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+                .limit(200)
+            ).all()
+        )
+        assert [item["id"] for item in large_page.json()["items"]] == expected_ids
+
+        status_filtered_rows = list(
+            db.scalars(
+                select(CodeSubmission)
+                .where(
+                    CodeSubmission.student_id.in_((student_ids[0], student_ids[student_count // 2])),
+                    CodeSubmission.problem_id == problem_ids[0],
+                    CodeSubmission.class_id.in_((class_id, second_class_id)),
+                    CodeSubmission.status == "partial",
+                )
+                .order_by(CodeSubmission.class_id)
+            ).all()
+        )
+        assert len(status_filtered_rows) == 2
+        projections = code_judge_service.submission_projection_ids_for_page(db, status_filtered_rows)
+        assert len(projections) == 2
+        for filtered_submission in status_filtered_rows:
+            scope = (
+                filtered_submission.student_id,
+                filtered_submission.problem_id,
+                filtered_submission.class_id,
+            )
+            full_scope = list(
+                db.scalars(
+                    select(CodeSubmission)
+                    .where(
+                        CodeSubmission.student_id == filtered_submission.student_id,
+                        CodeSubmission.problem_id == filtered_submission.problem_id,
+                        CodeSubmission.class_id == filtered_submission.class_id,
+                    )
+                    .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+                ).all()
+            )
+            latest = full_scope[0]
+            status_best = next(item for item in full_scope if item.status == "accepted")
+            assert latest.status == "runtime_error"
+            assert status_best.result_summary_json["score"] < latest.result_summary_json["score"]
+            assert projections[scope] == (latest.id, status_best.id)
+            assert filtered_submission.id not in projections[scope]
+
+        page_statement = (
+            select(CodeSubmission)
+            .where(CodeSubmission.class_id == class_id, CodeSubmission.course_id == course_id)
+            .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+            .limit(200)
+        )
+        benchmark_page_rows = list(db.scalars(page_statement).all())
+        assert len(benchmark_page_rows) == 200
+        benchmark_page_scopes = {
+            (submission.student_id, submission.problem_id, submission.class_id)
+            for submission in benchmark_page_rows
+        }
+        assert len(benchmark_page_scopes) == 200
+        projection_statement = code_judge_service._submission_projection_statement(
+            [submission.id for submission in benchmark_page_rows]
+        )
+        compiled = projection_statement.compile(
+            dialect=engine.dialect,
+            compile_kwargs={"literal_binds": True},
+        )
+        explain_rows = db.execute(text(f"EXPLAIN QUERY PLAN {compiled}")).all()
+        explain = "\n".join(str(row[-1]) for row in explain_rows)
+        assert "page_submission_scopes" in explain
+        assert "student_id=? AND problem_id=? AND class_id=?" in explain
+        assert "CORRELATED SCALAR SUBQUERY" not in explain
+        assert "TEMP B-TREE FOR ORDER BY" not in explain
+        assert len(db.execute(projection_statement).all()) == 1_000
+
+        latest_candidate = aliased(CodeSubmission)
+        best_candidate = aliased(CodeSubmission)
+        old_latest_id = (
+            select(latest_candidate.id)
+            .where(
+                latest_candidate.student_id == CodeSubmission.student_id,
+                latest_candidate.problem_id == CodeSubmission.problem_id,
+                latest_candidate.class_id == CodeSubmission.class_id,
+            )
+            .order_by(latest_candidate.created_at.desc(), latest_candidate.id.desc())
+            .limit(1)
+            .correlate(CodeSubmission)
+            .scalar_subquery()
+        )
+        old_best_id = (
+            select(best_candidate.id)
+            .where(
+                best_candidate.student_id == CodeSubmission.student_id,
+                best_candidate.problem_id == CodeSubmission.problem_id,
+                best_candidate.class_id == CodeSubmission.class_id,
+            )
+            .order_by(
+                code_judge_service._submission_status_priority(best_candidate.status).desc(),
+                best_candidate.created_at.desc(),
+                best_candidate.id.desc(),
+            )
+            .limit(1)
+            .correlate(CodeSubmission)
+            .scalar_subquery()
+        )
+        old_list_statement = (
+            select(
+                CodeSubmission,
+                old_latest_id.label("latest_submission_id"),
+                old_best_id.label("best_submission_id"),
+            )
+            .where(CodeSubmission.class_id == class_id, CodeSubmission.course_id == course_id)
+            .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+            .limit(200)
+        )
+        dense_page_statement = (
+            select(CodeSubmission)
+            .where(
+                CodeSubmission.class_id == class_id,
+                CodeSubmission.course_id == course_id,
+                CodeSubmission.student_id.in_(student_ids[:4]),
+            )
+            .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+            .limit(200)
+        )
+        dense_page_rows = list(db.scalars(dense_page_statement).all())
+        assert len(dense_page_rows) == 200
+        assert len(
+            {
+                (submission.student_id, submission.problem_id, submission.class_id)
+                for submission in dense_page_rows
+            }
+        ) == 40
+        dense_projection_statement = code_judge_service._submission_projection_statement(
+            [submission.id for submission in dense_page_rows]
+        )
+        assert len(db.execute(dense_projection_statement).all()) == 200
+        dense_old_list_statement = (
+            select(
+                CodeSubmission,
+                old_latest_id.label("latest_submission_id"),
+                old_best_id.label("best_submission_id"),
+            )
+            .where(
+                CodeSubmission.class_id == class_id,
+                CodeSubmission.course_id == course_id,
+                CodeSubmission.student_id.in_(student_ids[:4]),
+            )
+            .order_by(CodeSubmission.created_at.desc(), CodeSubmission.id.desc())
+            .limit(200)
+        )
+        old_compiled = old_list_statement.compile(
+            dialect=engine.dialect,
+            compile_kwargs={"literal_binds": True},
+        )
+        old_explain_rows = db.execute(text(f"EXPLAIN QUERY PLAN {old_compiled}")).all()
+        old_explain = "\n".join(str(row[-1]) for row in old_explain_rows)
+        assert old_explain.count("CORRELATED SCALAR SUBQUERY") == 2
+
+        mysql8 = mysql.dialect()
+        mysql8.server_version_info = (8, 0, 36)
+        mysql_compiled = str(
+            projection_statement.compile(
+                dialect=mysql8,
+                compile_kwargs={"literal_binds": True},
+            )
+        ).upper()
+        assert "WITH PAGE_SUBMISSION_SCOPES AS" in mysql_compiled
+        assert "JOIN PAGE_SUBMISSION_SCOPES" in mysql_compiled
+        assert "ROW_NUMBER() OVER" not in mysql_compiled
+
+        def hot_timings(operation, runs: int = 15):
+            operation()
+            durations = []
+            for _ in range(runs):
+                started = perf_counter()
+                operation()
+                durations.append((perf_counter() - started) * 1000)
+            return durations
+
+        old_timings = hot_timings(lambda: db.execute(old_list_statement).all())
+        new_timings = hot_timings(
+            lambda: (
+                db.execute(page_statement).all(),
+                db.execute(projection_statement).all(),
+            )
+        )
+        dense_old_timings = hot_timings(lambda: db.execute(dense_old_list_statement).all())
+        dense_new_timings = hot_timings(
+            lambda: (
+                db.execute(dense_page_statement).all(),
+                db.execute(dense_projection_statement).all(),
+            )
+        )
+        print(
+            "BE016_SQLITE_BENCHMARK "
+            f"rows={len(rows)} runs=15 page_scopes=200 candidates=1000 "
+            f"old_median_ms={median(old_timings):.3f} old_max_ms={max(old_timings):.3f} "
+            f"new_median_ms={median(new_timings):.3f} new_max_ms={max(new_timings):.3f} "
+            "dense_page_scopes=40 dense_candidates=200 "
+            f"dense_old_median_ms={median(dense_old_timings):.3f} "
+            f"dense_new_median_ms={median(dense_new_timings):.3f}"
+        )
+
+    student_page = client.get(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}&limit=200",
+        headers=_auth(student),
+    )
+    assert student_page.status_code == 200, student_page.json()
+    assert student_page.json()["total"] == problem_count * revision_count
+    assert {item["student_id"] for item in student_page.json()["items"]} == {student_ids[0]}
+    assert client.get(
+        f"/api/code-submissions?class_id={second_class_id}",
+        headers=_auth(student),
+    ).status_code == 403
+    second_class_page = client.get(
+        f"/api/code-submissions?class_id={second_class_id}&course_id={course_id}&limit=200",
+        headers=_auth(teacher),
+    )
+    assert second_class_page.status_code == 200, second_class_page.json()
+    assert second_class_page.json()["total"] == 1_250
+
+    admin = _login(client, "be016_projection_admin", "teacher")
+    with get_session_factory(get_settings().database_url)() as db:
+        admin_user = db.scalar(select(User).where(User.username == "be016_projection_admin"))
+        assert admin_user is not None
+        admin_user.role = "admin"
+        db.commit()
+    admin_page, admin_page_sql = request_with_submission_sql(
+        "/api/code-submissions?limit=200&offset=0",
+        token=admin,
+    )
+    assert admin_page.status_code == 200, admin_page.json()
+    assert len(admin_page_sql) == 3
+    assert admin_page.json()["total"] == 2_500
+    assert len(admin_page.json()["items"]) == 200
+
+    openapi = client.get("/api/openapi.json")
+    assert openapi.status_code == 200
+    best_description = openapi.json()["components"]["schemas"]["CodeSubmissionRead"]["properties"][
+        "is_best_revision"
+    ]["description"]
+    assert "Status-priority best revision" in best_description
+    assert "not the highest numeric score" in best_description
 
 
 def test_0050_sqlite_roundtrip_reupgrade_and_mysql_schema_compile(tmp_path, monkeypatch):

@@ -49,8 +49,8 @@ from app.services.code_judge import (
     create_code_submission,
     create_problem,
     create_problem_version,
-    submission_projection_columns,
     submission_projection_flags,
+    submission_projection_ids_for_page,
 )
 from app.services.course_release_plans import (
     effective_unit_access,
@@ -418,26 +418,19 @@ def list_code_submissions(
         if activity_key is not None:
             statement = statement.where(CodeSubmission.activity_key == activity_key)
     total = int(db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0)
-    latest_id, best_id = submission_projection_columns()
-    rows = list(
-        db.execute(
-            statement.add_columns(
-                latest_id.label("latest_submission_id"),
-                best_id.label("best_submission_id"),
-            )
-            .offset(offset)
-            .limit(limit)
-        ).all()
-    )
+    rows = list(db.scalars(statement.offset(offset).limit(limit)).all())
+    projections = submission_projection_ids_for_page(db, rows)
     next_offset = offset + len(rows)
     return CodeSubmissionPage(
         items=[
             _submission_read(
-                row[0],
-                is_latest_revision=row[0].id == row.latest_submission_id,
-                is_best_revision=row[0].id == row.best_submission_id,
+                submission,
+                is_latest_revision=submission.id
+                == projections[(submission.student_id, submission.problem_id, submission.class_id)][0],
+                is_best_revision=submission.id
+                == projections[(submission.student_id, submission.problem_id, submission.class_id)][1],
             )
-            for row in rows
+            for submission in rows
         ],
         total=total,
         limit=limit,
