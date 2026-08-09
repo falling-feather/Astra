@@ -52,3 +52,13 @@ python -m pytest --runxfail backend/tests/test_qa016_critical_journeys.py -q
 - `evidence/qa016-browser-aec0587f6431.json`：外部 Edge/Chrome 真实旅程、键盘路径、`390×844` 响应式与可访问状态快照。
 
 证据文件不包含临时目录绝对路径、口令、Cookie 或访问令牌。提交内快照只用于锁定 `aec0587f6431`；修复验收仍必须重新运行 probe，不能只对静态 JSON 做断言。
+
+## QA-020 当前 TEACH 报告语义
+
+`QA-020 / V8.0.8` 只修正报告生成层，不改写上述 QA-016 历史失败快照或产品实现。TEACH-01 现在由真实执行 `pages/teacher/teacher.js` 后捕获的请求参数、进入状态的课程 ID 和 DOM 结果共同派生 `observation_facts`、`defect_observed` 与 `actual`：
+
+- 当前修复构建携带同一 `class_id=11` 与 `course_id=101`；夹具中的混课响应被整页拒绝，零行进入状态且 DOM 未渲染 submission row，因此不把空集合表述成“已正常呈现 Physics 行”，`defect_observed=false`。
+- 正式 `baseline`/`gate` 保留 QA-016 原有 TEACH 顶层组合语义：只有“缺少 `course_id`、状态混入 `course_id=202`、DOM 渲染 foreign row”三项同时成立，`historical_issue_defect_observed` 才为真。自检另以显式 `controlled_positive` 语义分别对当前产品源码施加“移除 pending 的 `course_id`”和“绕过混课页拒绝”两类受控变异；单项正控的 `defect_observed=true` 用于证明报告能识别并准确描述对应子事实，但不会静默改写正式 gate 的历史组合布尔。报告同时保留 `historical_issue_defect_observed`、`controlled_positive_defect_observed` 与 `selected_semantic`。
+- 这些变异只存在于 Node VM 的内存源码和合同进程中，不写产品文件，也不更新 `tools/qa/evidence/qa016-*`。
+
+正式 probe 的 stdout 是结构化 JSON，stderr 是由同一报告对象生成的一行 `human_summary`。`summary`、`overall`、`execution.status`、`execution.exit_code` 与实际进程退出码共用同一判定；合同会篡改 defect、actual、summary、human summary 与 exit 语义，任何不一致都必须失败。`baseline` 模式只有六项历史缺陷全部真实观察到时退出 `0`，否则退出 `2`；`gate` 模式只有六项目标语义全部关闭缺陷时退出 `0`，否则退出 `1`。因此原始 `aec0587f6431` 的历史 baseline PASS 仍保留，而当前部分或全部修复构建不会被旧基线文案冒充为 PASS。

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
+const { isDeepStrictEqual } = require('node:util');
 
 const ROOT = path.resolve(__dirname, '../..');
 const BASELINE_REVISION = 'aec0587f643190e2c435ff88945d4f9066dd5316';
@@ -145,6 +146,43 @@ function selfTest() {
     assert.equal(repairedResult.issues[issueId].desired_gate, 'PASS');
     assert.ok(ISSUE_CONTRACTS[issueId]);
   }
+  const scopedTeacherFacts = {
+    selected_class_id: 11,
+    selected_course_id: 101,
+    selected_course_title: 'Physics',
+    request_class_id: '11',
+    request_course_id: '101',
+    raw_response_course_ids: [101, 202],
+    accepted_state_course_ids: [],
+    foreign_course_row_rendered: false,
+  };
+  const scopedEvaluation = evaluateTeacherObservationFacts(scopedTeacherFacts);
+  assert.equal(scopedEvaluation.defect_observed, false);
+  assert.equal(scopedEvaluation.historical_issue_defect_observed, false);
+  assert.equal(scopedEvaluation.controlled_positive_defect_observed, false);
+  const missingCourseEvaluation = evaluateTeacherObservationFacts({
+    ...scopedTeacherFacts,
+    request_course_id: null,
+    evaluation_semantic: 'controlled_positive',
+  });
+  assert.equal(missingCourseEvaluation.defect_observed, true);
+  assert.equal(missingCourseEvaluation.historical_issue_defect_observed, false);
+  const mixedRowsEvaluation = evaluateTeacherObservationFacts({
+    ...scopedTeacherFacts,
+    accepted_state_course_ids: [101, 202],
+    foreign_course_row_rendered: true,
+    evaluation_semantic: 'controlled_positive',
+  });
+  assert.equal(mixedRowsEvaluation.defect_observed, true);
+  assert.equal(mixedRowsEvaluation.historical_issue_defect_observed, false);
+  const historicalCombinationEvaluation = evaluateTeacherObservationFacts({
+    ...scopedTeacherFacts,
+    request_course_id: null,
+    accepted_state_course_ids: [101, 202],
+    foreign_course_row_rendered: true,
+  });
+  assert.equal(historicalCombinationEvaluation.defect_observed, true);
+  assert.equal(historicalCombinationEvaluation.historical_issue_defect_observed, true);
   return {
     status: 'PASS',
     checks: [
@@ -152,6 +190,7 @@ function selfTest() {
       'defective synthetic observations pass the baseline assertion and fail the desired gate',
       'repaired synthetic observations fail the old baseline assertion and pass the desired gate',
       'every issue has owner, preconditions, steps, expected result, and rerun command',
+      'TEACH-01 keeps the historical conjunction while controlled positives expose each sub-fact',
     ],
   };
 }
@@ -285,9 +324,99 @@ function probeFuture() {
   };
 }
 
-async function probeTeacher() {
-  const source = read('pages/teacher/teacher.js');
-  const exposed = source.replace(
+function evaluateTeacherObservationFacts(facts) {
+  if (!facts || typeof facts !== 'object') throw new Error('missing TEACH-01 observation facts');
+  const selectedClassId = String(facts.selected_class_id || '');
+  const selectedCourseId = String(facts.selected_course_id || '');
+  const requestClassId = String(facts.request_class_id || '');
+  const requestCourseId = String(facts.request_course_id || '');
+  const requestClassIdPresent = typeof facts.request_class_id_present === 'boolean'
+    ? facts.request_class_id_present
+    : facts.request_class_id !== null && facts.request_class_id !== undefined;
+  const requestCourseIdPresent = typeof facts.request_course_id_present === 'boolean'
+    ? facts.request_course_id_present
+    : facts.request_course_id !== null && facts.request_course_id !== undefined;
+  const missingClassParam = !requestClassIdPresent;
+  const missingCourseParam = !requestCourseIdPresent;
+  const classScopeMismatched = requestClassIdPresent && (!selectedClassId || requestClassId !== selectedClassId);
+  const courseScopeMismatched = requestCourseIdPresent && (!selectedCourseId || requestCourseId !== selectedCourseId);
+  const missingClassScope = missingClassParam || classScopeMismatched;
+  const missingCourseScope = missingCourseParam || courseScopeMismatched;
+  const acceptedCourseIds = Array.isArray(facts.accepted_state_course_ids)
+    ? facts.accepted_state_course_ids.map((value) => String(value))
+    : [];
+  const foreignReturnedCourseIds = [...new Set(acceptedCourseIds.filter((value) => value !== selectedCourseId))];
+  const foreignRowRendered = facts.foreign_course_row_rendered === true;
+  const controlledPositiveDefectObserved = missingClassScope || missingCourseScope
+    || foreignReturnedCourseIds.length > 0 || foreignRowRendered;
+  const historicalIssueDefectObserved = missingCourseParam
+    && acceptedCourseIds.includes('202')
+    && foreignRowRendered;
+  const selectedSemantic = facts.evaluation_semantic === 'controlled_positive'
+    ? 'controlled_positive'
+    : 'historical_combination';
+  const selectedFrontendDefectObserved = selectedSemantic === 'controlled_positive'
+    ? controlledPositiveDefectObserved
+    : historicalIssueDefectObserved;
+  const backendConfirmation = facts.backend_confirmation;
+  const defectObserved = backendConfirmation && typeof backendConfirmation.defect_observed === 'boolean'
+    ? selectedFrontendDefectObserved && backendConfirmation.defect_observed
+    : selectedFrontendDefectObserved;
+  return {
+    request_class_param_missing: missingClassParam,
+    request_course_param_missing: missingCourseParam,
+    class_scope_mismatched: classScopeMismatched,
+    course_scope_mismatched: courseScopeMismatched,
+    missing_class_scope: missingClassScope,
+    missing_course_scope: missingCourseScope,
+    foreign_returned_course_ids: foreignReturnedCourseIds,
+    foreign_course_row_rendered: foreignRowRendered,
+    historical_issue_defect_observed: historicalIssueDefectObserved,
+    controlled_positive_defect_observed: controlledPositiveDefectObserved,
+    selected_semantic: selectedSemantic,
+    selected_frontend_defect_observed: selectedFrontendDefectObserved,
+    ...(backendConfirmation && typeof backendConfirmation.defect_observed === 'boolean'
+      ? { backend_confirmation_observed: backendConfirmation.defect_observed }
+      : {}),
+    defect_observed: defectObserved,
+  };
+}
+
+function describeTeacherObservation(facts) {
+  const evaluated = evaluateTeacherObservationFacts(facts);
+  const selectedCourseId = String(facts.selected_course_id || '');
+  const selectedCourseTitle = String(facts.selected_course_title || selectedCourseId || '当前课程');
+  const selectedClassId = String(facts.selected_class_id || '');
+  if (!evaluated.controlled_positive_defect_observed) {
+    const rawIds = Array.isArray(facts.raw_response_course_ids)
+      ? [...new Set(facts.raw_response_course_ids.map((value) => String(value)))]
+      : [];
+    const rejectedForeignFixture = rawIds.some((value) => value !== selectedCourseId);
+    const acceptedCount = Array.isArray(facts.accepted_state_course_ids)
+      ? facts.accepted_state_course_ids.length
+      : 0;
+    if (rejectedForeignFixture && acceptedCount === 0) {
+      return `pending 请求携带 class_id=${selectedClassId} 与 course_id=${selectedCourseId}；夹具中的混课响应被整页拒绝，零行进入状态且 DOM 未渲染 submission row，未观察到 foreign-course row。`;
+    }
+    return `pending 请求携带 class_id=${selectedClassId} 与 course_id=${selectedCourseId}；${acceptedCount} 行进入 ${selectedCourseTitle}(course_id=${selectedCourseId}) 状态，DOM 未观察到 foreign-course row。`;
+  }
+  const observations = [];
+  if (evaluated.request_class_param_missing) observations.push('pending 请求缺少 class_id');
+  else if (evaluated.class_scope_mismatched) observations.push('pending 请求的 class_id 与当前班级错配');
+  if (evaluated.request_course_param_missing) observations.push('pending 请求缺少 course_id');
+  else if (evaluated.course_scope_mismatched) observations.push('pending 请求的 course_id 与当前课程错配');
+  if (evaluated.foreign_returned_course_ids.length) {
+    observations.push(`进入状态的返回行混入 foreign course_id=${evaluated.foreign_returned_course_ids.join(',')}`);
+  }
+  if (evaluated.foreign_course_row_rendered) observations.push('DOM 渲染了 foreign-course row');
+  if (facts.backend_confirmation && facts.backend_confirmation.defect_observed === false) {
+    observations.push('live API 对照未确认该前端缺陷，组合判定保持失败关闭');
+  }
+  return `观察到：${observations.join('；')}。`;
+}
+
+function instrumentTeacherSource(source, fixture) {
+  let exposed = source.replace(
     '    window.initTeacher = initTeacher;',
     `    window.__qa016TeacherTest = Object.freeze({
         state, loadClassScope, renderSubmissionQueue
@@ -295,6 +424,33 @@ async function probeTeacher() {
     window.initTeacher = initTeacher;`,
   );
   assert.notEqual(exposed, source, 'Teacher QA instrumentation must apply');
+  if (fixture.missingCourseParam === true) {
+    const before = exposed;
+    exposed = exposed.replace(
+      'const submissionParams = { class_id: classId, course_id: courseId, status:',
+      'const submissionParams = { class_id: classId, status:',
+    );
+    assert.notEqual(exposed, before, 'controlled missing-course mutation must apply');
+  }
+  if (fixture.acceptMixedPending === true) {
+    const before = exposed;
+    exposed = exposed.replace(
+      "fetchJson('/api/admin/submissions/pending', { params: submissionParams }).then((page) => validateCourseScopedPage(page, courseScope, PENDING_SUBMISSION_PAGE_LIMIT, 0, 'pending_submission_scope_invalid'))",
+      "fetchJson('/api/admin/submissions/pending', { params: submissionParams }).then((page) => page)",
+    );
+    assert.notEqual(exposed, before, 'controlled mixed-page mutation must apply');
+  }
+  return exposed;
+}
+
+async function probeTeacher(options = {}) {
+  const source = read('pages/teacher/teacher.js');
+  const fixture = {
+    missingCourseParam: options.missingCourseParam === true,
+    acceptMixedPending: options.acceptMixedPending === true,
+  };
+  const controlledPositive = fixture.missingCourseParam || fixture.acceptMixedPending;
+  const exposed = instrumentTeacherSource(source, fixture);
 
   const calls = [];
   const pendingResponse = {
@@ -349,12 +505,31 @@ async function probeTeacher() {
   const pendingCall = calls.find((call) => call.url === '/api/admin/submissions/pending');
   const rendered = api.renderSubmissionQueue();
   const mixedCourseIds = [...new Set(api.state.data.submissions.map((item) => item.course_id))];
-  const missingCourseId = !Object.prototype.hasOwnProperty.call(pendingCall.options.params || {}, 'course_id');
   const foreignRowRendered = rendered.includes('Control Flow');
+  const params = pendingCall.options.params || {};
+  const requestClassIdPresent = Object.prototype.hasOwnProperty.call(params, 'class_id');
+  const requestCourseIdPresent = Object.prototype.hasOwnProperty.call(params, 'course_id');
+  const facts = {
+    selected_class_id: 11,
+    selected_course_id: 101,
+    selected_course_title: 'Physics',
+    request_class_id_present: requestClassIdPresent,
+    request_course_id_present: requestCourseIdPresent,
+    request_class_id: requestClassIdPresent ? params.class_id : null,
+    request_course_id: requestCourseIdPresent ? params.course_id : null,
+    raw_response_course_ids: [...new Set(pendingResponse.items.map((item) => item.course_id))],
+    accepted_state_course_ids: mixedCourseIds,
+    foreign_course_row_rendered: foreignRowRendered,
+    evaluation_semantic: controlledPositive ? 'controlled_positive' : 'historical_combination',
+    fixture: Object.freeze({ ...fixture }),
+  };
+  const evaluated = evaluateTeacherObservationFacts(facts);
 
   return {
-    defect_observed: missingCourseId && mixedCourseIds.includes(202) && foreignRowRendered,
-    actual: '当前选中 Physics，但 pending 请求只携带 class_id，返回并渲染了 Control Flow 行。',
+    defect_observed: evaluated.defect_observed,
+    actual: describeTeacherObservation(facts),
+    observation_facts: facts,
+    observation_evaluation: evaluated,
     request_response: {
       request: { path: pendingCall.url, params: pendingCall.options.params },
       response: pendingResponse,
@@ -463,9 +638,98 @@ function runBackendProbe(pythonCommand, keepData) {
   }
 }
 
-function buildReport(revision, observations, backendEnvironment) {
-  const classification = classifyObservations(observations);
+function combineTeacherObservation(frontendObservation, backendObservation) {
+  const observationFacts = {
+    ...frontendObservation.observation_facts,
+    backend_confirmation: {
+      defect_observed: backendObservation.defect_observed,
+    },
+  };
+  const evaluated = evaluateTeacherObservationFacts(observationFacts);
   return {
+    ...frontendObservation,
+    defect_observed: evaluated.defect_observed,
+    actual: describeTeacherObservation(observationFacts),
+    observation_facts: observationFacts,
+    observation_evaluation: evaluated,
+    request_response: {
+      frontend_runtime: frontendObservation.request_response,
+      live_api: backendObservation.request_response,
+    },
+    database_or_state_evidence: {
+      frontend_runtime: frontendObservation.database_or_state_evidence,
+      live_database: backendObservation.database_or_state_evidence,
+    },
+  };
+}
+
+function deriveExecution(mode, classification) {
+  if (!['frontend', 'baseline', 'gate'].includes(mode)) throw new Error(`unsupported report mode: ${mode}`);
+  const gateMode = mode === 'gate';
+  const passed = gateMode
+    ? classification.desired_gate_passed
+    : classification.all_expected_defects_observed;
+  return {
+    mode,
+    selected_semantic: gateMode ? 'desired_gate' : 'baseline_assertion',
+    status: passed ? 'PASS' : 'FAIL',
+    exit_code: passed ? 0 : (gateMode ? 1 : 2),
+  };
+}
+
+function deriveOverall(classification) {
+  return {
+    baseline_assertion: classification.all_expected_defects_observed ? 'PASS' : 'FAIL',
+    desired_gate: classification.desired_gate_passed ? 'PASS' : 'FAIL',
+  };
+}
+
+function renderHumanSummary(report) {
+  const execution = report.execution || {};
+  const overall = report.overall || {};
+  const teacher = report.issues && report.issues['TEACH-01'] || {};
+  return `[QA-016] mode=${execution.mode || 'unknown'} overall=${execution.status || 'UNKNOWN'} exit_code=${String(execution.exit_code)}; baseline=${overall.baseline_assertion || 'UNKNOWN'}; desired_gate=${overall.desired_gate || 'UNKNOWN'}; TEACH-01 defect_observed=${String(teacher.defect_observed)}; actual=${JSON.stringify(teacher.actual || '')}`;
+}
+
+function validateReportConsistency(report) {
+  const failures = [];
+  const check = (condition, code) => {
+    if (!condition) failures.push(code);
+  };
+  try {
+    const classification = classifyObservations(report.issues || {});
+    check(isDeepStrictEqual(report.summary, classification), 'summary_not_derived_from_issue_facts');
+    const overall = deriveOverall(classification);
+    check(isDeepStrictEqual(report.overall, overall), 'overall_not_derived_from_summary');
+    const execution = deriveExecution(report.execution && report.execution.mode, classification);
+    check(isDeepStrictEqual(report.execution, execution), 'exit_semantics_not_derived_from_selected_gate');
+
+    const teacher = report.issues && report.issues['TEACH-01'];
+    check(Boolean(teacher && teacher.observation_facts), 'teach_observation_facts_missing');
+    if (teacher && teacher.observation_facts) {
+      const evaluated = evaluateTeacherObservationFacts(teacher.observation_facts);
+      check(teacher.defect_observed === evaluated.defect_observed, 'teach_defect_not_derived_from_observation_facts');
+      check(teacher.actual === describeTeacherObservation(teacher.observation_facts), 'teach_actual_not_derived_from_observation_facts');
+      check(isDeepStrictEqual(teacher.observation_evaluation, evaluated), 'teach_evaluation_not_derived_from_observation_facts');
+    }
+    check(report.human_summary === renderHumanSummary(report), 'human_summary_not_derived_from_report');
+  } catch (error) {
+    failures.push(`invalid_report_shape:${error.message}`);
+  }
+  return {
+    status: failures.length === 0 ? 'PASS' : 'FAIL',
+    failures,
+  };
+}
+
+function exitCodeForReport(report) {
+  const consistency = validateReportConsistency(report);
+  return consistency.status === 'PASS' ? report.execution.exit_code : 3;
+}
+
+function buildReport(revision, observations, backendEnvironment, mode = 'baseline') {
+  const classification = classifyObservations(observations);
+  const report = {
     schema: 'astra.qa016.critical-journeys.v1',
     task: 'QA-016',
     version: 'V8.0.1',
@@ -482,6 +746,8 @@ function buildReport(revision, observations, backendEnvironment) {
       desired_gate: 'PASS means repaired product semantics; current baseline is expected to FAIL.',
     },
     summary: classification,
+    overall: deriveOverall(classification),
+    execution: deriveExecution(mode, classification),
     issues: Object.fromEntries(ISSUE_IDS.map((issueId) => {
       const contract = ISSUE_CONTRACTS[issueId];
       const observation = observations[issueId];
@@ -498,9 +764,17 @@ function buildReport(revision, observations, backendEnvironment) {
         defect_observed: observation.defect_observed,
         baseline_assertion: classification.issues[issueId].baseline_assertion,
         desired_gate: classification.issues[issueId].desired_gate,
+        ...(observation.observation_facts ? { observation_facts: observation.observation_facts } : {}),
+        ...(observation.observation_evaluation ? { observation_evaluation: observation.observation_evaluation } : {}),
       }];
     })),
   };
+  report.human_summary = renderHumanSummary(report);
+  const consistency = validateReportConsistency(report);
+  if (consistency.status !== 'PASS') {
+    throw new Error(`internally inconsistent QA-016 report: ${consistency.failures.join(', ')}`);
+  }
+  return report;
 }
 
 function parseArgs(argv) {
@@ -535,18 +809,7 @@ async function run(options) {
     backendEnvironment = backend.environment;
     for (const issueId of ['TEACH-01', 'CODE-01', 'DEMO-01']) {
       if (issueId === 'TEACH-01') {
-        observations[issueId] = {
-          ...observations[issueId],
-          defect_observed: observations[issueId].defect_observed && backend.issues[issueId].defect_observed,
-          request_response: {
-            frontend_runtime: observations[issueId].request_response,
-            live_api: backend.issues[issueId].request_response,
-          },
-          database_or_state_evidence: {
-            frontend_runtime: observations[issueId].database_or_state_evidence,
-            live_database: backend.issues[issueId].database_or_state_evidence,
-          },
-        };
+        observations[issueId] = combineTeacherObservation(observations[issueId], backend.issues[issueId]);
       } else {
         observations[issueId] = backend.issues[issueId];
       }
@@ -555,11 +818,8 @@ async function run(options) {
     observations['CODE-01'] = { defect_observed: false, actual: 'frontend-only mode: not executed', request_response: { status: 'NOT_EXECUTED' }, database_or_state_evidence: { status: 'NOT_EXECUTED' } };
     observations['DEMO-01'] = { defect_observed: false, actual: 'frontend-only mode: not executed', request_response: { status: 'NOT_EXECUTED' }, database_or_state_evidence: { status: 'NOT_EXECUTED' } };
   }
-  const report = buildReport(revision, observations, backendEnvironment);
-  const exitCode = options.mode === 'gate'
-    ? (report.summary.desired_gate_passed ? 0 : 1)
-    : (report.summary.all_expected_defects_observed ? 0 : 2);
-  return { exitCode, report };
+  const report = buildReport(revision, observations, backendEnvironment, options.mode);
+  return { exitCode: exitCodeForReport(report), report };
 }
 
 async function main() {
@@ -572,6 +832,7 @@ async function main() {
     fs.writeFileSync(outputPath, serialized, 'utf8');
   }
   process.stdout.write(serialized);
+  if (report.human_summary) process.stderr.write(`${report.human_summary}\n`);
   process.exitCode = exitCode;
 }
 
@@ -579,11 +840,19 @@ module.exports = Object.freeze({
   BASELINE_REVISION,
   ISSUE_CONTRACTS,
   ISSUE_IDS,
+  buildReport,
   classifyObservations,
+  combineTeacherObservation,
+  describeTeacherObservation,
+  evaluateTeacherObservationFacts,
+  exitCodeForReport,
   probeFuture,
   probeMechanics,
   probeTeacher,
+  renderHumanSummary,
+  run,
   selfTest,
+  validateReportConsistency,
 });
 
 if (require.main === module) {
