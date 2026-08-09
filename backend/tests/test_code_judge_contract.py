@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from hashlib import sha256
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Barrier
 
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import create_engine, event, func, inspect, select, text
 from sqlalchemy.dialects import mysql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.core.config import get_settings
 from app.db.session import get_session_factory, make_engine, reset_database_state
+from app.main import create_app
 from app.models import CodeJudgeAttempt, CodeProblem, CodeProblemVersion, CodeSubmission, Course, User
 from app.services.code_judge import (
     EXPIRED_CLAIM_RECOVERY_BATCH_SIZE,
@@ -110,6 +116,21 @@ def _problem_payload(course_id: int, unit_id: int, *, statement: str = "Implemen
     }
 
 
+def _submission_scope(client, prefix: str) -> tuple[str, str, int, int, int]:
+    teacher = _login(client, f"{prefix}_teacher", "teacher")
+    student = _login(client, f"{prefix}_student", "student")
+    school_id = _school(client, teacher)
+    class_id = _class(client, teacher, school_id, f"{prefix} Class")
+    course_id = _course(client, teacher, school_id)
+    _attach(client, teacher, course_id, class_id)
+    unit_id = _unit(client, teacher, course_id)
+    joined = client.post(f"/api/classes/{class_id}/join", headers=_auth(student), json={"role": "student"})
+    assert joined.status_code == 201, joined.json()
+    problem = client.post("/api/code-problems", headers=_auth(teacher), json=_problem_payload(course_id, unit_id))
+    assert problem.status_code == 201, problem.json()
+    return teacher, student, class_id, course_id, problem.json()["id"]
+
+
 def test_code_submission_access_idempotency_version_snapshot_and_release_gates(client):
     teacher = _login(client, "code_judge_teacher", "teacher")
     student = _login(client, "code_judge_student", "student")
@@ -153,7 +174,13 @@ def test_code_submission_access_idempotency_version_snapshot_and_release_gates(c
     assert student_problem.status_code == 200
     assert student_problem.json()["effective_release_state"] == "open"
 
-    payload = {"class_id": class_id, "language": "py", "source_code": "print(1 + 2)", "stdin": ""}
+    payload = {
+        "client_submission_id": "contract:submission:0001",
+        "class_id": class_id,
+        "language": "py",
+        "source_code": "print(1 + 2)",
+        "stdin": "",
+    }
     first = client.post(f"/api/code-problems/{problem['id']}/submissions", headers=_auth(student), json=payload)
     assert first.status_code == 201, first.json()
     submission = first.json()
@@ -174,7 +201,11 @@ def test_code_submission_access_idempotency_version_snapshot_and_release_gates(c
     oversized = client.post(
         f"/api/code-problems/{problem['id']}/submissions",
         headers=_auth(student),
-        json={**payload, "source_code": "x" * 129},
+        json={
+            **payload,
+            "client_submission_id": "contract:submission:oversized",
+            "source_code": "x" * 129,
+        },
     )
     assert oversized.status_code == 422
     assert client.get(f"/api/code-submissions/{submission['id']}/source", headers=_auth(other_student)).status_code == 403
@@ -254,6 +285,245 @@ def test_code_submission_access_idempotency_version_snapshot_and_release_gates(c
         assert audit_count == 3
 
 
+def test_code_submission_revision_replay_original_source_and_latest_best_contract(client):
+    teacher, student, class_id, course_id, problem_id = _submission_scope(client, "code_revision")
+    endpoint = f"/api/code-problems/{problem_id}/submissions"
+    original_source = 'label = "e\u0301"\r\nprint(label)\r\n'
+    original_stdin = "first\r\nsecond\r\n"
+    first_payload = {
+        "client_submission_id": "revision:roundtrip:0001",
+        "class_id": class_id,
+        "language": "python",
+        "source_code": original_source,
+        "stdin": original_stdin,
+    }
+    first = client.post(endpoint, headers=_auth(student), json=first_payload)
+    assert first.status_code == 201, first.json()
+    assert first.json()["client_submission_id"] == first_payload["client_submission_id"]
+    assert first.json()["source_sha256"] == sha256(original_source.encode("utf-8")).hexdigest()
+    assert first.json()["is_latest_revision"] is True
+    assert first.json()["is_best_revision"] is True
+
+    replay = client.post(endpoint, headers=_auth(student), json=first_payload)
+    assert replay.status_code == 200, replay.json()
+    assert replay.json()["id"] == first.json()["id"]
+    assert replay.json()["idempotent_replay"] is True
+    canonical_looking_but_distinct = client.post(
+        endpoint,
+        headers=_auth(student),
+        json={**first_payload, "source_code": original_source.replace("e\u0301", "é")},
+    )
+    assert canonical_looking_but_distinct.status_code == 409
+
+    source = client.get(f"/api/code-submissions/{first.json()['id']}/source", headers=_auth(student))
+    assert source.status_code == 200, source.json()
+    assert source.json()["source_code"] == original_source
+    assert source.json()["stdin"] == original_stdin
+
+    second_payload = {
+        **first_payload,
+        "client_submission_id": "revision:roundtrip:0002",
+        "source_code": "print('second')\r\n",
+    }
+    second = client.post(endpoint, headers=_auth(student), json=second_payload)
+    assert second.status_code == 201, second.json()
+    assert second.json()["id"] != first.json()["id"]
+
+    version_payload = _problem_payload(course_id, first.json()["course_unit_id"], statement="Revision version two.")
+    version_payload["test_cases"] = [{"stdin": "", "expected_stdout": "3\n"}]
+    version_payload["language_allowlist"] = ["c"]
+    version_payload["source_max_bytes"] = 1
+    version_payload["input_max_bytes"] = 0
+    new_version = client.post(
+        f"/api/code-problems/{problem_id}/versions",
+        headers=_auth(teacher),
+        json={
+            key: value
+            for key, value in version_payload.items()
+            if key not in {"course_id", "course_unit_id", "title"}
+        },
+    )
+    assert new_version.status_code == 201, new_version.json()
+    cross_version_replay = client.post(endpoint, headers=_auth(student), json=first_payload)
+    assert cross_version_replay.status_code == 200, cross_version_replay.json()
+    assert cross_version_replay.json()["id"] == first.json()["id"]
+    assert cross_version_replay.json()["problem_version_id"] == first.json()["problem_version_id"]
+    cross_version_oversized_conflict = client.post(
+        endpoint,
+        headers=_auth(student),
+        json={**first_payload, "source_code": "x" * 129},
+    )
+    assert cross_version_oversized_conflict.status_code == 409, cross_version_oversized_conflict.json()
+    assert (
+        cross_version_oversized_conflict.json()["detail"]
+        == "Submission idempotency key conflicts with different content"
+    )
+
+    with get_session_factory(get_settings().database_url)() as db:
+        persisted_first = db.get(CodeSubmission, first.json()["id"])
+        persisted_second = db.get(CodeSubmission, second.json()["id"])
+        assert persisted_first is not None and persisted_second is not None
+        assert persisted_first.source_code.encode("utf-8") == original_source.encode("utf-8")
+        assert persisted_first.stdin.encode("utf-8") == original_stdin.encode("utf-8")
+        assert persisted_first.client_submission_id == "revision:roundtrip:0001"
+        assert persisted_second.client_submission_id == "revision:roundtrip:0002"
+        persisted_first.status = "accepted"
+        persisted_first.result_summary_json = {"score": 1}
+        persisted_first.judged_at = datetime.now(UTC)
+        db.commit()
+
+    student_page = client.get(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}",
+        headers=_auth(student),
+    )
+    assert student_page.status_code == 200, student_page.json()
+    assert [item["id"] for item in student_page.json()["items"]] == [second.json()["id"], first.json()["id"]]
+    projected = {item["id"]: item for item in student_page.json()["items"]}
+    assert projected[second.json()["id"]]["is_latest_revision"] is True
+    assert projected[second.json()["id"]]["is_best_revision"] is False
+    assert projected[first.json()["id"]]["is_latest_revision"] is False
+    assert projected[first.json()["id"]]["is_best_revision"] is True
+
+    teacher_page = client.get(
+        f"/api/code-submissions?class_id={class_id}&course_id={course_id}",
+        headers=_auth(teacher),
+    )
+    assert teacher_page.status_code == 200, teacher_page.json()
+    assert teacher_page.json()["items"] == student_page.json()["items"]
+    for submission_id in (first.json()["id"], second.json()["id"]):
+        attempts = client.get(
+            f"/api/code-submissions/{submission_id}/attempts/page",
+            headers=_auth(student),
+        )
+        assert attempts.status_code == 200, attempts.json()
+        assert attempts.json()["total"] == 1
+
+
+def test_unique_conflict_savepoint_rereads_winner_and_preserves_conflict_semantics(client, monkeypatch):
+    _teacher, student, class_id, _course_id, problem_id = _submission_scope(client, "code_savepoint")
+    payload = {
+        "client_submission_id": "revision:savepoint:0001",
+        "class_id": class_id,
+        "language": "python",
+        "source_code": "print(3)",
+        "stdin": "",
+    }
+    first = client.post(
+        f"/api/code-problems/{problem_id}/submissions",
+        headers=_auth(student),
+        json=payload,
+    )
+    assert first.status_code == 201, first.json()
+
+    original_lookup = code_judge_service._idempotent_submission
+    lookup_calls = {"count": 0}
+
+    def miss_before_insert(*args, **kwargs):
+        lookup_calls["count"] += 1
+        if lookup_calls["count"] == 1:
+            return None
+        return original_lookup(*args, **kwargs)
+
+    monkeypatch.setattr(code_judge_service, "_idempotent_submission", miss_before_insert)
+    with get_session_factory(get_settings().database_url)() as db:
+        problem = db.get(CodeProblem, problem_id)
+        version = db.scalar(
+            select(CodeProblemVersion)
+            .where(CodeProblemVersion.problem_id == problem_id, CodeProblemVersion.status == "active")
+            .order_by(CodeProblemVersion.version_number.desc())
+        )
+        student_user = db.scalar(select(User).where(User.username == "code_savepoint_student"))
+        assert problem is not None and version is not None and student_user is not None
+        replay = create_code_submission(
+            db,
+            problem=problem,
+            version=version,
+            student_id=student_user.id,
+            class_id=class_id,
+            client_submission_id=payload["client_submission_id"],
+            language=payload["language"],
+            source_code=payload["source_code"],
+            stdin=payload["stdin"],
+            adapter=DisabledCodeRunnerAdapter(),
+        )
+        assert replay.created is False
+        assert replay.idempotent_replay is True
+        assert replay.submission.id == first.json()["id"]
+        db.commit()
+
+        lookup_calls["count"] = 0
+        with pytest.raises(ValueError, match="idempotency_conflict"):
+            create_code_submission(
+                db,
+                problem=problem,
+                version=version,
+                student_id=student_user.id,
+                class_id=class_id,
+                client_submission_id=payload["client_submission_id"],
+                language=payload["language"],
+                source_code="print(4)",
+                stdin=payload["stdin"],
+                adapter=DisabledCodeRunnerAdapter(),
+            )
+        db.rollback()
+
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(
+            select(func.count()).select_from(CodeSubmission).where(CodeSubmission.problem_id == problem_id)
+        ) == 1
+        assert db.scalar(
+            select(func.count())
+            .select_from(CodeJudgeAttempt)
+            .join(CodeSubmission, CodeSubmission.id == CodeJudgeAttempt.submission_id)
+            .where(CodeSubmission.problem_id == problem_id)
+        ) == 1
+
+
+def test_concurrent_exact_submission_replay_creates_one_submission_and_attempt(tmp_path, monkeypatch):
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'code-double-click.db').as_posix()}"
+    monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
+    monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
+    get_settings.cache_clear()
+    reset_database_state()
+    try:
+        with TestClient(create_app()) as client:
+            _teacher, student, class_id, _course_id, problem_id = _submission_scope(client, "code_double_click")
+            endpoint = f"/api/code-problems/{problem_id}/submissions"
+            payload = {
+                "client_submission_id": "revision:double-click:0001",
+                "class_id": class_id,
+                "language": "python",
+                "source_code": "print(3)",
+                "stdin": "",
+            }
+            barrier = Barrier(2)
+
+            def submit_once():
+                barrier.wait(timeout=5)
+                return client.post(endpoint, headers=_auth(student), json=payload)
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                responses = [
+                    future.result(timeout=15)
+                    for future in (pool.submit(submit_once), pool.submit(submit_once))
+                ]
+
+            assert sorted(response.status_code for response in responses) == [200, 201], [
+                (response.status_code, response.json()) for response in responses
+            ]
+            assert len({response.json()["id"] for response in responses}) == 1
+            submission_id = responses[0].json()["id"]
+            page = client.get(f"/api/code-submissions?class_id={class_id}", headers=_auth(student))
+            assert page.status_code == 200, page.json()
+            assert page.json()["total"] == 1
+            attempts = client.get(f"/api/code-submissions/{submission_id}/attempts/page", headers=_auth(student))
+            assert attempts.status_code == 200, attempts.json()
+            assert attempts.json()["total"] == 1
+    finally:
+        reset_database_state()
+        get_settings.cache_clear()
+
+
 class _AvailableAdapter(CodeRunnerAdapter):
     def availability(self) -> RunnerAvailability:
         return RunnerAvailability(available=True, adapter_name="isolated-contract-test")
@@ -288,6 +558,7 @@ def test_judge_claim_is_atomic_and_api_has_no_code_execution_path(client):
             language="python",
             source_code="raise SystemExit('must not run in API')",
             stdin="",
+            client_submission_id="service:claim:0001",
             adapter=adapter,
         )
         db.commit()
@@ -329,6 +600,7 @@ def test_judge_claim_is_atomic_and_api_has_no_code_execution_path(client):
             language="python",
             source_code="print('recover')",
             stdin="",
+            client_submission_id="service:runner-retry:0001",
             adapter=DisabledCodeRunnerAdapter(),
         )
         assert unavailable.submission.status == "runner_unavailable"
@@ -402,6 +674,7 @@ def test_expired_judge_claim_recovery_is_bounded_stable_and_converges(client, mo
                 language="python",
                 source_code=f"print({index})",
                 stdin="",
+                client_submission_id=f"service:recovery:{index:04d}",
                 adapter=adapter,
             )
             created.submission.status = "running"
@@ -520,7 +793,7 @@ def test_0050_sqlite_roundtrip_reupgrade_and_mysql_schema_compile(tmp_path, monk
         assert "ix_code_judge_attempts_expired_claim" in {
             index["name"] for index in inspect(engine).get_indexes("code_judge_attempts")
         }
-        assert ScriptDirectory.from_config(config).get_heads() == ["20260727_0051"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["20260809_0052"]
         command.downgrade(config, "20260719_0049")
         assert "ix_code_judge_attempts_expired_claim" not in {
             index["name"] for index in inspect(engine).get_indexes("code_judge_attempts")
@@ -547,8 +820,192 @@ def test_0050_sqlite_roundtrip_reupgrade_and_mysql_schema_compile(tmp_path, monk
     assert "claim_expires_at" in str(CreateIndex(recovery_index).compile(dialect=mysql.dialect()))
 
 
+def test_0052_code_revision_migration_preserves_history_and_gates_lossy_downgrade(tmp_path, monkeypatch):
+    database_path = tmp_path / "code-revision-migration.db"
+    database_url = f"sqlite+pysqlite:///{database_path.as_posix()}"
+    backend_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    reset_database_state()
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    engine = create_engine(database_url)
+    try:
+        command.upgrade(config, "20260727_0051")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO code_submissions (
+                        id, school_id, course_id, class_id, course_unit_id, activity_key,
+                        problem_id, problem_version_id, student_id, language, source_code, stdin,
+                        source_sha256, input_sha256, problem_snapshot_json,
+                        resource_policy_snapshot_json, status, result_summary_json, judged_at,
+                        created_at, updated_at
+                    ) VALUES (
+                        41, 1, 1, 1, 1, 'migration.activity', 1, 1, 1, 'python',
+                        'print(3)', '', :source_sha256, :input_sha256, '{}', '{}',
+                        'runner_unavailable', '{}', NULL, :created_at, :created_at
+                    )
+                    """
+                ),
+                {
+                    "source_sha256": sha256(b"print(3)").hexdigest(),
+                    "input_sha256": sha256(b"").hexdigest(),
+                    "created_at": "2026-08-09 00:00:00.000000",
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO code_judge_attempts (
+                        id, submission_id, attempt_number, status, adapter_name,
+                        resource_policy_snapshot_json, result_summary_json, available_at,
+                        claim_owner, claim_token, claim_expires_at, started_at, finished_at,
+                        error_code, created_at, updated_at
+                    ) VALUES (
+                        51, 41, 1, 'runner_unavailable', 'disabled', '{}', '{}', :created_at,
+                        NULL, NULL, NULL, NULL, NULL, 'runner_disabled', :created_at, :created_at
+                    )
+                    """
+                ),
+                {"created_at": "2026-08-09 00:00:00.000000"},
+            )
+
+        command.upgrade(config, "20260809_0052")
+        columns = {column["name"]: column for column in inspect(engine).get_columns("code_submissions")}
+        assert columns["client_submission_id"]["nullable"] is False
+        constraints = {
+            constraint["name"]: tuple(constraint["column_names"])
+            for constraint in inspect(engine).get_unique_constraints("code_submissions")
+        }
+        assert "uq_code_submissions_student_version_class" not in constraints
+        assert constraints["uq_code_submissions_actor_scope_client"] == (
+            "student_id",
+            "problem_id",
+            "class_id",
+            "client_submission_id",
+        )
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT client_submission_id FROM code_submissions WHERE id = 41")
+            ).scalar_one() == "legacy:41"
+            assert connection.execute(
+                text("SELECT submission_id FROM code_judge_attempts WHERE id = 51")
+            ).scalar_one() == 41
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO code_submissions (
+                        id, school_id, course_id, class_id, course_unit_id, activity_key,
+                        problem_id, problem_version_id, student_id, client_submission_id,
+                        language, source_code, stdin, source_sha256, input_sha256,
+                        problem_snapshot_json, resource_policy_snapshot_json, status,
+                        result_summary_json, judged_at, created_at, updated_at
+                    )
+                    SELECT
+                        42, school_id, course_id, class_id, course_unit_id, activity_key,
+                        problem_id, problem_version_id, student_id, 'migration:revision:0002',
+                        language, source_code, stdin, source_sha256, input_sha256,
+                        problem_snapshot_json, resource_policy_snapshot_json, status,
+                        result_summary_json, judged_at, created_at, updated_at
+                    FROM code_submissions WHERE id = 41
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO code_judge_attempts (
+                        id, submission_id, attempt_number, status, adapter_name,
+                        resource_policy_snapshot_json, result_summary_json, available_at,
+                        claim_owner, claim_token, claim_expires_at, started_at, finished_at,
+                        error_code, created_at, updated_at
+                    )
+                    SELECT
+                        52, 42, attempt_number, status, adapter_name,
+                        resource_policy_snapshot_json, result_summary_json, available_at,
+                        claim_owner, claim_token, claim_expires_at, started_at, finished_at,
+                        error_code, created_at, updated_at
+                    FROM code_judge_attempts WHERE id = 51
+                    """
+                )
+            )
+
+        with engine.connect() as connection:
+            migrated_rows = connection.execute(
+                text(
+                    "SELECT client_submission_id, source_code FROM code_submissions "
+                    "WHERE id IN (41, 42) ORDER BY id"
+                )
+            ).all()
+            # A pre-BE-014 row has no recoverable historical client key. Its
+            # legacy:id backfill therefore cannot replay a later explicit key,
+            # even when the source bytes are identical.
+            assert migrated_rows == [
+                ("legacy:41", "print(3)"),
+                ("migration:revision:0002", "print(3)"),
+            ]
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO code_submissions (
+                            id, school_id, course_id, class_id, course_unit_id, activity_key,
+                            problem_id, problem_version_id, student_id, client_submission_id,
+                            language, source_code, stdin, source_sha256, input_sha256,
+                            problem_snapshot_json, resource_policy_snapshot_json, status,
+                            result_summary_json, judged_at, created_at, updated_at
+                        )
+                        SELECT
+                            43, school_id, course_id, class_id, course_unit_id, activity_key,
+                            problem_id, problem_version_id, student_id, client_submission_id,
+                            language, source_code, stdin, source_sha256, input_sha256,
+                            problem_snapshot_json, resource_policy_snapshot_json, status,
+                            result_summary_json, judged_at, created_at, updated_at
+                        FROM code_submissions WHERE id = 42
+                        """
+                    )
+                )
+
+        with pytest.raises(RuntimeError, match="cannot downgrade BE-014"):
+            command.downgrade(config, "20260727_0051")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT COUNT(*) FROM code_submissions")).scalar_one() == 2
+            assert connection.execute(text("SELECT COUNT(*) FROM code_judge_attempts")).scalar_one() == 2
+
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM code_judge_attempts WHERE submission_id = 42"))
+            connection.execute(text("DELETE FROM code_submissions WHERE id = 42"))
+        command.downgrade(config, "20260727_0051")
+        assert "client_submission_id" not in {
+            column["name"] for column in inspect(engine).get_columns("code_submissions")
+        }
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT id FROM code_submissions")).scalar_one() == 41
+            assert connection.execute(text("SELECT submission_id FROM code_judge_attempts")).scalar_one() == 41
+        command.upgrade(config, "20260809_0052")
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT client_submission_id FROM code_submissions WHERE id = 41")
+            ).scalar_one() == "legacy:41"
+    finally:
+        engine.dispose()
+        reset_database_state()
+        get_settings.cache_clear()
+
+    ddl = str(CreateTable(CodeSubmission.__table__).compile(dialect=mysql.dialect()))
+    assert "client_submission_id" in ddl
+    assert "ascii_bin" in ddl
+    assert "uq_code_submissions_actor_scope_client" in ddl
+
+
 @pytest.mark.mysql_release_evidence
-def test_0050_mysql_schema_when_explicit_release_drill_is_configured():
+def test_0052_mysql_schema_when_explicit_release_drill_is_configured():
     database_url = os.environ.get("ASTRA_TEST_MYSQL_URL", "").strip()
     expected_database = os.environ.get("ASTRA_TEST_MYSQL_DATABASE", "").strip()
     if not database_url or not expected_database:
@@ -560,7 +1017,23 @@ def test_0050_mysql_schema_when_explicit_release_drill_is_configured():
         tables = set(inspect(engine).get_table_names())
         assert {"code_problems", "code_problem_versions", "code_submissions", "code_judge_attempts"} <= tables
         submission_columns = {column["name"] for column in inspect(engine).get_columns("code_submissions")}
-        assert {"problem_snapshot_json", "resource_policy_snapshot_json", "source_code", "status"} <= submission_columns
+        assert {
+            "client_submission_id",
+            "problem_snapshot_json",
+            "resource_policy_snapshot_json",
+            "source_code",
+            "status",
+        } <= submission_columns
+        submission_uniques = {
+            constraint["name"]: tuple(constraint["column_names"])
+            for constraint in inspect(engine).get_unique_constraints("code_submissions")
+        }
+        assert submission_uniques["uq_code_submissions_actor_scope_client"] == (
+            "student_id",
+            "problem_id",
+            "class_id",
+            "client_submission_id",
+        )
         assert "ix_code_judge_attempts_expired_claim" in {
             index["name"] for index in inspect(engine).get_indexes("code_judge_attempts")
         }
