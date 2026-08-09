@@ -10,7 +10,7 @@
 node tools/qa/qa016-critical-journeys.cjs --mode self-test
 ```
 
-在全新仓库外 SQLite 数据目录复现六项当前缺陷（当前基线应退出 `0`）：
+在全新仓库外 SQLite 数据目录复跑六项历史缺陷（原始 `aec0587f6431` 基线退出 `0`；当前修复态应诚实退出 `2`）：
 
 ```powershell
 node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python
@@ -62,3 +62,18 @@ python -m pytest --runxfail backend/tests/test_qa016_critical_journeys.py -q
 - 这些变异只存在于 Node VM 的内存源码和合同进程中，不写产品文件，也不更新 `tools/qa/evidence/qa016-*`。
 
 正式 probe 的 stdout 是结构化 JSON，stderr 是由同一报告对象生成的一行 `human_summary`。`summary`、`overall`、`execution.status`、`execution.exit_code` 与实际进程退出码共用同一判定；合同会篡改 defect、actual、summary、human summary 与 exit 语义，任何不一致都必须失败。`baseline` 模式只有六项历史缺陷全部真实观察到时退出 `0`，否则退出 `2`；`gate` 模式只有六项目标语义全部关闭缺陷时退出 `0`，否则退出 `1`。因此原始 `aec0587f6431` 的历史 baseline PASS 仍保留，而当前部分或全部修复构建不会被旧基线文案冒充为 PASS。
+
+## QA-021 原始证据独立重算
+
+`QA-021 / V8.0.10` 在报告层增加 `astra-raw-evidence-provenance-v1` 门禁，不改变 QA-016 历史 evidence。现有 Future、Teacher、Mechanics Node VM 捕获点以及 backend probe 的真实 API/SQLite 返回，被整理为最小原始记录：
+
+```text
+raw_record = source_id + source_kind(request|response|state|dom)
+             + canonical captured_at + { issue_id, channel, data }
+```
+
+`tools/qa/qa016-provenance-verifier.cjs` 与 runner 解耦；其 `recompute` 精确只接受 `schema_version`、`envelope_id`、`raw_records`，拒绝 `canonical_facts`、issue 结论或任何上层报告字段。它从 raw records 独立重算六个 canonical facts；runner 随后按重算结果逐层核对 issue、`summary`、`overall`、`execution`、`human_summary` 和退出码。默认报告必须同时满足 verifier identity、唯一且存在的 source、规范 ISO timestamp、claimed facts 与重算 facts 完全一致。
+
+自测明确覆盖 fact-only、raw-only、单派生层、全部派生层、facts 与全部派生层协同但 raw 不变、缺 source、重复 source、重复 raw ID、坏 timestamp 与坏 verifier identity；这些反例的报告一致性均为 FAIL，`exitCodeForReport` 与实际子进程均退出 `3`。未篡改当前构建的正式 `baseline`/`gate` 则分别保持退出 `2`/`1`，不会把旧失败基线或目标 gate 写绿。
+
+该门禁的 assurance 只能是 `consistency-only`：如果有人协调修改 raw records、canonical facts 与全部派生层，内容仍可能自洽通过。它不证明原始来源真实，也不提供抗协同改写保证；外部来源真实性仍需要签名、可信采集器或独立传输审计。QA-021 未执行新 Browser 旅程，既有 `qa016-browser-aec0587f6431.json` 仅是已发生历史旁证，不能冒充当前浏览器 PASS。
