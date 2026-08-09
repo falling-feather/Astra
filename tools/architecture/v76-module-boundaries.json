@@ -1,6 +1,536 @@
 {
-  "schema_version": "astra-architecture-boundaries-v1",
-  "baseline_revision": "beaa36b911671f580d03a9c01a6f72a44a0e3444",
+  "schema_version": "astra-architecture-boundaries-v2",
+  "baseline_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+  "architecture_contract": {
+    "task_id": "ARCH-003",
+    "version_token": "V8.0.0",
+    "frozen_at_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
+    "document": "doc/02-子文档/24-V7.6全栈模块边界契约.md",
+    "decision_vocabulary": {
+      "direct_absorb": "直接吸收",
+      "reimplement": "重新实现",
+      "reference_only": "仅保留参考",
+      "unusable": "不可用"
+    },
+    "allowed_write_paths": [
+      "doc/02-子文档/24-V7.6全栈模块边界契约.md",
+      "tools/architecture/v76-module-boundaries.json",
+      "tools/tests/architecture-boundary-contract.cjs"
+    ]
+  },
+  "current_learning_architecture": {
+    "catalog": "shared/js/learning-activity-catalog.js",
+    "activity_controller": "shared/js/learning-evidence-activity.js",
+    "evidence_client": "shared/js/learning-evidence-client.js",
+    "offline_queue": "shared/js/learning-evidence-queue.js",
+    "future_runtime": "shared/js/frontier-learning.js",
+    "future_publication_context": "shared/js/frontier-publication-context.js",
+    "backend_endpoint": "backend/app/api/endpoints/learning_evidence.py",
+    "backend_contract": "backend/app/core/learning_evidence_contract.py",
+    "backend_schema": "backend/app/schemas/learning_evidence.py",
+    "backend_service": "backend/app/services/learning_evidence.py",
+    "backend_access": "backend/app/services/learning_evidence_access.py",
+    "backend_projection": "backend/app/services/learning_evidence_projection.py",
+    "teacher_projection": "backend/app/services/teacher_evidence_facts.py",
+    "known_gaps": [
+      "the current activity controller exposes record/refresh/context/destroy instead of the unified LearningActivity port",
+      "the Future Galaxy catalog is not yet backed by one canonical activity runtime",
+      "teacher facts are authoritative but course-specific projections remain partial"
+    ]
+  },
+  "learning_activity_contract": {
+    "schema_version": "astra-learning-activity-v1",
+    "reserved_runtime_owner": "shared/js/learning-activity.js",
+    "identity_fields": [
+      "galaxy_key",
+      "course_key",
+      "activity_key",
+      "manifest_version",
+      "content_version",
+      "event_schema_version"
+    ],
+    "manifest_required_sections": [
+      "identity",
+      "route",
+      "owner_adapter",
+      "content",
+      "release",
+      "assessment",
+      "evidence",
+      "resources",
+      "sources"
+    ],
+    "runtime_methods": [
+      "restore",
+      "predict",
+      "observe",
+      "assess",
+      "emitEvidence",
+      "dispose"
+    ],
+    "runtime_states": [
+      "created",
+      "restoring",
+      "ready",
+      "interacting",
+      "assessing",
+      "blocked",
+      "disposed"
+    ],
+    "projection_states": [
+      "not_started",
+      "in_progress",
+      "completed",
+      "transferred"
+    ],
+    "learner_event_types": [
+      "started",
+      "predicted",
+      "attempted",
+      "corrected",
+      "explained"
+    ],
+    "server_derived_event_types": [
+      "completed",
+      "transferred"
+    ],
+    "transitions": [
+      {
+        "from": "created",
+        "trigger": "restore",
+        "to": "restoring"
+      },
+      {
+        "from": "restoring",
+        "trigger": "authority-restored",
+        "to": "ready"
+      },
+      {
+        "from": "restoring",
+        "trigger": "release-denied-or-restore-failed",
+        "to": "blocked"
+      },
+      {
+        "from": "ready",
+        "trigger": "predict-or-observe",
+        "to": "interacting"
+      },
+      {
+        "from": "interacting",
+        "trigger": "observation-accepted",
+        "to": "ready"
+      },
+      {
+        "from": "ready",
+        "trigger": "assess",
+        "to": "assessing"
+      },
+      {
+        "from": "assessing",
+        "trigger": "feedback-returned",
+        "to": "ready"
+      },
+      {
+        "from": "ready",
+        "trigger": "authority-revoked",
+        "to": "blocked"
+      },
+      {
+        "from": "blocked",
+        "trigger": "restore",
+        "to": "restoring"
+      },
+      {
+        "from": "*",
+        "trigger": "dispose",
+        "to": "disposed"
+      }
+    ],
+    "ports": [
+      {
+        "id": "manifest",
+        "owner": "CONTENT",
+        "delivery": "CONTENT-005",
+        "direction": "CONTENT -> FE",
+        "minimum_contract": "immutable identity, canonical route, adapter id, versioned content, assessment/evidence declarations, resource budget and sources",
+        "forbidden_authority": "network calls, release truth, completion truth and runtime-global registration"
+      },
+      {
+        "id": "state-machine",
+        "owner": "FE",
+        "delivery": "ARCH-004 + FE-024/FE-025",
+        "direction": "manifest + authority ports -> LearningActivity -> page owner",
+        "minimum_contract": "one reserved runtime owner and the six lifecycle methods",
+        "forbidden_authority": "invented release, completion, transfer or teacher facts"
+      },
+      {
+        "id": "evidence",
+        "owner": "FE+BE",
+        "delivery": "shared client + BE-014",
+        "direction": "page owner -> LearningActivity -> shared client -> endpoint -> service",
+        "minimum_contract": "stable activity identity, client_event_id, rule version, bounded structured evidence and receipt",
+        "forbidden_authority": "page/content direct API access and learner-emitted completed/transferred events"
+      },
+      {
+        "id": "recovery",
+        "owner": "BE",
+        "delivery": "BE-014",
+        "direction": "service projection -> shared client -> LearningActivity.restore",
+        "minimum_contract": "authoritative scope, last position, rule version, projection and retry-safe identity",
+        "forbidden_authority": "localStorage progress, route-derived completion or stale-account replay"
+      },
+      {
+        "id": "evaluation",
+        "owner": "FE+BE",
+        "delivery": "FE-024/FE-025 + BE-014",
+        "direction": "domain adapter -> formative feedback; trusted result -> service projection",
+        "minimum_contract": "versioned rubric, bounded observation, feedback and explainable result",
+        "forbidden_authority": "client feedback directly asserting authoritative completion"
+      },
+      {
+        "id": "release",
+        "owner": "BE",
+        "delivery": "FE-023 consumes existing server authority",
+        "direction": "release service -> publication context -> factory",
+        "minimum_contract": "explicit class_id, course_id, unit_id and open/locked/hidden state",
+        "forbidden_authority": "manifest defaults, URL shape or frontend fallback opening an activity"
+      },
+      {
+        "id": "teacher-projection",
+        "owner": "BE+FE",
+        "delivery": "BE-015 -> FE-027",
+        "direction": "evidence service -> bounded teacher facts -> teacher UI",
+        "minimum_contract": "explicit class/course scope, generated_at, source event identity and bounded facts",
+        "forbidden_authority": "teacher UI rescoring raw evidence or claiming mastery"
+      }
+    ],
+    "team_boundaries": {
+      "ARCH": {
+        "may_own": [
+          "contract schema",
+          "dependency direction",
+          "migration decisions",
+          "machine gates"
+        ],
+        "must_not": [
+          "implement FE or BE business behavior",
+          "author course content",
+          "change product truth while auditing"
+        ]
+      },
+      "FE": {
+        "may_own": [
+          "browser runtime",
+          "domain adapters",
+          "shared client consumption",
+          "accessible UI"
+        ],
+        "must_not": [
+          "write evidence endpoints outside the shared client",
+          "emit completed or transferred as learner events",
+          "open locked or hidden content",
+          "duplicate the LearningActivity global owner"
+        ]
+      },
+      "BE": {
+        "may_own": [
+          "release authority",
+          "evidence validation",
+          "recovery projection",
+          "authoritative evaluation",
+          "teacher facts"
+        ],
+        "must_not": [
+          "depend on browser or page modules",
+          "render activity UI",
+          "trust client-derived completion"
+        ]
+      },
+      "CONTENT": {
+        "may_own": [
+          "manifest records",
+          "versioned instructional content",
+          "rubric references",
+          "source provenance"
+        ],
+        "must_not": [
+          "perform network calls",
+          "register runtime globals",
+          "declare release or completion truth",
+          "embed credentials or student data"
+        ]
+      },
+      "QA": {
+        "may_own": [
+          "contract fixtures",
+          "failure baselines",
+          "cross-layer acceptance evidence"
+        ],
+        "must_not": [
+          "loosen allowlists to make a failure pass",
+          "change product behavior during read-only acceptance",
+          "replace an owning group implementation"
+        ]
+      }
+    }
+  },
+  "v8_first_wave_no_touch": {
+    "legacy_shell_paths": [
+      "index.html",
+      "shared/js/main.js",
+      "shared/js/router.js",
+      "shared/js/page-registry.js",
+      "sw.js"
+    ],
+    "legacy_role_paths": [
+      "pages/student/student.js",
+      "pages/teacher/teacher.js",
+      "pages/admin/admin.js"
+    ],
+    "legacy_fact_paths": [
+      "backend/app/api/endpoints/learning_events.py",
+      "backend/app/api/endpoints/progress.py",
+      "backend/app/api/endpoints/knowledge.py",
+      "backend/app/api/endpoints/courses.py",
+      "backend/app/services/course_release_plans.py"
+    ],
+    "candidate_worktrees": [
+      "f017",
+      "f017a",
+      "f017b",
+      "f017c",
+      "fr89",
+      "ux64",
+      "u358",
+      "c003"
+    ]
+  },
+  "legacy_candidate_audit": {
+    "snapshot_kind": "tracked-content-hash + untracked-content-hash + index-entry-hash",
+    "metadata_only_kind": "ref + worktree-registry-entry",
+    "candidates": [
+      {
+        "id": "f017",
+        "branch": "codex/fe-v7.9-future-galaxy",
+        "head": "4ea1643cc6142056bacee404a20d9cbdbebfc0cb",
+        "status": {
+          "tracked_modified": 36,
+          "staged": 0,
+          "untracked": 22
+        },
+        "fingerprint": "573e10f04afdb386882480d887f5ea6c400669231eeaa787fd1b6817831722f6",
+        "overall_decision": "reimplement",
+        "path_decisions": [
+          {
+            "paths": "pages/frontier/frontier-manifest.js; shared/js/frontier-route.js; shared/js/frontier-course-loader.js; shared/js/frontier-publication-context.js",
+            "decision": "reimplement",
+            "evidence": "canonical route, exact-open publication and schema validation are useful, but the owner port is only snapshot/destroy and evidence is mounted beside the owner",
+            "risk": "uncommitted tree is 22 root commits behind and overlaps 18 root-changed paths",
+            "owner": "ARCH-004 + FE-024 + CONTENT-005"
+          },
+          {
+            "paths": "pages/frontier/content/** (18 untracked course modules)",
+            "decision": "reimplement",
+            "evidence": "stage structure and source references are useful inputs but are not committed or governed by the frozen manifest contract",
+            "risk": "copying would preserve duplicated wrappers and bypass content/runtime separation",
+            "owner": "CONTENT-005 + FE-024"
+          },
+          {
+            "paths": "pages/frontier/{cosmos,engineering,data,information,materials,humanities}.{js,css}",
+            "decision": "reference_only",
+            "evidence": "visual and interaction prototypes exist, while only two activities expose domain evidence",
+            "risk": "no final browser acceptance and no unified lifecycle adapter",
+            "owner": "FE-024 + FE-025"
+          },
+          {
+            "paths": "index.html; shared/js/{main,router,page-registry,frontier-learning}.js; shared/css/frontier.css; sw.js",
+            "decision": "unusable",
+            "evidence": "large shared-shell patch conflicts with the current root and predates the V8 boundary",
+            "risk": "direct absorption would regress newer shell, cache and student-flow work",
+            "owner": "PM/ARCH; no first-wave implementation owner"
+          },
+          {
+            "paths": "doc/**; tools/tests/**",
+            "decision": "reference_only",
+            "evidence": "tests document route and lane intent but assert the legacy candidate shape",
+            "risk": "using them unchanged would freeze the wrong runtime contract",
+            "owner": "QA-016 + QA-017"
+          }
+        ]
+      },
+      {
+        "id": "f017a",
+        "branch": "codex/fe-v7.9-future-lane-cosmos-engineering",
+        "head": "948b692c7da9a34df4463c01de50b0b2fc1f989b",
+        "status": {
+          "tracked_modified": 4,
+          "staged": 0,
+          "untracked": 6
+        },
+        "fingerprint": "a60a6c736ea22c5b6f4b794cf483eb052596e806f4eb5adc4ca2771d2f8fe3e1",
+        "overall_decision": "reference_only",
+        "path_decisions": [
+          {
+            "paths": "cosmos/engineering owner, style and six content-module paths",
+            "decision": "reference_only",
+            "evidence": "all ten blobs are byte-identical to the corresponding f017 combined-tree blobs",
+            "risk": "the lane supplies no unique material and shares f017 verification gaps",
+            "owner": "CONTENT-005 + FE-024"
+          }
+        ]
+      },
+      {
+        "id": "f017b",
+        "branch": "codex/fe-v7.9-future-lane-data-info",
+        "head": "948b692c7da9a34df4463c01de50b0b2fc1f989b",
+        "status": {
+          "tracked_modified": 4,
+          "staged": 0,
+          "untracked": 6
+        },
+        "fingerprint": "665ded01efd81168bf60f2a6bab1f64dec2f0f4b860c8059598810ebc3645a7a",
+        "overall_decision": "reference_only",
+        "path_decisions": [
+          {
+            "paths": "data/information owner, style and six content-module paths",
+            "decision": "reference_only",
+            "evidence": "all ten blobs are byte-identical to the corresponding f017 combined-tree blobs",
+            "risk": "the lane supplies no unique material and shares f017 verification gaps",
+            "owner": "CONTENT-005 + FE-024"
+          }
+        ]
+      },
+      {
+        "id": "f017c",
+        "branch": "codex/fe-v7.9-future-lane-materials-humanities",
+        "head": "948b692c7da9a34df4463c01de50b0b2fc1f989b",
+        "status": {
+          "tracked_modified": 4,
+          "staged": 0,
+          "untracked": 6
+        },
+        "fingerprint": "ad3e966fe7d15052d0c2d2417faafc897893402a1aa7b4e2f841ade3dbc30900",
+        "overall_decision": "reference_only",
+        "path_decisions": [
+          {
+            "paths": "materials/humanities owner, style and six content-module paths",
+            "decision": "reference_only",
+            "evidence": "all ten blobs are byte-identical to the corresponding f017 combined-tree blobs",
+            "risk": "the lane supplies no unique material and shares f017 verification gaps",
+            "owner": "CONTENT-005 + FE-024"
+          }
+        ]
+      },
+      {
+        "id": "fr89",
+        "branch": "codex/fe-v7.8-teacher-request-coalesce",
+        "head": "197bada80e5b5468d135ae6011052a580639c41a",
+        "status": {
+          "tracked_modified": 7,
+          "staged": 0,
+          "untracked": 0
+        },
+        "fingerprint": "4c8ff4e80148a7f91b91f5f270ae92e7ca9d637f39210821f5d6c6bf9bdc370d",
+        "overall_decision": "reimplement",
+        "path_decisions": [
+          {
+            "paths": "shared/js/teacher-learning-evidence.js; related teacher contracts",
+            "decision": "reimplement",
+            "evidence": "removes autonomous 4-second polling and adds demand coalescing/focus release",
+            "risk": "seven dirty paths, 29 root commits behind and independent review remained incomplete",
+            "owner": "BE-015 -> FE-027 -> QA-016/QA-017"
+          },
+          {
+            "paths": "shared/js/product-capabilities.js; doc/**",
+            "decision": "reference_only",
+            "evidence": "copy describes intended polling semantics but is not current control-plane truth",
+            "risk": "direct use would let an unfinished candidate rewrite stable capability claims",
+            "owner": "PM/ARCH"
+          }
+        ]
+      },
+      {
+        "id": "ux64",
+        "branch": "codex/ux-v7.9-shared-accessibility",
+        "head": "12aeef96fae358eecc123a6a6d9f2285cb1cd5ff",
+        "status": {
+          "tracked_modified": 4,
+          "staged": 0,
+          "untracked": 1
+        },
+        "fingerprint": "d8a544d4c38806c5ee292d0b9a8344e84e9c713448de43f9999d7c9f95f86650",
+        "overall_decision": "reimplement",
+        "path_decisions": [
+          {
+            "paths": "shared/js/role-home-client.js; tools/tests/role-home-accessibility-contract.cjs",
+            "decision": "reimplement",
+            "evidence": "focus intent and replacement-node strategy is useful and locally contracted",
+            "risk": "known P2 gaps cover detached/private DOM and student/destroy/generation/primary-action paths",
+            "owner": "FE-026 + QA-016"
+          },
+          {
+            "paths": "doc/**",
+            "decision": "reference_only",
+            "evidence": "notes preserve accessibility intent",
+            "risk": "candidate claims cannot replace current stable documentation before implementation",
+            "owner": "FE-026"
+          }
+        ]
+      },
+      {
+        "id": "u358",
+        "branch": "codex/ui-v7.9-admin-resource-generation",
+        "head": "3734a2fade97e68c9783bf40575a3c149962505a",
+        "status": {
+          "tracked_modified": 0,
+          "staged": 0,
+          "untracked": 0
+        },
+        "fingerprint": "dc3bc99d45360d48c4f8bb3f2f0ea2dc11fbca68a7a5f13476fd35a6d9e59bcd",
+        "overall_decision": "unusable",
+        "path_decisions": [
+          {
+            "paths": "index.html; pages/admin/admin.js; shared/js/{main,page-registry}.js; sw.js",
+            "decision": "unusable",
+            "evidence": "the clean commit updates one old admin/cache generation, while the current root already carries later student, catalog and cache generations",
+            "risk": "direct absorption demonstrably reverts newer root behavior; runtime acceptance was never completed",
+            "owner": "PM/REL; only if QA-016 reproduces a current-root cache defect"
+          },
+          {
+            "paths": "tools/tests/**; doc/**",
+            "decision": "reference_only",
+            "evidence": "generation-consistency assertions remain useful as regression ideas",
+            "risk": "literal version assertions are stale",
+            "owner": "QA-016"
+          }
+        ]
+      },
+      {
+        "id": "c003",
+        "branch": "codex/content-v7.9-frontier-source-calibration",
+        "head": "0ce127a5cc9bccbc09731e51a65d8f5834e41c92",
+        "snapshot_kind": "git_metadata_only",
+        "fingerprint": "001caca145beb5e204794a8b3f126ad8ce932ec2dde16e50398d0d08a49350da",
+        "overall_decision": "direct_absorb",
+        "path_decisions": [
+          {
+            "paths": "doc/02-子文档/25-V7.7未来星系18课程内容与路由冻结矩阵.md",
+            "decision": "direct_absorb",
+            "evidence": "candidate and current-root blobs are identical at 7d471691174134e985d7e8d6d9fda52bf9f720bb",
+            "risk": "semantic integration is proven by blob identity rather than commit ancestry",
+            "owner": "CONTENT-005 consumes the already-integrated source calibration"
+          },
+          {
+            "paths": "Git worktree registry entry",
+            "decision": "unusable",
+            "evidence": "the physical worktree is missing and the registry entry is prunable",
+            "risk": "cleanup is destructive and outside ARCH-003 authorization",
+            "owner": "PM/REL later safe cleanup"
+          }
+        ]
+      }
+    ]
+  },
   "product_capability_statuses": {
     "session-role-isolation": "available",
     "student-assignments": "available",
@@ -20,6 +550,8 @@
     "index.html": 3758,
     "shared/js/main.js": 489,
     "shared/js/router.js": 1116,
+    "shared/js/page-registry.js": 221,
+    "sw.js": 152,
     "pages/student/student.js": 1807,
     "pages/teacher/teacher.js": 2883,
     "pages/admin/admin.js": 2485,
@@ -99,7 +631,8 @@
     "AstraRoleHomeClient": "shared/js/role-home-client.js",
     "AstraLearningEvidenceClient": "shared/js/learning-evidence-client.js",
     "AstraLearningEvidenceQueue": "shared/js/learning-evidence-queue.js",
-    "AstraProductCapabilities": "shared/js/product-capabilities.js"
+    "AstraProductCapabilities": "shared/js/product-capabilities.js",
+    "AstraLearningActivity": "shared/js/learning-activity.js"
   },
   "learning_evidence_api_owners": [
     "shared/js/learning-evidence-client.js"
