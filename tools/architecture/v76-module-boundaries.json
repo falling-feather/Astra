@@ -26,10 +26,11 @@
     "owner_path": "shared/js/learning-activity.js",
     "runtime_test": "tools/tests/learning-activity-runtime-contract.cjs",
     "schema_version": "astra-learning-activity-v1",
-    "recovery_schema_version": "astra-learning-activity-recovery-v1",
+    "recovery_schema_version": "astra-learning-activity-recovery-v2",
     "event_envelope_schema_version": "astra-learning-activity-event-v1",
+    "evidence_sidecar_schema_version": "astra-learning-activity-evidence-sidecar-v1",
     "provenance_schema_version": "astra-raw-evidence-provenance-v1",
-    "runtime_line_ceiling": 980,
+    "runtime_line_ceiling": 900,
     "allowed_write_paths": [
       "shared/js/learning-activity.js",
       "tools/architecture/v76-module-boundaries.json",
@@ -134,9 +135,16 @@
       "current_authority_revision",
       "current_release_revision",
       "exact_runtime_identity",
-      "contiguous_event_sequence",
+      "contiguous_server_sequence",
+      "contiguous_learner_sequence",
+      "separate_server_and_learner_cursors",
+      "snapshot_learner_cursor",
+      "projection_server_cursor",
       "completion_witness",
       "causal_completion_witness",
+      "exact_recovery_envelope",
+      "shared_sensitive_data_policy",
+      "append_only_receipt_server_position",
       "explicit_manual_resolution"
     ],
     "manual_resolution_actions": [
@@ -165,9 +173,131 @@
       "product adapter registration"
     ]
   },
+  "activity_runtime_recovery_contract": {
+    "task_id": "ARCH-005",
+    "version_token": "V8.0.11",
+    "baseline_revision": "b8691e4b8069427b7cec202a7cb6505e02eec896",
+    "owner_path": "shared/js/learning-activity.js",
+    "helper_global": "AstraLearningActivityRecovery",
+    "helper_path": "shared/js/learning-activity-recovery.js",
+    "load_order": [
+      "shared/js/learning-activity-recovery.js",
+      "shared/js/learning-activity.js"
+    ],
+    "runtime_test": "tools/tests/learning-activity-runtime-contract.cjs",
+    "recovery_test": "tools/tests/learning-activity-recovery-contract.cjs",
+    "recovery_schema_version": "astra-learning-activity-recovery-v2",
+    "event_envelope_schema_version": "astra-learning-activity-event-v1",
+    "evidence_sidecar_schema_version": "astra-learning-activity-evidence-sidecar-v1",
+    "runtime_line_ceiling": 900,
+    "helper_line_ceiling": 480,
+    "runtime_test_line_ceiling": 1300,
+    "recovery_test_line_ceiling": 620,
+    "allowed_write_paths": [
+      "shared/js/learning-activity.js",
+      "shared/js/learning-activity-recovery.js",
+      "tools/architecture/v76-module-boundaries.json",
+      "tools/tests/architecture-boundary-contract.cjs",
+      "tools/tests/learning-activity-runtime-contract.cjs",
+      "tools/tests/learning-activity-recovery-contract.cjs",
+      "doc/02-子文档/24-V7.6全栈模块边界契约.md"
+    ],
+    "cursor_contract": {
+      "command_learner_cursor": "run.sequence",
+      "learner_cursor_semantics": "increments only for learner commands; server-derived events never reserve it",
+      "server_cursor": "server_sequence",
+      "server_cursor_semantics": "continuous ordering for every persisted learner and server-derived ledger event",
+      "derived_learner_sequence": null,
+      "confirmed_receipt_fields": [
+        "learner_sequence",
+        "server_sequence",
+        "server_last_sequence"
+      ],
+      "local_pending_server_cursors": null
+    },
+    "receipt_fence": {
+      "unconfirmed_first_authoritative": "server_sequence must be strictly greater than the pre-call runtime server_last_sequence",
+      "confirmed_replay": "the same client_event_id must exactly match its locked server_sequence",
+      "non_authoritative": "local-pending and manual-intervention neither lock a reservation nor advance server cursors",
+      "batched_pending_reconciliation": "an aggregate server_last_sequence that cannot prove each pending reservation position fails closed for manual intervention; exact automatic recovery is not claimed"
+    },
+    "recovery_layers": {
+      "server_history": "complete and contiguous by server_sequence; learner entries also remain contiguous by learner_sequence",
+      "server_learner_record": "each learner ledger entry carries the exact sidecar accepted by the server",
+      "offline_pending": "complete immutable sidecars contiguous only by learner_sequence after exact confirmed replays are folded",
+      "merge_policy": "never merge server_sequence and learner_sequence into one ordering algorithm",
+      "legacy_shape": "astra-learning-activity-recovery-v1 fails closed",
+      "unknown_field_policy": "unknown fields at any frozen v2 envelope layer fail closed with recovery_schema_incompatible",
+      "identity_shape_policy": "every raw identity container must canonical-equal its normalized identity; unknown, trimmed or extra subject fields fail with recovery_schema_incompatible while known value drift remains recovery_identity_mismatch"
+    },
+    "exact_envelope_keys": {
+      "bundle": [
+        "schema_version", "complete", "atomic", "stale", "snapshot_id", "captured_at",
+        "identity", "freshness", "server", "offline", "manual_resolution?"
+      ],
+      "freshness": ["status", "authority_revision", "release_revision"],
+      "server": ["identity", "complete_history", "event_count", "events", "projection", "snapshot"],
+      "offline": ["identity", "complete_pending_set", "sidecar_count", "sidecars"],
+      "manual_resolution": ["identity", "status", "block_id", "action", "resolution_id"],
+      "identity": [
+        "class_id", "course_id", "course_unit_id", "activity_key", "subject_identity",
+        "run_id", "group_id", "manifest_version", "content_version", "event_schema_version",
+        "rule_version", "generation"
+      ],
+      "subject_identity": ["kind", "id"]
+    },
+    "recovery_data_policy": {
+      "owner_path": "shared/js/learning-activity.js",
+      "owner_symbol": "EVIDENCE_FORBIDDEN",
+      "injected_helper": "evidencePolicy",
+      "covered_inputs": [
+        "server learner sidecar command.evidence",
+        "server learner sidecar snapshot.data",
+        "offline sidecar command.evidence",
+        "offline sidecar snapshot.data",
+        "server snapshot.data"
+      ],
+      "trusted_source_exception": false,
+      "violation": "recovery_sensitive_data_forbidden blocks for manual intervention before adapter.restore"
+    },
+    "cursor_ownership": {
+      "domain_snapshot": "applied_through_learner_sequence",
+      "projection": "applied_through_server_sequence",
+      "completion_witness": "derived/source causal order uses server_sequence"
+    },
+    "evidence_sidecar_contract": {
+      "transport_shape": [
+        "command",
+        "snapshot"
+      ],
+      "snapshot_fields": [
+        "state_schema_version",
+        "applied_through_learner_sequence",
+        "data"
+      ],
+      "first_call": "runtime freezes command plus post-event canonical domain snapshot before EvidencePort invocation",
+      "retry": "same client_event_id reuses the exact frozen sidecar; command, snapshot, schema or cursor drift fails closed",
+      "future_outbox": "FE EvidencePort must persist the full sidecar atomically in one IndexedDB transaction before network I/O",
+      "missing_sidecar": "blocked/manual-intervention; never recapture mutable DOM or Canvas state",
+      "not_implemented": [
+        "product page snapshot serializer",
+        "IndexedDB transaction",
+        "outbox replay",
+        "backend ingestion"
+      ]
+    },
+    "integration_evidence": {
+      "javascript_runtime": "learner 1/2 -> server-derived server 3 -> next learner command remains learner 3",
+      "offline_batch": "learner 1/2/3 and an interleaved derived server event use independent cursor spaces",
+      "browser": "NOT-RUN",
+      "indexeddb": "NOT-RUN",
+      "backend": "NOT-RUN"
+    }
+  },
   "current_learning_architecture": {
     "catalog": "shared/js/learning-activity-catalog.js",
     "activity_runtime": "shared/js/learning-activity.js",
+    "activity_recovery_helper": "shared/js/learning-activity-recovery.js",
     "activity_controller": "shared/js/learning-evidence-activity.js",
     "evidence_client": "shared/js/learning-evidence-client.js",
     "offline_queue": "shared/js/learning-evidence-queue.js",
@@ -183,6 +313,7 @@
     "known_gaps": [
       "the unified runtime kernel is present but deliberately unwired; current pages still consume record/refresh/context/destroy from the existing activity controller",
       "the current backend recovery DTO has projection and resume cursor data but no exact run/group/generation event history or atomic domain snapshot",
+      "no product EvidencePort currently persists the immutable command+snapshot sidecar in one IndexedDB transaction or consumes the recovery-v2 dual cursor contract",
       "the Future Galaxy catalog is not yet backed by one canonical activity runtime",
       "teacher facts are authoritative but course-specific projections remain partial"
     ]
@@ -317,7 +448,7 @@
         "owner": "FE+BE",
         "delivery": "shared client + BE-014",
         "direction": "page owner -> LearningActivity -> shared client -> endpoint -> service",
-        "minimum_contract": "stable activity identity, client_event_id, rule version, bounded structured evidence and receipt",
+        "minimum_contract": "stable activity identity, client_event_id, rule version, immutable command+snapshot sidecar and learner/server cursor receipt",
         "forbidden_authority": "page/content direct API access and learner-emitted completed/transferred events"
       },
       {
@@ -325,7 +456,7 @@
         "owner": "BE",
         "delivery": "BE-014",
         "direction": "service projection -> shared client -> LearningActivity.restore",
-        "minimum_contract": "authoritative scope, last position, rule version, projection and retry-safe identity",
+        "minimum_contract": "authoritative scope, contiguous server history, separate offline learner sidecars, learner-bound snapshot, server-bound projection/witness and retry-safe identity",
         "forbidden_authority": "localStorage progress, route-derived completion or stale-account replay"
       },
       {
@@ -781,7 +912,8 @@
     "AstraLearningEvidenceClient": "shared/js/learning-evidence-client.js",
     "AstraLearningEvidenceQueue": "shared/js/learning-evidence-queue.js",
     "AstraProductCapabilities": "shared/js/product-capabilities.js",
-    "AstraLearningActivity": "shared/js/learning-activity.js"
+    "AstraLearningActivity": "shared/js/learning-activity.js",
+    "AstraLearningActivityRecovery": "shared/js/learning-activity-recovery.js"
   },
   "learning_evidence_api_owners": [
     "shared/js/learning-evidence-client.js"

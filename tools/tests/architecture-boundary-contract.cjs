@@ -158,6 +158,7 @@ function contentModuleViolations(relativePath, source) {
 
 const architectureContract = manifest.architecture_contract;
 const activityRuntimeContract = manifest.activity_runtime_contract;
+const activityRecoveryContract = manifest.activity_runtime_recovery_contract;
 const learningActivityContract = manifest.learning_activity_contract;
 const contractDocument = read(architectureContract.document);
 
@@ -184,8 +185,12 @@ assert.equal(activityRuntimeContract.owner_global, 'AstraLearningActivity');
 assert.equal(activityRuntimeContract.owner_path, 'shared/js/learning-activity.js');
 assert.equal(activityRuntimeContract.runtime_test, 'tools/tests/learning-activity-runtime-contract.cjs');
 assert.equal(activityRuntimeContract.schema_version, 'astra-learning-activity-v1');
-assert.equal(activityRuntimeContract.recovery_schema_version, 'astra-learning-activity-recovery-v1');
+assert.equal(activityRuntimeContract.recovery_schema_version, 'astra-learning-activity-recovery-v2');
 assert.equal(activityRuntimeContract.event_envelope_schema_version, 'astra-learning-activity-event-v1');
+assert.equal(
+  activityRuntimeContract.evidence_sidecar_schema_version,
+  'astra-learning-activity-evidence-sidecar-v1',
+);
 assert.equal(activityRuntimeContract.provenance_schema_version, 'astra-raw-evidence-provenance-v1');
 assert.deepEqual(activityRuntimeContract.allowed_write_paths, [
   'shared/js/learning-activity.js',
@@ -277,6 +282,9 @@ assert.deepEqual(activityRuntimeContract.manual_resolution_actions, [
   'verified-safe-restart',
 ]);
 assert.ok(activityRuntimeContract.recovery_guards.includes('causal_completion_witness'));
+for (const guard of ['exact_recovery_envelope', 'shared_sensitive_data_policy', 'append_only_receipt_server_position']) {
+  assert.ok(activityRuntimeContract.recovery_guards.includes(guard));
+}
 assert.deepEqual(activityRuntimeContract.raw_source_kinds, ['request', 'response', 'state', 'dom']);
 assert.equal(activityRuntimeContract.provenance_assurance, 'consistency-only');
 assert.deepEqual(activityRuntimeContract.reference_adapter_kinds, ['simulation', 'code', 'future']);
@@ -287,11 +295,145 @@ assert.equal(
   activityRuntimeContract.owner_path,
 );
 
+assert.equal(activityRecoveryContract.task_id, 'ARCH-005');
+assert.equal(activityRecoveryContract.version_token, 'V8.0.11');
+assert.equal(
+  activityRecoveryContract.baseline_revision,
+  'b8691e4b8069427b7cec202a7cb6505e02eec896',
+);
+assert.equal(activityRecoveryContract.owner_path, activityRuntimeContract.owner_path);
+assert.equal(activityRecoveryContract.helper_global, 'AstraLearningActivityRecovery');
+assert.equal(activityRecoveryContract.helper_path, 'shared/js/learning-activity-recovery.js');
+assert.deepEqual(activityRecoveryContract.load_order, [
+  'shared/js/learning-activity-recovery.js',
+  'shared/js/learning-activity.js',
+]);
+assert.equal(
+  activityRecoveryContract.recovery_schema_version,
+  activityRuntimeContract.recovery_schema_version,
+);
+assert.equal(
+  activityRecoveryContract.event_envelope_schema_version,
+  activityRuntimeContract.event_envelope_schema_version,
+);
+assert.equal(
+  activityRecoveryContract.evidence_sidecar_schema_version,
+  activityRuntimeContract.evidence_sidecar_schema_version,
+);
+assert.deepEqual(activityRecoveryContract.allowed_write_paths, [
+  'shared/js/learning-activity.js',
+  'shared/js/learning-activity-recovery.js',
+  'tools/architecture/v76-module-boundaries.json',
+  'tools/tests/architecture-boundary-contract.cjs',
+  'tools/tests/learning-activity-runtime-contract.cjs',
+  'tools/tests/learning-activity-recovery-contract.cjs',
+  'doc/02-子文档/24-V7.6全栈模块边界契约.md',
+]);
+assert.deepEqual(activityRecoveryContract.cursor_contract, {
+  command_learner_cursor: 'run.sequence',
+  learner_cursor_semantics: 'increments only for learner commands; server-derived events never reserve it',
+  server_cursor: 'server_sequence',
+  server_cursor_semantics: 'continuous ordering for every persisted learner and server-derived ledger event',
+  derived_learner_sequence: null,
+  confirmed_receipt_fields: ['learner_sequence', 'server_sequence', 'server_last_sequence'],
+  local_pending_server_cursors: null,
+});
+assert.deepEqual(activityRecoveryContract.receipt_fence, {
+  unconfirmed_first_authoritative: 'server_sequence must be strictly greater than the pre-call runtime server_last_sequence',
+  confirmed_replay: 'the same client_event_id must exactly match its locked server_sequence',
+  non_authoritative: 'local-pending and manual-intervention neither lock a reservation nor advance server cursors',
+  batched_pending_reconciliation: 'an aggregate server_last_sequence that cannot prove each pending reservation position fails closed for manual intervention; exact automatic recovery is not claimed',
+});
+assert.equal(
+  activityRecoveryContract.recovery_layers.merge_policy,
+  'never merge server_sequence and learner_sequence into one ordering algorithm',
+);
+assert.equal(
+  activityRecoveryContract.recovery_layers.server_learner_record,
+  'each learner ledger entry carries the exact sidecar accepted by the server',
+);
+assert.equal(
+  activityRecoveryContract.recovery_layers.legacy_shape,
+  'astra-learning-activity-recovery-v1 fails closed',
+);
+assert.match(activityRecoveryContract.recovery_layers.unknown_field_policy, /recovery_schema_incompatible/);
+assert.match(activityRecoveryContract.recovery_layers.identity_shape_policy, /canonical-equal/);
+assert.deepEqual(activityRecoveryContract.exact_envelope_keys, {
+  bundle: [
+    'schema_version', 'complete', 'atomic', 'stale', 'snapshot_id', 'captured_at',
+    'identity', 'freshness', 'server', 'offline', 'manual_resolution?',
+  ],
+  freshness: ['status', 'authority_revision', 'release_revision'],
+  server: ['identity', 'complete_history', 'event_count', 'events', 'projection', 'snapshot'],
+  offline: ['identity', 'complete_pending_set', 'sidecar_count', 'sidecars'],
+  manual_resolution: ['identity', 'status', 'block_id', 'action', 'resolution_id'],
+  identity: [
+    'class_id', 'course_id', 'course_unit_id', 'activity_key', 'subject_identity',
+    'run_id', 'group_id', 'manifest_version', 'content_version', 'event_schema_version',
+    'rule_version', 'generation',
+  ],
+  subject_identity: ['kind', 'id'],
+});
+assert.deepEqual(activityRecoveryContract.recovery_data_policy, {
+  owner_path: 'shared/js/learning-activity.js',
+  owner_symbol: 'EVIDENCE_FORBIDDEN',
+  injected_helper: 'evidencePolicy',
+  covered_inputs: [
+    'server learner sidecar command.evidence',
+    'server learner sidecar snapshot.data',
+    'offline sidecar command.evidence',
+    'offline sidecar snapshot.data',
+    'server snapshot.data',
+  ],
+  trusted_source_exception: false,
+  violation: 'recovery_sensitive_data_forbidden blocks for manual intervention before adapter.restore',
+});
+assert.deepEqual(activityRecoveryContract.cursor_ownership, {
+  domain_snapshot: 'applied_through_learner_sequence',
+  projection: 'applied_through_server_sequence',
+  completion_witness: 'derived/source causal order uses server_sequence',
+});
+assert.deepEqual(
+  activityRecoveryContract.evidence_sidecar_contract.transport_shape,
+  ['command', 'snapshot'],
+);
+assert.deepEqual(
+  activityRecoveryContract.evidence_sidecar_contract.snapshot_fields,
+  ['state_schema_version', 'applied_through_learner_sequence', 'data'],
+);
+assert.match(activityRecoveryContract.evidence_sidecar_contract.retry, /exact frozen sidecar/);
+assert.match(activityRecoveryContract.evidence_sidecar_contract.future_outbox, /IndexedDB transaction/);
+assert.deepEqual(activityRecoveryContract.integration_evidence, {
+  javascript_runtime: 'learner 1/2 -> server-derived server 3 -> next learner command remains learner 3',
+  offline_batch: 'learner 1/2/3 and an interleaved derived server event use independent cursor spaces',
+  browser: 'NOT-RUN',
+  indexeddb: 'NOT-RUN',
+  backend: 'NOT-RUN',
+});
+
 const activityRuntimeSource = read(activityRuntimeContract.owner_path);
+const activityRecoverySource = read(activityRecoveryContract.helper_path);
 const activityRuntimeTestSource = read(activityRuntimeContract.runtime_test);
+const activityRecoveryTestSource = read(activityRecoveryContract.recovery_test);
 assert.ok(
   lineCount(activityRuntimeSource) <= activityRuntimeContract.runtime_line_ceiling,
   'AstraLearningActivity exceeds its architecture ceiling',
+);
+assert.ok(
+  lineCount(activityRuntimeSource) <= activityRecoveryContract.runtime_line_ceiling,
+  'ARCH-005 runtime owner exceeds its tightened architecture ceiling',
+);
+assert.ok(
+  lineCount(activityRecoverySource) <= activityRecoveryContract.helper_line_ceiling,
+  'AstraLearningActivityRecovery exceeds its independent architecture ceiling',
+);
+assert.ok(
+  lineCount(activityRuntimeTestSource) <= activityRecoveryContract.runtime_test_line_ceiling,
+  'runtime contract exceeds its independent test budget',
+);
+assert.ok(
+  lineCount(activityRecoveryTestSource) <= activityRecoveryContract.recovery_test_line_ceiling,
+  'recovery contract exceeds its independent test budget',
 );
 assert.doesNotMatch(
   activityRuntimeSource,
@@ -303,7 +445,20 @@ assert.doesNotMatch(
   /AstraLearningEvidence(?:Client|Activity|Queue)/,
   'the architecture kernel must consume injected ports instead of product globals',
 );
+assert.doesNotMatch(
+  activityRecoverySource,
+  /\b(?:fetch|XMLHttpRequest|localStorage|sessionStorage|indexedDB)\b/,
+  'the pure recovery helper cannot own HTTP or browser storage',
+);
+assert.match(activityRuntimeSource, /const EVIDENCE_FORBIDDEN = new Set/);
+assert.match(activityRuntimeSource, /evidencePolicy: function/);
+assert.match(activityRecoverySource, /evidencePolicy/);
+assert.doesNotMatch(activityRecoverySource, /EVIDENCE_FORBIDDEN/,
+  'the recovery helper must consume the injected policy instead of copying its blacklist');
 const activityRuntimeContext = { window: {}, AbortController, Date };
+vm.runInNewContext(activityRecoverySource, activityRuntimeContext, {
+  filename: activityRecoveryContract.helper_path,
+});
 vm.runInNewContext(activityRuntimeSource, activityRuntimeContext, {
   filename: activityRuntimeContract.owner_path,
 });
@@ -311,6 +466,10 @@ const activityRuntimeApi = activityRuntimeContext.window.AstraLearningActivity;
 assert.ok(activityRuntimeApi && Object.isFrozen(activityRuntimeApi));
 assert.equal(activityRuntimeApi.schemaVersion, activityRuntimeContract.schema_version);
 assert.equal(activityRuntimeApi.recoverySchemaVersion, activityRuntimeContract.recovery_schema_version);
+assert.equal(
+  activityRuntimeApi.evidenceSidecarSchemaVersion,
+  activityRuntimeContract.evidence_sidecar_schema_version,
+);
 assert.equal(
   activityRuntimeApi.eventEnvelopeSchemaVersion,
   activityRuntimeContract.event_envelope_schema_version,
@@ -341,9 +500,28 @@ assert.ok(
 assert.ok(
   activityRuntimeTestSource.includes('manifest-whitespace-fail-closed')
     && activityRuntimeTestSource.includes('manifest-release-scope-exact')
-    && activityRuntimeTestSource.includes('completion-witness-causal-order'),
-  'runtime contract must execute factory canonicalization and causal witness fixtures',
+    && activityRecoveryTestSource.includes('dual-cursor-negative-')
+    && activityRecoveryTestSource.includes('learner-2-derived-server-3-next-learner-3'),
+  'contracts must execute factory canonicalization and independent cursor fixtures',
 );
+assert.ok(
+  activityRecoveryTestSource.includes('legacy-recovery-shape-fail-closed')
+    && activityRecoveryTestSource.includes('sidecar-missing-fail-closed')
+    && activityRecoveryTestSource.includes('snapshot-drift-never-reaches-port')
+    && activityRecoveryTestSource.includes('tainted-recovery-never-reaches-adapter')
+    && activityRecoveryTestSource.includes('recovery-v2-exact-envelope')
+    && activityRecoveryTestSource.includes('recovery-identity-raw-canonical-exact'),
+  'recovery contract must execute legacy and immutable-sidecar negative fixtures',
+);
+assert.ok(
+  activityRecoveryTestSource.includes('fresh-receipt-must-append-after-known-server-last')
+    && activityRecoveryTestSource.includes('confirmed-receipt-server-position-replay')
+    && activityRecoveryTestSource.includes('confirmed-receipt-server-position-drift-fail-closed')
+    && activityRecoveryTestSource.includes('unknown-write-first-reconciled-locks-server-position'),
+  'recovery contract must execute fresh, replayed, drifted and reconciled receipt fences',
+);
+assert.ok(activityRuntimeTestSource.includes('local-pending-batch-aggregate-cursor-fails-closed'),
+  'runtime contract must fail closed when aggregate pending reconciliation cannot prove each server position');
 for (const fixtureKind of activityRuntimeContract.reference_adapter_kinds) {
   assert.ok(
     activityRuntimeTestSource.includes("['" + fixtureKind + "'")
@@ -381,6 +559,24 @@ for (const token of [
     'architecture document must explain ARCH-004 token ' + token,
   );
 }
+for (const token of [
+  activityRecoveryContract.task_id,
+  activityRecoveryContract.version_token,
+  activityRecoveryContract.baseline_revision,
+  activityRecoveryContract.recovery_schema_version,
+  activityRecoveryContract.evidence_sidecar_schema_version,
+  activityRecoveryContract.cursor_contract.command_learner_cursor,
+  activityRecoveryContract.cursor_contract.server_cursor,
+  ...activityRecoveryContract.cursor_contract.confirmed_receipt_fields,
+  activityRecoveryContract.cursor_ownership.domain_snapshot,
+  activityRecoveryContract.cursor_ownership.projection,
+]) {
+  const tick = String.fromCharCode(96);
+  assert.ok(
+    contractDocument.includes(tick + token + tick),
+    'architecture document must explain ARCH-005 token ' + token,
+  );
+}
 const arch004Document = contractDocument.slice(contractDocument.indexOf('## 17. ARCH-004'));
 assert.ok(arch004Document.length > 0, 'architecture document must contain the ARCH-004 section');
 for (const phrase of [
@@ -409,6 +605,18 @@ for (const heading of ['**当前能证明**', '**当前不能证明**', '**后�
     arch004Document.split(heading).length - 1 >= 4,
     `each ARCH-004 layered diagram must explain ${heading}`,
   );
+}
+const arch005Document = contractDocument.slice(contractDocument.indexOf('## 18. ARCH-005'));
+assert.ok(arch005Document.length > 0, 'architecture document must contain the ARCH-005 section');
+for (const phrase of [
+  'learner 1/2 → server-derived server 3 → next learner 3',
+  '禁止把两类游标重新合并成一个序号算法',
+  '同一 IndexedDB 事务',
+  '页面、真实 IndexedDB、Browser 与后端联调均为 **NOT-RUN**',
+  'snapshot sidecar 缺失、字段漂移或 cursor 漂移',
+  '页面只在 runtime Promise 成功后提交',
+]) {
+  assert.ok(arch005Document.includes(phrase), `ARCH-005 contract must contain ${phrase}`);
 }
 
 for (const relativePath of Object.values(manifest.current_learning_architecture)) {

@@ -3,8 +3,14 @@
 
     if (global.AstraLearningActivity) return;
 
+    const RecoveryContract = global.AstraLearningActivityRecovery;
+    if (!RecoveryContract || typeof RecoveryContract.create !== 'function') {
+        throw new Error('AstraLearningActivityRecovery must load before AstraLearningActivity');
+    }
+
     const SCHEMA = 'astra-learning-activity-v1';
-    const RECOVERY_SCHEMA = 'astra-learning-activity-recovery-v1';
+    const RECOVERY_SCHEMA = RecoveryContract.recoverySchemaVersion;
+    const SIDECAR_SCHEMA = RecoveryContract.evidenceSidecarSchemaVersion;
     const EVENT_SCHEMA = 'astra-learning-activity-event-v1';
     const PROVENANCE_SCHEMA = 'astra-raw-evidence-provenance-v1';
     const STATES = Object.freeze([
@@ -33,6 +39,7 @@
         'recovery_identity_mismatch', 'recovery_schema_incompatible',
         'recovery_order_unproven', 'recovery_conflict',
         'recovery_completion_unproven', 'recovery_snapshot_invalid',
+        'recovery_sensitive_data_forbidden',
         'manual_intervention_unresolved', 'evidence_manual_intervention',
         'evidence_receipt_mismatch'
     ]);
@@ -217,13 +224,6 @@
         });
         return identity;
     }
-    function recoveryIdentity(value, manifest, label) {
-        try {
-            return identityOf(value, manifest);
-        } catch (error) {
-            throw fail('recovery_identity_mismatch', (label || 'recovery') + ' identity drifted');
-        }
-    }
     function sameIdentity(left, right) {
         return canonical(left) === canonical(right);
     }
@@ -262,199 +262,6 @@
         if (Array.isArray(value)) return value.some(function (item) { return forbidden(item, keys); });
         return Object.keys(value).some(function (key) {
             return keys.has(key.toLowerCase()) || forbidden(value[key], keys);
-        });
-    }
-    function factOf(value, identity, manifest, source) {
-        if (!plain(value)) throw fail('recovery_snapshot_invalid', source + ' fact is invalid');
-        const factIdentity = recoveryIdentity(value.identity, manifest, source + ' fact');
-        if (!sameIdentity(factIdentity, identity)) {
-            throw fail('recovery_identity_mismatch', source + ' fact identity drifted');
-        }
-        const eventType = String(value.event_type || '');
-        const allowed = source === 'server'
-            ? LEARNER_EVENTS.concat(SERVER_EVENTS)
-            : LEARNER_EVENTS;
-        if (!allowed.includes(eventType)) {
-            throw fail('recovery_schema_incompatible', source + ' event type is incompatible');
-        }
-        if (LEARNER_EVENTS.includes(eventType) && value.producer !== 'learner') {
-            throw fail('recovery_schema_incompatible', 'learner fact producer is invalid');
-        }
-        if (SERVER_EVENTS.includes(eventType) && !['server', 'trusted_assessment'].includes(value.producer)) {
-            throw fail('recovery_completion_unproven', 'derived fact producer is not trusted');
-        }
-        return freeze({
-            identity: factIdentity,
-            sequence: integer(value.sequence, source + '.sequence'),
-            client_event_id: token(value.client_event_id, source + '.client_event_id', 8),
-            event_type: eventType,
-            producer: value.producer,
-            occurred_at: timestamp(value.occurred_at, source + '.occurred_at'),
-            evidence: freeze(copy(value.evidence || {}, source + '.evidence'))
-        });
-    }
-    function completionWitness(value, state, events, identity, manifest) {
-        if (!SERVER_EVENTS.includes(state)) {
-            if (value !== null && value !== undefined) {
-                throw fail('recovery_completion_unproven', 'non-terminal projection has a witness');
-            }
-            return null;
-        }
-        if (!plain(value)) throw fail('recovery_completion_unproven', 'terminal witness is missing');
-        const witnessIdentity = recoveryIdentity(value.identity, manifest, 'completion witness');
-        const derivedId = token(value.derived_client_event_id, 'completion.derived_client_event_id', 8);
-        const sourceIds = Array.isArray(value.source_client_event_ids)
-            ? Array.from(value.source_client_event_ids)
-            : [];
-        const derived = events.find(function (event) {
-            return event.client_event_id === derivedId && event.event_type === state;
-        });
-        const sources = sourceIds.map(function (id) {
-            return events.find(function (event) { return event.client_event_id === id && LEARNER_EVENTS.includes(event.event_type); });
-        });
-        if (
-            !sameIdentity(witnessIdentity, identity)
-            || value.projection_state !== state
-            || value.rule_version !== identity.rule_version
-            || !derived
-            || sourceIds.length === 0
-            || new Set(sourceIds).size !== sourceIds.length
-            || sources.some(function (event) { return !event || event.sequence >= derived.sequence; })
-        ) throw fail('recovery_completion_unproven', 'terminal witness cannot prove the projection');
-        return freeze({
-            identity: witnessIdentity,
-            projection_state: state,
-            rule_version: identity.rule_version,
-            derived_client_event_id: derivedId,
-            source_client_event_ids: Object.freeze(sourceIds)
-        });
-    }
-    function exactRecovery(value, identity, manifest, currentBinding, manualBlock) {
-        if (!plain(value)) throw fail('recovery_partial', 'recovery bundle is missing');
-        const bundle = freeze(copy(value, 'recovery'));
-        if (bundle.schema_version !== RECOVERY_SCHEMA) {
-            throw fail('recovery_schema_incompatible', 'recovery schema is incompatible');
-        }
-        if (bundle.complete !== true) throw fail('recovery_partial', 'recovery is partial');
-        if (bundle.atomic !== true) throw fail('recovery_not_atomic', 'recovery is not atomic');
-        if (bundle.stale !== false) throw fail('recovery_stale', 'recovery freshness is unknown');
-        const snapshotId = token(bundle.snapshot_id, 'recovery.snapshot_id', 8);
-        timestamp(bundle.captured_at, 'recovery.captured_at');
-        if (!sameIdentity(recoveryIdentity(bundle.identity, manifest, 'bundle'), identity)) {
-            throw fail('recovery_identity_mismatch', 'bundle identity drifted');
-        }
-        if (
-            !plain(bundle.freshness)
-            || bundle.freshness.status !== 'current'
-            || bundle.freshness.authority_revision !== currentBinding.authority.revision
-            || bundle.freshness.release_revision !== currentBinding.release.revision
-        ) throw fail('recovery_stale', 'recovery is not tied to current authority and release');
-        if (!plain(bundle.server) || !plain(bundle.offline)) {
-            throw fail('recovery_partial', 'server and offline layers are required');
-        }
-        if (
-            !sameIdentity(recoveryIdentity(bundle.server.identity, manifest, 'server'), identity)
-            || !sameIdentity(recoveryIdentity(bundle.offline.identity, manifest, 'offline'), identity)
-        ) throw fail('recovery_identity_mismatch', 'recovery source identity drifted');
-        if (bundle.server.complete_history !== true || bundle.offline.complete_pending_set !== true) {
-            throw fail('recovery_partial', 'complete history and pending set are required');
-        }
-        if (!Array.isArray(bundle.server.events) || !Array.isArray(bundle.offline.events)) {
-            throw fail('recovery_partial', 'recovery event collections are required');
-        }
-        if (
-            bundle.server.event_count !== bundle.server.events.length
-            || bundle.offline.event_count !== bundle.offline.events.length
-        ) throw fail('recovery_partial', 'recovery event counts disagree');
-        const server = bundle.server.events.map(function (event) {
-            return factOf(event, identity, manifest, 'server');
-        });
-        const byId = new Map();
-        server.forEach(function (event, index) {
-            if (event.sequence !== index + 1 || byId.has(event.client_event_id)) {
-                throw fail('recovery_order_unproven', 'server history is not contiguous and unique');
-            }
-            byId.set(event.client_event_id, event);
-        });
-        if (!plain(bundle.server.snapshot)) {
-            throw fail('recovery_snapshot_invalid', 'domain snapshot is missing');
-        }
-        if (
-            !sameIdentity(
-                recoveryIdentity(bundle.server.snapshot.identity, manifest, 'snapshot'),
-                identity
-            )
-            || canonical(bundle.server.snapshot.state_schema_version)
-                !== canonical(manifest.content.state_schema_version)
-            || bundle.server.snapshot.applied_through_sequence !== server.length
-        ) throw fail('recovery_snapshot_invalid', 'domain snapshot is not exact');
-        const offline = bundle.offline.events.map(function (event) {
-            return factOf(event, identity, manifest, 'offline');
-        });
-        const offlineIds = new Set();
-        const merged = Array.from(server);
-        let expected = server.length + 1;
-        offline.forEach(function (event) {
-            if (offlineIds.has(event.client_event_id)) {
-                throw fail('recovery_conflict', 'offline client_event_id is repeated');
-            }
-            offlineIds.add(event.client_event_id);
-            const existing = byId.get(event.client_event_id);
-            if (existing) {
-                if (canonical(existing) !== canonical(event)) {
-                    throw fail('recovery_conflict', 'network replay conflicts with server history');
-                }
-                return;
-            }
-            if (event.sequence !== expected) {
-                throw fail('recovery_order_unproven', 'offline facts cannot be ordered');
-            }
-            expected += 1;
-            byId.set(event.client_event_id, event);
-            merged.push(event);
-        });
-        const projection = String(bundle.server.projection_state || '');
-        if (!PROJECTIONS.includes(projection)) {
-            throw fail('recovery_schema_incompatible', 'projection state is unknown');
-        }
-        const witness = completionWitness(
-            bundle.server.completion_witness,
-            projection,
-            server,
-            identity,
-            manifest
-        );
-        if (manualBlock) {
-            if (!sameIdentity(manualBlock.identity, identity)) {
-                throw fail('recovery_identity_mismatch', 'manual intervention belongs to another runtime identity');
-            }
-            const resolution = bundle.manual_resolution;
-            const resolvedIdentity = plain(resolution)
-                ? recoveryIdentity(resolution.identity, manifest, 'manual resolution')
-                : null;
-            if (
-                !plain(resolution)
-                || resolution.status !== 'resolved'
-                || resolution.block_id !== manualBlock.block_id
-                || !sameIdentity(resolvedIdentity, manualBlock.identity)
-                || !sameIdentity(resolvedIdentity, identity)
-                || !['apply-atomic-snapshot', 'verified-safe-restart'].includes(resolution.action)
-            ) throw fail('manual_intervention_unresolved', 'manual intervention is unresolved');
-            token(resolution.resolution_id, 'manual_resolution.resolution_id', 8);
-            if (
-                resolution.action === 'verified-safe-restart'
-                && (projection !== 'not_started' || merged.length !== 0)
-            ) throw fail('manual_intervention_unresolved', 'safe restart is not an empty authoritative run');
-        }
-        return freeze({
-            snapshot_id: snapshotId,
-            projection_state: projection,
-            domain_snapshot: freeze(copy(bundle.server.snapshot.data, 'snapshot.data')),
-            completion_witness: witness,
-            events: Object.freeze(merged),
-            next_sequence: merged.reduce(function (maximum, event) {
-                return Math.max(maximum, event.sequence);
-            }, 0) + 1
         });
     }
     function authorityResult(value, identity, manifest) {
@@ -502,6 +309,26 @@
         dependencies(settings, manifest);
         const ports = settings.ports;
         const adapter = settings.adapter;
+        const recoveryContract = RecoveryContract.create({
+            manifest: manifest,
+            eventEnvelopeSchemaVersion: EVENT_SCHEMA,
+            learnerEventTypes: LEARNER_EVENTS,
+            serverDerivedEventTypes: SERVER_EVENTS,
+            projectionStates: PROJECTIONS,
+            helpers: {
+                plain: plain,
+                copy: copy,
+                freeze: freeze,
+                canonical: canonical,
+                token: token,
+                integer: integer,
+                timestamp: timestamp,
+                identity: function (value) { return identityOf(value, manifest); },
+                sameIdentity: sameIdentity,
+                evidencePolicy: function (value) { return !forbidden(value, EVIDENCE_FORBIDDEN); },
+                fail: fail
+            }
+        });
         let state = 'created';
         let identity = null;
         let binding = null;
@@ -631,45 +458,24 @@
                 block_id: manualBlock ? manualBlock.block_id : null
             });
         }
-        function recoveredCommand(event) {
-            return freeze({
-                schema_version: EVENT_SCHEMA,
-                scope: {
-                    class_id: event.identity.class_id,
-                    course_id: event.identity.course_id,
-                    course_unit_id: event.identity.course_unit_id,
-                    activity_key: event.identity.activity_key
-                },
-                run: {
-                    run_id: event.identity.run_id,
-                    group_id: event.identity.group_id,
-                    sequence: event.sequence
-                },
-                versions: {
-                    manifest_version: event.identity.manifest_version,
-                    content_version: event.identity.content_version,
-                    event_schema_version: event.identity.event_schema_version,
-                    rule_version: event.identity.rule_version,
-                    generation: event.identity.generation
-                },
-                client_event_id: event.client_event_id,
-                event_type: event.event_type,
-                evidence: event.evidence,
-                occurred_at: event.occurred_at
-            });
-        }
-        function seedReservations(events, firstSequence) {
+        function seedReservations(exact) {
             reservations.clear();
-            events.filter(function (event) {
-                return LEARNER_EVENTS.includes(event.event_type);
-            }).forEach(function (event) {
-                const command = recoveredCommand(event);
-                reservations.set(event.client_event_id, {
-                    canonical: canonical(command),
-                    command: command
+            exact.server_events.forEach(function (event) {
+                if (!event.sidecar) return;
+                reservations.set(event.sidecar.command.client_event_id, {
+                    canonical: canonical(event.sidecar),
+                    sidecar: event.sidecar,
+                    serverSequence: event.server_sequence
                 });
             });
-            nextSequence = firstSequence;
+            exact.offline_sidecars.forEach(function (sidecar) {
+                reservations.set(sidecar.command.client_event_id, {
+                    canonical: canonical(sidecar),
+                    sidecar: sidecar,
+                    serverSequence: null
+                });
+            });
+            nextSequence = exact.next_learner_sequence;
             unresolvedId = '';
         }
         async function restore(context, signal) {
@@ -688,13 +494,17 @@
                     });
                 });
                 live(operation);
-                const exact = exactRecovery(raw, identity, manifest, initial, manualBlock);
+                const exact = recoveryContract.recover(raw, identity, initial, manualBlock);
                 const domainInput = freeze({
                     identity: exposedIdentity(identity),
                     snapshot_id: exact.snapshot_id,
                     domain_snapshot: exact.domain_snapshot,
-                    events: exact.events,
+                    domain_snapshot_learner_sequence: exact.domain_snapshot_learner_sequence,
+                    server_events: exact.server_events,
+                    offline_sidecars: exact.offline_sidecars,
+                    server_last_sequence: exact.server_last_sequence,
                     projection_state: exact.projection_state,
+                    projection_server_sequence: exact.projection_server_sequence,
                     completion_witness: exact.completion_witness
                 });
                 const domain = freeze(copy(await waitFor(operation, function () {
@@ -706,9 +516,11 @@
                 recovery = freeze({
                     snapshot_id: exact.snapshot_id,
                     projection_state: exact.projection_state,
+                    server_last_sequence: exact.server_last_sequence,
+                    learner_sequence: exact.domain_snapshot_learner_sequence,
                     domain_state: domain
                 });
-                seedReservations(exact.events, exact.next_sequence);
+                seedReservations(exact);
                 manualBlock = null;
                 state = 'ready';
                 return freeze({
@@ -718,7 +530,8 @@
                     snapshot_id: exact.snapshot_id,
                     projection_state: exact.projection_state,
                     domain_state: domain,
-                    next_sequence: nextSequence
+                    next_learner_sequence: nextSequence,
+                    server_last_sequence: exact.server_last_sequence
                 });
             } catch (error) {
                 const normalized = lifecycleError(error, operation);
@@ -808,7 +621,7 @@
                 end(operation);
             }
         }
-        function evidenceCommand(value) {
+        function evidenceSidecar(value) {
             if (!plain(value)) throw fail('invalid_event', 'evidence event is required');
             const eventType = String(value.event_type || '');
             if (SERVER_EVENTS.includes(eventType)) {
@@ -823,10 +636,26 @@
             if (forbidden(evidence, EVIDENCE_FORBIDDEN)) {
                 throw fail('sensitive_evidence_forbidden', 'authority and projection truth cannot enter evidence');
             }
+            if (
+                !plain(value.snapshot)
+                || Object.keys(value.snapshot).some(function (key) {
+                    return !['state_schema_version', 'data'].includes(key);
+                })
+                || !Object.hasOwn(value.snapshot, 'state_schema_version')
+                || !Object.hasOwn(value.snapshot, 'data')
+                || !plain(value.snapshot.data)
+                || canonical(value.snapshot.state_schema_version)
+                    !== canonical(manifest.content.state_schema_version)
+            ) throw fail('evidence_snapshot_invalid', 'post-event canonical snapshot is required');
+            const snapshotData = freeze(copy(value.snapshot.data, 'event.snapshot.data'));
+            if (forbidden(snapshotData, EVIDENCE_FORBIDDEN)) {
+                throw fail('sensitive_evidence_forbidden', 'authority and projection truth cannot enter snapshot');
+            }
             [
                 'class_id', 'course_id', 'course_unit_id', 'activity_key', 'subject_identity',
                 'run_id', 'group_id', 'manifest_version', 'content_version',
-                'event_schema_version', 'rule_version', 'generation'
+                'event_schema_version', 'rule_version', 'generation', 'learner_sequence',
+                'server_sequence', 'server_last_sequence'
             ].forEach(function (field) {
                 if (Object.hasOwn(value, field)) {
                     throw fail('event_identity_override', 'runtime owns event identity', { field: field });
@@ -847,7 +676,7 @@
                 run: {
                     run_id: identity.run_id,
                     group_id: identity.group_id,
-                    sequence: existing ? existing.command.run.sequence : nextSequence
+                    sequence: existing ? existing.sidecar.command.run.sequence : nextSequence
                 },
                 versions: {
                     manifest_version: identity.manifest_version,
@@ -861,17 +690,26 @@
                 evidence: evidence,
                 occurred_at: timestamp(value.occurred_at, 'event.occurred_at')
             });
-            const shape = canonical(command);
+            const sidecar = recoveryContract.sidecar({
+                schema_version: SIDECAR_SCHEMA,
+                command: command,
+                snapshot: {
+                    state_schema_version: value.snapshot.state_schema_version,
+                    applied_through_learner_sequence: command.run.sequence,
+                    data: snapshotData
+                }
+            }, identity, 'event');
+            const shape = canonical(sidecar);
             if (existing) {
                 if (existing.canonical !== shape) {
-                    throw fail('client_event_id_conflict', 'client_event_id facts changed');
+                    throw fail('client_event_id_conflict', 'client_event_id command or snapshot changed');
                 }
-                return existing.command;
+                return existing.sidecar;
             }
             if (reservations.size >= MAX_EVENTS) throw fail('event_capacity_reached', 'event capacity reached');
-            reservations.set(eventId, { canonical: shape, command: command });
+            reservations.set(eventId, { canonical: shape, sidecar: sidecar, serverSequence: null });
             nextSequence += 1;
-            return command;
+            return sidecar;
         }
         function receiptOf(value, command) {
             if (!plain(value)) throw fail('evidence_receipt_mismatch', 'evidence receipt is missing');
@@ -882,35 +720,66 @@
                 || value.event_type !== command.event_type
                 || value.run_id !== command.run.run_id
                 || value.group_id !== command.run.group_id
-                || value.sequence !== command.run.sequence
+                || value.learner_sequence !== command.run.sequence
             ) throw fail('evidence_receipt_mismatch', 'evidence receipt identity disagrees');
+            const authoritative = ['confirmed', 'reconciled'].includes(status);
+            if (
+                authoritative
+                    ? (
+                        !Number.isInteger(value.server_sequence)
+                        || value.server_sequence <= 0
+                        || !Number.isInteger(value.server_last_sequence)
+                        || value.server_last_sequence < value.server_sequence
+                    )
+                    : (
+                        ![undefined, null].includes(value.server_sequence)
+                        || ![undefined, null].includes(value.server_last_sequence)
+                    )
+            ) throw fail('evidence_receipt_mismatch', 'evidence receipt cursors disagree');
             return freeze({
                 status: status,
                 client_event_id: value.client_event_id,
                 event_type: value.event_type,
                 run_id: value.run_id,
                 group_id: value.group_id,
-                sequence: value.sequence,
+                learner_sequence: value.learner_sequence,
+                server_sequence: authoritative ? value.server_sequence : null,
+                server_last_sequence: authoritative ? value.server_last_sequence : null,
                 server_event_id: value.server_event_id === undefined ? null : value.server_event_id
             });
         }
         async function emitEvidence(event, signal) {
             const operation = begin('emitEvidence', ['ready'], 'ready', signal);
-            let command;
+            let sidecar;
             try {
-                command = evidenceCommand(event);
+                sidecar = evidenceSidecar(event);
+                const reservation = reservations.get(sidecar.command.client_event_id);
+                const knownServerLast = recovery.server_last_sequence;
                 const initial = await checkBinding(identity, operation, binding);
                 const receipt = receiptOf(await waitFor(operation, function () {
-                    return ports.evidence.emit(command, {
+                    return ports.evidence.emit(sidecar, {
                         signal: operation.controller.signal,
                         authority: identity
                     });
-                }), command);
+                }), sidecar.command);
                 live(operation);
                 await checkBinding(identity, operation, initial);
                 live(operation);
+                const authoritative = ['confirmed', 'reconciled'].includes(receipt.status);
+                if (authoritative && (
+                    receipt.server_last_sequence < knownServerLast
+                    || (reservation.serverSequence === null
+                        ? receipt.server_sequence <= knownServerLast
+                        : receipt.server_sequence !== reservation.serverSequence)
+                )) throw fail('evidence_receipt_mismatch', 'server cursor or learner ledger position drifted');
                 if (receipt.status === 'manual-intervention') {
                     return blocked('evidence_manual_intervention', true);
+                }
+                if (authoritative) {
+                    reservation.serverSequence = receipt.server_sequence;
+                    recovery = freeze(Object.assign({}, recovery, {
+                        server_last_sequence: receipt.server_last_sequence
+                    }));
                 }
                 unresolvedId = '';
                 return freeze({
@@ -922,8 +791,8 @@
             } catch (error) {
                 const normalized = lifecycleError(error, operation);
                 if (normalized.code === 'activity_disposed') throw normalized;
-                if (command && !AUTHORITY_CODES.has(normalized.code)) {
-                    unresolvedId = command.client_event_id;
+                if (sidecar && !AUTHORITY_CODES.has(normalized.code)) {
+                    unresolvedId = sidecar.command.client_event_id;
                 }
                 if (normalized.code === 'operation_aborted') {
                     state = 'ready';
@@ -968,6 +837,7 @@
         schemaVersion: SCHEMA,
         recoverySchemaVersion: RECOVERY_SCHEMA,
         eventEnvelopeSchemaVersion: EVENT_SCHEMA,
+        evidenceSidecarSchemaVersion: SIDECAR_SCHEMA,
         provenanceSchemaVersion: PROVENANCE_SCHEMA,
         runtimeStates: STATES,
         projectionStates: PROJECTIONS,
