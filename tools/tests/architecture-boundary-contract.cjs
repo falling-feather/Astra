@@ -120,8 +120,228 @@ function resourceVersionDeclarations(relativePath, source) {
     .map((match) => `${relativePath}:${match[1] || match[2] || match[3]}`);
 }
 
-assert.equal(manifest.schema_version, 'astra-architecture-boundaries-v1');
+function quotedValues(source) {
+  return [...source.matchAll(/['"]([^'"]+)['"]/g)].map((match) => match[1]);
+}
+
+function pythonLiteralValues(source, alias) {
+  const match = new RegExp(`${alias}\\s*=\\s*Literal\\[([^\\]]+)\\]`).exec(source);
+  return match ? quotedValues(match[1]) : [];
+}
+
+function learnerDerivedEvidenceWrites(source) {
+  const eventTypes = [];
+  const patterns = [
+    /\b(?:record|emitEvidence)\s*\(\s*['"](completed|transferred)['"]/g,
+    /\b(?:event_type|eventType)\s*:\s*['"](completed|transferred)['"]/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) eventTypes.push(match[1]);
+  }
+  return eventTypes;
+}
+
+function contentModuleViolations(relativePath, source) {
+  if (!/^pages\/frontier\/content\/.*\.(?:[cm]?js)$/i.test(relativePath)) return [];
+  const violations = [];
+  if (/\bfetch\s*\(|\bXMLHttpRequest\b|\bAstraApiClient\s*\.\s*request\s*\(/.test(source)) {
+    violations.push('network-authority');
+  }
+  if (/\b(?:localStorage|sessionStorage)\b/.test(source)) violations.push('browser-progress-authority');
+  const directGlobalRegistration = /(?:globalThis|global|window)(?:\.[A-Za-z_$][A-Za-z0-9_$]*|\[\s*['"][^'"]+['"]\s*\])\s*(?:=(?!=)|\|\|=|&&=|\?\?=)/;
+  const indirectGlobalRegistration = /(?:Object\.(?:assign|defineProperty|defineProperties)|Reflect\.(?:set|defineProperty))\(\s*(?:globalThis|global|window)\b/;
+  if (directGlobalRegistration.test(source) || indirectGlobalRegistration.test(source)) {
+    violations.push('runtime-global-registration');
+  }
+  return violations;
+}
+
+const architectureContract = manifest.architecture_contract;
+const learningActivityContract = manifest.learning_activity_contract;
+const contractDocument = read(architectureContract.document);
+
+assert.equal(manifest.schema_version, 'astra-architecture-boundaries-v2');
 assert.match(manifest.baseline_revision, /^[0-9a-f]{40}$/);
+assert.equal(manifest.baseline_revision, architectureContract.frozen_at_revision);
+assert.equal(architectureContract.task_id, 'ARCH-003');
+assert.equal(architectureContract.version_token, 'V8.0.0');
+assert.deepEqual(Object.keys(architectureContract.decision_vocabulary), [
+  'direct_absorb',
+  'reimplement',
+  'reference_only',
+  'unusable',
+]);
+assert.deepEqual(architectureContract.allowed_write_paths, [
+  'doc/02-子文档/24-V7.6全栈模块边界契约.md',
+  'tools/architecture/v76-module-boundaries.json',
+  'tools/tests/architecture-boundary-contract.cjs',
+]);
+
+for (const token of [
+  architectureContract.task_id,
+  architectureContract.version_token,
+  architectureContract.frozen_at_revision,
+  ...Object.values(architectureContract.decision_vocabulary),
+]) {
+  assert.ok(contractDocument.includes(token), `architecture document must contain ${token}`);
+}
+
+for (const relativePath of Object.values(manifest.current_learning_architecture)) {
+  if (typeof relativePath !== 'string' || !relativePath.includes('/')) continue;
+  assert.ok(fs.existsSync(path.join(root, relativePath)), `current architecture path is missing: ${relativePath}`);
+}
+
+assert.equal(learningActivityContract.schema_version, 'astra-learning-activity-v1');
+assert.equal(
+  manifest.frontend_single_owner_globals.AstraLearningActivity,
+  learningActivityContract.reserved_runtime_owner,
+);
+assert.deepEqual(learningActivityContract.runtime_methods, [
+  'restore',
+  'predict',
+  'observe',
+  'assess',
+  'emitEvidence',
+  'dispose',
+]);
+assert.deepEqual(learningActivityContract.runtime_states, [
+  'created',
+  'restoring',
+  'ready',
+  'interacting',
+  'assessing',
+  'blocked',
+  'disposed',
+]);
+assert.deepEqual(learningActivityContract.projection_states, [
+  'not_started',
+  'in_progress',
+  'completed',
+  'transferred',
+]);
+assert.deepEqual(learningActivityContract.learner_event_types, [
+  'started',
+  'predicted',
+  'attempted',
+  'corrected',
+  'explained',
+]);
+assert.deepEqual(learningActivityContract.server_derived_event_types, ['completed', 'transferred']);
+assert.equal(
+  learningActivityContract.learner_event_types.some(
+    (eventType) => learningActivityContract.server_derived_event_types.includes(eventType),
+  ),
+  false,
+  'learner facts and server-derived projection facts must remain disjoint',
+);
+assert.ok(
+  learningActivityContract.transitions.some(
+    (transition) => transition.from === '*' && transition.trigger === 'dispose' && transition.to === 'disposed',
+  ),
+  'every live runtime state must have an idempotent disposal path',
+);
+assert.deepEqual(
+  learningActivityContract.ports.map((port) => port.id),
+  ['manifest', 'state-machine', 'evidence', 'recovery', 'evaluation', 'release', 'teacher-projection'],
+);
+for (const port of learningActivityContract.ports) {
+  assert.ok(port.owner && port.delivery && port.direction, `${port.id} must declare owner, delivery and direction`);
+  assert.ok(port.minimum_contract && port.forbidden_authority, `${port.id} must declare its minimum and forbidden authority`);
+}
+assert.deepEqual(Object.keys(learningActivityContract.team_boundaries), ['ARCH', 'FE', 'BE', 'CONTENT', 'QA']);
+for (const [team, boundary] of Object.entries(learningActivityContract.team_boundaries)) {
+  assert.ok(boundary.may_own.length > 0, `${team} must have an owned surface`);
+  assert.ok(boundary.must_not.length > 0, `${team} must have a forbidden surface`);
+}
+for (const token of [
+  ...learningActivityContract.identity_fields,
+  ...learningActivityContract.manifest_required_sections,
+  ...learningActivityContract.runtime_methods,
+  ...learningActivityContract.runtime_states,
+  ...learningActivityContract.projection_states,
+  ...learningActivityContract.ports.map((port) => port.id),
+]) {
+  assert.ok(contractDocument.includes(`\`${token}\``), `architecture document must explain ${token}`);
+}
+
+const noTouchPaths = [
+  ...manifest.v8_first_wave_no_touch.legacy_shell_paths,
+  ...manifest.v8_first_wave_no_touch.legacy_role_paths,
+  ...manifest.v8_first_wave_no_touch.legacy_fact_paths,
+];
+for (const relativePath of noTouchPaths) {
+  assert.ok(fs.existsSync(path.join(root, relativePath)), `first-wave no-touch path is missing: ${relativePath}`);
+  assert.ok(
+    Object.hasOwn(manifest.legacy_line_ceilings, relativePath),
+    `first-wave no-touch path must also be guarded by a legacy ceiling: ${relativePath}`,
+  );
+  assert.ok(contractDocument.includes(`\`${relativePath}\``), `architecture document must list no-touch path ${relativePath}`);
+}
+
+const candidateAudit = manifest.legacy_candidate_audit.candidates;
+const candidateIds = ['f017', 'f017a', 'f017b', 'f017c', 'fr89', 'ux64', 'u358', 'c003'];
+assert.deepEqual(candidateAudit.map((candidate) => candidate.id), candidateIds);
+assert.deepEqual(manifest.v8_first_wave_no_touch.candidate_worktrees, candidateIds);
+const expectedCandidateStatus = {
+  f017: [36, 0, 22],
+  f017a: [4, 0, 6],
+  f017b: [4, 0, 6],
+  f017c: [4, 0, 6],
+  fr89: [7, 0, 0],
+  ux64: [4, 0, 1],
+  u358: [0, 0, 0],
+};
+const dispositionKeys = new Set(Object.keys(architectureContract.decision_vocabulary));
+for (const candidate of candidateAudit) {
+  assert.match(candidate.head, /^[0-9a-f]{40}$/);
+  assert.match(candidate.fingerprint, /^[0-9a-f]{64}$/);
+  assert.ok(dispositionKeys.has(candidate.overall_decision), `${candidate.id} has an unknown disposition`);
+  assert.ok(candidate.path_decisions.length > 0, `${candidate.id} must have path-level decisions`);
+  for (const decision of candidate.path_decisions) {
+    assert.ok(dispositionKeys.has(decision.decision), `${candidate.id} has an unknown path decision`);
+    assert.ok(decision.paths && decision.evidence && decision.risk && decision.owner, `${candidate.id} decision is incomplete`);
+  }
+  if (candidate.status) {
+    assert.deepEqual(
+      [candidate.status.tracked_modified, candidate.status.staged, candidate.status.untracked],
+      expectedCandidateStatus[candidate.id],
+      `${candidate.id} audit counts changed`,
+    );
+  } else {
+    assert.equal(candidate.id, 'c003');
+    assert.equal(candidate.snapshot_kind, 'git_metadata_only');
+  }
+  assert.ok(contractDocument.includes(`\`${candidate.id}\``), `architecture document must list ${candidate.id}`);
+  assert.ok(contractDocument.includes(candidate.fingerprint), `architecture document must contain ${candidate.id} fingerprint`);
+}
+assert.deepEqual(
+  candidateAudit.filter((candidate) => candidate.overall_decision === 'direct_absorb').map((candidate) => candidate.id),
+  ['c003'],
+  'only the already-identical c003 document blob may be classified as directly absorbed',
+);
+
+const catalogSource = read(manifest.current_learning_architecture.catalog);
+const evidenceClientSource = read(manifest.current_learning_architecture.evidence_client);
+const evidenceSchemaSource = read(manifest.current_learning_architecture.backend_schema);
+const catalogEventDeclaration = /const ALLOWED_EVENTS = Object\.freeze\(\[([^\]]+)\]\)/.exec(catalogSource);
+const clientEventDeclaration = /const EVENT_TYPES = new Set\(\[([^\]]+)\]\)/.exec(evidenceClientSource);
+const clientProjectionDeclaration = /const SERVER_PROJECTION_TYPES = new Set\(\[([^\]]+)\]\)/.exec(evidenceClientSource);
+assert.ok(catalogEventDeclaration && clientEventDeclaration && clientProjectionDeclaration);
+assert.deepEqual(quotedValues(catalogEventDeclaration[1]), learningActivityContract.learner_event_types);
+assert.deepEqual(quotedValues(clientEventDeclaration[1]), learningActivityContract.learner_event_types);
+assert.deepEqual(quotedValues(clientProjectionDeclaration[1]), learningActivityContract.server_derived_event_types);
+assert.deepEqual(
+  pythonLiteralValues(evidenceSchemaSource, 'LearnerEvidenceEventType'),
+  learningActivityContract.learner_event_types,
+);
+assert.deepEqual(
+  pythonLiteralValues(evidenceSchemaSource, 'DerivedEvidenceEventType'),
+  learningActivityContract.server_derived_event_types,
+);
+assert.deepEqual(
+  pythonLiteralValues(evidenceSchemaSource, 'LearningProjectionStatus'),
+  learningActivityContract.projection_states,
+);
 
 for (const [relativePath, ceiling] of Object.entries(manifest.legacy_line_ceilings)) {
   const source = read(relativePath);
@@ -182,6 +402,16 @@ for (const file of frontendFiles) {
   assert.ok(
     learningEvidenceApiIsAllowed(relativePath, source),
     `learning-evidence API paths must be owned only by the shared client, found in ${relativePath}`,
+  );
+  assert.deepEqual(
+    learnerDerivedEvidenceWrites(source),
+    [],
+    `learner-side code cannot emit server-derived completed/transferred facts: ${relativePath}`,
+  );
+  assert.deepEqual(
+    contentModuleViolations(relativePath, source),
+    [],
+    `content modules must remain immutable data without runtime authority: ${relativePath}`,
   );
 }
 
@@ -330,6 +560,32 @@ assert.equal(
   'an ES module page-owned learning-evidence request must be rejected',
 );
 assert.deepEqual(
+  learnerDerivedEvidenceWrites("activity.emitEvidence('completed', evidence);"),
+  ['completed'],
+  'a learner-authored completed event must be detectable',
+);
+assert.deepEqual(
+  learnerDerivedEvidenceWrites("const payload = { event_type: 'transferred' };"),
+  ['transferred'],
+  'a learner-authored transferred payload must be detectable',
+);
+assert.deepEqual(
+  contentModuleViolations(
+    'pages/frontier/content/engineering/load-path.js',
+    "window.CourseContent = {}; fetch('/api/learning-evidence'); localStorage.setItem('progress', '1');",
+  ),
+  ['network-authority', 'browser-progress-authority', 'runtime-global-registration'],
+  'content that owns network, progress or runtime registration must be rejected',
+);
+assert.deepEqual(
+  contentModuleViolations(
+    'pages/frontier/content/engineering/read-only-context.js',
+    "const isCanonical = window.location.hash === '#frontier/engineering/load-path';",
+  ),
+  [],
+  'a read-only global comparison must not be mistaken for runtime registration',
+);
+assert.deepEqual(
   ownedGlobalDefinitions(
     'pages/planets/architecture-negative-fixture.js',
     'globalThis.AstraLearningEvidenceClient = {};',
@@ -352,6 +608,18 @@ assert.deepEqual(
     valid: false,
   }],
   'an indirect duplicate global state-machine owner must be detectable',
+);
+assert.deepEqual(
+  ownedGlobalDefinitions(
+    'pages/frontier/architecture-negative-fixture.js',
+    'window.AstraLearningActivity = {};',
+  ),
+  [{
+    symbol: 'AstraLearningActivity',
+    owner: 'shared/js/learning-activity.js',
+    valid: false,
+  }],
+  'the reserved LearningActivity runtime owner must be detectable before implementation',
 );
 assert.equal(isFrontendScript('pages/planets/architecture-negative-fixture.mjs'), true);
 assert.equal(isFrontendScript('pages/planets/architecture-negative-fixture.cjs'), true);
