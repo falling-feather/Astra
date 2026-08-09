@@ -7,6 +7,16 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 const { isDeepStrictEqual } = require('node:util');
+const {
+  PROVENANCE_ASSURANCE,
+  PROVENANCE_LIMITATION,
+  PROVENANCE_SCHEMA_VERSION,
+  QA016_PROVENANCE_VERIFIER,
+  VERIFIER_ID,
+  VERIFIER_VERSION,
+  clone: cloneJson,
+  verifyProvenanceEnvelope,
+} = require('./qa016-provenance-verifier.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const BASELINE_REVISION = 'aec0587f643190e2c435ff88945d4f9066dd5316';
@@ -108,6 +118,32 @@ const ISSUE_CONTRACTS = Object.freeze({
 
 function read(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+}
+
+function rawRecord(issueId, channel, sourceKind, data, capturedAt = new Date().toISOString()) {
+  return {
+    source_id: `qa016-${issueId.toLowerCase()}-${channel}`,
+    source_kind: sourceKind,
+    captured_at: capturedAt,
+    payload: {
+      issue_id: issueId,
+      channel,
+      data: cloneJson(data),
+    },
+  };
+}
+
+function notExecutedObservation(issueId) {
+  const capturedAt = new Date().toISOString();
+  return {
+    defect_observed: false,
+    actual: 'frontend-only mode: not executed',
+    request_response: { status: 'NOT_EXECUTED' },
+    database_or_state_evidence: { status: 'NOT_EXECUTED' },
+    raw_records: [rawRecord(issueId, 'not-executed-state', 'state', {
+      status: 'NOT_EXECUTED',
+    }, capturedAt)],
+  };
 }
 
 function classifyObservations(observations) {
@@ -289,6 +325,7 @@ function probeFuture() {
   const submitDisabledBefore = submit.disabled;
   submit.click();
   const acceptedLocally = /观察支持/.test(feedback.textContent);
+  const capturedAt = new Date().toISOString();
 
   return {
     'FUTURE-01': {
@@ -305,6 +342,20 @@ function probeFuture() {
         submit_disabled_before_click: submitDisabledBefore,
         accepted_locally: acceptedLocally,
       },
+      raw_records: [
+        rawRecord('FUTURE-01', 'submit-action', 'request', {
+          action: 'click [data-fg-submit]',
+        }, capturedAt),
+        rawRecord('FUTURE-01', 'interaction-state', 'state', {
+          user_input_change_count: 0,
+          observation_checkpoint_count: 0,
+          submit_disabled_before_click: submitDisabledBefore,
+        }, capturedAt),
+        rawRecord('FUTURE-01', 'feedback-dom', 'dom', {
+          response_before: feedbackBefore,
+          response: feedback.textContent,
+        }, capturedAt),
+      ],
     },
     'FUTURE-02': {
       defect_observed: acceptedLocally && networkCalls.length === 0 && evidenceCalls.length === 0 && domainEvents.length === 0,
@@ -320,6 +371,19 @@ function probeFuture() {
         authoritative_event_created: false,
         teacher_readback_possible_from_this_action: false,
       },
+      raw_records: [
+        rawRecord('FUTURE-02', 'submit-action', 'request', {
+          action: 'click [data-fg-submit]',
+        }, capturedAt),
+        rawRecord('FUTURE-02', 'write-channels', 'response', {
+          network_request_count: networkCalls.length,
+          learning_evidence_client_call_count: evidenceCalls.length,
+          learning_domain_command_count: domainEvents.length,
+        }, capturedAt),
+        rawRecord('FUTURE-02', 'feedback-dom', 'dom', {
+          local_response: feedback.textContent,
+        }, capturedAt),
+      ],
     },
   };
 }
@@ -524,6 +588,7 @@ async function probeTeacher(options = {}) {
     fixture: Object.freeze({ ...fixture }),
   };
   const evaluated = evaluateTeacherObservationFacts(facts);
+  const capturedAt = new Date().toISOString();
 
   return {
     defect_observed: evaluated.defect_observed,
@@ -540,6 +605,26 @@ async function probeTeacher(options = {}) {
       state_submission_course_ids: mixedCourseIds,
       foreign_course_row_rendered: foreignRowRendered,
     },
+    raw_records: [
+      rawRecord('TEACH-01', 'frontend-pending-request', 'request', {
+        path: pendingCall.url,
+        params: pendingCall.options.params,
+      }, capturedAt),
+      rawRecord('TEACH-01', 'frontend-pending-response', 'response', {
+        body: pendingResponse,
+      }, capturedAt),
+      rawRecord('TEACH-01', 'frontend-scope-state', 'state', {
+        selected_class_id: 11,
+        selected_course_id: 101,
+        selected_course_title: 'Physics',
+        accepted_state_course_ids: mixedCourseIds,
+        evaluation_semantic: controlledPositive ? 'controlled_positive' : 'historical_combination',
+        fixture,
+      }, capturedAt),
+      rawRecord('TEACH-01', 'frontend-pending-dom', 'dom', {
+        rendered_html: rendered,
+      }, capturedAt),
+    ],
   };
 }
 
@@ -592,6 +677,7 @@ function probeMechanics() {
   const trial080Disabled = elements.get('mechanics-trial-080').disabled;
   const started080First = sim._startControlledTrial(0.80);
   const no040Measurement = !sim._courseState.measurements['0.40'];
+  const capturedAt = new Date().toISOString();
 
   return {
     defect_observed: predictionAccepted && trial080Disabled === false && started080First && no040Measurement,
@@ -607,6 +693,23 @@ function probeMechanics() {
       active_controlled_trial_restitution: sim._controlledTrial && sim._controlledTrial.restitution,
       emitted_event_types: evidenceEvents.map((event) => event.event_type),
     },
+    raw_records: [
+      rawRecord('MECH-01', 'controlled-sequence-request', 'request', {
+        action: '_submitCoursePrediction() then _startControlledTrial(0.80)',
+      }, capturedAt),
+      rawRecord('MECH-01', 'controlled-sequence-response', 'response', {
+        prediction_accepted: predictionAccepted,
+        prediction_return_truthy: Boolean(predictionAccepted),
+        start_080_returned: started080First,
+        start_080_return_truthy: Boolean(started080First),
+      }, capturedAt),
+      rawRecord('MECH-01', 'controlled-sequence-state', 'state', {
+        trial_080_disabled_after_prediction: trial080Disabled,
+        measurement_040_exists: !no040Measurement,
+        active_controlled_trial_restitution: sim._controlledTrial && sim._controlledTrial.restitution,
+        emitted_event_types: evidenceEvents.map((event) => event.event_type),
+      }, capturedAt),
+    ],
   };
 }
 
@@ -638,6 +741,43 @@ function runBackendProbe(pythonCommand, keepData) {
   }
 }
 
+function attachBackendRawRecords(issueId, observation) {
+  const capturedAt = new Date().toISOString();
+  if (issueId === 'CODE-01') {
+    return {
+      ...observation,
+      raw_records: [
+        rawRecord(issueId, 'second-submission-request', 'request', {
+          first_submission_id: observation.request_response.first_submission_id,
+          second_request: observation.request_response.second_request,
+        }, capturedAt),
+        rawRecord(issueId, 'second-submission-response', 'response',
+          observation.request_response.second_response, capturedAt),
+        rawRecord(issueId, 'submission-ledger-state', 'state',
+          observation.database_or_state_evidence, capturedAt),
+      ],
+    };
+  }
+  if (issueId === 'DEMO-01') {
+    return {
+      ...observation,
+      raw_records: [
+        rawRecord(issueId, 'demo-initialization-request', 'request', {
+          student_recovery_request: observation.request_response.student_recovery_request,
+        }, capturedAt),
+        rawRecord(issueId, 'demo-initialization-response', 'response', {
+          initializer_status: observation.request_response.initializer_status,
+          initializer_completed_activity_keys: observation.request_response.initializer_completed_activity_keys,
+          student_recovery_statuses: observation.request_response.student_recovery_statuses,
+        }, capturedAt),
+        rawRecord(issueId, 'demo-ledger-state', 'state',
+          observation.database_or_state_evidence, capturedAt),
+      ],
+    };
+  }
+  throw new Error(`unsupported backend raw issue: ${issueId}`);
+}
+
 function combineTeacherObservation(frontendObservation, backendObservation) {
   const observationFacts = {
     ...frontendObservation.observation_facts,
@@ -646,6 +786,16 @@ function combineTeacherObservation(frontendObservation, backendObservation) {
     },
   };
   const evaluated = evaluateTeacherObservationFacts(observationFacts);
+  const liveApi = backendObservation.request_response;
+  const {
+    status: frontendShapedStatus,
+    ...frontendShapedRequest
+  } = liveApi.frontend_shaped_request;
+  const {
+    status: controlStatus,
+    ...controlRequest
+  } = liveApi.control_request;
+  const capturedAt = new Date().toISOString();
   return {
     ...frontendObservation,
     defect_observed: evaluated.defect_observed,
@@ -660,6 +810,21 @@ function combineTeacherObservation(frontendObservation, backendObservation) {
       frontend_runtime: frontendObservation.database_or_state_evidence,
       live_database: backendObservation.database_or_state_evidence,
     },
+    raw_records: [
+      ...frontendObservation.raw_records,
+      rawRecord('TEACH-01', 'backend-pending-requests', 'request', {
+        frontend_shaped_request: frontendShapedRequest,
+        control_request: controlRequest,
+      }, capturedAt),
+      rawRecord('TEACH-01', 'backend-pending-responses', 'response', {
+        frontend_shaped_status: frontendShapedStatus,
+        frontend_shaped_response: liveApi.frontend_shaped_response,
+        control_status: controlStatus,
+        control_response: liveApi.control_response,
+      }, capturedAt),
+      rawRecord('TEACH-01', 'backend-ledger-state', 'state',
+        backendObservation.database_or_state_evidence, capturedAt),
+    ],
   };
 }
 
@@ -684,6 +849,84 @@ function deriveOverall(classification) {
   };
 }
 
+function provenanceEnvelopeId(revision, mode) {
+  const revisionToken = String(revision || 'unknown').replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 40);
+  return `qa016-${revisionToken}-${mode}`;
+}
+
+function createProvenance(revision, observations, mode) {
+  const rawRecords = ISSUE_IDS.flatMap((issueId) => {
+    const records = observations[issueId] && observations[issueId].raw_records;
+    if (!Array.isArray(records) || records.length === 0) {
+      throw new Error(`missing raw provenance records for ${issueId}`);
+    }
+    return records.map(cloneJson);
+  });
+  const envelopeId = provenanceEnvelopeId(revision, mode);
+  const recomputeInput = {
+    schema_version: PROVENANCE_SCHEMA_VERSION,
+    envelope_id: envelopeId,
+    raw_records: cloneJson(rawRecords),
+  };
+  const canonicalFacts = QA016_PROVENANCE_VERIFIER.recompute(recomputeInput);
+  return {
+    schema_version: PROVENANCE_SCHEMA_VERSION,
+    envelope_id: envelopeId,
+    verifier: { id: VERIFIER_ID, version: VERIFIER_VERSION },
+    raw_records: rawRecords,
+    canonical_facts: canonicalFacts,
+    status: 'PASS',
+    assurance: PROVENANCE_ASSURANCE,
+    limitation: PROVENANCE_LIMITATION,
+  };
+}
+
+function issueFromCanonicalFact(issueId, factValue, revision, classification) {
+  const contract = ISSUE_CONTRACTS[issueId];
+  return {
+    owner: contract.owner,
+    preconditions: contract.preconditions,
+    steps: contract.steps,
+    expected: contract.expected,
+    actual: factValue.actual,
+    request_response: factValue.request_response,
+    database_or_state_evidence: factValue.database_or_state_evidence,
+    exact_revision: revision,
+    reproducible_command: contract.command,
+    defect_observed: factValue.defect_observed,
+    baseline_assertion: classification.issues[issueId].baseline_assertion,
+    desired_gate: classification.issues[issueId].desired_gate,
+    ...(factValue.observation_facts ? { observation_facts: factValue.observation_facts } : {}),
+    ...(factValue.observation_evaluation ? { observation_evaluation: factValue.observation_evaluation } : {}),
+  };
+}
+
+function reportLayersFromCanonicalFacts(report, facts) {
+  const factsByIssue = new Map(facts.map((item) => [item.value.issue_id || item.fact_id.split('.')[1], item.value]));
+  const canonicalObservations = Object.fromEntries(ISSUE_IDS.map((issueId) => {
+    const value = factsByIssue.get(issueId);
+    if (!value || typeof value.defect_observed !== 'boolean') {
+      throw new Error(`missing canonical observation for ${issueId}`);
+    }
+    return [issueId, value];
+  }));
+  const summary = classifyObservations(canonicalObservations);
+  const issues = Object.fromEntries(ISSUE_IDS.map((issueId) => [
+    issueId,
+    issueFromCanonicalFact(issueId, canonicalObservations[issueId], report.observed_revision, summary),
+  ]));
+  const overall = deriveOverall(summary);
+  const execution = deriveExecution(report.execution && report.execution.mode, summary);
+  const expectedReport = { ...report, summary, overall, execution, issues };
+  return {
+    issues,
+    summary,
+    overall,
+    execution,
+    human_summary: renderHumanSummary(expectedReport),
+  };
+}
+
 function renderHumanSummary(report) {
   const execution = report.execution || {};
   const overall = report.overall || {};
@@ -697,22 +940,45 @@ function validateReportConsistency(report) {
     if (!condition) failures.push(code);
   };
   try {
-    const classification = classifyObservations(report.issues || {});
-    check(isDeepStrictEqual(report.summary, classification), 'summary_not_derived_from_issue_facts');
-    const overall = deriveOverall(classification);
-    check(isDeepStrictEqual(report.overall, overall), 'overall_not_derived_from_summary');
-    const execution = deriveExecution(report.execution && report.execution.mode, classification);
-    check(isDeepStrictEqual(report.execution, execution), 'exit_semantics_not_derived_from_selected_gate');
-
-    const teacher = report.issues && report.issues['TEACH-01'];
-    check(Boolean(teacher && teacher.observation_facts), 'teach_observation_facts_missing');
-    if (teacher && teacher.observation_facts) {
-      const evaluated = evaluateTeacherObservationFacts(teacher.observation_facts);
-      check(teacher.defect_observed === evaluated.defect_observed, 'teach_defect_not_derived_from_observation_facts');
-      check(teacher.actual === describeTeacherObservation(teacher.observation_facts), 'teach_actual_not_derived_from_observation_facts');
-      check(isDeepStrictEqual(teacher.observation_evaluation, evaluated), 'teach_evaluation_not_derived_from_observation_facts');
+    const provenanceResult = verifyProvenanceEnvelope(report.provenance);
+    for (const provenanceFailure of provenanceResult.failures) {
+      failures.push(`provenance:${provenanceFailure}`);
     }
-    check(report.human_summary === renderHumanSummary(report), 'human_summary_not_derived_from_report');
+    check(report.provenance && report.provenance.status === provenanceResult.status,
+      'provenance_status_not_recomputed');
+    check(report.provenance && report.provenance.assurance === PROVENANCE_ASSURANCE,
+      'provenance_assurance_invalid');
+    check(report.provenance && report.provenance.limitation === PROVENANCE_LIMITATION,
+      'provenance_limitation_invalid');
+    check(
+      report.provenance && report.provenance.envelope_id
+        === provenanceEnvelopeId(report.observed_revision, report.execution && report.execution.mode),
+      'provenance_envelope_not_bound_to_report',
+    );
+    if (provenanceResult.valid) {
+      const layers = reportLayersFromCanonicalFacts(report, provenanceResult.recomputed_facts);
+      const reportedTeacher = report.issues && report.issues['TEACH-01'];
+      const canonicalTeacher = layers.issues['TEACH-01'];
+      check(Boolean(reportedTeacher && reportedTeacher.observation_facts), 'teach_observation_facts_missing');
+      if (reportedTeacher) {
+        check(reportedTeacher.defect_observed === canonicalTeacher.defect_observed,
+          'teach_defect_not_derived_from_observation_facts');
+        check(reportedTeacher.actual === canonicalTeacher.actual,
+          'teach_actual_not_derived_from_observation_facts');
+        check(isDeepStrictEqual(reportedTeacher.observation_evaluation, canonicalTeacher.observation_evaluation),
+          'teach_evaluation_not_derived_from_observation_facts');
+      }
+      for (const issueId of ISSUE_IDS) {
+        check(
+          isDeepStrictEqual(report.issues && report.issues[issueId], layers.issues[issueId]),
+          `issue_not_derived_from_canonical_fact:${issueId}`,
+        );
+      }
+      check(isDeepStrictEqual(report.summary, layers.summary), 'summary_not_derived_from_canonical_facts');
+      check(isDeepStrictEqual(report.overall, layers.overall), 'overall_not_derived_from_summary');
+      check(isDeepStrictEqual(report.execution, layers.execution), 'exit_semantics_not_derived_from_selected_gate');
+      check(report.human_summary === layers.human_summary, 'human_summary_not_derived_from_report');
+    }
   } catch (error) {
     failures.push(`invalid_report_shape:${error.message}`);
   }
@@ -728,7 +994,12 @@ function exitCodeForReport(report) {
 }
 
 function buildReport(revision, observations, backendEnvironment, mode = 'baseline') {
-  const classification = classifyObservations(observations);
+  const provenance = createProvenance(revision, observations, mode);
+  const canonicalObservations = Object.fromEntries(provenance.canonical_facts.map((item) => [
+    item.fact_id.split('.')[1],
+    item.value,
+  ]));
+  const classification = classifyObservations(canonicalObservations);
   const report = {
     schema: 'astra.qa016.critical-journeys.v1',
     task: 'QA-016',
@@ -745,29 +1016,14 @@ function buildReport(revision, observations, backendEnvironment, mode = 'baselin
       baseline_assertion: 'PASS means the assigned defect was honestly reproduced.',
       desired_gate: 'PASS means repaired product semantics; current baseline is expected to FAIL.',
     },
+    provenance,
     summary: classification,
     overall: deriveOverall(classification),
     execution: deriveExecution(mode, classification),
-    issues: Object.fromEntries(ISSUE_IDS.map((issueId) => {
-      const contract = ISSUE_CONTRACTS[issueId];
-      const observation = observations[issueId];
-      return [issueId, {
-        owner: contract.owner,
-        preconditions: contract.preconditions,
-        steps: contract.steps,
-        expected: contract.expected,
-        actual: observation.actual,
-        request_response: observation.request_response,
-        database_or_state_evidence: observation.database_or_state_evidence,
-        exact_revision: revision,
-        reproducible_command: contract.command,
-        defect_observed: observation.defect_observed,
-        baseline_assertion: classification.issues[issueId].baseline_assertion,
-        desired_gate: classification.issues[issueId].desired_gate,
-        ...(observation.observation_facts ? { observation_facts: observation.observation_facts } : {}),
-        ...(observation.observation_evaluation ? { observation_evaluation: observation.observation_evaluation } : {}),
-      }];
-    })),
+    issues: Object.fromEntries(ISSUE_IDS.map((issueId) => [
+      issueId,
+      issueFromCanonicalFact(issueId, canonicalObservations[issueId], revision, classification),
+    ])),
   };
   report.human_summary = renderHumanSummary(report);
   const consistency = validateReportConsistency(report);
@@ -811,12 +1067,12 @@ async function run(options) {
       if (issueId === 'TEACH-01') {
         observations[issueId] = combineTeacherObservation(observations[issueId], backend.issues[issueId]);
       } else {
-        observations[issueId] = backend.issues[issueId];
+        observations[issueId] = attachBackendRawRecords(issueId, backend.issues[issueId]);
       }
     }
   } else {
-    observations['CODE-01'] = { defect_observed: false, actual: 'frontend-only mode: not executed', request_response: { status: 'NOT_EXECUTED' }, database_or_state_evidence: { status: 'NOT_EXECUTED' } };
-    observations['DEMO-01'] = { defect_observed: false, actual: 'frontend-only mode: not executed', request_response: { status: 'NOT_EXECUTED' }, database_or_state_evidence: { status: 'NOT_EXECUTED' } };
+    observations['CODE-01'] = notExecutedObservation('CODE-01');
+    observations['DEMO-01'] = notExecutedObservation('DEMO-01');
   }
   const report = buildReport(revision, observations, backendEnvironment, options.mode);
   return { exitCode: exitCodeForReport(report), report };
@@ -843,12 +1099,17 @@ module.exports = Object.freeze({
   buildReport,
   classifyObservations,
   combineTeacherObservation,
+  createProvenance,
   describeTeacherObservation,
+  deriveExecution,
+  deriveOverall,
   evaluateTeacherObservationFacts,
   exitCodeForReport,
+  issueFromCanonicalFact,
   probeFuture,
   probeMechanics,
   probeTeacher,
+  reportLayersFromCanonicalFacts,
   renderHumanSummary,
   run,
   selfTest,
