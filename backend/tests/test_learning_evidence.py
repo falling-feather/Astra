@@ -4669,7 +4669,9 @@ def test_0051_sqlite_upgrade_downgrade_reupgrade_and_mysql_compile(tmp_path, mon
             assert connection.execute(
                 text("SELECT COUNT(*) FROM learning_evidence_events")
             ).scalar_one() == 0
-        assert ScriptDirectory.from_config(config).get_heads() == ["20260727_0051"]
+        revision_0051 = ScriptDirectory.from_config(config).get_revision("20260727_0051")
+        assert revision_0051 is not None
+        assert revision_0051.down_revision == "20260719_0050"
         command.downgrade(config, "20260719_0050")
         names = set(inspect(engine).get_table_names())
         assert "learning_evidence_events" not in names
