@@ -18,8 +18,11 @@ assert.match(teacherSource, /const classParams = \{ school_id: schoolId \};\s*if
 assert.match(teacherSource, /fetchJson\('\/api\/courses', \{ params: \{ class_id: state\.selected\.classId \} \}\)/);
 assert.match(
   teacherSource,
-  /fetchJson\(`\/api\/courses\/\$\{courseId\}\/assignments`, \{ params: \{ class_id: state\.selected\.classId \} \}\)/,
+  /fetchJson\(`\/api\/courses\/\$\{courseId\}\/assignments`, \{ params: \{ class_id: courseScope\.classId \} \}\)/,
 );
+assert.match(teacherSource, /const submissionParams = \{ class_id: classId, course_id: courseId,/);
+assert.match(teacherSource, /validateCourseScopedPage\(page, courseScope, PENDING_SUBMISSION_PAGE_LIMIT, 0, 'pending_submission_scope_invalid'\)/);
+assert.match(teacherSource, /String\(item\.class_id\) === scope\.classId && String\(item\.course_id\) === scope\.courseId/);
 assert.match(teacherSource, /const nextValue = target\.value;\s*invalidateRequests\(\);\s*if \(\['galaxyKey', 'schoolId', 'classId', 'courseId'\]\.includes\(key\)\) \{\s*clearPrivateDownstream\(\)/);
 assert.match(teacherSource, /state\.selected\[key\] = nextValue;\s*renderWorkspace\(\);\s*setBusy\(true\)/);
 assert.match(teacherSource, /const panels = \{\s*overview: renderOverviewPanel,\s*curriculum: renderCurriculumWorkspace,\s*grading: renderGradingWorkspace\s*\}/);
@@ -39,10 +42,11 @@ assert.ok((teacherSource.match(/\n/g) || []).length + 1 <= 2883, 'teacher.js mus
 const instrumented = teacherSource.replace(
   'window.initTeacher = initTeacher;',
   `window.__teacherNaturalTest = Object.freeze({
-      state, loadSchoolScope, loadClassCourses, loadCourseScope, handleScopeChange,
+      state, loadSchoolScope, loadClassCourses, loadClassScope, loadCourseScope, handleScopeChange,
       captureReleaseDraft, parseReleaseDraft, releasePreview, validateReleasePlanResponse,
       updateReleasePlan, handleFormSubmit, applyWriteAvailability, clearWorkspace,
       applyApiBaseChange, loadCurriculumScope, clearPrivateDownstream, validateAssignmentSubmissionPage,
+      changeCurriculumPage, loadCodeSubmissionDetails, renderSubmissionQueue, renderCodeSubmissionPanel,
       gradeSubmissionCommand, codeStatusOutcome, codeStatusMessage
   });
   window.initTeacher = initTeacher;`,
@@ -207,6 +211,39 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+function scopedPage(items, limit, offset = 0, total = offset + items.length) {
+  return { items, total, limit, offset, next_offset: offset + items.length < total ? offset + items.length : null };
+}
+
+function pendingSubmission(id, courseId, courseTitle, assignmentTitle = `${courseTitle} review`) {
+  return {
+    id, assignment_id: id + 1000, assignment_title: assignmentTitle, student_id: 31,
+    student_username: 'student', student_display_name: '演示学生', class_id: 11, class_name: '一班',
+    school_id: 1, course_id: courseId, course_title: courseTitle, status: 'submitted', score: null,
+    submitted_at: '2026-08-09T01:00:00Z', graded_at: null, due_at: null,
+  };
+}
+
+function codeSubmission(id, courseId, activityKey) {
+  return {
+    id, school_id: 1, course_id: courseId, class_id: 11, course_unit_id: courseId + 100,
+    activity_key: activityKey, problem_id: id + 1000, problem_version_id: id + 2000, student_id: 31,
+    language: 'javascript', status: 'accepted', result_summary: {}, source_sha256: `${id}`.padStart(64, '0'),
+    created_at: '2026-08-09T01:00:00Z', judged_at: '2026-08-09T01:00:01Z', idempotent_replay: false,
+  };
+}
+
+function codeAttempt(id, submissionId, errorCode) {
+  return {
+    id, submission_id: submissionId, attempt_number: id, status: 'accepted', adapter_name: 'runner', error_code: errorCode,
+    created_at: '2026-08-09T01:00:00Z', started_at: null, finished_at: null,
+  };
+}
+
+function releasePlan(classId, courseId) {
+  return { course_id: courseId, class_id: classId, course_class_id: courseId + 400, plan_version: 1, changed: false, items: [] };
+}
+
 async function main() {
   let generation = reset('teacher');
   responses.set('/api/classes', [{ id: 11, name: '一班' }, { id: 12, name: '二班' }]);
@@ -246,6 +283,192 @@ async function main() {
   await api.loadCourseScope(generation);
   const assignmentCall = calls.find(call => call.url === '/api/courses/101/assignments');
   assert.deepEqual(JSON.parse(JSON.stringify(assignmentCall.options.params)), { class_id: '11' });
+
+  generation = reset('teacher');
+  api.state.selected.classId = '11';
+  api.state.selected.courseId = '';
+  api.state.data.courses = [{ id: 101, title: 'Physics' }, { id: 202, title: 'Humanities Futures' }];
+  const emptyMemberPage = scopedPage([], 50);
+  responses.set('/api/classes/11/members/page', emptyMemberPage);
+  responses.set('/api/classes/11/knowledge', { knowledge_stats: [{ activity_key: 'class.aggregate' }] });
+  await api.loadClassScope(generation);
+  assert.equal(calls.some(call => call.url === '/api/admin/submissions/pending'), false, 'empty course must not issue a private pending request');
+  assert.equal(calls.filter(call => call.url === '/api/classes/11/members/page').length, 2, 'class-level roster reads must remain available without a course');
+  for (const call of calls.filter(call => call.url === '/api/classes/11/members/page')) {
+    assert.equal(Object.hasOwn(call.options.params, 'course_id'), false, 'class-level roster semantics must not acquire course_id');
+  }
+  const classKnowledgeCall = calls.find(call => call.url === '/api/classes/11/knowledge');
+  assert.equal(classKnowledgeCall.options.params, undefined, 'true class-level knowledge aggregate must remain unfiltered without a course');
+  assert.equal(api.state.data.submissions.length, 0);
+  assert.match(api.renderSubmissionQueue(), /请选择班级与课程/);
+
+  calls.length = 0;
+  responses.clear();
+  api.state.selected.courseId = '101';
+  const physicsPending = scopedPage([pendingSubmission(901, 101, 'Physics')], 50);
+  responses.set('/api/classes/11/members/page', emptyMemberPage);
+  responses.set('/api/admin/submissions/pending', physicsPending);
+  responses.set('/api/courses', [{ id: 101, title: 'Physics' }, { id: 202, title: 'Humanities Futures' }]);
+  responses.set('/api/classes/11/knowledge', { knowledge_stats: [{ activity_key: 'physics.mechanics' }] });
+  await api.loadClassScope(generation);
+  const scopedPendingCall = calls.find(call => call.url === '/api/admin/submissions/pending');
+  assert.deepEqual(JSON.parse(JSON.stringify(scopedPendingCall.options.params)), {
+    class_id: '11', course_id: '101', status: 'submitted', limit: 50, offset: 0,
+  });
+  for (const call of calls.filter(call => call.url === '/api/classes/11/members/page')) {
+    assert.equal(Object.hasOwn(call.options.params, 'course_id'), false, 'course selection must not narrow class-level roster reads');
+  }
+  assert.deepEqual(api.state.data.submissions.map(item => item.course_id), [101]);
+  assert.match(api.renderSubmissionQueue(), /Physics/);
+  assert.doesNotMatch(api.renderSubmissionQueue(), /Humanities Futures|Control Flow/);
+
+  const mixedPending = scopedPage([
+    pendingSubmission(901, 101, 'Physics'),
+    pendingSubmission(902, 202, 'Humanities Futures', 'Control Flow review'),
+  ], 50);
+  responses.set('/api/admin/submissions/pending', mixedPending);
+  await api.loadClassScope(generation);
+  assert.equal(api.state.data.submissions.length, 0, 'one foreign pending row must reject the whole page before state write');
+  assert.equal(api.state.errors.submissions.code, 'pending_submission_scope_invalid');
+  assert.doesNotMatch(api.renderSubmissionQueue(), /Humanities Futures|Control Flow/);
+
+  const invalidPendingCursorPages = [
+    { marker: 'Pending Early Null', page: { ...scopedPage([pendingSubmission(903, 101, 'Physics', 'Pending Early Null')], 50, 0, 2), next_offset: null } },
+    { marker: 'Pending Overlap', page: { ...scopedPage([
+      pendingSubmission(904, 101, 'Physics', 'Pending Overlap A'),
+      pendingSubmission(905, 101, 'Physics', 'Pending Overlap B'),
+    ], 50, 0, 3), next_offset: 1 } },
+    { marker: 'Pending Empty Gap', page: { ...scopedPage([], 50, 0, 1), next_offset: null } },
+  ];
+  for (const example of invalidPendingCursorPages) {
+    responses.set('/api/admin/submissions/pending', example.page);
+    await api.loadClassScope(generation);
+    assert.equal(api.state.data.submissions.length, 0, `${example.marker} must not enter pending state`);
+    assert.equal(api.state.errors.submissions.code, 'pending_submission_scope_invalid');
+    assert.doesNotMatch(api.renderSubmissionQueue(), new RegExp(example.marker), `${example.marker} must not enter pending DOM`);
+  }
+
+  const denied = Object.assign(new Error('teacher scope denied'), { status: 403 });
+  responses.set('/api/admin/submissions/pending', () => Promise.reject(denied));
+  await api.loadClassScope(generation);
+  assert.equal(api.state.data.submissions.length, 0, '403 must leave the course-sensitive queue empty');
+  assert.equal(api.state.errors.submissions, denied);
+  responses.set('/api/admin/submissions/pending', { ...physicsPending, offset: 50 });
+  await api.loadClassScope(generation);
+  assert.equal(api.state.data.submissions.length, 0, 'unexpected pending pagination metadata must fail closed');
+  assert.equal(api.state.errors.submissions.code, 'pending_submission_scope_invalid');
+  responses.set('/api/admin/submissions/pending', physicsPending);
+  await api.loadClassScope(generation);
+  assert.deepEqual(api.state.data.submissions.map(item => item.course_id), [101], 'a current-scope retry may repopulate the queue');
+
+  const physicsCode = codeSubmission(911, 101, 'physics.mechanics');
+  const foreignCode = codeSubmission(912, 202, 'control.flow');
+  responses.set('/api/courses/101/classes/11/release-plan', releasePlan(11, 101));
+  responses.set('/api/code-submissions', scopedPage([physicsCode, foreignCode], 100));
+  await api.loadCurriculumScope(generation);
+  const scopedCodeCall = calls.filter(call => call.url === '/api/code-submissions').at(-1);
+  assert.deepEqual(JSON.parse(JSON.stringify(scopedCodeCall.options.params)), {
+    class_id: '11', course_id: '101', limit: 100, offset: 0,
+  });
+  assert.equal(api.state.data.codeSubmissions, null, 'one foreign code row must reject the whole page before state write');
+  assert.equal(api.state.errors.codeSubmissions.code, 'code_submission_scope_invalid');
+  assert.doesNotMatch(api.renderCodeSubmissionPanel(), /Humanities Futures|Control Flow|control\.flow/);
+  const invalidCodeCursorPages = [
+    { marker: 'physics.early-null', page: { ...scopedPage([codeSubmission(914, 101, 'physics.early-null')], 100, 0, 2), next_offset: null } },
+    { marker: 'physics.overlap', page: { ...scopedPage([
+      codeSubmission(915, 101, 'physics.overlap'),
+      codeSubmission(916, 101, 'physics.overlap-tail'),
+    ], 100, 0, 3), next_offset: 1 } },
+    { marker: 'physics.empty-gap', page: { ...scopedPage([], 100, 0, 1), next_offset: null } },
+  ];
+  for (const example of invalidCodeCursorPages) {
+    responses.set('/api/code-submissions', example.page);
+    await api.loadCurriculumScope(generation);
+    assert.equal(api.state.data.codeSubmissions, null, `${example.marker} must not enter code state`);
+    assert.equal(api.state.errors.codeSubmissions.code, 'code_submission_scope_invalid');
+    assert.doesNotMatch(api.renderCodeSubmissionPanel(), new RegExp(example.marker.replace('.', '\\.')), `${example.marker} must not enter code DOM`);
+  }
+  responses.set('/api/code-submissions', scopedPage([physicsCode], 100));
+  await api.loadCurriculumScope(generation);
+  assert.deepEqual(api.state.data.codeSubmissions.items.map(item => item.course_id), [101]);
+  assert.match(api.renderCodeSubmissionPanel(), /physics\.mechanics/);
+  responses.set('/api/code-submissions', scopedPage([physicsCode], 100));
+  await api.changeCurriculumPage('code', 100);
+  assert.equal(api.state.errors.codeSubmissions.code, 'code_submission_scope_invalid', 'wrong code-page offset must fail closed');
+  assert.doesNotMatch(api.renderCodeSubmissionPanel(), /physics\.mechanics/, 'pagination error must hide the prior page');
+  const nextPhysicsCode = codeSubmission(913, 101, 'physics.energy');
+  responses.set('/api/code-submissions', scopedPage([nextPhysicsCode], 100, 100, 101));
+  await api.changeCurriculumPage('code', 100);
+  assert.equal(api.state.errors.codeSubmissions, null);
+  assert.deepEqual(api.state.data.codeSubmissions.items.map(item => item.course_id), [101]);
+  api.state.selected.codeSubmissionId = '913';
+  const validPhysicsSource = { submission_id: 913, language: 'javascript', source_code: 'const energy = true;', stdin: '' };
+  const invalidAttemptCursorPages = [
+    { marker: 'ATTEMPT_EARLY_NULL', page: { ...scopedPage([codeAttempt(3, 913, 'ATTEMPT_EARLY_NULL')], 20, 0, 2), next_offset: null } },
+    { marker: 'ATTEMPT_OVERLAP', page: { ...scopedPage([
+      codeAttempt(4, 913, 'ATTEMPT_OVERLAP'), codeAttempt(5, 913, 'ATTEMPT_OVERLAP_TAIL'),
+    ], 20, 0, 3), next_offset: 1 } },
+    { marker: 'ATTEMPT_EMPTY_GAP', page: { ...scopedPage([], 20, 0, 1), next_offset: null } },
+  ];
+  for (const example of invalidAttemptCursorPages) {
+    responses.set('/api/code-submissions/913/source', validPhysicsSource);
+    responses.set('/api/code-submissions/913/attempts/page', example.page);
+    await api.loadCodeSubmissionDetails('913');
+    assert.equal(api.state.data.codeSubmissionAttempts.length, 0, `${example.marker} must not enter attempt state`);
+    assert.equal(api.state.errors.codeSubmissionAttempts.code, 'code_submission_attempt_scope_invalid');
+    assert.doesNotMatch(api.renderCodeSubmissionPanel(), new RegExp(example.marker), `${example.marker} must not enter attempt DOM`);
+  }
+  responses.set('/api/code-submissions/913/source', { submission_id: 999, language: 'javascript', source_code: 'foreign', stdin: '' });
+  responses.set('/api/code-submissions/913/attempts/page', scopedPage([{
+    id: 1, submission_id: 999, attempt_number: 1, status: 'accepted', adapter_name: 'runner', error_code: null,
+    created_at: '2026-08-09T01:00:00Z', started_at: null, finished_at: null,
+  }], 20));
+  await api.loadCodeSubmissionDetails('913');
+  assert.equal(api.state.data.codeSubmissionSource, null);
+  assert.equal(api.state.data.codeSubmissionAttempts.length, 0);
+  assert.equal(api.state.errors.codeSubmissionSource.code, 'code_submission_source_scope_invalid');
+  assert.equal(api.state.errors.codeSubmissionAttempts.code, 'code_submission_attempt_scope_invalid');
+  responses.set('/api/code-submissions/913/source', validPhysicsSource);
+  responses.set('/api/code-submissions/913/attempts/page', scopedPage([{
+    id: 2, submission_id: 913, attempt_number: 1, status: 'accepted', adapter_name: 'runner', error_code: null,
+    created_at: '2026-08-09T01:00:00Z', started_at: null, finished_at: null,
+  }], 20));
+  await api.loadCodeSubmissionDetails('913');
+  assert.equal(api.state.data.codeSubmissionSource.submission_id, 913);
+  assert.deepEqual(api.state.data.codeSubmissionAttempts.map(item => item.submission_id), [913]);
+
+  generation = reset('teacher');
+  api.state.selected.classId = '11';
+  api.state.selected.courseId = '202';
+  api.state.data.classes = [{ id: 11, name: '一班' }];
+  api.state.data.courses = [{ id: 101, title: 'Physics' }, { id: 202, title: 'Humanities Futures' }];
+  const stalePending = deferred(), staleCode = deferred();
+  responses.set('/api/classes/11/members/page', emptyMemberPage);
+  responses.set('/api/admin/submissions/pending', options => String(options.params.course_id) === '202'
+    ? stalePending.promise : scopedPage([pendingSubmission(921, 101, 'Physics')], 50));
+  responses.set('/api/courses', api.state.data.courses);
+  responses.set('/api/classes/11/knowledge', { knowledge_stats: [] });
+  responses.set('/api/courses/101/units', []);
+  responses.set('/api/courses/101/assignments', []);
+  responses.set('/api/courses/101/collaborators', []);
+  responses.set('/api/courses/202/classes/11/release-plan', releasePlan(11, 202));
+  responses.set('/api/courses/101/classes/11/release-plan', releasePlan(11, 101));
+  responses.set('/api/code-submissions', options => String(options.params.course_id) === '202'
+    ? staleCode.promise : scopedPage([codeSubmission(922, 101, 'physics.mechanics')], 100));
+  const staleController = api.state.lifecycleController;
+  const stalePendingLoad = api.loadClassScope(generation);
+  const staleCodeLoad = api.loadCurriculumScope(generation);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await api.handleScopeChange({ dataset: { teacherScope: 'courseId' }, value: '101' });
+  assert.equal(staleController.signal.aborted, true, 'course switch must abort the previous private-read generation');
+  stalePending.resolve(scopedPage([pendingSubmission(923, 202, 'Humanities Futures', 'Control Flow review')], 50));
+  staleCode.resolve(scopedPage([codeSubmission(924, 202, 'control.flow')], 100));
+  await Promise.all([stalePendingLoad, staleCodeLoad]);
+  assert.equal(api.state.selected.courseId, '101');
+  assert.deepEqual(api.state.data.submissions.map(item => item.course_id), [101]);
+  assert.deepEqual(api.state.data.codeSubmissions.items.map(item => item.course_id), [101]);
+  assert.doesNotMatch(`${api.renderSubmissionQueue()}${api.renderCodeSubmissionPanel()}`, /Humanities Futures|Control Flow|control\.flow/,
+    'late old-course rows must not enter current Physics state or DOM');
 
   const oldController = api.state.lifecycleController;
   api.state.data.units = [{ id: 1 }];
@@ -1437,7 +1660,7 @@ async function main() {
   assert.equal(owner.current(), null);
   assert.equal(listeners.size, 0);
 
-  console.log('teacher-natural-workflow-contract: dynamic scope, progress, evidence, filter, correction, and lifecycle gates ok');
+  console.log('teacher-natural-workflow-contract: class/course isolation, pagination, stale response, progress, evidence, and lifecycle gates ok');
 }
 
 main().catch((error) => {

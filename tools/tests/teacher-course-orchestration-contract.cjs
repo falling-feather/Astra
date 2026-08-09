@@ -30,7 +30,9 @@ assert.match(teacher, /\/api\/courses\/\$\{courseId\}\/classes\/\$\{classId\}\/r
 assert.match(teacherOwner, /`\/api\/progress\/courses\/\$\{snapshot\.courseId\}\/classes\/\$\{snapshot\.classId\}\/students`/);
 assert.match(teacher, /fetchJson\('\/api\/code-submissions'/);
 assert.match(teacherOwner, /limit:\s*PROGRESS_PAGE_LIMIT,\s*offset/);
-assert.match(teacher, /limit:\s*CODE_SUBMISSION_PAGE_LIMIT,\s*offset:\s*state\.pagination\.codeSubmissionsOffset/);
+assert.match(teacher, /codeOffset = state\.pagination\.codeSubmissionsOffset/);
+assert.match(teacher, /limit:\s*CODE_SUBMISSION_PAGE_LIMIT,\s*offset:\s*codeOffset/);
+assert.match(teacher, /validateCourseScopedPage\([\s\S]*CODE_SUBMISSION_PAGE_LIMIT, codeOffset, 'code_submission_scope_invalid'/);
 assert.match(teacher, /data-teacher-curriculum-page=/);
 assert.match(teacherOwner, /data-teacher-natural-page=/);
 assert.match(teacherOwner, /page\.next_offset/);

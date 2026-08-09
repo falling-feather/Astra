@@ -12,8 +12,8 @@
         time_limit: '运行超时', memory_limit: '内存超限', output_limit: '输出超限', internal_error: '判题异常',
         cancelled: '已取消'
     });
-    const CODE_SUBMISSION_PAGE_LIMIT = 100, MEMBER_PAGE_LIMIT = 50, ACTIVE_STUDENT_PAGE_LIMIT = 50,
-        ASSIGNMENT_SUBMISSION_PAGE_LIMIT = 50, CODE_ATTEMPT_PAGE_LIMIT = 20;
+    const PENDING_SUBMISSION_PAGE_LIMIT = 50, CODE_SUBMISSION_PAGE_LIMIT = 100, MEMBER_PAGE_LIMIT = 50,
+        ACTIVE_STUDENT_PAGE_LIMIT = 50, ASSIGNMENT_SUBMISSION_PAGE_LIMIT = 50, CODE_ATTEMPT_PAGE_LIMIT = 20;
     const state = {
         root: null, apiBase: '', initialized: false, active: false, online: navigator.onLine !== false,
         runtimeBound: false, mutationInFlight: false, evidenceMutationInFlight: false, lifecycleController: null, requestGeneration: 0,
@@ -423,39 +423,37 @@
         state.selected.courseId = normalizeSelectedId(previousCourseId, visibleCourses);
         if (!state.selected.courseId && visibleCourses.length === 1) state.selected.courseId = String(visibleCourses[0].id);
     }
+    function captureCourseScope(generation = state.requestGeneration) { return Object.freeze({ generation, classId: String(state.selected.classId || ''), courseId: String(state.selected.courseId || '') }); }
+    function isCurrentCourseScope(scope) { return Boolean(scope && scope.classId && scope.courseId && isCurrentRequest(scope.generation) && String(state.selected.classId) === scope.classId && String(state.selected.courseId) === scope.courseId); }
+    function courseScopeSchemaError(code) { return Object.assign(new Error('课程范围分页未通过班级、课程或分页校验'), { code }); }
+    function validateCourseScopedPage(payload, scope, limit, offset, errorCode) {
+        const items = payload && payload.items, itemCount = Array.isArray(items) ? items.length : 0, consumed = offset + itemCount, ids = new Set(), next = payload && payload.next_offset, validItems = Array.isArray(items)
+            && items.length <= limit && items.every((item) => item && Number.isInteger(item.id) && item.id > 0 && !ids.has(item.id)
+                && String(item.class_id) === scope.classId && String(item.course_id) === scope.courseId && Boolean(ids.add(item.id)));
+        if (!payload || !Number.isInteger(payload.total) || payload.total < 0 || payload.limit !== limit || payload.offset !== offset || !validItems || itemCount > payload.total || !(consumed === payload.total ? next === null : itemCount > 0 && consumed < payload.total && next === consumed)) throw courseScopeSchemaError(errorCode);
+        return payload;
+    }
     async function loadClassScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
-        state.data.members = []; state.data.membersPage = null;
-        state.data.activeStudents = []; state.data.activeStudentsPage = null;
-        state.data.submissions = []; state.data.knowledge = null;
-        state.errors.members = null; state.errors.activeStudents = null;
+        state.data.members = []; state.data.membersPage = null; state.data.activeStudents = []; state.data.activeStudentsPage = null;
+        state.data.submissions = []; state.data.knowledge = null; state.errors.members = null; state.errors.activeStudents = null;
         state.errors.submissions = null; state.errors.knowledge = null;
         if (!state.selected.classId) return;
         const classId = state.selected.classId;
-        const memberParams = {
-            role: state.filters.memberRole || undefined,
-            status: state.filters.memberStatus || undefined,
-            limit: MEMBER_PAGE_LIMIT,
-            offset: state.pagination.memberOffset
-        };
-        const submissionParams = {
-            class_id: classId,
-            status: state.filters.submissionStatus || undefined,
-            limit: 50,
-            offset: 0
-        };
+        const courseScope = captureCourseScope(generation), courseId = courseScope.courseId;
+        const memberParams = { role: state.filters.memberRole || undefined, status: state.filters.memberStatus || undefined,
+            limit: MEMBER_PAGE_LIMIT, offset: state.pagination.memberOffset };
+        const submissionParams = { class_id: classId, course_id: courseId, status: state.filters.submissionStatus || undefined,
+            limit: PENDING_SUBMISSION_PAGE_LIMIT, offset: 0 };
+        const submissionsRequest = courseId
+            ? fetchJson('/api/admin/submissions/pending', { params: submissionParams }).then((page) => validateCourseScopedPage(page, courseScope, PENDING_SUBMISSION_PAGE_LIMIT, 0, 'pending_submission_scope_invalid'))
+            : Promise.resolve(null);
         const [membersResult, activeStudentsResult, submissionsResult, knowledgeResult] = await Promise.allSettled([
             fetchJson(`/api/classes/${classId}/members/page`, { params: memberParams }),
-            fetchJson(`/api/classes/${classId}/members/page`, {
-                params: {
-                    role: 'student',
-                    status: 'active',
-                    limit: ACTIVE_STUDENT_PAGE_LIMIT,
-                    offset: state.pagination.activeStudentOffset
-                }
-            }),
-            fetchJson('/api/admin/submissions/pending', { params: submissionParams }),
-            fetchClassKnowledge(classId)
+            fetchJson(`/api/classes/${classId}/members/page`, { params: { role: 'student', status: 'active',
+                limit: ACTIVE_STUDENT_PAGE_LIMIT, offset: state.pagination.activeStudentOffset } }),
+            submissionsRequest,
+            fetchClassKnowledge(classId, courseId)
         ]);
         if (!isCurrentRequest(generation)) return;
         if (membersResult.status === 'fulfilled') {
@@ -472,28 +470,26 @@
         } else {
             state.errors.activeStudents = activeStudentsResult.reason;
         }
-        if (submissionsResult.status === 'fulfilled') {
+        if (courseId && isCurrentCourseScope(courseScope) && submissionsResult.status === 'fulfilled') {
             state.data.submissions = Array.isArray(submissionsResult.value.items) ? submissionsResult.value.items : [];
             state.data.submissions.total = submissionsResult.value.total || state.data.submissions.length;
-        } else {
+        } else if (courseId && isCurrentCourseScope(courseScope)) {
             state.errors.submissions = submissionsResult.reason;
         }
-        if (knowledgeResult.status === 'fulfilled') {
+        const knowledgeScopeCurrent = courseId ? isCurrentCourseScope(courseScope) : String(state.selected.classId) === String(classId);
+        if (knowledgeScopeCurrent && knowledgeResult.status === 'fulfilled') {
             state.data.knowledge = knowledgeResult.value;
-        } else {
+        } else if (knowledgeScopeCurrent) {
             state.errors.knowledge = knowledgeResult.reason;
         }
     }
-    async function fetchClassKnowledge(classId) {
-        const courseId = state.selected.courseId;
+    async function fetchClassKnowledge(classId, courseId = state.selected.courseId) {
         if (courseId) {
             const attachedCourses = await fetchJson('/api/courses', { params: { class_id: classId } });
             const attached = attachedCourses.some((course) => String(course.id) === String(courseId));
             if (!attached) return null;
         }
-        return fetchJson(`/api/classes/${classId}/knowledge`, {
-            params: { course_id: courseId || undefined }
-        });
+        return fetchJson(`/api/classes/${classId}/knowledge`, { params: courseId ? { course_id: courseId } : undefined });
     }
     async function loadCourseScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
@@ -502,14 +498,15 @@
         state.data.collaborators = []; state.data.pointRule = null;
         state.errors.units = null; state.errors.assignments = null;
         state.errors.assignmentSubmissions = null; state.errors.collaborators = null; state.errors.pointRule = null;
-        if (!state.selected.courseId) return;
-        const courseId = state.selected.courseId;
+        const courseScope = captureCourseScope(generation);
+        if (!courseScope.classId || !courseScope.courseId) return;
+        const courseId = courseScope.courseId;
         const [unitsResult, assignmentsResult, collaboratorsResult] = await Promise.allSettled([
             fetchJson(`/api/courses/${courseId}/units`),
-            fetchJson(`/api/courses/${courseId}/assignments`, { params: { class_id: state.selected.classId } }),
+            fetchJson(`/api/courses/${courseId}/assignments`, { params: { class_id: courseScope.classId } }),
             fetchJson(`/api/courses/${courseId}/collaborators`, { params: { status: 'all' } })
         ]);
-        if (!isCurrentRequest(generation)) return;
+        if (!isCurrentCourseScope(courseScope)) return;
         if (unitsResult.status === 'fulfilled') {
             state.data.units = unitsResult.value;
         } else {
@@ -528,9 +525,7 @@
         state.selected.unitId = normalizeSelectedId(state.selected.unitId, state.data.units);
         state.selected.assignmentId = normalizeSelectedId(state.selected.assignmentId, state.data.assignments);
         if (!state.selected.unitId && state.data.units.length) state.selected.unitId = String(state.data.units[0].id);
-        if (!state.selected.assignmentId && state.data.assignments.length) {
-            state.selected.assignmentId = String(state.data.assignments[0].id);
-        }
+        if (!state.selected.assignmentId && state.data.assignments.length) state.selected.assignmentId = String(state.data.assignments[0].id);
         await loadAssignmentScope(generation);
     }
     async function loadAssignmentScope(generation = state.requestGeneration) {
@@ -542,9 +537,10 @@
         state.errors.assignmentSubmissions = null;
         state.errors.pointRule = null;
         state.errors.assignmentClassPolicy = null;
-        if (!state.selected.assignmentId || !state.selected.classId) return;
+        const courseScope = captureCourseScope(generation), selectedAssignmentId = String(state.selected.assignmentId || '');
+        if (!selectedAssignmentId || !courseScope.classId || !courseScope.courseId) return;
         const assignmentId = Number(state.selected.assignmentId);
-        const classId = Number(state.selected.classId);
+        const classId = Number(courseScope.classId);
         const offset = state.pagination.assignmentSubmissionOffset;
         const params = {
             class_id: classId,
@@ -558,7 +554,7 @@
             fetchJson(`/api/points/assignments/${assignmentId}/rule`),
             policyRequest
         ]);
-        if (!isCurrentRequest(generation)) return;
+        if (!isCurrentCourseScope(courseScope) || String(state.selected.assignmentId) !== selectedAssignmentId) return;
         if (submissionsResult.status === 'fulfilled') {
             state.data.assignmentSubmissionsPage = submissionsResult.value;
             state.data.assignmentSubmissions = Array.isArray(submissionsResult.value.items) ? submissionsResult.value.items : [];
@@ -603,6 +599,8 @@
             || !(next === null || Number.isInteger(next) && next > payload.offset && next <= payload.total)) throw assignmentSubmissionSchemaError(confirmed);
         return payload;
     }
+    function scopedCodeSubmission(submissionId, scope) { const items = state.data.codeSubmissions && state.data.codeSubmissions.items; return Array.isArray(items) && items.find((item) => String(item.id) === String(submissionId) && String(item.class_id) === scope.classId && String(item.course_id) === scope.courseId); }
+    function validateCodeAttemptPage(payload, submissionId, offset) { const items = payload && payload.items, itemCount = Array.isArray(items) ? items.length : 0, consumed = offset + itemCount, next = payload && payload.next_offset; if (!payload || !Number.isInteger(payload.total) || payload.total < 0 || payload.limit !== CODE_ATTEMPT_PAGE_LIMIT || payload.offset !== offset || !Array.isArray(items) || itemCount > CODE_ATTEMPT_PAGE_LIMIT || items.some((item) => !item || String(item.submission_id) !== String(submissionId)) || itemCount > payload.total || !(consumed === payload.total ? next === null : itemCount > 0 && consumed < payload.total && next === consumed)) throw courseScopeSchemaError('code_submission_attempt_scope_invalid'); return payload; }
     async function readSubmissionAuthority(scope, confirmed) {
         const page = validateAssignmentSubmissionPage(await fetchJson(`/api/assignments/${scope.assignmentId}/submissions/page`, {
             params: { class_id: scope.classId, limit: ASSIGNMENT_SUBMISSION_PAGE_LIMIT, offset: scope.offset }
@@ -616,35 +614,30 @@
     }
     async function loadCurriculumScope(generation = state.requestGeneration) {
         if (!isCurrentRequest(generation)) return;
+        const courseScope = captureCourseScope(generation);
         state.data.curriculumAttached = false; state.data.releasePlan = null; state.data.codeSubmissions = null; state.data.codeSubmissionSource = null; state.data.codeSubmissionAttempts = []; state.data.codeSubmissionAttemptsPage = null;
         state.pagination.codeAttemptOffset = 0; state.selected.codeSubmissionId = '';
         state.errors.curriculumScope = null; state.errors.releasePlan = null; state.errors.codeSubmissions = null; state.errors.codeSubmissionSource = null; state.errors.codeSubmissionAttempts = null;
-        if (!state.selected.classId || !state.selected.courseId) return;
-        const classId = state.selected.classId;
-        const courseId = state.selected.courseId;
+        if (!courseScope.classId || !courseScope.courseId) return;
+        const classId = courseScope.classId, courseId = courseScope.courseId, codeOffset = state.pagination.codeSubmissionsOffset;
         let attachedCourses = [];
         try {
             attachedCourses = await fetchJson('/api/courses', { params: { class_id: classId } });
         } catch (error) {
-            if (!isCurrentRequest(generation)) return;
+            if (!isCurrentCourseScope(courseScope)) return;
             state.errors.curriculumScope = error;
             return;
         }
-        if (!isCurrentRequest(generation)) return;
+        if (!isCurrentCourseScope(courseScope)) return;
         state.data.curriculumAttached = attachedCourses.some((course) => String(course.id) === String(courseId));
         if (!state.data.curriculumAttached) return;
         const [planResult, codeResult] = await Promise.allSettled([
             fetchJson(`/api/courses/${courseId}/classes/${classId}/release-plan`),
-            fetchJson('/api/code-submissions', {
-                params: {
-                    class_id: classId,
-                    course_id: courseId,
-                    limit: CODE_SUBMISSION_PAGE_LIMIT,
-                    offset: state.pagination.codeSubmissionsOffset
-                }
-            })
+            fetchJson('/api/code-submissions', { params: { class_id: classId, course_id: courseId,
+                limit: CODE_SUBMISSION_PAGE_LIMIT, offset: codeOffset } }).then((page) => validateCourseScopedPage(
+                page, courseScope, CODE_SUBMISSION_PAGE_LIMIT, codeOffset, 'code_submission_scope_invalid'))
         ]);
-        if (!isCurrentRequest(generation)) return;
+        if (!isCurrentCourseScope(courseScope)) return;
         if (planResult.status === 'fulfilled') {
             try {
                 state.data.releasePlan = validateReleasePlanResponse(planResult.value, {
@@ -665,19 +658,21 @@
         }
     }
     async function loadCodeSubmissionDetails(submissionId, generation = state.requestGeneration) {
-        if (!isCurrentRequest(generation) || !submissionId) return;
+        const courseScope = captureCourseScope(generation), attemptOffset = state.pagination.codeAttemptOffset;
+        if (!isCurrentCourseScope(courseScope) || !submissionId || !scopedCodeSubmission(submissionId, courseScope)) return;
         state.data.codeSubmissionSource = null;
         state.data.codeSubmissionAttempts = [];
         state.data.codeSubmissionAttemptsPage = null;
         state.errors.codeSubmissionSource = null;
         state.errors.codeSubmissionAttempts = null;
         const [sourceResult, attemptsResult] = await Promise.allSettled([
-            fetchJson(`/api/code-submissions/${submissionId}/source`),
+            fetchJson(`/api/code-submissions/${submissionId}/source`).then((payload) => { if (!payload || String(payload.submission_id) !== String(submissionId)) throw courseScopeSchemaError('code_submission_source_scope_invalid'); return payload; }),
             fetchJson(`/api/code-submissions/${submissionId}/attempts/page`, {
-                params: { limit: CODE_ATTEMPT_PAGE_LIMIT, offset: state.pagination.codeAttemptOffset }
-            })
+                params: { limit: CODE_ATTEMPT_PAGE_LIMIT, offset: attemptOffset }
+            }).then((page) => validateCodeAttemptPage(page, submissionId, attemptOffset))
         ]);
-        if (!isCurrentRequest(generation) || String(state.selected.codeSubmissionId) !== String(submissionId)) return;
+        if (!isCurrentCourseScope(courseScope) || String(state.selected.codeSubmissionId) !== String(submissionId)
+            || !scopedCodeSubmission(submissionId, courseScope)) return;
         if (sourceResult.status === 'fulfilled') {
             state.data.codeSubmissionSource = sourceResult.value;
         } else {
@@ -846,8 +841,8 @@
         const courseLabel = selectedCourseLabel();
         const queue = state.errors.submissions
             ? renderError(state.errors.submissions, '提交队列读取失败')
-            : !state.selected.classId
-                ? renderOverviewEmpty('先建立或选择班级', '选择班级后，这里会显示待批改、待发布与进行中的教学行动。', 'structure', '前往组织与课程')
+            : !state.selected.classId || !state.selected.courseId
+                ? renderOverviewEmpty('先选择班级与课程', '课程范围确认后，这里会显示当前课程的待批改教学行动。', 'structure', '前往组织与课程')
                 : !state.data.submissions.length
                     ? renderOverviewEmpty('暂无待批改的作业', '学生提交的作业会在这里形成行动队列，便于快速批改与反馈。', 'assignments', '查看作业发布')
                     : renderSubmissionQueue();
@@ -1465,7 +1460,7 @@
     }
     function renderSubmissionQueue() {
         if (state.errors.submissions) return renderError(state.errors.submissions, '提交队列读取失败');
-        if (!state.selected.classId) return renderEmpty('请选择班级');
+        if (!state.selected.classId || !state.selected.courseId) return renderEmpty('请选择班级与课程');
         if (!state.data.submissions.length) return renderEmpty('暂无待处理提交');
         return `
             <div class="teacher-table-wrap teacher-table-wrap--short">
@@ -2180,14 +2175,15 @@
         if (kind === 'assignment-submissions' && (!assignmentId || !classId)) return;
         if (kind === 'code-attempts' && !codeSubmissionId) return;
         const generation = beginRequestGeneration();
+        const courseScope = captureCourseScope(generation);
         setBusy(true);
         try {
             if (kind === 'code') {
                 state.errors.codeSubmissions = null;
-                const page = await fetchJson('/api/code-submissions', {
+                const page = validateCourseScopedPage(await fetchJson('/api/code-submissions', {
                     params: { class_id: classId, course_id: courseId, limit: CODE_SUBMISSION_PAGE_LIMIT, offset }
-                });
-                if (!isCurrentRequest(generation)) return;
+                }), courseScope, CODE_SUBMISSION_PAGE_LIMIT, offset, 'code_submission_scope_invalid');
+                if (!isCurrentCourseScope(courseScope)) return;
                 state.data.codeSubmissions = page;
                 state.pagination.codeSubmissionsOffset = Number(page.offset) || 0;
                 state.selected.codeSubmissionId = '';
@@ -2226,22 +2222,25 @@
                     }),
                     { assignmentId: Number(assignmentId), classId: Number(classId), offset }
                 );
-                if (!isCurrentRequest(generation)) return;
+                if (!isCurrentCourseScope(courseScope) || String(state.selected.assignmentId) !== String(assignmentId)) return;
                 state.data.assignmentSubmissionsPage = page;
                 state.data.assignmentSubmissions = Array.isArray(page.items) ? page.items : [];
                 state.pagination.assignmentSubmissionOffset = Number(page.offset) || 0;
             } else if (kind === 'code-attempts') {
                 state.errors.codeSubmissionAttempts = null;
-                const page = await fetchJson(`/api/code-submissions/${codeSubmissionId}/attempts/page`, {
+                if (!isCurrentCourseScope(courseScope) || !scopedCodeSubmission(codeSubmissionId, courseScope)) return;
+                const page = validateCodeAttemptPage(await fetchJson(`/api/code-submissions/${codeSubmissionId}/attempts/page`, {
                     params: { limit: CODE_ATTEMPT_PAGE_LIMIT, offset }
-                });
-                if (!isCurrentRequest(generation) || String(state.selected.codeSubmissionId) !== String(codeSubmissionId)) return;
+                }), codeSubmissionId, offset);
+                if (!isCurrentCourseScope(courseScope) || String(state.selected.codeSubmissionId) !== String(codeSubmissionId)
+                    || !scopedCodeSubmission(codeSubmissionId, courseScope)) return;
                 state.data.codeSubmissionAttemptsPage = page;
                 state.data.codeSubmissionAttempts = Array.isArray(page.items) ? page.items : [];
                 state.pagination.codeAttemptOffset = Number(page.offset) || 0;
             }
         } catch (error) {
-            if (!isCurrentRequest(generation)) return;
+            if (!isCurrentRequest(generation) || ['code', 'assignment-submissions', 'code-attempts'].includes(kind)
+                && !isCurrentCourseScope(courseScope)) return;
             const errorKey = {
                 code: 'codeSubmissions',
                 members: 'members',
