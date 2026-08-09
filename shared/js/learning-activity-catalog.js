@@ -6,7 +6,8 @@
     const ALLOWED_EVENTS = Object.freeze(['started', 'predicted', 'attempted', 'corrected', 'explained']);
     const REPRESENTATIVES = Object.freeze({
         englab: 'physics.mechanics',
-        'code-space': 'control-flow.loop-boundary'
+        'code-space': 'control-flow.loop-boundary',
+        'future-galaxy': 'engineering.load-path'
     });
     const FUTURE_KEYS = Object.freeze([
         'cosmos.day-season',
@@ -123,7 +124,7 @@
                 course_key: FUTURE_COURSE_KEYS[direction],
                 activity_key: activityKey,
                 source_key: activityKey,
-                representative: false,
+                representative: activityKey === REPRESENTATIVES['future-galaxy'],
                 publication_context: {
                     galaxy_key: 'future-galaxy',
                     course_key: FUTURE_COURSE_KEYS[direction],
@@ -185,9 +186,8 @@
             const unknown = key === 'future-galaxy'
                 ? keys.filter(activityKey => !FUTURE_KEYS.includes(activityKey))
                 : [];
-            const representativeValid = key === 'future-galaxy'
-                ? representatives.length === 0
-                : representatives.length === 1;
+            const representativeValid = representatives.length === 1
+                && representatives[0].activity_key === REPRESENTATIVES[key];
             result[key] = Object.freeze({
                 expected: expected[key],
                 actual: catalog.length,

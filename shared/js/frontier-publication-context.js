@@ -33,6 +33,14 @@
             : null;
     }
 
+    function currentStudent() {
+        const session = global.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        return user && user.role === 'student' && user.id !== undefined && user.id !== null
+            ? user
+            : null;
+    }
+
     function beginContext() {
         abortController(state.controller);
         state.generation += 1;
@@ -160,11 +168,13 @@
     }
 
     async function configure(classId, coursePayload) {
-        if (!classId) {
+        const user = currentStudent();
+        if (!classId || !user) {
             close();
-            return { availability: 'unavailable', source: 'class-context-unavailable' };
+            return { availability: 'unavailable', source: user ? 'class-context-unavailable' : 'identity-required' };
         }
         const context = beginContext();
+        state.userId = String(user.id);
         try {
             return await configureForContext(context, classId, coursePayload);
         } catch (error) {
@@ -174,7 +184,7 @@
     }
 
     async function bootstrap(user) {
-        if (!user || user.role !== 'student') return { availability: 'legacy-boundary' };
+        if (!user || user.role !== 'student' || user.id === undefined || user.id === null) return { availability: 'legacy-boundary' };
         const userId = String(user.id || '');
         const context = beginContext();
         state.userId = userId;
@@ -202,12 +212,83 @@
         }
     }
 
+    function learningEvidenceUnavailable(errorCode) {
+        return Object.freeze({ available: false, error_code: errorCode || 'publication_context_unavailable' });
+    }
+
+    function routeMatchesActivity(activityKey) {
+        const parts = String((global.location && global.location.hash) || '').replace(/^#/, '').split('/');
+        const expected = String(activityKey || '').split('.');
+        return parts[0] === expected[0] && parts[1] === expected.slice(1).join('.');
+    }
+
+    async function resolveLearningEvidence(mapping) {
+        if (
+            !mapping
+            || mapping.galaxy_key !== GALAXY_KEY
+            || mapping.course_key !== 'engineering-systems'
+            || mapping.activity_key !== 'engineering.load-path'
+        ) return learningEvidenceUnavailable('activity_mapping_missing');
+        const user = currentStudent();
+        if (!user || !state.userId || String(user.id) !== state.userId) {
+            return learningEvidenceUnavailable('identity_required');
+        }
+        if (!routeMatchesActivity(mapping.activity_key)) {
+            return learningEvidenceUnavailable('activity_hidden');
+        }
+        const catalogue = global.AstraStudentCourseCatalogue;
+        if (
+            catalogue
+            && typeof catalogue.allowsActivity === 'function'
+            && !catalogue.allowsActivity('engineering', 'load-path')
+        ) return learningEvidenceUnavailable('activity_hidden');
+        const manifest = getManifest();
+        if (!manifest || typeof manifest.resolveEvidenceBinding !== 'function') {
+            return learningEvidenceUnavailable('publication_context_unavailable');
+        }
+        const binding = manifest.resolveEvidenceBinding(mapping.course_key, mapping.activity_key);
+        if (!binding || binding.access_state !== 'open') {
+            const access = manifest.resolveAvailability && manifest.resolveAvailability();
+            const stateValue = access && access.activity_access && access.activity_access[mapping.activity_key]
+                && access.activity_access[mapping.activity_key].state;
+            return learningEvidenceUnavailable(stateValue === 'locked' ? 'activity_locked'
+                : stateValue === 'hidden' ? 'activity_hidden'
+                    : 'publication_context_unavailable');
+        }
+        if (
+            String(binding.class_id) !== String(state.classId)
+            || String(binding.course_id) !== String(state.courseIds && state.courseIds[mapping.course_key])
+        ) return learningEvidenceUnavailable('cancelled');
+        return Object.freeze({
+            available: true,
+            class_id: binding.class_id,
+            course_id: binding.course_id,
+            course_unit_id: binding.course_unit_id,
+            activity_key: mapping.activity_key,
+            galaxy_key: GALAXY_KEY,
+            course_key: mapping.course_key,
+            identity_id: state.userId,
+            authority_generation: state.generation,
+            access_state: 'open'
+        });
+    }
+
+    function sameLearningEvidenceAuthority(expected, current) {
+        if (!expected || !current || expected.available !== true || current.available !== true) return false;
+        return [
+            'class_id', 'course_id', 'course_unit_id', 'activity_key',
+            'identity_id', 'authority_generation', 'access_state'
+        ].every(key => String(expected[key]) === String(current[key]));
+    }
+
     const api = Object.freeze({
         bootstrap,
         configure,
         close,
         buildCourseIdMap,
-        snapshot: () => Object.freeze({ classId: state.classId, courseIds: state.courseIds, userId: state.userId })
+        resolveLearningEvidence,
+        sameLearningEvidenceAuthority,
+        snapshot: () => Object.freeze({ classId: state.classId, courseIds: state.courseIds, userId: state.userId, generation: state.generation })
     });
     global.FutureGalaxyPublicationContext = api;
 
@@ -215,6 +296,7 @@
         global.addEventListener('astra:session-ready', (event) => {
             const user = event && event.detail && event.detail.user;
             if (user && user.role === 'student') void bootstrap(user);
+            else close();
         });
         const closeOnAuthorityLoss = () => close();
         global.addEventListener('astra:api-auth-required', closeOnAuthorityLoss);

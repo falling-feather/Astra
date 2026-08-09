@@ -6,7 +6,10 @@
     const currentScriptUrl = document.currentScript && document.currentScript.src
         ? document.currentScript.src
         : new URL('shared/js/app-session.js', document.baseURI).href;
-    const learningEvidenceLoaderUrl = new URL('learning-evidence-loader.js', currentScriptUrl).href;
+    const learningEvidenceLoader = new URL('learning-evidence-loader.js', currentScriptUrl);
+    const currentScriptVersion = new URL(currentScriptUrl, document.baseURI).searchParams.get('v') || '';
+    if (currentScriptVersion) learningEvidenceLoader.searchParams.set('v', currentScriptVersion);
+    const learningEvidenceLoaderUrl = learningEvidenceLoader.href;
     let learningEvidenceLoaderPromise = null;
     let signedOutPromise = null;
     const ROLE_PAGE_ACCESS = Object.freeze({

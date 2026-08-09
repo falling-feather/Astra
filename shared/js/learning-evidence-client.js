@@ -11,6 +11,8 @@
     const CLIENT_EVENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
     const ACTIVITY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$/;
     const MAX_EVIDENCE_BYTES = 16 * 1024;
+    const PENDING_RECOVERY_LIMIT = 16;
+    const PENDING_FORBIDDEN_KEY = /(?:authorization|credential|password|secret|token|cookie|email|phone|username|accountname|displayname|studentname|teachername|userid|accountid|studentid|teacherid|subjectuserid|actorid|memberid|personid|apikey|sessionid|sessionkey|accesskey|clientsecret|grade|score|mark|comment|feedback|source(?:code)?|fullanswer|answertext|freetext|pagesnapshot|html|screenshot)/;
     const EVENT_FIELDS = Object.freeze({
         started: new Set(['cursor']),
         predicted: new Set(['prediction', 'cursor']),
@@ -140,6 +142,21 @@
         }
         visited.delete(value);
         return result;
+    }
+
+    function deepFreezeJson(value) {
+        if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+        Object.keys(value).forEach(key => deepFreezeJson(value[key]));
+        return Object.freeze(value);
+    }
+
+    function containsPendingForbiddenKey(value) {
+        if (!value || typeof value !== 'object') return false;
+        if (Array.isArray(value)) return value.some(containsPendingForbiddenKey);
+        return Object.entries(value).some(([key, child]) => (
+            PENDING_FORBIDDEN_KEY.test(String(key).normalize('NFKC').replace(/[^a-z0-9]/gi, '').toLowerCase())
+            || containsPendingForbiddenKey(child)
+        ));
     }
 
     function assertFactArtifact(value, eventType, field, maxLength) {
@@ -1333,6 +1350,75 @@
         return Object.freeze({ state: '', projection: null });
     }
 
+    async function pendingFor(scope) {
+        assertConfigured();
+        const generation = authorityGeneration;
+        const expected = {
+            class_id: positiveInteger(Number(scope && scope.class_id), 'class_id'),
+            course_id: positiveInteger(Number(scope && scope.course_id), 'course_id'),
+            course_unit_id: positiveInteger(Number(scope && scope.course_unit_id), 'course_unit_id'),
+            activity_key: String(scope && scope.activity_key || '').trim().toLowerCase()
+        };
+        if (!ACTIVITY_KEY_PATTERN.test(expected.activity_key) || expected.activity_key.length > 120) {
+            throw clientError('invalid_scope', '学习活动标识无效。', { field: 'activity_key' });
+        }
+        const records = await queue().list({ states: ['local-pending', 'syncing', 'manual-intervention'] });
+        if (!isCurrentAuthority(generation)) throw cancelledError();
+        const matching = records.filter(record => scopeKey(record && record.payload || {}) === scopeKey(expected));
+        if (matching.some(record => record && record.state === 'manual-intervention')) {
+            throw clientError(
+                'pending_recovery_manual_intervention',
+                '当前活动存在需要人工处理的证据冲突，不能自动恢复或继续记录。'
+            );
+        }
+        if (matching.length > PENDING_RECOVERY_LIMIT) {
+            throw clientError('pending_recovery_too_large', '当前活动待同步证据超出可验证恢复上限。');
+        }
+        const safe = matching.map(record => {
+            try {
+                if (
+                    !record
+                    || !['local-pending', 'syncing'].includes(record.state)
+                    || !Number.isFinite(Number(record.created_at))
+                    || containsPendingForbiddenKey(record.payload && record.payload.evidence)
+                ) throw new Error('invalid pending record');
+                const payload = normalizeEvent(record.payload);
+                if (
+                    payload.client_event_id !== record.payload.client_event_id
+                    || scopeKey(payload) !== scopeKey(expected)
+                    || containsFreeText(payload.evidence, 'evidence')
+                ) throw new Error('pending record scope mismatch');
+                const safePayload = {
+                    client_event_id: payload.client_event_id,
+                    class_id: payload.class_id,
+                    course_id: payload.course_id,
+                    course_unit_id: payload.course_unit_id,
+                    activity_key: payload.activity_key,
+                    rule_version: payload.rule_version,
+                    event_type: payload.event_type,
+                    evidence: cloneJson(payload.evidence, 'pending.payload.evidence'),
+                    occurred_at: payload.occurred_at
+                };
+                if (payload.assignment_id !== undefined) safePayload.assignment_id = payload.assignment_id;
+                return deepFreezeJson({
+                    state: record.state,
+                    created_at: Number(record.created_at),
+                    payload: safePayload
+                });
+            } catch (error) {
+                throw clientError('pending_recovery_schema_invalid', '待同步学习证据不满足安全恢复合同。');
+            }
+        }).sort((left, right) => {
+            const occurred = new Date(left.payload.occurred_at).getTime() - new Date(right.payload.occurred_at).getTime();
+            if (occurred) return occurred;
+            const created = left.created_at - right.created_at;
+            if (created) return created;
+            return left.payload.client_event_id.localeCompare(right.payload.client_event_id);
+        });
+        if (!isCurrentAuthority(generation)) throw cancelledError();
+        return Object.freeze(safe);
+    }
+
     async function pendingSummary() {
         assertConfigured();
         const generation = authorityGeneration;
@@ -1381,6 +1467,7 @@
         appendTeacherCorrection,
         projection,
         stateFor,
+        pendingFor,
         pendingSummary,
         subscribe,
         normalizeError,

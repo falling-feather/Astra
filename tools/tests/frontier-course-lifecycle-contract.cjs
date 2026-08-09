@@ -191,8 +191,10 @@ assert.equal((index.match(/class="frontier-footer__bottom"/g) || []).length, 1, 
 assert.doesNotMatch(index, /<script src="shared\/js\/frontier-learning\.js/, 'Future runtime must be loaded by the route registry, not parsed for every role');
 
 const main = read('shared/js/main.js');
-assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=20260719v755Game001'"));
-assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260731v7968StudentFlowP2'"));
+assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0'"));
+assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260809v804FutureEvidenceP0'"));
+assert.ok(main.includes("'./shared/js/frontier-publication-context.js?v=20260809v804FutureEvidenceP0'"));
+assert.ok(main.includes("'./shared/js/frontier-learning.js?v=20260809v804FutureEvidenceP0'"));
 assert.ok(!main.includes("'./pages/cosmos/earth-sun.js?v=20260630mainV64'"), 'future galaxy must not warm every legacy activity');
 const registry = read('shared/js/page-registry.js');
 assert.ok(registry.includes("ready: 'initFrontierCourse'"));

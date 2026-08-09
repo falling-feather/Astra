@@ -16,6 +16,7 @@
     let generation = 0;
     let manifestPromise = null;
     let stylePromise = null;
+    const FUTURE_REPRESENTATIVE = 'engineering.load-path';
 
     const MANAGED_PAGES = new Set(['frontier', 'cosmos', 'engineering', 'datascience', 'infotech', 'materials', 'humanities']);
     const $ = (root, selector) => root.querySelector(selector);
@@ -50,7 +51,7 @@
         if (getManifest()) return Promise.resolve(getManifest());
         if (manifestPromise) return manifestPromise;
         manifestPromise = new Promise((resolve, reject) => {
-            const source = 'pages/frontier/frontier-manifest.js?v=20260719v755Game001';
+            const source = 'pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0';
             const existing = Array.from(document.scripts).find((script) => (script.getAttribute('src') || '').split('?')[0] === source.split('?')[0]);
             if (existing) {
                 existing.addEventListener('load', () => getManifest() ? resolve(getManifest()) : reject(new Error('Future manifest unavailable')), { once: true });
@@ -80,7 +81,7 @@
         stylePromise = new Promise((resolve, reject) => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'pages/frontier/frontier.css?v=20260731v7968StudentFlowP2';
+            link.href = 'pages/frontier/frontier.css?v=20260809v804FutureEvidenceP0';
             link.dataset.frontierCourseStyle = 'true';
             link.addEventListener('load', resolve, { once: true });
             link.addEventListener('error', () => reject(new Error('Future course style failed to load')), { once: true });
@@ -202,19 +203,149 @@
             .map(([text, correct]) => ({ text, correct }));
     }
 
+    function controlledLoadPathMarkup() {
+        return `<section class="fg-load-path" data-load-path-flow>
+            <div class="fg-load-path__step">
+                <h2>1 · 先预测</h2>
+                <p>固定 60 kN 竖向节点荷载、完整 15 杆理想二维铰接桁架。预测从 B 移到 C 后的平衡与杆力变化。</p>
+                <label>支座反力分配
+                    <select data-load-path-prediction="reaction_balance_id">
+                        <option value="">请选择</option><option value="more-balanced">更均衡</option><option value="more-unbalanced">更不均衡</option><option value="no-change">不变</option><option value="insufficient">证据不足</option>
+                    </select>
+                </label>
+                <label>GH 轴力绝对值
+                    <select data-load-path-prediction="gh_change_id">
+                        <option value="">请选择</option><option value="absolute-increase">增大</option><option value="absolute-decrease">减小</option><option value="no-change">不变</option><option value="insufficient">证据不足</option>
+                    </select>
+                </label>
+                <label>CD 轴力绝对值
+                    <select data-load-path-prediction="cd_change_id">
+                        <option value="">请选择</option><option value="absolute-increase">增大</option><option value="absolute-decrease">减小</option><option value="no-change">不变</option><option value="insufficient">证据不足</option>
+                    </select>
+                </label>
+                <label>本地预测理由（4—160 字，仅发送字数）<textarea data-load-path-reason minlength="4" maxlength="160"></textarea></label>
+                <button type="button" data-load-path-action="predict">记录预测</button>
+            </div>
+            <div class="fg-load-path__step">
+                <h2>2 · B → C → D 受控观察</h2>
+                <p>先运行 B 基线，只把荷载节点改为 C；完成观察后判断，才开放 D 镜像复核。颜色仅辅助辨识，以下数值表是判断依据。</p>
+                <div class="fg-load-path__nodes" aria-label="固定工况节点">
+                    <button type="button" data-load-path-action="observe" data-load-path-node="B">运行 B 基线</button>
+                    <button type="button" data-load-path-action="observe" data-load-path-node="C">只改为 C</button>
+                    <button type="button" data-load-path-action="observe" data-load-path-node="D">运行 D 镜像</button>
+                </div>
+                <div class="fg-load-path__table-wrap" tabindex="0" role="region" aria-label="B C D 观测数值表">
+                    <table><thead><tr><th>节点</th><th>Aᵧ kN</th><th>Eᵧ kN</th><th>GH kN / 类型</th><th>CD kN / 类型</th><th>平衡余量 Fx/Fy kN</th></tr></thead>
+                    <tbody>${['B', 'C', 'D'].map(node => `<tr data-load-path-row="${node}"><th>${node}</th><td colspan="5">尚未运行</td></tr>`).join('')}</tbody></table>
+                </div>
+            </div>
+            <div class="fg-load-path__step">
+                <h2>3 · 观察后判断与镜像纠正</h2>
+                <label>当前判断
+                    <select data-load-path-judgement>
+                        <option value="">请选择</option><option value="equilibrium-redistribution">平衡导致内力重新分配</option><option value="single-load-path">只有单一传力路径</option><option value="color-means-compression">颜色本身即可证明受压</option><option value="no-redistribution">节点变化不引起重新分配</option><option value="insufficient">证据仍不足</option>
+                    </select>
+                </label>
+                <button type="button" data-load-path-action="assess">保存本页判断并开放 D</button>
+                <label class="fg-check"><input type="checkbox" data-load-path-model-limit>我理解这是理想二维铰接桁架的合成工况，不是现实结构安全结论。</label>
+                <button type="button" data-load-path-action="correct">用 D 镜像完成纠正</button>
+                <button type="button" data-load-path-action="explain">提交结构化解释</button>
+                <button type="button" data-load-path-action="redo">显式重做</button>
+                <p class="fg-load-path__status" data-load-path-status role="status" aria-live="polite">正在确认课程范围与学习证据。</p>
+            </div>
+        </section>`;
+    }
+
+    async function mountRepresentativeEvidence(runtime, route) {
+        if (!runtime || !route || route.activity.activity_key !== FUTURE_REPRESENTATIVE) return null;
+        const host = $(runtime.mount, '[data-fg-evidence-host]');
+        const loader = global.AstraLearningEvidenceLoader;
+        const provider = global.FutureGalaxyPublicationContext;
+        if (!host || !loader || typeof loader.ensure !== 'function' || !provider
+            || typeof provider.resolveLearningEvidence !== 'function'
+            || typeof provider.sameLearningEvidenceAuthority !== 'function') {
+            throw new Error('Future learning evidence authority unavailable');
+        }
+        const evidenceClient = await loader.ensure({ activity: true });
+        if (runtime.abort.signal.aborted || activeRuntime !== runtime || !host.isConnected) {
+            throw new Error('Future learning evidence mount superseded');
+        }
+        const activity = global.AstraLearningEvidenceActivity;
+        if (!activity || typeof activity.mount !== 'function') throw new Error('Future learning evidence activity unavailable');
+        const mapping = Object.freeze({
+            galaxy_key: 'future-galaxy',
+            course_key: route.course.course_key,
+            activity_key: route.activity.activity_key
+        });
+        if (!evidenceClient || typeof evidenceClient.pendingFor !== 'function') {
+            throw new Error('Future pending evidence recovery unavailable');
+        }
+        const initialContext = await provider.resolveLearningEvidence(mapping);
+        if (!initialContext || initialContext.available !== true) {
+            throw new Error('Future learning evidence context unavailable');
+        }
+        const pending = await evidenceClient.pendingFor(initialContext);
+        if (runtime.abort.signal.aborted || activeRuntime !== runtime || !host.isConnected) {
+            throw new Error('Future learning evidence recovery superseded');
+        }
+        const authorizeCurrentRecord = async context => {
+            await evidenceClient.pendingFor(context);
+            const current = await provider.resolveLearningEvidence(mapping);
+            return provider.sameLearningEvidenceAuthority(context, current) ? current : null;
+        };
+        const controller = activity.mount({
+            host,
+            galaxy_key: mapping.galaxy_key,
+            activity_key: mapping.activity_key,
+            integrated: true,
+            domainOnly: true,
+            reusePendingStarted: true,
+            title: '工程观察证据状态',
+            resolveContext: async () => {
+                const current = await provider.resolveLearningEvidence(mapping);
+                if (!provider.sameLearningEvidenceAuthority(initialContext, current)) {
+                    throw new Error('Future learning evidence authority changed');
+                }
+                return current;
+            },
+            authorizeRecord: ({ context }) => authorizeCurrentRecord(context)
+        });
+        if (!controller) throw new Error('Future representative evidence controller unavailable');
+        let released = false;
+        addCleanup(runtime, () => {
+            if (released) return;
+            released = true;
+            controller.destroy();
+        });
+        await controller.refresh();
+        if (runtime.abort.signal.aborted || activeRuntime !== runtime || !host.isConnected) {
+            throw new Error('Future learning evidence initialization superseded');
+        }
+        const context = controller.context();
+        if (!context || !provider.sameLearningEvidenceAuthority(initialContext, context)) {
+            throw new Error('Future learning evidence context changed');
+        }
+        if (runtime.abort.signal.aborted || activeRuntime !== runtime || !host.isConnected) {
+            throw new Error('Future learning evidence recovery superseded');
+        }
+        return Object.freeze({ controller, pending, authorizeRecord: authorizeCurrentRecord });
+    }
+
     const OWNER_CONFIG = Object.freeze({
         'earth-space': { script: 'pages/cosmos/earth-sun.js?v=20260719re7', init: 'initCosmosSeasons', destroy: 'destroyCosmosSeasons' },
-        'engineering-systems': { script: 'pages/engineering/bridge-truss.js?v=20260719re7', init: 'initBridgeTruss', destroy: 'destroyBridgeTruss' },
+        'engineering-systems': { script: 'pages/engineering/bridge-truss.js?v=20260809v804FutureEvidenceP0', init: 'initBridgeTruss', destroy: 'destroyBridgeTruss' },
         'data-ai': { script: 'pages/datascience/linear-regression.js?v=20260719v755Game001', init: 'initLinearRegressionLab', destroy: 'destroyLinearRegressionLab' },
         'information-technology': { script: 'pages/infotech/network-layers.js?v=20260719re7', init: 'initNetworkLayersLab', destroy: 'destroyNetworkLayersLab' },
         'materials-science': { script: 'pages/materials/materials-lab.js?v=20260719re7', init: 'initMaterialsLab', destroy: 'destroyMaterialsLab' },
         'humanities-futures': { script: 'pages/humanities/text-lab.js?v=20260719re7', init: 'initHumanitiesLab', destroy: 'destroyHumanitiesLab' }
     });
 
-    function ownerMarkup(courseKey) {
+    function ownerMarkup(courseKey, activityKey) {
         const views = {
             'earth-space': `<div class="fg-owner-controls"><label>年内日期 <output id="cosmos-day-value">6月 21日</output><input id="cosmos-day" type="range" min="1" max="365" value="172"></label><label>观察纬度 <output id="cosmos-latitude-value">39.9°N</output><input id="cosmos-latitude" type="range" min="-66.5" max="66.5" step="0.5" value="39.9"></label><label>观察时刻 <output id="cosmos-hour-value">12:00</output><input id="cosmos-hour" type="range" min="6" max="18" step="0.5" value="12"></label><div><button type="button" data-cosmos-lat="0">赤道</button><button type="button" data-cosmos-lat="39.9">中纬度</button><button type="button" data-cosmos-lat="-23.5">南回归线</button></div></div><canvas id="earth-sun-canvas" aria-label="太阳高度、地轴倾角与昼长图"></canvas><div id="cosmos-info" class="fg-owner-info" aria-live="polite"></div>`,
-            'engineering-systems': `<div class="fg-owner-controls"><label>竖向载荷 <output id="truss-load-value">60 kN</output><input id="truss-load" type="range" min="20" max="120" step="5" value="60"></label><label>安全系数 <output id="truss-safety-value">1.8</output><input id="truss-safety" type="range" min="1.1" max="3" step="0.1" value="1.8"></label><div><button type="button" data-truss-joint="B">左跨 B</button><button type="button" data-truss-joint="C">中跨 C</button><button type="button" data-truss-joint="D">右跨 D</button></div><div><button type="button" data-truss-member="full">15 根完整桁架</button><button type="button" data-truss-member="remove-fb">14 根：移除 FB 斜杆</button></div></div><canvas id="bridge-truss-canvas" aria-label="Warren 桁架桥受力图"></canvas><div id="truss-info" class="fg-owner-info" aria-live="polite"></div>`,
+            'engineering-systems': activityKey === FUTURE_REPRESENTATIVE
+                ? `<div class="fg-owner-controls fg-owner-controls--controlled"><p><strong>固定受控工况</strong>：60 kN、完整 15 杆、理想二维铰接桁架；按右侧步骤运行 B/C/D。</p></div><canvas id="bridge-truss-canvas" aria-label="理想 Warren 桁架 B C D 固定工况受力图"></canvas><div id="truss-info" class="fg-owner-info" aria-live="polite"></div>`
+                : `<div class="fg-owner-controls"><label>竖向载荷 <output id="truss-load-value">60 kN</output><input id="truss-load" type="range" min="20" max="120" step="5" value="60"></label><label>安全系数 <output id="truss-safety-value">1.8</output><input id="truss-safety" type="range" min="1.1" max="3" step="0.1" value="1.8"></label><div><button type="button" data-truss-joint="B">左跨 B</button><button type="button" data-truss-joint="C">中跨 C</button><button type="button" data-truss-joint="D">右跨 D</button></div><div><button type="button" data-truss-member="full">15 根完整桁架</button><button type="button" data-truss-member="remove-fb">14 根：移除 FB 斜杆</button></div></div><canvas id="bridge-truss-canvas" aria-label="Warren 桁架桥受力图"></canvas><div id="truss-info" class="fg-owner-info" aria-live="polite"></div>`,
             'data-ai': `<div class="fg-owner-controls"><div><button type="button" data-regression-dataset="study">学习时长</button><button type="button" data-regression-dataset="climate">温度销量</button><button type="button" data-regression-dataset="outlier">异常点</button></div><label>斜率 w <output id="regression-slope-value">6.00</output><input id="regression-slope" type="range" min="-8" max="16" step="0.05" value="6"></label><label>截距 b <output id="regression-intercept-value">38.0</output><input id="regression-intercept" type="range" min="-20" max="120" step="0.5" value="38"></label><label>学习率 <output id="regression-rate-value">0.15</output><input id="regression-rate" type="range" min="0.02" max="0.6" step="0.01" value="0.15"></label><div><button type="button" id="regression-step">梯度下降一步</button><button type="button" id="regression-fit">最小二乘线</button><button type="button" id="regression-reset">重置</button></div></div><canvas id="linear-regression-canvas" aria-label="线性回归散点、残差与损失图"></canvas><div id="regression-info" class="fg-owner-info" aria-live="polite"></div>`,
             'information-technology': `<div class="fg-owner-controls"><div><button type="button" data-network-scenario="web">网页请求</button><button type="button" data-network-scenario="media">视频片段</button><button type="button" data-network-scenario="form">表单提交</button><button type="button" data-network-scenario="sync">同步消息</button></div><label>应用数据 <output id="network-payload-value">1800 B</output><input id="network-payload" type="range" min="300" max="6000" step="100" value="1800"></label><label>路径跳数 <output id="network-hops-value">4</output><input id="network-hops" type="range" min="2" max="8" value="4"></label><div><button type="button" data-network-fault="none">无故障</button><button type="button" data-network-fault="access">接入节点失效</button><button type="button" data-network-fault="transit">中继节点失效</button><button type="button" data-network-fault="edge">边缘节点失效</button></div></div><canvas id="network-layers-canvas" aria-label="网络封装与分组路由图"></canvas><div id="network-info" class="fg-owner-info" aria-live="polite"></div>`,
             'materials-science': `<div class="fg-owner-controls"><div><button type="button" data-material-cell="sc">SC</button><button type="button" data-material-cell="bcc">BCC</button><button type="button" data-material-cell="fcc">FCC</button><button type="button" data-material-cell="hcp">HCP</button></div><label>平均晶粒 <output id="materials-grain-size-value">45 μm</output><input id="materials-grain-size" type="range" min="5" max="120" value="45"></label><label>缺陷密度 <output id="materials-defect-value">2 / 10</output><input id="materials-defect" type="range" min="0" max="10" step="1" value="2"></label><label>冷却速率 <output id="materials-cooling-value">50</output><input id="materials-cooling" type="range" min="10" max="100" step="5" value="50"></label><div><button type="button" data-material-preset="refined">快速凝固</button><button type="button" data-material-preset="recrystallized">再结晶</button><button type="button" data-material-preset="annealed">退火</button></div></div><canvas id="materials-canvas" aria-label="晶胞、晶粒与相对强度图"></canvas><div id="materials-info" class="fg-owner-info" aria-live="polite"></div>`,
@@ -243,18 +374,62 @@
         });
     }
 
+    function makeControlledLoadPathReadonly(root, message) {
+        if (!root) return;
+        root.querySelectorAll([
+            '[data-load-path-action]',
+            '[data-load-path-prediction]',
+            '[data-load-path-reason]',
+            '[data-load-path-judgement]',
+            '[data-load-path-model-limit]'
+        ].join(', ')).forEach((control) => {
+            control.disabled = true;
+            control.setAttribute('aria-disabled', 'true');
+        });
+        const flow = $(root, '[data-load-path-flow]');
+        if (flow) {
+            flow.dataset.loadPathReadonly = 'true';
+            flow.setAttribute('aria-disabled', 'true');
+        }
+        const status = $(root, '[data-load-path-status]');
+        if (status) status.textContent = message;
+    }
+
     function mountOwnerVisual(runtime, route, stage) {
         const config = OWNER_CONFIG[route.course.course_key];
         if (!config) return mountCanvasVisual(runtime, route, stage, 50, true, '简化观测模式');
-        stage.innerHTML = `<span class="fg-stage-label">OBSERVATION FIELD / 观测场</span>${ownerMarkup(route.course.course_key)}<span class="fg-stage-status" data-fg-stage-status>正在准备互动</span>`;
-        ensureOwner(config).then(() => {
+        const controlledLoadPath = route.activity.activity_key === FUTURE_REPRESENTATIVE;
+        stage.innerHTML = `<span class="fg-stage-label">OBSERVATION FIELD / 观测场</span>${ownerMarkup(route.course.course_key, route.activity.activity_key)}<span class="fg-stage-status" data-fg-stage-status>正在准备互动</span>`;
+        const evidence = controlledLoadPath
+            ? runtime.evidenceBindingPromise
+            : Promise.resolve(null);
+        return Promise.all([ensureOwner(config), evidence]).then(([, binding]) => {
             if (runtime.abort.signal.aborted || activeRuntime !== runtime || !stage.isConnected) return;
-            global[config.init]();
-            applyOwnerPreset(route, stage);
+            global[config.init](controlledLoadPath ? {
+                controlledActivity: true,
+                evidenceController: binding && binding.controller,
+                pendingRecords: binding && binding.pending || [],
+                authorizeRecord: binding && binding.authorizeRecord,
+                isRuntimeCurrent: () => !runtime.abort.signal.aborted && activeRuntime === runtime && stage.isConnected
+            } : undefined);
+            if (route.activity.activity_key !== FUTURE_REPRESENTATIVE) applyOwnerPreset(route, stage);
             runtime.visual = { dispose() { try { global[config.destroy](); } catch (error) {} } };
             const status = $(stage, '[data-fg-stage-status]'); if (status) status.textContent = '互动已就绪';
-        }).catch(() => {
-            if (!runtime.abort.signal.aborted && activeRuntime === runtime) mountCanvasVisual(runtime, route, stage, 50, true, '简化观测模式');
+        }).catch((error) => {
+            if (runtime.abort.signal.aborted || activeRuntime !== runtime || !stage.isConnected) return;
+            if (controlledLoadPath) {
+                const manual = error && error.code === 'pending_recovery_manual_intervention';
+                makeControlledLoadPathReadonly(
+                    runtime.mount,
+                    manual
+                        ? '证据冲突需处理，本活动只读。'
+                        : '课程范围或证据服务暂不可用；本活动保持只读，请稍后重试。'
+                );
+                const status = $(stage, '[data-fg-stage-status]');
+                if (status) status.textContent = '只读观测模式';
+                return;
+            }
+            mountCanvasVisual(runtime, route, stage, 50, true, '只读观测模式');
         });
     }
 
@@ -292,13 +467,14 @@
 
     function renderCourse(runtime, route) {
         const { course, activity } = route;
+        const controlledLoadPath = activity.activity_key === FUTURE_REPRESENTATIVE;
         const answers = activityAnswers(activity);
         const nav = course.activities.filter((item) => activityAccess(route.availability, item).state !== 'hidden').map((item) => {
             const access = activityAccess(route.availability, item);
             if (access.state === 'open') return `<a href="#${esc(course.page)}/${esc(item.route_slug)}" data-galaxy-key="${esc(course.galaxy_key)}" data-course-key="${esc(course.course_key)}" data-activity-key="${esc(item.activity_key)}"${item.activity_key === activity.activity_key ? ' aria-current="page"' : ''}>${esc(item.title)}</a>`;
             return `<span aria-label="${esc(item.title)}暂不可用" data-activity-key="${esc(item.activity_key)}">${esc(item.title)}</span>`;
         }).join('');
-        const modelControl = activity.kind === 'webgl'
+        const modelControl = controlledLoadPath ? controlledLoadPathMarkup() : activity.kind === 'webgl'
             ? `<section class="fg-control"><label for="fg-orbit-position">${esc(activity.input)}</label><output for="fg-orbit-position" data-fg-output>50</output><input id="fg-orbit-position" data-fg-control type="range" min="0" max="100" value="50" aria-label="${esc(activity.input)}"><label for="fg-view-${runtime.id}">观察方位</label><output for="fg-view-${runtime.id}" data-fg-view-output>35°</output><input id="fg-view-${runtime.id}" data-fg-view type="range" min="0" max="360" value="35" aria-label="观察方位"><label class="fg-check"><input data-fg-low-power type="checkbox"${isReducedMotion() ? ' checked' : ''}>简化观测模式</label></section>`
             : `<section><h2>可操纵输入</h2><p>在观测场使用本课的控制器，改变${esc(activity.input)}后再比较证据。</p></section>`;
         runtime.mount.innerHTML = `
@@ -316,10 +492,11 @@
                     </div>
                     <aside class="fg-panel">
                         <section><h2>问题</h2><p>${esc(course.question)}</p></section>
-                        <section><h2>先预测</h2><p>${esc(activity.prompt)}</p></section>
+                        ${controlledLoadPath ? modelControl : `<section><h2>先预测</h2><p>${esc(activity.prompt)}</p></section>
                         ${modelControl}
                         <section><h2>观察</h2><p data-fg-observation>${esc(activity.observation)}</p></section>
-                        <section><h2>判断或解释</h2><p>${esc(activity.decision)}</p><div class="fg-answers">${answers.map((answer, index) => `<label class="fg-answer"><input type="radio" name="fg-answer-${runtime.id}" value="${index}" data-fg-correct="${answer.correct}">${esc(answer.text)}</label>`).join('')}</div><button class="fg-submit" type="button" data-fg-submit>提交判断</button><p class="fg-feedback" data-fg-feedback aria-live="polite"></p></section>
+                        <section><h2>判断或解释</h2><p>${esc(activity.decision)}</p><div class="fg-answers">${answers.map((answer, index) => `<label class="fg-answer"><input type="radio" name="fg-answer-${runtime.id}" value="${index}" data-fg-correct="${answer.correct}">${esc(answer.text)}</label>`).join('')}</div><button class="fg-submit" type="button" data-fg-submit>提交判断</button><p class="fg-feedback" data-fg-feedback aria-live="polite"></p></section>`}
+                        ${controlledLoadPath ? '<section class="fg-load-path__evidence" data-fg-evidence-host aria-label="学习证据同步与服务端投影"></section>' : ''}
                     </aside>
                 </section>
                 <footer class="fg-course-footer"><span>把这次观察写成能被下一次操纵检验的解释。</span><a href="#frontier">回到课程目录</a></footer>
@@ -465,6 +642,9 @@
         const control = $(runtime.mount, '[data-fg-control]'); const output = $(runtime.mount, '[data-fg-output]'); const lowPower = $(runtime.mount, '[data-fg-low-power]'); const stage = $(runtime.mount, '[data-fg-stage]');
         const view = $(runtime.mount, '[data-fg-view]'); const viewOutput = $(runtime.mount, '[data-fg-view-output]');
         let value = Number(control && control.value || 50);
+        runtime.evidenceBindingPromise = route.activity.activity_key === FUTURE_REPRESENTATIVE
+            ? mountRepresentativeEvidence(runtime, route)
+            : Promise.resolve(null);
         const mountVisual = () => {
             if (runtime.visual && runtime.visual.dispose) runtime.visual.dispose();
             runtime.visual = null;
@@ -476,7 +656,8 @@
             lowPower.addEventListener('change', mountVisual, { signal: runtime.abort.signal });
             view.addEventListener('input', () => { viewOutput.value = `${view.value}°`; viewOutput.textContent = `${view.value}°`; if (runtime.visual && runtime.visual.setView) runtime.visual.setView(Number(view.value)); }, { signal: runtime.abort.signal });
         }
-        $(runtime.mount, '[data-fg-submit]').addEventListener('click', () => {
+        const submit = $(runtime.mount, '[data-fg-submit]');
+        if (submit) submit.addEventListener('click', () => {
             const selected = runtime.mount.querySelector('input[name="fg-answer-' + runtime.id + '"]:checked'); const feedback = $(runtime.mount, '[data-fg-feedback]');
             if (!selected) {
                 feedback.textContent = `先完成「${route.activity.title}」的选择，再回看你操纵变量后的观察。`;

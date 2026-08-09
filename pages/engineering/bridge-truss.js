@@ -1,6 +1,395 @@
 // ===== Engineering Applications: Bridge Truss Lab =====
 
 (function () {
+    const LOAD_PATH_MAPPING = Object.freeze({
+        galaxy_key: 'future-galaxy',
+        course_key: 'engineering-systems',
+        activity_key: 'engineering.load-path'
+    });
+    const PREDICTION_VALUES = Object.freeze({
+        reaction_balance_id: new Set(['more-balanced', 'more-unbalanced', 'no-change', 'insufficient']),
+        gh_change_id: new Set(['absolute-increase', 'absolute-decrease', 'no-change', 'insufficient']),
+        cd_change_id: new Set(['absolute-increase', 'absolute-decrease', 'no-change', 'insufficient'])
+    });
+    const JUDGEMENTS = new Set([
+        'equilibrium-redistribution', 'single-load-path', 'color-means-compression',
+        'no-redistribution', 'insufficient'
+    ]);
+    const FIXED_ROWS = Object.freeze({
+        B: Object.freeze({ reaction_ay_kn: 45, reaction_ey_kn: 15, member_gh_kn: -30, member_cd_kn: 22.5 }),
+        C: Object.freeze({ reaction_ay_kn: 30, reaction_ey_kn: 30, member_gh_kn: -60, member_cd_kn: 45 }),
+        D: Object.freeze({ reaction_ay_kn: 15, reaction_ey_kn: 45, member_gh_kn: -30, member_cd_kn: 37.5 })
+    });
+
+    function exactKeys(value, keys) {
+        return Boolean(value && typeof value === 'object' && !Array.isArray(value)
+            && Object.keys(value).sort().join('|') === keys.slice().sort().join('|'));
+    }
+
+    function roundTo(value, digits) {
+        const factor = 10 ** digits;
+        const rounded = Math.round((Number(value) + Number.EPSILON) * factor) / factor;
+        return Object.is(rounded, -0) ? 0 : rounded;
+    }
+
+    function memberType(force) {
+        return Math.abs(force) < 0.05 ? 'zero' : force > 0 ? 'tension' : 'compression';
+    }
+
+    function normalizeLoadPathObservation(node, result) {
+        const gh = result && result.memberForces && result.memberForces.find(member => member.name === 'GH');
+        const cd = result && result.memberForces && result.memberForces.find(member => member.name === 'CD');
+        const reactions = result && result.reactions;
+        if (!FIXED_ROWS[node] || !gh || !cd || !reactions) return null;
+        return Object.freeze({
+            load_node_id: node,
+            load_kn: 60,
+            reaction_ay_kn: roundTo(reactions.Ay, 1),
+            reaction_ey_kn: roundTo(reactions.Ey, 1),
+            member_gh_kn: roundTo(gh.force, 1),
+            member_cd_kn: roundTo(cd.force, 1),
+            member_gh_type_id: memberType(gh.force),
+            member_cd_type_id: memberType(cd.force),
+            residual_fx_kn: roundTo(reactions.Ax, 2),
+            residual_fy_kn: roundTo(reactions.Ay + reactions.Ey - 60, 2)
+        });
+    }
+
+    function validObservation(value, node) {
+        const expected = FIXED_ROWS[node];
+        const keys = [
+            'load_node_id', 'load_kn', 'reaction_ay_kn', 'reaction_ey_kn',
+            'member_gh_kn', 'member_cd_kn', 'member_gh_type_id', 'member_cd_type_id',
+            'residual_fx_kn', 'residual_fy_kn'
+        ];
+        return Boolean(
+            expected
+            && exactKeys(value, keys)
+            && value.load_node_id === node
+            && value.load_kn === 60
+            && value.reaction_ay_kn === expected.reaction_ay_kn
+            && value.reaction_ey_kn === expected.reaction_ey_kn
+            && value.member_gh_kn === expected.member_gh_kn
+            && value.member_cd_kn === expected.member_cd_kn
+            && value.member_gh_type_id === 'compression'
+            && value.member_cd_type_id === 'tension'
+            && Math.abs(value.residual_fx_kn) <= 0.05
+            && Math.abs(value.residual_fy_kn) <= 0.05
+        );
+    }
+
+    function validPrediction(value) {
+        return Boolean(
+            exactKeys(value, ['reaction_balance_id', 'gh_change_id', 'cd_change_id', 'reason_size'])
+            && PREDICTION_VALUES.reaction_balance_id.has(value.reaction_balance_id)
+            && PREDICTION_VALUES.gh_change_id.has(value.gh_change_id)
+            && PREDICTION_VALUES.cd_change_id.has(value.cd_change_id)
+            && Number.isInteger(value.reason_size)
+            && value.reason_size >= 4
+            && value.reason_size <= 160
+        );
+    }
+
+    function predictedEvidence(prediction) {
+        return Object.freeze({ prediction: Object.freeze({ ...prediction }) });
+    }
+
+    function attemptedEvidence(observation) {
+        return Object.freeze({
+            operation: 'run-fixed-load-case',
+            cursor: Object.freeze({ ...observation })
+        });
+    }
+
+    function correctedEvidence(judgement) {
+        return Object.freeze({
+            correction: Object.freeze({
+                conclusion_id: 'load-redistributes-by-equilibrium',
+                initial_judgement_id: judgement,
+                mirror_check_passed: true,
+                model_id: 'ideal-2d-pin-jointed-truss',
+                model_limit_acknowledged: true
+            }),
+            cursor: Object.freeze({ stage: 'after-repair' })
+        });
+    }
+
+    function explainedEvidence() {
+        return Object.freeze({
+            artifact: Object.freeze({
+                kind: 'load-path-conclusion',
+                conclusion_id: 'joint-equilibrium-redistribution',
+                evidence_pair_id: 'b-c-reactions-gh-cd',
+                model_limit_id: 'ideal-truss-not-safety'
+            }),
+            cursor: Object.freeze({ stage: 'explained' })
+        });
+    }
+
+    function initialRecovery() {
+        return { stage: 'prediction', observations: {}, judgement: '' };
+    }
+
+    function scopeMatches(payload, scope) {
+        return ['class_id', 'course_id', 'course_unit_id', 'activity_key']
+            .every(key => String(payload && payload[key]) === String(scope && scope[key]));
+    }
+
+    function validStartedEvidence(evidence) {
+        return exactKeys(evidence, ['cursor'])
+            && exactKeys(evidence.cursor, ['surface', 'stage'])
+            && evidence.cursor.surface === 'future-galaxy'
+            && evidence.cursor.stage === 'entered';
+    }
+
+    function validCorrectedEvidence(evidence) {
+        const correction = evidence && evidence.correction;
+        return Boolean(
+            exactKeys(evidence, ['correction', 'cursor'])
+            && exactKeys(correction, ['conclusion_id', 'initial_judgement_id', 'mirror_check_passed', 'model_id', 'model_limit_acknowledged'])
+            && exactKeys(evidence.cursor, ['stage'])
+            && correction.conclusion_id === 'load-redistributes-by-equilibrium'
+            && JUDGEMENTS.has(correction.initial_judgement_id)
+            && correction.mirror_check_passed === true
+            && correction.model_id === 'ideal-2d-pin-jointed-truss'
+            && correction.model_limit_acknowledged === true
+            && evidence.cursor.stage === 'after-repair'
+        );
+    }
+
+    function validExplainedEvidence(evidence) {
+        const artifact = evidence && evidence.artifact;
+        return Boolean(
+            exactKeys(evidence, ['artifact', 'cursor'])
+            && exactKeys(artifact, ['kind', 'conclusion_id', 'evidence_pair_id', 'model_limit_id'])
+            && exactKeys(evidence.cursor, ['stage'])
+            && artifact.kind === 'load-path-conclusion'
+            && artifact.conclusion_id === 'joint-equilibrium-redistribution'
+            && artifact.evidence_pair_id === 'b-c-reactions-gh-cd'
+            && artifact.model_limit_id === 'ideal-truss-not-safety'
+            && evidence.cursor.stage === 'explained'
+        );
+    }
+
+    function recoverLoadPathPrefix(records, scope) {
+        const fallback = initialRecovery();
+        if (!Array.isArray(records) || records.length > 16) return fallback;
+        const events = [];
+        const identities = new Set();
+        let lastTime = -Infinity;
+        for (const record of records) {
+            const payload = record && record.payload;
+            const time = payload && new Date(payload.occurred_at).getTime();
+            if (
+                !record
+                || !['local-pending', 'syncing'].includes(record.state)
+                || !payload
+                || !scopeMatches(payload, scope)
+                || !Number.isFinite(time)
+                || time < lastTime
+                || !payload.client_event_id
+                || identities.has(payload.client_event_id)
+                || !['started', 'predicted', 'attempted', 'corrected', 'explained'].includes(payload.event_type)
+            ) return fallback;
+            lastTime = time;
+            identities.add(payload.client_event_id);
+            events.push(payload);
+        }
+        if (events[0] && events[0].event_type === 'started') {
+            if (!validStartedEvidence(events[0].evidence)) return fallback;
+            events.shift();
+        }
+        if (events.some(event => event.event_type === 'started')) return fallback;
+        if (!events.length) return fallback;
+        const prediction = events.shift();
+        if (prediction.event_type !== 'predicted'
+            || !exactKeys(prediction.evidence, ['prediction'])
+            || !validPrediction(prediction.evidence.prediction)) return fallback;
+        const recovered = { stage: 'predicted', observations: {}, judgement: '' };
+        for (const node of ['B', 'C', 'D']) {
+            if (!events.length) break;
+            const event = events[0];
+            if (event.event_type !== 'attempted') break;
+            if (!exactKeys(event.evidence, ['operation', 'cursor'])
+                || event.evidence.operation !== 'run-fixed-load-case'
+                || !validObservation(event.evidence.cursor, node)) return fallback;
+            events.shift();
+            recovered.observations[node] = Object.freeze({ ...event.evidence.cursor });
+            recovered.stage = node === 'B' ? 'observed-b' : node === 'C' ? 'observed-c' : 'observed-d';
+        }
+        if (recovered.stage === 'observed-d' && (!events.length || events[0].event_type !== 'corrected')) {
+            delete recovered.observations.D;
+            recovered.stage = 'observed-c';
+        }
+        if (events[0] && events[0].event_type === 'corrected') {
+            if (!recovered.observations.D || !validCorrectedEvidence(events[0].evidence)) return fallback;
+            recovered.judgement = events[0].evidence.correction.initial_judgement_id;
+            recovered.stage = 'corrected';
+            events.shift();
+        }
+        if (events[0] && events[0].event_type === 'explained') {
+            if (recovered.stage !== 'corrected' || !validExplainedEvidence(events[0].evidence)) return fallback;
+            recovered.stage = 'waiting-server';
+            events.shift();
+        }
+        if (events.length) return fallback;
+        return recovered;
+    }
+
+    function createClientEventId(eventType) {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+        return `future-${eventType}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function createLoadPathFlow(options) {
+        const settings = options || {};
+        const controller = settings.controller;
+        let destroyed = false;
+        let busy = false;
+        let actionInFlight = false;
+        let manualBlocked = false;
+        let state = recoverLoadPathPrefix(settings.pendingRecords || [], controller && controller.context && controller.context());
+        const retryIds = new Map();
+
+        const snapshot = () => Object.freeze({
+            stage: state.stage,
+            busy,
+            blocked: manualBlocked,
+            judgement: state.judgement,
+            observations: Object.freeze({ ...state.observations })
+        });
+        const notify = () => {
+            if (!destroyed && typeof settings.onChange === 'function') settings.onChange(snapshot());
+        };
+        const blockManualIntervention = error => {
+            if (!error || error.code !== 'pending_recovery_manual_intervention') return false;
+            manualBlocked = true;
+            retryIds.clear();
+            notify();
+            return true;
+        };
+        const authorize = async () => {
+            if (destroyed || manualBlocked || !controller || typeof controller.record !== 'function'
+                || typeof controller.context !== 'function'
+                || typeof settings.resolveAuthority !== 'function'
+                || typeof settings.sameAuthority !== 'function'
+                || typeof settings.isActive === 'function' && !settings.isActive()) return null;
+            const expected = controller.context();
+            let current;
+            try {
+                current = typeof settings.authorizeRecord === 'function'
+                    ? await settings.authorizeRecord(expected)
+                    : await settings.resolveAuthority(LOAD_PATH_MAPPING);
+            } catch (error) {
+                blockManualIntervention(error);
+                throw error;
+            }
+            if (destroyed || !actionInFlight || typeof settings.isActive === 'function' && !settings.isActive()
+                || !settings.sameAuthority(expected, current)) return null;
+            return current;
+        };
+        const runAction = async action => {
+            if (destroyed || actionInFlight || manualBlocked) return false;
+            actionInFlight = true;
+            busy = true;
+            notify();
+            try {
+                return await action();
+            } catch (error) {
+                return false;
+            } finally {
+                actionInFlight = false;
+                busy = false;
+                notify();
+            }
+        };
+        const record = async (actionKey, eventType, evidence) => {
+            if (!await authorize()) return false;
+            const clientEventId = retryIds.get(actionKey) || createClientEventId(eventType);
+            retryIds.set(actionKey, clientEventId);
+            try {
+                const result = await controller.record(eventType, evidence, { client_event_id: clientEventId });
+                if (result && (result.outcome === 'manual-intervention' || result.state === 'manual-intervention')) {
+                    manualBlocked = true;
+                    retryIds.clear();
+                    notify();
+                    return false;
+                }
+                const durable = result && (
+                    ['confirmed', 'reconciled', 'queued'].includes(result.outcome)
+                    || ['confirmed', 'local-pending'].includes(result.state)
+                );
+                if (!durable || !await authorize()) {
+                    return false;
+                }
+                retryIds.delete(actionKey);
+                return true;
+            } catch (error) {
+                blockManualIntervention(error);
+                return false;
+            }
+        };
+        const api = {
+            predict(prediction) { return runAction(async () => {
+                if (state.stage !== 'prediction' || !validPrediction(prediction)) return false;
+                if (!await record('prediction', 'predicted', predictedEvidence(prediction))) return false;
+                state = { stage: 'predicted', observations: {}, judgement: '' };
+                notify();
+                return true;
+            }); },
+            observe(node) { return runAction(async () => {
+                const expected = state.stage === 'predicted' ? 'B' : state.stage === 'observed-b' ? 'C' : state.stage === 'assessed' ? 'D' : '';
+                if (node !== expected || !await authorize() || typeof settings.observe !== 'function') return false;
+                const observation = settings.observe(node);
+                if (!validObservation(observation, node)) return false;
+                if (!await record(`observe-${node}`, 'attempted', attemptedEvidence(observation))) return false;
+                state.observations[node] = observation;
+                state.stage = node === 'B' ? 'observed-b' : node === 'C' ? 'observed-c' : 'observed-d';
+                notify();
+                return true;
+            }); },
+            assess(judgement) { return runAction(async () => {
+                if (state.stage !== 'observed-c' || !JUDGEMENTS.has(judgement) || !await authorize()
+                    || !validObservation(state.observations.B, 'B') || !validObservation(state.observations.C, 'C')) return false;
+                state.judgement = judgement;
+                state.stage = 'assessed';
+                notify();
+                return true;
+            }); },
+            correct(modelLimitAcknowledged) { return runAction(async () => {
+                if (state.stage !== 'observed-d' || modelLimitAcknowledged !== true || !JUDGEMENTS.has(state.judgement)
+                    || !validObservation(state.observations.D, 'D')) return false;
+                if (!await record('correct', 'corrected', correctedEvidence(state.judgement))) return false;
+                state.stage = 'corrected';
+                notify();
+                return true;
+            }); },
+            explain() { return runAction(async () => {
+                if (state.stage !== 'corrected') return false;
+                if (!await record('explain', 'explained', explainedEvidence())) return false;
+                state.stage = 'waiting-server';
+                notify();
+                return true;
+            }); },
+            redo() { return runAction(async () => {
+                if (!await authorize()) return false;
+                retryIds.clear();
+                state = initialRecovery();
+                notify();
+                return true;
+            }); },
+            snapshot,
+            destroy() {
+                destroyed = true;
+                actionInFlight = false;
+                busy = false;
+                retryIds.clear();
+            }
+        };
+        notify();
+        return Object.freeze(api);
+    }
+
     const BridgeTruss = {
         canvas: null,
         ctx: null,
@@ -11,6 +400,10 @@
         positionButtons: [],
         memberButtons: [],
         infoRoot: null,
+        controlledRoot: null,
+        controlledFlow: null,
+        controlledAbort: null,
+        controlledActivity: false,
         rafId: 0,
         dpr: 1,
         state: {
@@ -37,7 +430,14 @@
             ['C', 'H'], ['H', 'D'], ['D', 'I'], ['I', 'E']
         ],
 
-        init() {
+        init(options) {
+            const settings = options || {};
+            this.destroy();
+            this.controlledActivity = settings.controlledActivity === true;
+            this.state.load = 60;
+            this.state.loadJoint = this.controlledActivity ? 'B' : 'C';
+            this.state.memberMode = 'full';
+            this.state.safetyFactor = 1.8;
             this.canvas = document.getElementById('bridge-truss-canvas');
             if (!this.canvas) return;
             this.ctx = typeof this.canvas.getContext === 'function'
@@ -47,8 +447,8 @@
             this.loadValue = document.getElementById('truss-load-value');
             this.safetyInput = document.getElementById('truss-safety');
             this.safetyValue = document.getElementById('truss-safety-value');
-            this.positionButtons = Array.from(document.querySelectorAll('[data-truss-joint]'));
-            this.memberButtons = Array.from(document.querySelectorAll('[data-truss-member]'));
+            this.positionButtons = this.controlledActivity ? [] : Array.from(document.querySelectorAll('[data-truss-joint]'));
+            this.memberButtons = this.controlledActivity ? [] : Array.from(document.querySelectorAll('[data-truss-member]'));
             this.infoRoot = document.getElementById('truss-info');
 
             if (this.loadInput && !this.loadInput.dataset.bound) {
@@ -87,12 +487,151 @@
 
             window.addEventListener('resize', this._boundResize || (this._boundResize = () => this.render()));
             this.render();
+            if (this.controlledActivity) this._initControlledFlow(settings);
         },
 
         destroy() {
+            if (this.controlledAbort) this.controlledAbort.abort();
+            this.controlledAbort = null;
+            if (this.controlledFlow) this.controlledFlow.destroy();
+            this.controlledFlow = null;
+            this.controlledRoot = null;
+            this.controlledActivity = false;
             if (this.rafId) cancelAnimationFrame(this.rafId);
             this.rafId = 0;
             if (this._boundResize) window.removeEventListener('resize', this._boundResize);
+        },
+
+        _initControlledFlow(options) {
+            this.controlledRoot = document.querySelector('[data-load-path-flow]');
+            const controller = options && options.evidenceController;
+            const provider = window.FutureGalaxyPublicationContext;
+            if (!this.controlledRoot || !controller || !provider
+                || typeof provider.resolveLearningEvidence !== 'function'
+                || typeof provider.sameLearningEvidenceAuthority !== 'function') {
+                this._setControlledStatus('课程范围或证据服务不可用；当前活动保持只读。');
+                return;
+            }
+            this.controlledAbort = new AbortController();
+            this.controlledFlow = createLoadPathFlow({
+                controller,
+                pendingRecords: options.pendingRecords || [],
+                authorizeRecord: options.authorizeRecord,
+                resolveAuthority: () => provider.resolveLearningEvidence(LOAD_PATH_MAPPING),
+                sameAuthority: (expected, current) => provider.sameLearningEvidenceAuthority(expected, current),
+                isActive: () => !this.controlledAbort.signal.aborted
+                    && (!options.isRuntimeCurrent || options.isRuntimeCurrent()),
+                observe: (node) => {
+                    this.state.load = 60;
+                    this.state.loadJoint = node;
+                    this.state.memberMode = 'full';
+                    this.render();
+                    return normalizeLoadPathObservation(node, this.solve());
+                },
+                onChange: state => this._renderControlledFlow(state)
+            });
+            this.controlledRoot.addEventListener('click', async event => {
+                const button = event.target instanceof Element && event.target.closest('[data-load-path-action]');
+                if (!button || button.disabled || !this.controlledFlow) return;
+                const action = button.dataset.loadPathAction;
+                if (action === 'predict') {
+                    const value = name => {
+                        const field = this.controlledRoot.querySelector(`[data-load-path-prediction="${name}"]`);
+                        return field && field.value || '';
+                    };
+                    const reason = this.controlledRoot.querySelector('[data-load-path-reason]');
+                    await this.controlledFlow.predict({
+                        reaction_balance_id: value('reaction_balance_id'),
+                        gh_change_id: value('gh_change_id'),
+                        cd_change_id: value('cd_change_id'),
+                        reason_size: String(reason && reason.value || '').trim().length
+                    });
+                } else if (action === 'observe') {
+                    await this.controlledFlow.observe(button.dataset.loadPathNode || '');
+                } else if (action === 'assess') {
+                    const judgement = this.controlledRoot.querySelector('[data-load-path-judgement]');
+                    await this.controlledFlow.assess(judgement && judgement.value || '');
+                } else if (action === 'correct') {
+                    const acknowledged = this.controlledRoot.querySelector('[data-load-path-model-limit]');
+                    await this.controlledFlow.correct(Boolean(acknowledged && acknowledged.checked));
+                } else if (action === 'explain') {
+                    await this.controlledFlow.explain();
+                } else if (action === 'redo') {
+                    if (await this.controlledFlow.redo()) {
+                        this.state.load = 60;
+                        this.state.loadJoint = 'B';
+                        this.state.memberMode = 'full';
+                        this.render();
+                    }
+                }
+            }, { signal: this.controlledAbort.signal });
+            this._renderControlledFlow(this.controlledFlow.snapshot());
+        },
+
+        _setControlledStatus(message) {
+            const status = this.controlledRoot && this.controlledRoot.querySelector('[data-load-path-status]');
+            if (status) status.textContent = message;
+        },
+
+        _renderControlledFlow(flowState) {
+            if (!this.controlledRoot || !flowState) return;
+            const stage = flowState.stage;
+            const busy = flowState.busy;
+            const blocked = flowState.blocked === true;
+            const enabledAction = {
+                predict: stage === 'prediction',
+                B: stage === 'predicted',
+                C: stage === 'observed-b',
+                assess: stage === 'observed-c',
+                D: stage === 'assessed',
+                correct: stage === 'observed-d',
+                explain: stage === 'corrected',
+                redo: stage !== 'prediction'
+            };
+            this.controlledRoot.querySelectorAll('[data-load-path-action]').forEach(button => {
+                const action = button.dataset.loadPathAction;
+                const key = action === 'observe' ? button.dataset.loadPathNode : action;
+                button.disabled = blocked || busy || !enabledAction[key];
+            });
+            this.controlledRoot.querySelectorAll('[data-load-path-prediction], [data-load-path-reason]').forEach(field => {
+                field.disabled = blocked || busy || stage !== 'prediction';
+            });
+            const judgement = this.controlledRoot.querySelector('[data-load-path-judgement]');
+            if (judgement) {
+                judgement.disabled = blocked || busy || stage !== 'observed-c';
+                if (flowState.judgement) judgement.value = flowState.judgement;
+                else if (stage === 'prediction') judgement.value = '';
+            }
+            const acknowledged = this.controlledRoot.querySelector('[data-load-path-model-limit]');
+            if (acknowledged) {
+                acknowledged.disabled = blocked || busy || stage !== 'observed-d';
+                if (stage === 'prediction') acknowledged.checked = false;
+            }
+            ['B', 'C', 'D'].forEach(node => {
+                const observation = flowState.observations[node];
+                const row = this.controlledRoot.querySelector(`[data-load-path-row="${node}"]`);
+                if (!row) return;
+                if (!validObservation(observation, node)) {
+                    row.innerHTML = `<th>${node}</th><td colspan="5">尚未运行</td>`;
+                    return;
+                }
+                const ghType = observation.member_gh_type_id === 'compression' ? '受压' : observation.member_gh_type_id === 'tension' ? '受拉' : '近零';
+                const cdType = observation.member_cd_type_id === 'compression' ? '受压' : observation.member_cd_type_id === 'tension' ? '受拉' : '近零';
+                row.innerHTML = `<th>${node}</th><td>${observation.reaction_ay_kn.toFixed(1)}</td><td>${observation.reaction_ey_kn.toFixed(1)}</td><td>${observation.member_gh_kn.toFixed(1)} / ${ghType}</td><td>${observation.member_cd_kn.toFixed(1)} / ${cdType}</td><td>${observation.residual_fx_kn.toFixed(2)} / ${observation.residual_fy_kn.toFixed(2)}</td>`;
+            });
+            const messages = {
+                prediction: '先完成结构化预测；尚未运行任何工况。',
+                predicted: '预测已耐久保存。现在运行 B 基线。',
+                'observed-b': 'B 基线已保存。只把荷载节点改为 C。',
+                'observed-c': 'B/C 完整快照已保存。请先作观察后判断。',
+                assessed: '本页判断已保存于当前页面。现在运行 D 镜像复核。',
+                'observed-d': 'D 镜像快照已保存。确认模型边界后完成纠正。',
+                corrected: '纠正证据已保存。提交固定结构化解释。',
+                'waiting-server': '解释已保存；完成状态仅等待服务端投影，本页不自行判定 completed。'
+            };
+            this._setControlledStatus(blocked
+                ? '证据冲突需处理，本活动只读。'
+                : busy ? '正在保存本次证据，请勿重复操作。' : messages[stage] || '活动保持失败关闭。');
         },
 
         render() {
@@ -314,10 +853,14 @@
 
             this._drawLegend(ctx, w, top);
             ctx.save();
-            ctx.fillStyle = result.safety.available && result.safety.passes ? 'rgba(126,215,193,0.92)' : 'rgba(225,106,92,0.95)';
+            ctx.fillStyle = this.controlledActivity
+                ? 'rgba(216,220,230,0.82)'
+                : result.safety.available && result.safety.passes ? 'rgba(126,215,193,0.92)' : 'rgba(225,106,92,0.95)';
             ctx.font = `600 12px ${this._fontMono()}`;
             ctx.textAlign = 'left';
-            const safetyText = result.safety.available
+            const safetyText = this.controlledActivity
+                ? '理想二维铰接桁架读数 · 非现实结构安全结论'
+                : result.safety.available
                 ? `安全校核：利用率 ${(result.safety.utilization * 100).toFixed(0)}% / 系数 ${result.safety.factor.toFixed(1)}`
                 : '构件路径中断：本模型不可校核';
             ctx.fillText(safetyText, padX, top);
@@ -557,8 +1100,8 @@
         }
     };
 
-    function initBridgeTruss() {
-        BridgeTruss.init();
+    function initBridgeTruss(options) {
+        BridgeTruss.init(options);
     }
 
     function destroyBridgeTruss() {

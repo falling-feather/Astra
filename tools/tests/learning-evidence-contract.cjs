@@ -261,7 +261,8 @@ function testCatalog() {
   assert.equal(verification.englab.valid, true);
   assert.equal(verification['code-space'].valid, true);
   assert.equal(verification['future-galaxy'].valid, true);
-  assert.deepEqual(Object.keys(catalog.representatives).sort(), ['code-space', 'englab']);
+  assert.deepEqual(Object.keys(catalog.representatives).sort(), ['code-space', 'englab', 'future-galaxy']);
+  assert.equal(catalog.resolve('future-galaxy', 'engineering.load-path').representative, true);
   assert.equal(catalog.entries('future-galaxy').length, 18);
   assert.equal(new Set(catalog.futureKeys).size, 18);
 
@@ -299,10 +300,12 @@ function testStaticOwnershipAndSemantics() {
   const queueClearBody = queueSource.slice(queueClearStart, queueClearEnd);
   assert.ok(queueClearBody.indexOf('await clearStoredAuthorityData()') < queueClearBody.indexOf("emit({ type: 'authority-cleared'"));
   assert.doesNotMatch(queueClearBody, /finally/);
-  assert.doesNotMatch(queueSource, /load_magnitude_adjustment|member_configuration_change|after-load-path-observation|after-model-observation|future-galaxy/);
+  assert.doesNotMatch(queueSource, /load_magnitude_adjustment|member_configuration_change|after-load-path-observation|after-model-observation/);
+  assert.match(queueSource, /'future-galaxy'/);
 
   assert.doesNotMatch(loaderSource, /future-galaxy|FutureGalaxy|bridge-truss/);
-  assert.doesNotMatch(activitySource, /FutureGalaxy|future-galaxy/);
+  assert.match(activitySource, /FutureGalaxyPublicationContext/);
+  assert.doesNotMatch(activitySource, /bridge-truss|run-fixed-load-case/, 'the shared panel must not own Future domain facts');
   assert.match(clientSource, /const API_ROOT = '\/api\/learning-evidence'/);
   for (const [name, source] of [
     ['role-home', roleHomeSource],

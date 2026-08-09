@@ -97,23 +97,34 @@
     // BE-004 returns only open/locked units. The adapter calls this once per course
     // after GET /api/courses/{course_id}/units?class_id={class_id}; a known manifest
     // activity absent from a valid response is hidden, and malformed/unknown rows fail closed.
-    const adaptBe004Units = (course_key, units) => {
+    const adaptBe004Course = (course_key, units) => {
         const currentCourse = getCourse(course_key);
         if (!currentCourse || !Array.isArray(units)) return null;
         const expected = new Map(currentCourse.activities.map((activity) => [activity.activity_key, activity]));
         const output = Object.fromEntries(currentCourse.activities.map((activity) => [activity.activity_key, { state: 'hidden' }]));
+        const unitIds = {};
         for (const unit of units) {
             if (!unit || typeof unit !== 'object' || !expected.has(unit.activity_key)
                 || !('id' in unit) || typeof unit.title !== 'string' || !Number.isFinite(unit.position)
                 || !Array.isArray(unit.lock_reasons) || !['open', 'locked'].includes(unit.effective_release_state)) return null;
             if (output[unit.activity_key].state !== 'hidden') return null;
             output[unit.activity_key] = { state: unit.effective_release_state };
+            const unitId = Number(unit.id);
+            if (Number.isInteger(unitId) && unitId > 0) unitIds[unit.activity_key] = unitId;
         }
-        return Object.freeze(output);
+        return Object.freeze({
+            access: Object.freeze(output),
+            unit_ids: Object.freeze(unitIds)
+        });
+    };
+    const adaptBe004Units = (course_key, units) => {
+        const adapted = adaptBe004Course(course_key, units);
+        return adapted ? adapted.access : null;
     };
 
     let httpConfig = null;
     let httpSnapshot = null;
+    let httpEvidenceBindings = null;
     let httpRefresh = null;
     let httpGeneration = 0;
     const unavailableSnapshot = (source) => Object.freeze({
@@ -135,6 +146,7 @@
     const configureHttp = ({ course_ids, class_id, fetcher } = {}) => {
         httpGeneration += 1;
         httpRefresh = null;
+        httpEvidenceBindings = null;
         if (!isCourseIdMap(course_ids) || !(typeof class_id === 'string' || Number.isFinite(class_id))
             || (fetcher !== undefined && typeof fetcher !== 'function')
             || (fetcher === undefined && typeof global.fetch !== 'function')) {
@@ -160,11 +172,23 @@
             const classId = encodeURIComponent(config.class_id);
             const response = await config.fetcher(`/api/courses/${courseId}/units?class_id=${classId}`, { credentials: 'same-origin' });
             if (!response || response.ok !== true || typeof response.json !== 'function') throw new Error('Invalid BE-004 units response');
-            const access = adaptBe004Units(item.course_key, await response.json());
-            if (!access) throw new Error('Invalid BE-004 unit fields');
-            return access;
+            const adapted = adaptBe004Course(item.course_key, await response.json());
+            if (!adapted) throw new Error('Invalid BE-004 unit fields');
+            return Object.freeze({ course: item, adapted });
         })).then((perCourse) => {
-            const activity_access = Object.freeze(Object.assign({}, ...perCourse));
+            const activity_access = Object.freeze(Object.assign({}, ...perCourse.map(item => item.adapted.access)));
+            const evidenceBindings = Object.freeze(Object.assign({}, ...perCourse.map(({ course, adapted }) => (
+                Object.fromEntries(Object.entries(adapted.unit_ids).map(([activityKey, unitId]) => [activityKey, Object.freeze({
+                    galaxy_key: GALAXY_KEY,
+                    course_key: course.course_key,
+                    activity_key: activityKey,
+                    class_id: Number(config.class_id),
+                    course_id: Number(config.course_ids[course.course_key]),
+                    course_unit_id: unitId,
+                    access_state: activity_access[activityKey] && activity_access[activityKey].state,
+                    authority_generation: generation
+                })]))
+            ))));
             const snapshot = Object.freeze({
                 galaxy_key: GALAXY_KEY,
                 source: 'http-cache',
@@ -173,11 +197,17 @@
                 course_access: deriveCourseAccess(activity_access),
                 activity_access
             });
-            if (generation === httpGeneration && config === httpConfig) httpSnapshot = snapshot;
+            if (generation === httpGeneration && config === httpConfig) {
+                httpSnapshot = snapshot;
+                httpEvidenceBindings = evidenceBindings;
+            }
             return generation === httpGeneration && config === httpConfig ? snapshot : (httpSnapshot || snapshot);
         }).catch(() => {
             const snapshot = unavailableSnapshot('http-unavailable');
-            if (generation === httpGeneration && config === httpConfig) httpSnapshot = snapshot;
+            if (generation === httpGeneration && config === httpConfig) {
+                httpSnapshot = snapshot;
+                httpEvidenceBindings = null;
+            }
             return generation === httpGeneration && config === httpConfig ? snapshot : (httpSnapshot || snapshot);
         }).finally(() => {
             if (httpRefresh && httpRefresh.generation === generation) httpRefresh = null;
@@ -237,6 +267,30 @@
         }
     };
 
+    const resolveEvidenceBinding = (course_key, activity_key) => {
+        const activity = getActivity(course_key, activity_key);
+        const binding = httpEvidenceBindings && httpEvidenceBindings[activity_key];
+        const access = httpSnapshot && httpSnapshot.activity_access && httpSnapshot.activity_access[activity_key];
+        if (
+            !httpConfig
+            || !activity
+            || !binding
+            || httpSnapshot && httpSnapshot.availability !== 'available'
+            || !access
+            || access.state !== 'open'
+            || binding.course_key !== course_key
+            || binding.activity_key !== activity_key
+            || binding.authority_generation !== httpGeneration
+            || !Number.isInteger(binding.class_id)
+            || binding.class_id <= 0
+            || !Number.isInteger(binding.course_id)
+            || binding.course_id <= 0
+            || !Number.isInteger(binding.course_unit_id)
+            || binding.course_unit_id <= 0
+        ) return null;
+        return Object.freeze({ ...binding });
+    };
+
     global.FrontierCourseManifest = Object.freeze({
         galaxy_key: GALAXY_KEY,
         courses,
@@ -247,6 +301,7 @@
         configureHttp,
         hasHttpConfig: () => !!httpConfig,
         refresh,
-        resolveAvailability
+        resolveAvailability,
+        resolveEvidenceBinding
     });
 })(window);

@@ -417,6 +417,6 @@ assert.match(html, /config\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry
 assert.match(main, /experiment-registry\.js\?v=20260716v7427RoleWorkflowGateP0/);
 assert.match(main, /module-selector\.js\?v=20260731v7971CatalogueCountP0/);
 assert.match(serviceWorker, /experiment-registry\.js\?v=20260716v7427RoleWorkflowGateP0/);
-assert.match(serviceWorker, /astra-static-v20260731v7971CatalogueCountP0/);
+assert.match(serviceWorker, /astra-static-v20260809v804FutureEvidenceP0/);
 
 console.log('experiment-registry-contract: ok');

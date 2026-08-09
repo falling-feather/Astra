@@ -29,7 +29,7 @@
         'manual-intervention'
     ]);
     const OFFLINE_ENUM_VALUES = new Set([
-        'englab', 'code-space',
+        'englab', 'code-space', 'future-galaxy',
         'entered', 'predicted', 'explained', 'before-browser-precheck', 'after-repair',
         'after-observation',
         'expect-change', 'expect-stable', 'prediction-recorded',
@@ -40,7 +40,15 @@
         'gravity_adjustment', 'restitution_adjustment', 'friction_adjustment',
         'radius_adjustment', 'simulation_launch', 'simulation-revision',
         'gravity', 'restitution', 'friction', 'radius',
-        'low', 'medium', 'high', 'small', 'large'
+        'low', 'medium', 'high', 'small', 'large',
+        'B', 'C', 'D', 'tension', 'compression', 'zero',
+        'more-balanced', 'more-unbalanced', 'no-change', 'insufficient',
+        'absolute-increase', 'absolute-decrease', 'run-fixed-load-case',
+        'load-redistributes-by-equilibrium', 'equilibrium-redistribution',
+        'single-load-path', 'color-means-compression', 'no-redistribution',
+        'ideal-2d-pin-jointed-truss', 'load-path-conclusion',
+        'joint-equilibrium-redistribution', 'b-c-reactions-gh-cd',
+        'ideal-truss-not-safety'
     ]);
     const FORBIDDEN_NORMALIZED_KEY = /(?:authorization|credential|password|secret|token|cookie|email|phone|username|accountname|displayname|studentname|teachername|userid|accountid|studentid|teacherid|subjectuserid|actorid|memberid|personid|apikey|sessionid|sessionkey|accesskey|clientsecret|grade|score|mark|comment|feedback|source(?:code)?|fullanswer|answertext|freetext|pagesnapshot|html|screenshot)/;
     const encoder = new TextEncoder();

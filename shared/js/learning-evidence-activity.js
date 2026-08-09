@@ -39,6 +39,10 @@
             const provider = global.AstraCodeSpaceStudentContext;
             return provider && provider.resolveLearningEvidence(mapping.publication_context);
         }
+        if (mapping.galaxy_key === 'future-galaxy') {
+            const provider = global.FutureGalaxyPublicationContext;
+            return provider && provider.resolveLearningEvidence(mapping.publication_context);
+        }
         return null;
     }
 
@@ -76,24 +80,26 @@
     }
 
     function panelMarkup(options) {
-        const steps = options.integrated ? `<div class="astra-evidence-panel__steps astra-evidence-panel__steps--integrated" data-evidence-controls hidden>
+        const domainOnly = options.domainOnly === true;
+        const steps = domainOnly ? '' : options.integrated ? `<div class="astra-evidence-panel__steps astra-evidence-panel__steps--integrated" data-evidence-controls hidden>
                 <label><span>结构化解释</span><select data-evidence-value="explanation"><option value="claim-supported">证据支持判断</option><option value="claim-needs-review">判断仍需复核</option></select><button type="button" data-evidence-command="explained">记录解释</button></label>
             </div>` : `<div class="astra-evidence-panel__steps" data-evidence-controls hidden>
                 <label><span>1 · 预测</span><select data-evidence-value="prediction"><option value="expect-change">预计会改变</option><option value="expect-stable">预计保持稳定</option></select><button type="button" data-evidence-command="predicted">记录预测</button></label>
                 <div class="astra-evidence-panel__domain"><span>2–3 · 操作与修正</span><b>${escapeHtml(options.operationLabel || '请在上方真实活动中完成操作')}</b><small>实际控件会自动记录有界领域事件，不需要另点“记录操作”。</small></div>
                 <label><span>4 · 结构化解释</span><select data-evidence-value="explanation"><option value="claim-supported">证据支持判断</option><option value="claim-needs-review">判断仍需复核</option></select><button type="button" data-evidence-command="explained">记录解释</button></label>
             </div>`;
+        const onlineExplanation = domainOnly ? '' : `<details class="astra-evidence-panel__online">
+                <summary>补充自由文本解释（仅联网）</summary>
+                <label><span>解释不会进入离线队列</span><textarea maxlength="800" data-evidence-free-text></textarea></label>
+                <button type="button" data-evidence-command="explained-text">联网提交解释</button>
+            </details>`;
         return `<div class="astra-evidence-panel__heading"><div><span>LEARNING EVIDENCE</span><h3>${escapeHtml(options.title || '学习证据')}</h3></div><small>完成与迁移仅显示服务端投影</small></div>
             <div data-evidence-scope></div>
             <div class="astra-evidence-status" data-evidence-status hidden></div>
             <div class="astra-evidence-status" data-evidence-domain-status hidden></div>
             <p class="astra-evidence-panel__projection" data-evidence-projection hidden></p>
             ${steps}
-            <details class="astra-evidence-panel__online">
-                <summary>补充自由文本解释（仅联网）</summary>
-                <label><span>解释不会进入离线队列</span><textarea maxlength="800" data-evidence-free-text></textarea></label>
-                <button type="button" data-evidence-command="explained-text">联网提交解释</button>
-            </details>`;
+            ${onlineExplanation}`;
     }
 
     function createSession(host, options, mapping) {
@@ -312,12 +318,52 @@
         }
 
         function commandPayload(eventType, evidence, occurredAt) {
-            return Object.assign({}, state.context, {
+            const context = state.context || {};
+            return {
+                class_id: context.class_id,
+                course_id: context.course_id,
+                course_unit_id: context.course_unit_id,
+                assignment_id: context.assignment_id,
+                activity_key: context.activity_key,
                 rule_version: state.ruleVersion,
                 event_type: eventType,
                 evidence,
                 occurred_at: occurredAt
-            });
+            };
+        }
+
+        function sameRecordAuthority(expected, current) {
+            if (!expected || !current || current.available !== true) return false;
+            const exact = ['class_id', 'course_id', 'course_unit_id', 'activity_key'];
+            if (!exact.every(key => String(expected[key]) === String(current[key]))) return false;
+            const privateKeys = ['identity_id', 'authority_generation', 'access_state'];
+            return privateKeys.every(key => (
+                expected[key] === undefined
+                || current[key] !== undefined && String(expected[key]) === String(current[key])
+            ));
+        }
+
+        async function authorizeRecord(eventType, evidence) {
+            if (typeof options.authorizeRecord !== 'function') return;
+            const context = state.context;
+            const generation = state.recordGeneration;
+            const authorized = await options.authorizeRecord(Object.freeze({
+                mapping,
+                context,
+                event_type: eventType,
+                evidence
+            }));
+            if (
+                abort.signal.aborted
+                || state.authorityInvalidated
+                || generation !== state.recordGeneration
+                || context !== state.context
+                || !sameRecordAuthority(context, authorized)
+            ) {
+                const error = new Error(stateMessage('identity_required'));
+                error.code = 'identity_required';
+                throw error;
+            }
         }
 
         function createClientEventId(eventType) {
@@ -600,6 +646,9 @@
                 const error = new Error('Activity evidence context unavailable');
                 error.code = 'publication_context_unavailable';
                 throw error;
+            }
+            if (typeof options.authorizeRecord === 'function') {
+                await authorizeRecord(eventType, evidence);
             }
             const commandSettings = settings || {};
             const clientEventId = commandSettings.client_event_id || createClientEventId(eventType);
@@ -951,7 +1000,20 @@
                     state.context = context;
                     state.ruleVersion = await resolveRule(context);
                     if (generation !== state.initializeGeneration || abort.signal.aborted) return;
-                    if (state.forceStartedOnInitialize || !projectionHasStarted()) {
+                    let pendingStarted = false;
+                    if (
+                        !state.forceStartedOnInitialize
+                        && !projectionHasStarted()
+                        && options.reusePendingStarted === true
+                        && typeof client().pendingFor === 'function'
+                    ) {
+                        const pending = await client().pendingFor(context);
+                        if (generation !== state.initializeGeneration || abort.signal.aborted) return;
+                        pendingStarted = pending.some(record => (
+                            record && record.payload && record.payload.event_type === 'started'
+                        ));
+                    }
+                    if (state.forceStartedOnInitialize || !projectionHasStarted() && !pendingStarted) {
                         const startedAt = earliestPendingOccurredAt(state.pendingCommands);
                         const started = await record('started', {
                             cursor: {
@@ -1216,6 +1278,7 @@
         const host = document.createElement('section');
         host.className = 'astra-evidence-panel';
         host.dataset.learningEvidenceActivity = mapping.activity_key;
+        if (settings.domainOnly === true) host.dataset.evidenceInteraction = 'domain-only';
         host.setAttribute('aria-label', `学习证据：${mapping.activity_key}`);
         host.innerHTML = panelMarkup(settings);
         parent.appendChild(host);
