@@ -32,7 +32,8 @@ function main() {
     assert.match(teacher, /hasCourseCapability\(\['editor', 'content_editor', 'assessment_editor'\]\)/);
     assert.match(teacher, /hasCourseCapability\(\['editor', 'assessment_editor'\]\)/);
     assert.match(teacher, /canManageCourseOwnership\(\)/);
-    assert.match(teacher, /fetchClassKnowledge\(classId\)/);
+    assert.match(teacher, /fetchClassKnowledge\(classId, courseId\)/);
+    assert.match(teacher, /params: courseId \? \{ course_id: courseId \} : undefined/);
     assert.match(teacher, /params:\s*\{\s*class_id:\s*classId\s*\}/);
     assert.match(teacher, /attachedCourses\.some/);
 
