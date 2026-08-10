@@ -12,6 +12,13 @@ from app.schemas.learning_evidence import (
     DiscoverableEvidenceEventType,
     LearnerEvidenceBatchCreate,
     LearnerEvidenceEventCreate,
+    LearningActivityAuthorityRead,
+    LearningActivityReleaseRead,
+    LearningActivityRuntimeEventCreate,
+    LearningActivityRuntimeIdentity,
+    LearningActivityRuntimeReceipt,
+    LearningActivityRuntimeScope,
+    LearningActivityServerRecoveryRead,
     LearningEvidenceBatchRead,
     LearningEvidenceReceipt,
     ProjectionRebuildRead,
@@ -20,6 +27,7 @@ from app.schemas.learning_evidence import (
     TeacherLearningAggregateRead,
     TeacherLearningEvidencePageRead,
 )
+from app.services import learning_activity_runtime as activity_runtime_service
 from app.services import learning_evidence as learning_evidence_service
 
 
@@ -114,6 +122,79 @@ def append_learner_event(
     if receipt["outcome"] == "duplicate":
         response.status_code = status.HTTP_200_OK
     return receipt
+
+
+@router.post(
+    "/activity-runtime/authority",
+    response_model=LearningActivityAuthorityRead,
+)
+def learning_activity_authority(
+    identity: LearningActivityRuntimeIdentity,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LearningActivityAuthorityRead:
+    return _service_call(
+        activity_runtime_service.learning_activity_authority,
+        db,
+        actor=current_user,
+        identity=identity,
+    )
+
+
+@router.post(
+    "/activity-runtime/release",
+    response_model=LearningActivityReleaseRead,
+)
+def learning_activity_release(
+    scope: LearningActivityRuntimeScope,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LearningActivityReleaseRead:
+    return _service_call(
+        activity_runtime_service.learning_activity_release,
+        db,
+        actor=current_user,
+        scope=scope,
+    )
+
+
+@router.post(
+    "/activity-runtime/events",
+    response_model=LearningActivityRuntimeReceipt,
+    status_code=status.HTTP_201_CREATED,
+)
+def append_learning_activity_event(
+    payload: LearningActivityRuntimeEventCreate,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LearningActivityRuntimeReceipt:
+    receipt = _service_call(
+        activity_runtime_service.append_learning_activity_event,
+        db,
+        actor=current_user,
+        payload=payload,
+    )
+    if receipt["status"] == "reconciled":
+        response.status_code = status.HTTP_200_OK
+    return receipt
+
+
+@router.post(
+    "/activity-runtime/recovery",
+    response_model=LearningActivityServerRecoveryRead,
+)
+def learning_activity_server_recovery(
+    identity: LearningActivityRuntimeIdentity,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LearningActivityServerRecoveryRead:
+    return _service_call(
+        activity_runtime_service.learning_activity_server_recovery,
+        db,
+        actor=current_user,
+        identity=identity,
+    )
 
 
 @router.post("/events/batch", response_model=LearningEvidenceBatchRead)

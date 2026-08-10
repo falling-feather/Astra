@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
-from datetime import UTC, datetime, timedelta
 import hashlib
-import json
-from threading import RLock
+from contextlib import nullcontext
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -14,9 +12,25 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from app.core.learning_evidence_contract import (
+    LEARNING_EVIDENCE_SQLITE_WRITE_LOCK,
     MAX_RULE_WITNESS_EVENTS,
     RULE_DERIVED_CLIENT_EVENT_PREFIX,
-    normalize_event_occurred_at,
+    LearningEvidenceError,
+)
+from app.core.learning_evidence_contract import (
+    as_utc as _as_utc,
+)
+from app.core.learning_evidence_contract import (
+    canonical_sha256 as _canonical_sha256,
+)
+from app.core.learning_evidence_contract import (
+    evidence_event_request_sha256 as _event_request_hash,
+)
+from app.core.learning_evidence_contract import (
+    fail_learning_evidence as _fail,
+)
+from app.core.learning_evidence_contract import (
+    validate_event_occurred_at as _validate_occurred_at,
 )
 from app.models import (
     Assignment,
@@ -34,6 +48,11 @@ from app.models import (
     User,
 )
 from app.models.base import utc_now
+from app.models.learning_evidence import (
+    CURRENT_EVENT_SCHEMA_VERSION,
+    CURRENT_RULE_DEFINITION_SCHEMA_VERSION,
+    LearningActivityRuntime,
+)
 from app.schemas.learning_evidence import (
     CompletionRuleActivate,
     CompletionRuleCreate,
@@ -41,10 +60,6 @@ from app.schemas.learning_evidence import (
     LearnerEvidenceEventCreate,
     TeacherEvidenceCorrectionCreate,
     TrustedAssessmentEvidenceCreate,
-)
-from app.models.learning_evidence import (
-    CURRENT_EVENT_SCHEMA_VERSION,
-    CURRENT_RULE_DEFINITION_SCHEMA_VERSION,
 )
 from app.services.access_control import (
     course_attached_to_class,
@@ -57,8 +72,8 @@ from app.services.access_control import (
     require_course_collaborator_or_admin,
     require_course_scope,
 )
-from app.services.audit import record_audit_log
 from app.services.assignment_policies import resolve_assignment_class_policy
+from app.services.audit import record_audit_log
 from app.services.course_release_plans import (
     effective_unit_access,
     get_plan_for_unit,
@@ -70,15 +85,13 @@ from app.services.course_release_write_gate import (
 )
 from app.services.learning_evidence_access import (
     authoritative_prerequisite_unit_ids,
-    authoritative_prerequisite_unit_ids_by_scope,
     effective_bound_rule,
     effective_bound_rules,
     effective_rule_binding,
-    effective_rule_bindings,
     effective_rule_binding_statement,
+    effective_rule_bindings,
 )
 from app.services.learning_evidence_projection import (
-    ActivityProjectionScope,
     completion_decision,
     rebuild_activity_projection,
     rebuild_subject_course_projections,
@@ -86,9 +99,7 @@ from app.services.learning_evidence_projection import (
 )
 from app.services.teacher_evidence_facts import teacher_evidence_facts
 
-
-MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
-_SQLITE_EVENT_WRITE_LOCK = RLock()
+_SQLITE_EVENT_WRITE_LOCK = LEARNING_EVIDENCE_SQLITE_WRITE_LOCK
 _SQLITE_RULE_ACTIVATION_LOCK = _SQLITE_EVENT_WRITE_LOCK
 _DISCOVERABLE_PRODUCER_TYPES = ("learner", "trusted_assessment")
 _DISCOVERABLE_EVENT_TYPES = (
@@ -100,14 +111,6 @@ _DISCOVERABLE_EVENT_TYPES = (
     "completed",
     "transferred",
 )
-
-
-class LearningEvidenceError(Exception):
-    def __init__(self, status_code: int, code: str, detail: str):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.code = code
-        self.detail = detail
 
 
 def create_completion_rule(
@@ -1583,6 +1586,9 @@ def _lock_learner_scope(
     }
 
 
+lock_learner_evidence_scope = _lock_learner_scope
+
+
 def _current_binding(
     db: Session,
     *,
@@ -1727,8 +1733,13 @@ def _append_rule_derived_event(
     outcome: str,
     source_event_ids: tuple[int, ...],
     locking_read: bool = False,
+    activity_runtime: LearningActivityRuntime | None = None,
 ) -> LearningEvidenceEvent:
-    if not source_event_ids or len(source_event_ids) > MAX_RULE_WITNESS_EVENTS:
+    if (
+        not source_event_ids
+        or len(source_event_ids) != len(set(source_event_ids))
+        or len(source_event_ids) > MAX_RULE_WITNESS_EVENTS
+    ):
         _fail(
             409,
             "completion_witness_invalid",
@@ -1750,6 +1761,42 @@ def _append_rule_derived_event(
         "source_event_ids": list(source_event_ids),
     }
     request_sha256 = _canonical_sha256(request_payload)
+    server_sequence = None
+    if activity_runtime is not None:
+        if source_event.activity_runtime_id != activity_runtime.id:
+            _fail(
+                409,
+                "completion_witness_runtime_mismatch",
+                "Rule witness source is outside the current activity run",
+            )
+        witness_events = list(
+            db.scalars(
+                select(LearningEvidenceEvent)
+                .where(LearningEvidenceEvent.id.in_(source_event_ids))
+                .with_for_update()
+            ).all()
+        )
+        if len(witness_events) != len(set(source_event_ids)) or any(
+            witness.activity_runtime_id != activity_runtime.id
+            or witness.producer_type != "learner"
+            or witness.server_sequence is None
+            for witness in witness_events
+        ):
+            _fail(
+                409,
+                "completion_witness_runtime_mismatch",
+                "Rule witness must contain unique learner facts from one activity run",
+            )
+        server_sequence = activity_runtime.last_server_sequence + 1
+        if any(
+            witness.server_sequence >= server_sequence
+            for witness in witness_events
+        ):
+            _fail(
+                409,
+                "completion_witness_order_invalid",
+                "Rule witness facts must strictly precede the derived outcome",
+            )
     existing_statement = select(LearningEvidenceEvent).where(
         LearningEvidenceEvent.client_event_id == client_event_id
     )
@@ -1763,6 +1810,8 @@ def _append_rule_derived_event(
             outcome=outcome,
             source_event_ids=source_event_ids,
             request_sha256=request_sha256,
+            activity_runtime=activity_runtime,
+            server_sequence=server_sequence,
         ):
             _fail(
                 409,
@@ -1794,12 +1843,25 @@ def _append_rule_derived_event(
             )
         },
         source_event_ids_json=list(source_event_ids),
+        activity_runtime_id=(
+            activity_runtime.id if activity_runtime is not None else None
+        ),
+        server_sequence=server_sequence,
+        learner_sequence=None,
+        activity_sidecar_json=None,
+        activity_sidecar_sha256=None,
         occurred_at=utc_now(),
         received_at=utc_now(),
     )
     db.add(derived)
     db.flush([derived])
+    if activity_runtime is not None:
+        activity_runtime.last_server_sequence = int(server_sequence)
+        activity_runtime.updated_at = utc_now()
     return derived
+
+
+append_rule_derived_event = _append_rule_derived_event
 
 
 def _matching_rule_derived_event(
@@ -1809,6 +1871,8 @@ def _matching_rule_derived_event(
     outcome: str,
     source_event_ids: tuple[int, ...],
     request_sha256: str,
+    activity_runtime: LearningActivityRuntime | None = None,
+    server_sequence: int | None = None,
 ) -> bool:
     return (
         existing.producer_type == "rule"
@@ -1825,11 +1889,20 @@ def _matching_rule_derived_event(
         and existing.event_schema_version == CURRENT_EVENT_SCHEMA_VERSION
         and existing.event_type == outcome
         and list(existing.source_event_ids_json or []) == list(source_event_ids)
+        and existing.activity_runtime_id
+        == (activity_runtime.id if activity_runtime is not None else None)
+        and existing.server_sequence == server_sequence
+        and existing.learner_sequence is None
+        and existing.activity_sidecar_json is None
+        and existing.activity_sidecar_sha256 is None
         and existing.corrects_event_id is None
     )
 
 
-def _insert_event_or_resolve_replay(db: Session, event: LearningEvidenceEvent) -> bool:
+def _insert_event_or_resolve_replay(
+    db: Session,
+    event: LearningEvidenceEvent,
+) -> bool:
     try:
         with db.begin_nested():
             db.add(event)
@@ -1839,6 +1912,14 @@ def _insert_event_or_resolve_replay(db: Session, event: LearningEvidenceEvent) -
         if event in db:
             db.expunge(event)
         return False
+
+
+def insert_evidence_event_or_resolve_replay(
+    db: Session,
+    event: LearningEvidenceEvent,
+) -> bool:
+    """Public runtime bridge over the legacy event savepoint primitive."""
+    return _insert_event_or_resolve_replay(db, event)
 
 
 def _lock_course_evidence_anchor(db: Session, course_id: int) -> Course:
@@ -1890,54 +1971,6 @@ def _correction_for_target_id(
     if locking_read:
         statement = statement.with_for_update()
     return db.scalar(statement)
-
-
-def _event_request_hash(
-    *,
-    actor_user_id: int,
-    subject_user_id: int | None,
-    producer_type: str,
-    payload: dict,
-) -> str:
-    return _canonical_sha256(
-        {
-            "actor_user_id": actor_user_id,
-            "subject_user_id": subject_user_id,
-            "producer_type": producer_type,
-            "payload": payload,
-        }
-    )
-
-
-def _canonical_sha256(value: Any) -> str:
-    serialized = json.dumps(
-        _canonical_value(value),
-        ensure_ascii=True,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-
-def _canonical_value(value: Any) -> Any:
-    if isinstance(value, datetime):
-        return _as_utc(value).isoformat(timespec="microseconds")
-    if isinstance(value, dict):
-        return {str(key): _canonical_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_canonical_value(item) for item in value]
-    return value
-
-
-def _validate_occurred_at(value: datetime) -> datetime:
-    try:
-        normalized = normalize_event_occurred_at(value)
-    except ValueError as exc:
-        _fail(422, "occurred_at_out_of_range", str(exc))
-    if normalized > utc_now() + MAX_FUTURE_CLOCK_SKEW:
-        _fail(422, "occurred_at_in_future", "occurred_at exceeds allowed clock skew")
-    return normalized
 
 
 def _receipt(event: LearningEvidenceEvent, outcome: str) -> dict:
@@ -2007,14 +2040,6 @@ def _projection_read(projection: LearningActivityProjection) -> dict:
         "transferred_at": _optional_as_utc(projection.transferred_at),
         "resume_cursor": dict(projection.resume_cursor_json or {}),
     }
-
-
-def _fail(status_code: int, code: str, detail: str):
-    raise LearningEvidenceError(status_code, code, detail)
-
-
-def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _optional_as_utc(value: datetime | None) -> datetime | None:

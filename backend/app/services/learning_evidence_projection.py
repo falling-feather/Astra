@@ -57,8 +57,14 @@ def completion_decision(
     scope: ActivityProjectionScope,
     definition_json: dict,
     locking_read: bool = False,
+    activity_runtime_id: int | None = None,
 ) -> CompletionDecision | None:
-    events = _scope_events(db, scope, locking_read=locking_read)
+    events = _scope_events(
+        db,
+        scope,
+        locking_read=locking_read,
+        activity_runtime_id=activity_runtime_id,
+    )
     invalidated_ids = _invalidated_event_ids(events)
     learner_events = _active_learner_events(events, invalidated_ids)
     activity_rule = _activity_rule(definition_json, scope.activity_key)
@@ -317,8 +323,13 @@ def _scope_events(
     scope: ActivityProjectionScope,
     *,
     locking_read: bool = False,
+    activity_runtime_id: int | None = None,
 ) -> list[LearningEvidenceEvent]:
-    statement = _scope_events_statement(scope, locking_read=locking_read)
+    statement = _scope_events_statement(
+        scope,
+        locking_read=locking_read,
+        activity_runtime_id=activity_runtime_id,
+    )
     return list(db.scalars(statement).all())
 
 
@@ -326,6 +337,7 @@ def _scope_events_statement(
     scope: ActivityProjectionScope,
     *,
     locking_read: bool = False,
+    activity_runtime_id: int | None = None,
 ):
     statement = select(LearningEvidenceEvent).where(
         LearningEvidenceEvent.subject_user_id == scope.subject_user_id,
@@ -334,6 +346,10 @@ def _scope_events_statement(
         LearningEvidenceEvent.course_unit_id == scope.course_unit_id,
         LearningEvidenceEvent.rule_id == scope.rule_id,
     )
+    if activity_runtime_id is not None:
+        statement = statement.where(
+            LearningEvidenceEvent.activity_runtime_id == activity_runtime_id
+        )
     if locking_read:
         statement = statement.with_for_update()
     return statement

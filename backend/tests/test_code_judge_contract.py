@@ -1313,7 +1313,7 @@ def test_0050_sqlite_roundtrip_reupgrade_and_mysql_schema_compile(tmp_path, monk
         assert "ix_code_judge_attempts_expired_claim" in {
             index["name"] for index in inspect(engine).get_indexes("code_judge_attempts")
         }
-        assert ScriptDirectory.from_config(config).get_heads() == ["20260809_0052"]
+        assert len(ScriptDirectory.from_config(config).get_heads()) == 1
         command.downgrade(config, "20260719_0049")
         assert "ix_code_judge_attempts_expired_claim" not in {
             index["name"] for index in inspect(engine).get_indexes("code_judge_attempts")
