@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 import json
 import re
 from typing import Annotated, Any, Literal
@@ -13,6 +13,10 @@ from pydantic import (
 )
 
 from app.core.learning_evidence_contract import (
+    LEARNING_ACTIVITY_EVIDENCE_SIDECAR_SCHEMA,
+    LEARNING_ACTIVITY_EVENT_SCHEMA,
+    LEARNING_ACTIVITY_RECOVERY_SCHEMA,
+    LEARNING_ACTIVITY_SERVER_RECOVERY_SCHEMA,
     MAX_RULE_WITNESS_EVENTS,
     normalize_event_occurred_at,
 )
@@ -36,6 +40,29 @@ EvidenceSummaryScalar = str | int | float | bool | None
 _ACTIVITY_KEY_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*")
 _CLIENT_EVENT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}")
 MAX_EVIDENCE_BYTES = 16_384
+MAX_ACTIVITY_SNAPSHOT_BYTES = 65_536
+MAX_ACTIVITY_SIDECAR_BYTES = 98_304
+_ACTIVITY_OCCURRED_AT_PATTERN = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z"
+)
+_ACTIVITY_SENSITIVE_FIELDS = frozenset(
+    {
+        "authorization",
+        "cookie",
+        "password",
+        "token",
+        "access_token",
+        "refresh_token",
+        "subject_identity",
+        "subject_user_id",
+        "identity_id",
+        "authority_generation",
+        "completed",
+        "transferred",
+        "projection_state",
+        "authoritative_completion",
+    }
+)
 _LEARNER_EVIDENCE_FIELDS = {
     "started": {"cursor"},
     "predicted": {"prediction", "cursor"},
@@ -108,6 +135,622 @@ def _fact_artifact(
 
 class StrictLearningEvidenceWriteModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class StrictLearningActivityModel(BaseModel):
+    """Frozen V8 activity transport: no coercion and no unknown fields."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+def _runtime_token(
+    value: str,
+    *,
+    field_name: str,
+    min_length: int = 1,
+    max_length: int = 128,
+) -> str:
+    if value != value.strip() or not (min_length <= len(value) <= max_length):
+        raise ValueError(
+            f"{field_name} must be canonical and contain {min_length} through "
+            f"{max_length} characters"
+        )
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*", value):
+        raise ValueError(f"{field_name} must be an opaque ASCII token")
+    return value
+
+
+def _runtime_activity_key(value: str) -> str:
+    if (
+        value != value.strip()
+        or value != value.lower()
+        or len(value) > 120
+        or not _ACTIVITY_KEY_PATTERN.fullmatch(value)
+    ):
+        raise ValueError(
+            "activity_key must already be a canonical lowercase segmented key"
+        )
+    return value
+
+
+def _runtime_occurred_at(value: str) -> str:
+    if not isinstance(value, str) or not _ACTIVITY_OCCURRED_AT_PATTERN.fullmatch(
+        value
+    ):
+        raise ValueError(
+            "occurred_at must be the exact UTC millisecond form produced by "
+            "Date.toISOString()"
+        )
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+        normalized = normalize_event_occurred_at(parsed)
+    except ValueError as exc:
+        raise ValueError("occurred_at is not a valid canonical UTC timestamp") from exc
+    if (
+        normalized.astimezone(UTC)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+        != value
+    ):
+        raise ValueError("occurred_at must be canonical UTC without normalization")
+    return value
+
+
+def _reject_activity_sensitive_data(value: Any, *, field_name: str) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            normalized_key = str(key).lower()
+            if normalized_key in _ACTIVITY_SENSITIVE_FIELDS:
+                raise ValueError(
+                    f"{field_name} contains forbidden sensitive field {key}"
+                )
+            _reject_activity_sensitive_data(
+                item,
+                field_name=f"{field_name}.{key}",
+            )
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_activity_sensitive_data(
+                item,
+                field_name=f"{field_name}[{index}]",
+            )
+
+
+class LearningActivitySubjectIdentity(StrictLearningActivityModel):
+    kind: Literal["learner"]
+    id: str = Field(min_length=1, max_length=128)
+
+    @field_validator("id")
+    @classmethod
+    def validate_identity_id(cls, value: str) -> str:
+        return _runtime_token(value, field_name="subject_identity.id")
+
+
+class LearningActivityRuntimeScope(StrictLearningActivityModel):
+    class_id: int = Field(ge=1)
+    course_id: int = Field(ge=1)
+    course_unit_id: int = Field(ge=1)
+    activity_key: str = Field(min_length=1, max_length=120)
+
+    @field_validator("activity_key")
+    @classmethod
+    def validate_activity_key(cls, value: str) -> str:
+        return _runtime_activity_key(value)
+
+
+class LearningActivityRuntimeRun(StrictLearningActivityModel):
+    run_id: str = Field(min_length=8, max_length=128)
+    group_id: str = Field(min_length=8, max_length=128)
+    sequence: int = Field(ge=1)
+
+    @field_validator("run_id", "group_id")
+    @classmethod
+    def validate_run_token(cls, value: str, info) -> str:
+        return _runtime_token(
+            value,
+            field_name=info.field_name,
+            min_length=8,
+        )
+
+
+class LearningActivityRuntimeVersions(StrictLearningActivityModel):
+    manifest_version: str = Field(min_length=1, max_length=64)
+    content_version: str = Field(min_length=1, max_length=64)
+    event_schema_version: int = Field(ge=1)
+    rule_version: int = Field(ge=1)
+    generation: str = Field(min_length=1, max_length=128)
+
+    @field_validator("manifest_version", "content_version", "generation")
+    @classmethod
+    def validate_version_token(cls, value: str, info) -> str:
+        return _runtime_token(value, field_name=info.field_name)
+
+
+class LearningActivityRuntimeIdentity(StrictLearningActivityModel):
+    class_id: int = Field(ge=1)
+    course_id: int = Field(ge=1)
+    course_unit_id: int = Field(ge=1)
+    activity_key: str = Field(min_length=1, max_length=120)
+    subject_identity: LearningActivitySubjectIdentity
+    run_id: str = Field(min_length=8, max_length=128)
+    group_id: str = Field(min_length=8, max_length=128)
+    manifest_version: str = Field(min_length=1, max_length=64)
+    content_version: str = Field(min_length=1, max_length=64)
+    event_schema_version: int = Field(ge=1)
+    rule_version: int = Field(ge=1)
+    generation: str = Field(min_length=1, max_length=128)
+
+    @field_validator("activity_key")
+    @classmethod
+    def validate_identity_activity_key(cls, value: str) -> str:
+        return _runtime_activity_key(value)
+
+    @field_validator(
+        "run_id",
+        "group_id",
+        "manifest_version",
+        "content_version",
+        "generation",
+    )
+    @classmethod
+    def validate_identity_token(cls, value: str, info) -> str:
+        return _runtime_token(
+            value,
+            field_name=info.field_name,
+            min_length=8 if info.field_name in {"run_id", "group_id"} else 1,
+        )
+
+
+class LearningActivityAuthorityRead(StrictLearningActivityModel):
+    authorized: Literal[True]
+    identity: LearningActivityRuntimeIdentity
+    revision: str = Field(min_length=8, max_length=64)
+
+
+class LearningActivityReleaseRead(StrictLearningActivityModel):
+    scope: LearningActivityRuntimeScope
+    state: Literal["hidden", "locked", "open"]
+    revision: str = Field(min_length=8, max_length=64)
+
+
+class LearningActivityRuntimeSnapshotWrite(StrictLearningActivityModel):
+    state_schema_version: str = Field(min_length=1, max_length=64)
+    applied_through_learner_sequence: int = Field(ge=1)
+    data: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("state_schema_version")
+    @classmethod
+    def validate_state_schema_version(cls, value: str) -> str:
+        return _runtime_token(value, field_name="state_schema_version")
+
+    @field_validator("data")
+    @classmethod
+    def validate_snapshot_size(cls, value: dict[str, Any]) -> dict[str, Any]:
+        _reject_activity_sensitive_data(value, field_name="snapshot.data")
+        try:
+            serialized = json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError, UnicodeError) as exc:
+            raise ValueError("snapshot.data must be JSON serializable") from exc
+        if len(serialized.encode("utf-8")) > MAX_ACTIVITY_SNAPSHOT_BYTES:
+            raise ValueError(
+                f"snapshot.data exceeds {MAX_ACTIVITY_SNAPSHOT_BYTES} bytes"
+            )
+        return value
+
+
+class LearningActivityRuntimeCommand(StrictLearningActivityModel):
+    schema_version: Literal[LEARNING_ACTIVITY_EVENT_SCHEMA]
+    scope: LearningActivityRuntimeScope
+    run: LearningActivityRuntimeRun
+    versions: LearningActivityRuntimeVersions
+    client_event_id: str = Field(min_length=8, max_length=128)
+    event_type: LearnerEvidenceEventType
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    occurred_at: str
+
+    @field_validator("client_event_id")
+    @classmethod
+    def validate_client_event_id(cls, value: str) -> str:
+        if not _CLIENT_EVENT_ID_PATTERN.fullmatch(value):
+            raise ValueError("client_event_id must be an opaque stable identifier")
+        return value
+
+    @field_validator("evidence")
+    @classmethod
+    def validate_evidence_size(cls, value: dict[str, Any]) -> dict[str, Any]:
+        _reject_activity_sensitive_data(value, field_name="command.evidence")
+        return _bounded_json(value, field_name="evidence")
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at(cls, value: str) -> str:
+        return _runtime_occurred_at(value)
+
+    @model_validator(mode="after")
+    def validate_runtime_fact_payload(self):
+        legacy_shape = LearnerEvidenceEventCreate.model_validate(
+            {
+                "client_event_id": self.client_event_id,
+                "class_id": self.scope.class_id,
+                "course_id": self.scope.course_id,
+                "course_unit_id": self.scope.course_unit_id,
+                "activity_key": self.scope.activity_key,
+                "rule_version": self.versions.rule_version,
+                "event_type": self.event_type,
+                "evidence": self.evidence,
+                "occurred_at": datetime.fromisoformat(
+                    self.occurred_at[:-1] + "+00:00"
+                ),
+            }
+        )
+        if legacy_shape.evidence != self.evidence:
+            raise ValueError(
+                "command.evidence must already use the canonical learner fact form"
+            )
+        return self
+
+
+class LearningActivityRuntimeEventCreate(StrictLearningActivityModel):
+    """One immutable EvidencePort sidecar accepted atomically by the server."""
+
+    schema_version: Literal[LEARNING_ACTIVITY_EVIDENCE_SIDECAR_SCHEMA]
+    command: LearningActivityRuntimeCommand
+    snapshot: LearningActivityRuntimeSnapshotWrite
+
+    @model_validator(mode="after")
+    def validate_sidecar(self):
+        if (
+            self.snapshot.applied_through_learner_sequence
+            != self.command.run.sequence
+        ):
+            raise ValueError(
+                "snapshot.applied_through_learner_sequence must equal "
+                "command.run.sequence"
+            )
+        serialized = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        if len(serialized.encode("utf-8")) > MAX_ACTIVITY_SIDECAR_BYTES:
+            raise ValueError(
+                f"activity sidecar exceeds {MAX_ACTIVITY_SIDECAR_BYTES} bytes"
+            )
+        return self
+
+
+class LearningActivityRuntimeReceipt(StrictLearningActivityModel):
+    status: Literal[
+        "confirmed",
+        "reconciled",
+        "local-pending",
+        "manual-intervention",
+    ]
+    client_event_id: str
+    event_type: LearnerEvidenceEventType
+    run_id: str
+    group_id: str
+    learner_sequence: int = Field(ge=1)
+    server_sequence: int | None = Field(default=None, ge=1)
+    server_last_sequence: int | None = Field(default=None, ge=1)
+    server_event_id: str | None = None
+
+    @field_validator("client_event_id", "run_id", "group_id", "server_event_id")
+    @classmethod
+    def validate_receipt_tokens(cls, value: str | None, info) -> str | None:
+        if value is None:
+            return None
+        return _runtime_token(
+            value,
+            field_name=info.field_name,
+            min_length=8,
+        )
+
+    @model_validator(mode="after")
+    def validate_receipt_authority(self):
+        authoritative = self.status in {"confirmed", "reconciled"}
+        server_values = (
+            self.server_sequence,
+            self.server_last_sequence,
+            self.server_event_id,
+        )
+        if authoritative:
+            if any(value is None for value in server_values):
+                raise ValueError("authoritative receipt requires all server fields")
+            if self.server_last_sequence < self.server_sequence:
+                raise ValueError(
+                    "server_last_sequence must include the accepted server position"
+                )
+        elif any(value is not None for value in server_values):
+            raise ValueError(
+                "non-authoritative receipt must leave all server fields null"
+            )
+        return self
+
+
+class LearningActivityServerLearnerEventRead(StrictLearningActivityModel):
+    identity: LearningActivityRuntimeIdentity
+    server_sequence: int = Field(ge=1)
+    server_event_id: str = Field(min_length=8, max_length=128)
+    learner_sequence: int = Field(ge=1)
+    event_type: LearnerEvidenceEventType
+    producer: Literal["learner"]
+    occurred_at: str
+    sidecar: LearningActivityRuntimeEventCreate
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_learner_occurred_at(cls, value: str) -> str:
+        return _runtime_occurred_at(value)
+
+
+class LearningActivityServerDerivedEventRead(StrictLearningActivityModel):
+    identity: LearningActivityRuntimeIdentity
+    server_sequence: int = Field(ge=1)
+    server_event_id: str = Field(min_length=8, max_length=128)
+    learner_sequence: None = None
+    event_type: DerivedEvidenceEventType
+    producer: Literal["server"]
+    occurred_at: str
+    evidence: dict[str, Any]
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_derived_occurred_at(cls, value: str) -> str:
+        return _runtime_occurred_at(value)
+
+
+LearningActivityServerEventRead = Annotated[
+    LearningActivityServerLearnerEventRead | LearningActivityServerDerivedEventRead,
+    Field(discriminator="producer"),
+]
+
+
+class LearningActivityCompletionWitnessRead(StrictLearningActivityModel):
+    identity: LearningActivityRuntimeIdentity
+    projection_state: Literal["completed", "transferred"]
+    rule_version: int = Field(ge=1)
+    applied_through_server_sequence: int = Field(ge=1)
+    derived_server_event_id: str = Field(min_length=8, max_length=128)
+    derived_server_sequence: int = Field(ge=1)
+    source_client_event_ids: list[str] = Field(min_length=1, max_length=MAX_RULE_WITNESS_EVENTS)
+
+    @field_validator("source_client_event_ids")
+    @classmethod
+    def validate_source_client_event_ids(cls, values: list[str]) -> list[str]:
+        if len(values) != len(set(values)):
+            raise ValueError("completion source client_event_id values must be unique")
+        return [
+            _runtime_token(
+                value,
+                field_name="source_client_event_ids",
+                min_length=8,
+            )
+            for value in values
+        ]
+
+
+class LearningActivityServerProjectionRead(StrictLearningActivityModel):
+    state: LearningProjectionStatus
+    applied_through_server_sequence: int = Field(ge=0)
+    completion_witness: LearningActivityCompletionWitnessRead | None = None
+
+    @model_validator(mode="after")
+    def validate_terminal_witness(self):
+        terminal = self.state in {"completed", "transferred"}
+        if terminal != (self.completion_witness is not None):
+            raise ValueError(
+                "terminal server projection requires exactly one completion witness"
+            )
+        if self.completion_witness is not None and (
+            self.completion_witness.projection_state != self.state
+            or self.completion_witness.applied_through_server_sequence
+            != self.applied_through_server_sequence
+        ):
+            raise ValueError("completion witness does not match server projection")
+        return self
+
+
+class LearningActivityServerSnapshotRead(StrictLearningActivityModel):
+    identity: LearningActivityRuntimeIdentity
+    state_schema_version: str
+    applied_through_learner_sequence: int = Field(ge=0)
+    data: dict[str, Any]
+
+    @field_validator("state_schema_version")
+    @classmethod
+    def validate_snapshot_schema(cls, value: str) -> str:
+        return _runtime_token(value, field_name="state_schema_version")
+
+    @field_validator("data")
+    @classmethod
+    def validate_snapshot_data(cls, value: dict[str, Any]) -> dict[str, Any]:
+        _reject_activity_sensitive_data(value, field_name="server.snapshot.data")
+        return value
+
+
+class LearningActivityServerHistoryRead(StrictLearningActivityModel):
+    identity: LearningActivityRuntimeIdentity
+    complete_history: Literal[True]
+    event_count: int = Field(ge=0)
+    events: list[LearningActivityServerEventRead]
+    projection: LearningActivityServerProjectionRead
+    snapshot: LearningActivityServerSnapshotRead | None
+
+    @model_validator(mode="after")
+    def validate_server_half(self):
+        if self.event_count != len(self.events):
+            raise ValueError("server.event_count must equal the returned ledger size")
+        if [event.server_sequence for event in self.events] != list(
+            range(1, self.event_count + 1)
+        ):
+            raise ValueError("server history must be contiguous by server_sequence")
+        learner_events = [
+            event
+            for event in self.events
+            if isinstance(event, LearningActivityServerLearnerEventRead)
+        ]
+        if [event.learner_sequence for event in learner_events] != list(
+            range(1, len(learner_events) + 1)
+        ):
+            raise ValueError("learner history must be contiguous by learner_sequence")
+        if any(event.identity != self.identity for event in self.events):
+            raise ValueError("server event identity does not match its container")
+        if self.projection.applied_through_server_sequence != self.event_count:
+            raise ValueError("server snapshot or projection cursor is incomplete")
+        if not learner_events:
+            if (
+                self.event_count != 0
+                or self.snapshot is not None
+                or self.projection.state != "not_started"
+                or self.projection.completion_witness is not None
+            ):
+                raise ValueError(
+                    "empty server ledger requires an explicit external initial snapshot"
+                )
+            return self
+        if self.snapshot is None or self.snapshot.identity != self.identity:
+            raise ValueError("server snapshot identity does not match its container")
+        if self.snapshot.applied_through_learner_sequence != len(learner_events):
+            raise ValueError("server snapshot learner cursor is incomplete")
+        if learner_events:
+            latest_snapshot = learner_events[-1].sidecar.snapshot
+            if (
+                self.snapshot.state_schema_version
+                != latest_snapshot.state_schema_version
+                or self.snapshot.applied_through_learner_sequence
+                != latest_snapshot.applied_through_learner_sequence
+                or self.snapshot.data != latest_snapshot.data
+            ):
+                raise ValueError(
+                    "server snapshot must equal the last accepted learner sidecar"
+                )
+        witness = self.projection.completion_witness
+        if witness is not None:
+            if witness.identity != self.identity:
+                raise ValueError("completion witness identity mismatch")
+            derived = next(
+                (
+                    event
+                    for event in self.events
+                    if event.server_event_id == witness.derived_server_event_id
+                    and event.server_sequence == witness.derived_server_sequence
+                ),
+                None,
+            )
+            by_client_id = {
+                event.sidecar.command.client_event_id: event
+                for event in learner_events
+            }
+            sources = [
+                by_client_id.get(client_event_id)
+                for client_event_id in witness.source_client_event_ids
+            ]
+            if (
+                not isinstance(derived, LearningActivityServerDerivedEventRead)
+                or derived.event_type != witness.projection_state
+                or any(source is None for source in sources)
+                or any(
+                    source.server_sequence >= derived.server_sequence
+                    for source in sources
+                )
+            ):
+                raise ValueError("completion witness is not causally proven")
+        return self
+
+
+class LearningActivityInitialSnapshotRequirementRead(StrictLearningActivityModel):
+    source: Literal["owner-adapter-canonical-initial-snapshot"]
+    state_schema_version_source: Literal[
+        "manifest.content.state_schema_version"
+    ]
+    applied_through_learner_sequence: Literal[0] = 0
+    server_domain_state_verified: Literal[False] = False
+
+
+class LearningActivityRecoveryFreshnessRead(StrictLearningActivityModel):
+    status: Literal["current"]
+    authority_revision: str
+    release_revision: str
+
+    @field_validator("authority_revision", "release_revision")
+    @classmethod
+    def validate_revision(cls, value: str, info) -> str:
+        return _runtime_token(
+            value,
+            field_name=info.field_name,
+            min_length=8,
+            max_length=64,
+        )
+
+
+class LearningActivityServerRecoveryRead(StrictLearningActivityModel):
+    schema_version: Literal[LEARNING_ACTIVITY_SERVER_RECOVERY_SCHEMA]
+    consumer_schema_version: Literal[LEARNING_ACTIVITY_RECOVERY_SCHEMA]
+    exact_available: bool
+    manual_intervention_required: bool
+    reason: str | None = None
+    snapshot_id: str | None = None
+    captured_at: str
+    identity: LearningActivityRuntimeIdentity
+    freshness: LearningActivityRecoveryFreshnessRead | None = None
+    server: LearningActivityServerHistoryRead | None = None
+    initial_snapshot_requirement: (
+        LearningActivityInitialSnapshotRequirementRead | None
+    ) = None
+    client_pending_status: Literal["unknown"] = "unknown"
+
+    @field_validator("captured_at")
+    @classmethod
+    def validate_captured_at(cls, value: str) -> str:
+        return _runtime_occurred_at(value)
+
+    @field_validator("snapshot_id")
+    @classmethod
+    def validate_snapshot_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _runtime_token(
+            value,
+            field_name="snapshot_id",
+            min_length=8,
+        )
+
+    @model_validator(mode="after")
+    def validate_server_half_availability(self):
+        if self.exact_available:
+            if (
+                self.manual_intervention_required
+                or self.reason is not None
+                or self.snapshot_id is None
+                or self.freshness is None
+                or self.server is None
+            ):
+                raise ValueError("exact server half is missing authoritative fields")
+            if self.server.identity != self.identity:
+                raise ValueError("server half identity mismatch")
+            empty_ledger = self.server.event_count == 0
+            if empty_ledger != (self.initial_snapshot_requirement is not None):
+                raise ValueError(
+                    "only an empty ledger requires owner-adapter initial snapshot assembly"
+                )
+        elif (
+            self.snapshot_id is not None
+            or self.freshness is not None
+            or self.server is not None
+            or self.initial_snapshot_requirement is not None
+            or self.reason is None
+        ):
+            raise ValueError("unavailable server half must not expose partial history")
+        return self
 
 
 class CompletionActivityRule(StrictLearningEvidenceWriteModel):

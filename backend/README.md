@@ -2,9 +2,9 @@
 
 > **文档定位**：后端本地开发、API/服务边界、配置、迁移、运维脚本和验证入口。V7.4.12 起完成事实见 [`../doc/03-开发历史.md`](../doc/03-开发历史.md)，更早实机证据见 [`../doc/03-发布历史.md`](../doc/03-发布历史.md)，未来任务见 [`../doc/02-项目规划.md`](../doc/02-项目规划.md)。
 >
-> **当前基线**：FastAPI + SQLAlchemy + Alembic 0052；SQLite 为安全本地默认，MySQL 为后置发布目标。0048 增加稳定课程/活动键和班级发布计划，0049 建立 provider-neutral 题目版本、代码提交与判题尝试/租约，0050 为过期租约的有界恢复增加复合索引，0051 建立权威学习证据、版本化完成规则和投影，0052 再以 `client_submission_id` 把学生多次源码修订与网络重放幂等分开。SQLite QA 账本现在从迁移脚本目录动态解析唯一 head，不再写死 revision。默认 runner 仍关闭，API 不执行 shell、动态求值或外呼学生源码；0052 的 SQLite 往返、幂等、权限和 MySQL DDL 编译门禁已覆盖，但真实 MySQL、隔离 runner、staging 和公网 R6 仍为 `NOT-RUN`，本机结果不得外推。
+> **当前基线**：FastAPI + SQLAlchemy + Alembic 0053；SQLite 为安全本地默认，MySQL 为后置发布目标。0048 增加稳定课程/活动键和班级发布计划，0049 建立 provider-neutral 题目版本、代码提交与判题尝试/租约，0050 为过期租约的有界恢复增加复合索引，0051 建立权威学习证据、版本化完成规则和投影，0052 再以 `client_submission_id` 把学生多次源码修订与网络重放幂等分开，0053 为学习活动增加精确 runtime identity、逐事件 sidecar 与相互独立的 learner/server 游标。SQLite QA 账本从迁移脚本目录动态解析唯一 head，不写死 revision。默认 runner 仍关闭，API 不执行 shell、动态求值或外呼学生源码；0053 的 SQLite 往返、幂等、权限与 MySQL DDL 离线编译门禁已覆盖，但真实 MySQL、隔离 runner、staging 和公网 R6 仍为 `NOT-RUN`，本机结果不得外推。
 >
-> **最后更新**：2026-08-09
+> **最后更新**：2026-08-10
 
 后端当前承担认证与会话、学校/班级/课程、作业/提交/批改、积分与知识状态、内容草稿/审核/发布/回滚、脚本隔离、管理治理、DB-backed 任务和审计链。`server/` 中的 Node/C++ 进程只承担显式白名单静态资源，不是业务 API。
 
@@ -501,7 +501,7 @@ python -m pytest backend/tests/test_backend_performance.py backend/tests/test_ap
 node tools/tests/v6653-permission-analytics-contract.cjs
 ```
 
-迁移最低门禁需验证 `upgrade 20260710_0043 -> upgrade head -> downgrade 20260710_0043 -> upgrade head`，最终 `alembic current` 必须为动态解析出的唯一 head；0044 绑定最后编辑者/审核 schema hash，0045 串行化 admin 安全控制面，0046 将知识快照窗口字段提升为 MySQL DATETIME(6)，0047 增加学校/班级说明与乐观并发版本，0048 增加稳定课程/活动键和班级发布计划，0049 增加代码题目、版本、提交与判题尝试，0050 增加判题尝试过期租约恢复复合索引，0051 增加权威学习证据七表与隔离历史访问权益，0052 增加客户端提交键并替换旧单修订唯一约束。V6.6.61 的真实 MySQL 证据只覆盖至 0046；0047—0052 必须在新的隔离 MySQL 或目标环境补证。
+迁移最低门禁需验证 `upgrade 20260710_0043 -> upgrade head -> downgrade 20260710_0043 -> upgrade head`，最终 `alembic current` 必须为动态解析出的唯一 head；0044 绑定最后编辑者/审核 schema hash，0045 串行化 admin 安全控制面，0046 将知识快照窗口字段提升为 MySQL DATETIME(6)，0047 增加学校/班级说明与乐观并发版本，0048 增加稳定课程/活动键和班级发布计划，0049 增加代码题目、版本、提交与判题尝试，0050 增加判题尝试过期租约恢复复合索引，0051 增加权威学习证据七表与隔离历史访问权益，0052 增加客户端提交键并替换旧单修订唯一约束，0053 增加双游标活动 runtime 与逐事件 exact sidecar。V6.6.61 的真实 MySQL 证据只覆盖至 0046；0047—0053 必须在新的隔离 MySQL 或目标环境补证。
 
 权限范围回归可单独运行：
 
@@ -517,7 +517,7 @@ $env:ASTRA_DATABASE_URL='sqlite+pysqlite:///:memory:'
 python -m alembic upgrade head
 ```
 
-当前 Alembic head：`20260809_0052`。`0043` 为高频治理读取增加复合索引；`0044/0045` 分别增加内容审核绑定和安全控制锁；`0046` 统一知识窗口的 MySQL DATETIME(6)；`0047` 增加学校/班级说明与乐观并发版本；`0048` 增加课程/活动稳定键和班级发布计划；`0049` 建立代码题目、不可变版本、submission 与 judge attempt；`0050` 增加过期租约恢复索引；`0051` 建立权威学习证据、完成规则、活动/续学投影及隔离历史访问权益；`0052` 为 `code_submissions` 增加 `client_submission_id`，历史行回填 `legacy:{id}`，唯一范围改为 `student + problem + class + client_submission_id`。0048—0052 已覆盖 SQLite 迁移/往返与条件式 MySQL DDL 门禁，真实 MySQL 仍待新环境补证。
+当前 Alembic head：`20260810_0053`。`0043` 为高频治理读取增加复合索引；`0044/0045` 分别增加内容审核绑定和安全控制锁；`0046` 统一知识窗口的 MySQL DATETIME(6)；`0047` 增加学校/班级说明与乐观并发版本；`0048` 增加课程/活动稳定键和班级发布计划；`0049` 建立代码题目、不可变版本、submission 与 judge attempt；`0050` 增加过期租约恢复索引；`0051` 建立权威学习证据、完成规则、活动/续学投影及隔离历史访问权益；`0052` 为 `code_submissions` 增加 `client_submission_id` 并替换旧单修订唯一约束；`0053` 新建不可变 runtime identity，事件按 `server_sequence` 连续排列，并为 learner fact 独立保存 `learner_sequence` 与完整 canonical sidecar。0053 已覆盖 SQLite 空/历史库升级、0053→0052→0053 往返与 MySQL DDL 离线编译；真实 MySQL 仍待隔离环境补证。
 
 内容脚本远端漂移 CLI：
 

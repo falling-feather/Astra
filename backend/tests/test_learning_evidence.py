@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+import ast
 import hashlib
 import json
 import os
+import shutil
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier, Event
 from uuid import uuid4
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
-import pytest
-from sqlalchemy import create_engine, inspect, select, text
-from sqlalchemy.dialects import mysql
-from sqlalchemy.schema import CreateIndex, CreateTable
-
+from pydantic import ValidationError
 from app.core.config import get_settings
 from app.core.learning_evidence_contract import (
     MAX_RULE_WITNESS_EVENTS,
@@ -31,26 +29,40 @@ from app.models import (
     AuditLog,
     ClassMembership,
     Course,
-    CourseCollaborator,
+    CourseClass,
     CourseUnit,
-    LegacyAccessEntitlement,
     LearningActivityProjection,
     LearningCompletionRule,
-    LearningEvidenceEvent,
     LearningEvent,
+    LearningEvidenceEvent,
     LearningResumeProjection,
     LearningRuleActivation,
     LearningRuleClassBinding,
+    LegacyAccessEntitlement,
     SchoolMembership,
     User,
 )
+from app.models.learning_evidence import (
+    CURRENT_EVENT_SCHEMA_VERSION,
+    LearningActivityRuntime,
+)
 from app.schemas.learning_evidence import (
+    MAX_EVIDENCE_BYTES,
     CompletionRuleActivate,
     LearnerEvidenceEventCreate,
-    MAX_EVIDENCE_BYTES,
+    LearningActivityRuntimeEventCreate,
+    LearningActivityRuntimeReceipt,
     TeacherEvidenceCorrectionCreate,
 )
-from app.models.learning_evidence import CURRENT_EVENT_SCHEMA_VERSION
+from app.services import (
+    assignment_policies,
+    course_release_write_gate,
+    learning_evidence_access,
+    learning_evidence_projection,
+)
+from app.services import learning_activity_runtime as learning_activity_runtime_service
+from app.services import learning_evidence as learning_evidence_service
+from app.services.access_control import lock_active_school_for_write
 from app.services.learning_evidence import (
     LearningEvidenceError,
     activate_completion_rule,
@@ -59,17 +71,14 @@ from app.services.learning_evidence import (
     append_trusted_assessment_result,
     rebuild_learning_projections,
 )
-from app.services import (
-    assignment_policies,
-    course_release_plans,
-    course_release_write_gate,
-)
-from app.services import learning_evidence as learning_evidence_service
-from app.services import learning_evidence_access
-from app.services import learning_evidence_projection
-from app.services.access_control import lock_active_school_for_write
 from app.services.learning_evidence_projection import ActivityProjectionScope
 from app.services.teacher_evidence_facts import teacher_evidence_facts
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy.dialects import mysql
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -294,6 +303,1377 @@ def _event_payload(
         "evidence": evidence or {},
         "occurred_at": occurred_at.isoformat(),
     }
+
+
+def _activity_runtime_identity(
+    scope: dict,
+    *,
+    run_id: str = "runtime-run-0001",
+    group_id: str = "runtime-group-0001",
+    generation: str = "generation-1",
+    rule_version: int = 1,
+) -> dict:
+    return {
+        "class_id": scope["class_id"],
+        "course_id": scope["course_id"],
+        "course_unit_id": scope["unit_one"]["id"],
+        "activity_key": scope["unit_one"]["activity_key"],
+        "subject_identity": {
+            "kind": "learner",
+            "id": str(scope["student"]["id"]),
+        },
+        "run_id": run_id,
+        "group_id": group_id,
+        "manifest_version": "manifest-v1",
+        "content_version": "content-v1",
+        "event_schema_version": 1,
+        "rule_version": rule_version,
+        "generation": generation,
+    }
+
+
+def _activity_runtime_event_payload(
+    scope: dict,
+    *,
+    client_event_id: str,
+    sequence: int,
+    event_type: str,
+    evidence: dict | None = None,
+    snapshot: dict | None = None,
+    identity: dict | None = None,
+) -> dict:
+    runtime_identity = identity or _activity_runtime_identity(scope)
+    return {
+        "schema_version": "astra-learning-activity-evidence-sidecar-v1",
+        "command": {
+            "schema_version": "astra-learning-activity-event-v1",
+            "scope": {
+                "class_id": runtime_identity["class_id"],
+                "course_id": runtime_identity["course_id"],
+                "course_unit_id": runtime_identity["course_unit_id"],
+                "activity_key": runtime_identity["activity_key"],
+            },
+            "run": {
+                "run_id": runtime_identity["run_id"],
+                "group_id": runtime_identity["group_id"],
+                "sequence": sequence,
+            },
+            "versions": {
+                "manifest_version": runtime_identity["manifest_version"],
+                "content_version": runtime_identity["content_version"],
+                "event_schema_version": runtime_identity["event_schema_version"],
+                "rule_version": runtime_identity["rule_version"],
+                "generation": runtime_identity["generation"],
+            },
+            "client_event_id": client_event_id,
+            "event_type": event_type,
+            "evidence": evidence or {},
+            "occurred_at": datetime.now(UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+        },
+        "snapshot": {
+            "state_schema_version": "state-v1",
+            "applied_through_learner_sequence": sequence,
+            "data": snapshot or {"stage": event_type},
+        },
+    }
+
+
+def _completed_activity_runtime(client, slug: str) -> tuple[dict, dict]:
+    scope = _learning_scope(client, slug)
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    identity = _activity_runtime_identity(scope)
+    started = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id=f"{slug}:runtime:started:0001",
+            sequence=1,
+            event_type="started",
+            identity=identity,
+        ),
+    )
+    assert started.status_code == 201, started.json()
+    attempted = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id=f"{slug}:runtime:attempted:0002",
+            sequence=2,
+            event_type="attempted",
+            evidence={"operation": "submit"},
+            identity=identity,
+        ),
+    )
+    assert attempted.status_code == 201, attempted.json()
+    return scope, identity
+
+
+def test_be018_runtime_owner_imports_only_named_public_legacy_bridges():
+    owner_path = (
+        Path(__file__).resolve().parents[1]
+        / "app"
+        / "services"
+        / "learning_activity_runtime.py"
+    )
+    tree = ast.parse(owner_path.read_text(encoding="utf-8"))
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "app.services.learning_evidence"
+        for alias in node.names
+    }
+    assert imported == {
+        "append_rule_derived_event",
+        "insert_evidence_event_or_resolve_replay",
+        "lock_learner_evidence_scope",
+    }
+    assert all(not name.startswith("_") for name in imported)
+
+
+def test_be018_runtime_terminal_sequence_snapshot_and_witness_are_contiguous(client):
+    scope, identity = _completed_activity_runtime(client, "be018-contiguous")
+    with get_session_factory(get_settings().database_url)() as db:
+        runtime = db.scalar(select(LearningActivityRuntime))
+        assert runtime is not None
+        events = list(
+            db.scalars(
+                select(LearningEvidenceEvent)
+                .where(LearningEvidenceEvent.activity_runtime_id == runtime.id)
+                .order_by(LearningEvidenceEvent.server_sequence)
+            ).all()
+        )
+        assert [event.server_sequence for event in events] == [1, 2, 3]
+        assert {event.activity_runtime_id for event in events} == {runtime.id}
+        assert [event.producer_type for event in events] == ["learner", "learner", "rule"]
+        assert runtime.subject_identity_id == identity["subject_identity"]["id"]
+        assert runtime.run_id == identity["run_id"]
+        assert runtime.group_id == identity["group_id"]
+        assert runtime.manifest_version == identity["manifest_version"]
+        assert runtime.content_version == identity["content_version"]
+        assert runtime.event_schema_version == identity["event_schema_version"]
+        assert runtime.rule_version == identity["rule_version"]
+        assert runtime.generation == identity["generation"]
+        derived = events[-1]
+        witness = [event for event in events if event.id in derived.source_event_ids_json]
+        assert len(witness) == 2
+        assert all(event.producer_type == "learner" for event in witness)
+        assert all(event.server_sequence < derived.server_sequence for event in witness)
+        assert [event.learner_sequence for event in events] == [1, 2, None]
+        assert runtime.last_learner_sequence == 2
+        assert runtime.last_server_sequence == 3
+        assert runtime.snapshot_applied_through_learner_sequence == 2
+        persisted_sidecars = [
+            event.activity_sidecar_json
+            for event in events
+            if event.producer_type == "learner"
+        ]
+        assert all(sidecar is not None for sidecar in persisted_sidecars)
+        assert derived.activity_sidecar_json is None
+        assert derived.activity_sidecar_sha256 is None
+
+    recovered = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert recovered.status_code == 200, recovered.json()
+    body = recovered.json()
+    assert body["schema_version"] == "astra-learning-activity-server-recovery-v2"
+    assert body["consumer_schema_version"] == "astra-learning-activity-recovery-v2"
+    assert body["exact_available"] is True
+    assert body["server"]["event_count"] == 3
+    assert [event["server_sequence"] for event in body["server"]["events"]] == [
+        1,
+        2,
+        3,
+    ]
+    assert [event["learner_sequence"] for event in body["server"]["events"]] == [
+        1,
+        2,
+        None,
+    ]
+    assert [
+        event["sidecar"]
+        for event in body["server"]["events"]
+        if event["producer"] == "learner"
+    ] == persisted_sidecars
+    assert body["server"]["snapshot"][
+        "applied_through_learner_sequence"
+    ] == 2
+    assert body["server"]["projection"]["state"] == "completed"
+    assert body["server"]["projection"][
+        "applied_through_server_sequence"
+    ] == 3
+    assert body["server"]["projection"]["completion_witness"] == {
+        "identity": identity,
+        "projection_state": "completed",
+        "rule_version": 1,
+        "applied_through_server_sequence": 3,
+        "derived_server_event_id": body["server"]["events"][2][
+            "server_event_id"
+        ],
+        "derived_server_sequence": 3,
+        "source_client_event_ids": [
+            "be018-contiguous:runtime:started:0001",
+            "be018-contiguous:runtime:attempted:0002",
+        ],
+    }
+    compatible = client.get(
+        f"/api/learning-evidence/me/recovery?class_id={scope['class_id']}&course_id={scope['course_id']}",
+        headers=_auth(scope["student"]["token"]),
+    )
+    assert compatible.status_code == 200, compatible.json()
+    activity = next(
+        item
+        for item in compatible.json()["activities"]
+        if item["course_unit_id"] == scope["unit_one"]["id"]
+    )
+    assert activity["status"] == "completed"
+
+
+def test_be018_runtime_dual_cursor_continues_after_derived_and_rejects_duplicate_or_gap(client):
+    scope, identity = _completed_activity_runtime(client, "be018-followup")
+    payload = _activity_runtime_event_payload(
+        scope,
+        client_event_id="be018-followup:runtime:explained:0003",
+        sequence=3,
+        event_type="explained",
+        evidence={"artifact": "post-completion note"},
+        identity=identity,
+    )
+    created = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=payload,
+    )
+    assert created.status_code == 201, created.json()
+    assert created.json()["learner_sequence"] == 3
+    assert created.json()["server_sequence"] == 4
+    assert created.json()["server_last_sequence"] == 4
+    assert set(created.json()) == {
+        "status",
+        "client_event_id",
+        "event_type",
+        "run_id",
+        "group_id",
+        "learner_sequence",
+        "server_sequence",
+        "server_last_sequence",
+        "server_event_id",
+    }
+
+    replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=payload,
+    )
+    assert replay.status_code == 200, replay.json()
+    assert replay.json()["server_event_id"] == created.json()["server_event_id"]
+    assert replay.json()["status"] == "reconciled"
+
+    conflicting_payload = json.loads(json.dumps(payload))
+    conflicting_payload["snapshot"]["data"] = {"stage": "drifted"}
+    conflicting_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=conflicting_payload,
+    )
+    assert conflicting_replay.status_code == 409, conflicting_replay.json()
+    assert conflicting_replay.json()["detail"]["code"] == "idempotency_payload_conflict"
+    command_drift = json.loads(json.dumps(payload))
+    command_drift["command"]["evidence"] = {"artifact": "different note"}
+    command_conflict = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=command_drift,
+    )
+    assert command_conflict.status_code == 409, command_conflict.json()
+    assert command_conflict.json()["detail"]["code"] == (
+        "idempotency_payload_conflict"
+    )
+
+    duplicate_payload = json.loads(json.dumps(payload))
+    duplicate_payload["command"]["client_event_id"] = (
+        "be018-followup:runtime:duplicate:0003"
+    )
+    duplicate_sequence = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=duplicate_payload,
+    )
+    assert duplicate_sequence.status_code == 409, duplicate_sequence.json()
+    assert duplicate_sequence.json()["detail"]["code"] == (
+        "activity_runtime_learner_sequence_duplicate"
+    )
+
+    gap_payload = _activity_runtime_event_payload(
+        scope,
+        client_event_id="be018-followup:runtime:gap:0005",
+        sequence=5,
+        event_type="explained",
+        evidence={"artifact": "gap note"},
+        identity=identity,
+    )
+    gap = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=gap_payload,
+    )
+    assert gap.status_code == 409, gap.json()
+    assert gap.json()["detail"]["code"] == "activity_runtime_learner_sequence_gap"
+    with get_session_factory(get_settings().database_url)() as db:
+        runtime = db.scalar(select(LearningActivityRuntime))
+        assert runtime is not None
+        assert runtime.last_learner_sequence == 3
+        assert runtime.last_server_sequence == 4
+        assert runtime.snapshot_applied_through_learner_sequence == 3
+        assert list(
+            db.scalars(
+                select(LearningEvidenceEvent.server_sequence)
+                .where(LearningEvidenceEvent.activity_runtime_id == runtime.id)
+                .order_by(LearningEvidenceEvent.server_sequence)
+            ).all()
+        ) == [1, 2, 3, 4]
+
+
+def test_be018_real_v8011_js_emits_learner_123_while_server_derived_owns_3(
+    client,
+    tmp_path,
+):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the frozen V8.0.11 runtime contract")
+    repository_root = Path(__file__).resolve().parents[2]
+    recovery_path = repository_root / "shared" / "js" / "learning-activity-recovery.js"
+    runtime_path = repository_root / "shared" / "js" / "learning-activity.js"
+    if not recovery_path.is_file():
+        # The preserved implementation tree intentionally predates V8.0.11.
+        # Exercise the exact product blobs now; after clean replay these paths
+        # exist locally and the same test executes the checked-out files.
+        recovered_paths = []
+        for relative_path in (
+            "shared/js/learning-activity-recovery.js",
+            "shared/js/learning-activity.js",
+        ):
+            source = subprocess.run(
+                [
+                    "git",
+                    "show",
+                    f"080028afb88f1cd53087e7f826a186678cf31525:{relative_path}",
+                ],
+                cwd=repository_root,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=15,
+            ).stdout
+            materialized = tmp_path / Path(relative_path).name
+            materialized.write_text(source, encoding="utf-8")
+            recovered_paths.append(materialized)
+        recovery_path, runtime_path = recovered_paths
+
+    scope = _learning_scope(client, "be018-real-js")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    identity = _activity_runtime_identity(scope)
+    node_script = r"""
+const fs = require('node:fs');
+const vm = require('node:vm');
+globalThis.window = globalThis;
+vm.runInThisContext(fs.readFileSync(process.argv[1], 'utf8'), { filename: process.argv[1] });
+vm.runInThisContext(fs.readFileSync(process.argv[2], 'utf8'), { filename: process.argv[2] });
+const identity = JSON.parse(process.argv[3]);
+const manifest = {
+  schema_version: 'astra-learning-activity-v1',
+  identity: {
+    galaxy_key: 'englab', course_key: 'be018-real-js', activity_key: identity.activity_key,
+    manifest_version: identity.manifest_version, content_version: identity.content_version,
+    event_schema_version: identity.event_schema_version,
+  },
+  route: { canonical: '#activity/' + identity.activity_key },
+  owner_adapter: { id: 'be018-real-js-adapter', capabilities: ['simulation'] },
+  content: { state_schema_version: 'state-v1', stages: ['start', 'finish'], language: 'zh-CN' },
+  release: { scope_fields: ['class_id', 'course_id', 'course_unit_id'] },
+  assessment: { rubric_id: 'be018-rubric', rubric_version: 1 },
+  evidence: {
+    allowed_events: ['started', 'predicted', 'attempted', 'corrected', 'explained'],
+    event_schema_version: identity.event_schema_version,
+  },
+  resources: { budget_bytes: 1024 },
+  sources: { items: [{ id: 'be018-source' }] },
+};
+const sidecars = [];
+const receipts = [];
+const positions = [[1, 1], [2, 3], [4, 4]];
+const ports = {
+  authority: { verify: async (value) => ({ authorized: true, identity: value, revision: 'authority-r1' }) },
+  release: { resolve: async (value) => ({
+    state: 'open',
+    scope: { class_id: value.class_id, course_id: value.course_id, course_unit_id: value.course_unit_id },
+    revision: 'release-r1',
+  }) },
+  recovery: { load: async () => ({
+    schema_version: 'astra-learning-activity-recovery-v2', complete: true, atomic: true, stale: false,
+    snapshot_id: 'snapshot-empty-0001', captured_at: new Date().toISOString(), identity,
+    freshness: { status: 'current', authority_revision: 'authority-r1', release_revision: 'release-r1' },
+    server: {
+      identity, complete_history: true, event_count: 0, events: [],
+      projection: { state: 'not_started', applied_through_server_sequence: 0, completion_witness: null },
+      snapshot: { identity, state_schema_version: 'state-v1', applied_through_learner_sequence: 0, data: { stage: 'start' } },
+    },
+    offline: { identity, complete_pending_set: true, sidecar_count: 0, sidecars: [] },
+  }) },
+  evaluation: { assess: async () => ({ rubric_result: 'formative' }) },
+  evidence: { emit: async (sidecar) => {
+    const index = sidecars.length;
+    sidecars.push(sidecar);
+    const receipt = {
+      status: 'confirmed', client_event_id: sidecar.command.client_event_id,
+      event_type: sidecar.command.event_type, run_id: sidecar.command.run.run_id,
+      group_id: sidecar.command.run.group_id, learner_sequence: sidecar.command.run.sequence,
+      server_sequence: positions[index][0], server_last_sequence: positions[index][1],
+      server_event_id: 'server-event-' + String(index + 1).padStart(4, '0'),
+    };
+    receipts.push(receipt);
+    return receipt;
+  } },
+};
+const adapter = {
+  id: 'be018-real-js-adapter',
+  restore: async (input) => ({ restored: input.domain_snapshot }),
+  predict: async (input) => input,
+  observe: async (input) => input,
+  dispose: async () => undefined,
+};
+(async () => {
+  const runtime = globalThis.AstraLearningActivity.create({ manifest, ports, adapter });
+  await runtime.restore({
+    class_id: identity.class_id, course_id: identity.course_id,
+    course_unit_id: identity.course_unit_id, activity_key: identity.activity_key,
+    subject_identity: identity.subject_identity, run_id: identity.run_id,
+    group_id: identity.group_id, rule_version: identity.rule_version,
+    generation: identity.generation,
+  });
+  const now = () => new Date().toISOString();
+  await runtime.emitEvidence({
+    client_event_id: 'be018-real-js:started:0001', event_type: 'started', evidence: {},
+    occurred_at: now(), snapshot: { state_schema_version: 'state-v1', data: { stage: 'started' } },
+  });
+  await runtime.emitEvidence({
+    client_event_id: 'be018-real-js:attempted:0002', event_type: 'attempted',
+    evidence: { operation: 'submit' }, occurred_at: now(),
+    snapshot: { state_schema_version: 'state-v1', data: { stage: 'attempted' } },
+  });
+  await runtime.emitEvidence({
+    client_event_id: 'be018-real-js:explained:0003', event_type: 'explained',
+    evidence: { artifact: 'post-completion explanation' }, occurred_at: now(),
+    snapshot: { state_schema_version: 'state-v1', data: { stage: 'explained' } },
+  });
+  process.stdout.write(JSON.stringify({ sidecars, receipts }));
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+"""
+    generated = subprocess.run(
+        [
+            node,
+            "-e",
+            node_script,
+            str(recovery_path),
+            str(runtime_path),
+            json.dumps(identity, separators=(",", ":")),
+        ],
+        cwd=repository_root,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert generated.returncode == 0, generated.stderr
+    js_result = json.loads(generated.stdout)
+    assert [
+        sidecar["command"]["run"]["sequence"]
+        for sidecar in js_result["sidecars"]
+    ] == [1, 2, 3]
+    assert [
+        (receipt["server_sequence"], receipt["server_last_sequence"])
+        for receipt in js_result["receipts"]
+    ] == [(1, 1), (2, 3), (4, 4)]
+
+    backend_receipts = []
+    for sidecar in js_result["sidecars"]:
+        response = client.post(
+            "/api/learning-evidence/activity-runtime/events",
+            headers=_auth(scope["student"]["token"]),
+            json=sidecar,
+        )
+        assert response.status_code == 201, response.json()
+        backend_receipts.append(response.json())
+    assert [
+        (receipt["learner_sequence"], receipt["server_sequence"], receipt["server_last_sequence"])
+        for receipt in backend_receipts
+    ] == [(1, 1, 1), (2, 2, 3), (3, 4, 4)]
+
+
+def test_be018_server_recovery_never_claims_client_pending_completeness(client):
+    scope = _learning_scope(client, "be018-pending")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    identity = _activity_runtime_identity(scope)
+    runtime_scope = {
+        key: identity[key]
+        for key in ("class_id", "course_id", "course_unit_id", "activity_key")
+    }
+    authority = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert authority.status_code == 200, authority.json()
+    assert set(authority.json()) == {"authorized", "identity", "revision"}
+    assert authority.json()["identity"] == identity
+    release = client.post(
+        "/api/learning-evidence/activity-runtime/release",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_scope,
+    )
+    assert release.status_code == 200, release.json()
+    assert set(release.json()) == {"scope", "state", "revision"}
+    assert release.json()["scope"] == runtime_scope
+    assert release.json()["state"] == "open"
+    openapi = create_app().openapi()
+    for route in (
+        "/api/learning-evidence/activity-runtime/authority",
+        "/api/learning-evidence/activity-runtime/release",
+        "/api/learning-evidence/activity-runtime/events",
+        "/api/learning-evidence/activity-runtime/recovery",
+    ):
+        assert route in openapi["paths"]
+    release_schema = openapi["components"]["schemas"][
+        "LearningActivityReleaseRead"
+    ]
+    assert set(release_schema["properties"]) == {"scope", "state", "revision"}
+    non_authoritative = {
+        "client_event_id": "be018-pending:local:0001",
+        "event_type": "started",
+        "run_id": identity["run_id"],
+        "group_id": identity["group_id"],
+        "learner_sequence": 1,
+        "server_sequence": None,
+        "server_last_sequence": None,
+        "server_event_id": None,
+    }
+    for status in ("local-pending", "manual-intervention"):
+        receipt = LearningActivityRuntimeReceipt.model_validate(
+            {**non_authoritative, "status": status}
+        )
+        assert receipt.server_sequence is None
+        assert receipt.server_last_sequence is None
+        assert receipt.server_event_id is None
+    with pytest.raises(ValidationError):
+        LearningActivityRuntimeReceipt.model_validate(
+            {
+                **non_authoritative,
+                "status": "local-pending",
+                "server_sequence": 1,
+            }
+        )
+
+    event = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id="be018-pending:runtime:started:0001",
+            sequence=1,
+            event_type="started",
+            identity=identity,
+        ),
+    )
+    assert event.status_code == 201, event.json()
+    recovered = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert recovered.status_code == 200, recovered.json()
+    body = recovered.json()
+    assert body["client_pending_status"] == "unknown"
+    assert body["server"]["complete_history"] is True
+    serialized = json.dumps(body, sort_keys=True)
+    assert "client_pending_complete" not in serialized
+    assert "complete_pending_set" not in serialized
+
+
+def test_be018_release_prerequisite_state_and_revision_follow_authoritative_completion_and_correction(
+    client,
+):
+    scope = _learning_scope(client, "be018-release-prerequisite")
+    release_plan = client.patch(
+        f"/api/courses/{scope['course_id']}/classes/{scope['class_id']}/release-plan",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "expected_version": 1,
+            "items": [
+                {
+                    "course_unit_id": scope["unit_two"]["id"],
+                    "prerequisite_unit_id": scope["unit_one"]["id"],
+                }
+            ],
+        },
+    )
+    assert release_plan.status_code == 200, release_plan.json()
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule, expected_plan_version=2)
+    runtime_scope = {
+        "class_id": scope["class_id"],
+        "course_id": scope["course_id"],
+        "course_unit_id": scope["unit_two"]["id"],
+        "activity_key": scope["unit_two"]["activity_key"],
+    }
+    runtime_identity = {
+        **_activity_runtime_identity(scope),
+        "course_unit_id": scope["unit_two"]["id"],
+        "activity_key": scope["unit_two"]["activity_key"],
+    }
+
+    locked = client.post(
+        "/api/learning-evidence/activity-runtime/release",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_scope,
+    )
+    assert locked.status_code == 200, locked.json()
+    assert locked.json()["state"] == "locked"
+    locked_revision = locked.json()["revision"]
+    locked_authority = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_identity,
+    )
+    assert locked_authority.status_code == 200, locked_authority.json()
+    assert locked_authority.json()["authorized"] is True
+    assert locked_authority.json()["identity"] == runtime_identity
+
+    now = datetime.now(UTC)
+    started = client.post(
+        "/api/learning-evidence/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_event_payload(
+            scope,
+            client_event_id="be018-release-prerequisite:started:0001",
+            event_type="started",
+            occurred_at=now - timedelta(seconds=1),
+        ),
+    )
+    attempted_payload = _event_payload(
+        scope,
+        client_event_id="be018-release-prerequisite:attempted:0001",
+        event_type="attempted",
+        occurred_at=now,
+        evidence={"operation": "submit-answer"},
+    )
+    attempted = client.post(
+        "/api/learning-evidence/events",
+        headers=_auth(scope["student"]["token"]),
+        json=attempted_payload,
+    )
+    assert started.status_code == 201, started.json()
+    assert attempted.status_code == 201, attempted.json()
+
+    opened = client.post(
+        "/api/learning-evidence/activity-runtime/release",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_scope,
+    )
+    assert opened.status_code == 200, opened.json()
+    assert opened.json()["state"] == "open"
+    assert opened.json()["revision"] != locked_revision
+    open_revision = opened.json()["revision"]
+    opened_authority = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_identity,
+    )
+    assert opened_authority.status_code == 200, opened_authority.json()
+
+    corrected = client.post(
+        f"/api/learning-evidence/events/{attempted.json()['event_id']}/corrections",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "client_event_id": "be018-release-prerequisite:correction:0001",
+            "reason": "The prerequisite attempt was attributed incorrectly.",
+            "occurred_at": (now + timedelta(seconds=1)).isoformat(),
+        },
+    )
+    assert corrected.status_code == 201, corrected.json()
+    relocked = client.post(
+        "/api/learning-evidence/activity-runtime/release",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_scope,
+    )
+    assert relocked.status_code == 200, relocked.json()
+    assert relocked.json()["state"] == "locked"
+    assert relocked.json()["revision"] != open_revision
+
+    replacement = client.post(
+        "/api/learning-evidence/events",
+        headers=_auth(scope["student"]["token"]),
+        json={
+            **attempted_payload,
+            "client_event_id": "be018-release-prerequisite:attempted:0002",
+            "occurred_at": (now + timedelta(seconds=2)).isoformat(),
+        },
+    )
+    assert replacement.status_code == 201, replacement.json()
+    reopened = client.post(
+        "/api/learning-evidence/activity-runtime/release",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_scope,
+    )
+    assert reopened.status_code == 200, reopened.json()
+    assert reopened.json()["state"] == "open"
+    assert reopened.json()["revision"] != relocked.json()["revision"]
+
+    with get_session_factory(get_settings().database_url)() as db:
+        course_class = db.scalar(
+            select(CourseClass).where(
+                CourseClass.class_id == scope["class_id"],
+                CourseClass.course_id == scope["course_id"],
+            )
+        )
+        assert course_class is not None
+        course_class.status = "inactive"
+        db.commit()
+    inactive = client.post(
+        "/api/learning-evidence/activity-runtime/release",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_scope,
+    )
+    assert inactive.status_code == 200, inactive.json()
+    assert inactive.json()["state"] == "locked"
+    assert inactive.json()["revision"] != reopened.json()["revision"]
+    inactive_authority = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=runtime_identity,
+    )
+    assert inactive_authority.status_code == 200, inactive_authority.json()
+    assert inactive_authority.json()["authorized"] is True
+
+
+def test_be018_empty_exact_server_ledger_requires_adapter_initial_snapshot(client):
+    scope = _learning_scope(client, "be018-empty-ledger")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    identity = _activity_runtime_identity(scope)
+
+    empty = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert empty.status_code == 200, empty.json()
+    body = empty.json()
+    assert body["exact_available"] is True
+    assert body["manual_intervention_required"] is False
+    assert body["reason"] is None
+    assert body["client_pending_status"] == "unknown"
+    assert body["server"] == {
+        "identity": identity,
+        "complete_history": True,
+        "event_count": 0,
+        "events": [],
+        "projection": {
+            "state": "not_started",
+            "applied_through_server_sequence": 0,
+            "completion_witness": None,
+        },
+        "snapshot": None,
+    }
+    assert body["initial_snapshot_requirement"] == {
+        "source": "owner-adapter-canonical-initial-snapshot",
+        "state_schema_version_source": "manifest.content.state_schema_version",
+        "applied_through_learner_sequence": 0,
+        "server_domain_state_verified": False,
+    }
+    serialized = json.dumps(body, sort_keys=True)
+    assert '"ready"' not in serialized
+    assert "client_pending_complete" not in serialized
+
+
+def test_be018_legacy_recovery_is_exact_unavailable_without_synthetic_run(client):
+    scope = _learning_scope(client, "be018-legacy")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    legacy = client.post(
+        "/api/learning-evidence/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_event_payload(
+            scope,
+            client_event_id="be018-legacy:started:0001",
+            event_type="started",
+            occurred_at=datetime.now(UTC),
+        ),
+    )
+    assert legacy.status_code == 201, legacy.json()
+    legacy_recovery = client.get(
+        f"/api/learning-evidence/me/recovery?class_id={scope['class_id']}&course_id={scope['course_id']}",
+        headers=_auth(scope["student"]["token"]),
+    )
+    assert legacy_recovery.status_code == 200, legacy_recovery.json()
+    assert legacy_recovery.json()["activities"]
+
+    exact = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_identity(scope),
+    )
+    assert exact.status_code == 200, exact.json()
+    assert exact.json()["exact_available"] is False
+    assert exact.json()["manual_intervention_required"] is True
+    assert exact.json()["reason"] == "legacy_runtime_identity_unavailable"
+    assert exact.json()["server"] is None
+    assert exact.json()["snapshot_id"] is None
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(select(text("count(*)")).select_from(LearningActivityRuntime)) == 0
+        legacy_event = db.get(LearningEvidenceEvent, legacy.json()["event_id"])
+        assert legacy_event.activity_runtime_id is None
+        assert legacy_event.server_sequence is None
+        assert legacy_event.learner_sequence is None
+        assert legacy_event.activity_sidecar_json is None
+
+
+def test_be018_runtime_permissions_schema_generation_release_and_idempotency_fail_closed(client):
+    scope = _learning_scope(client, "be018-negative")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    identity = _activity_runtime_identity(scope)
+    mismatched_identity = {
+        **identity,
+        "subject_identity": {
+            "kind": "learner",
+            "id": str(scope["other_student"]["id"]),
+        },
+    }
+    mismatched = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=mismatched_identity,
+    )
+    assert mismatched.status_code == 403, mismatched.json()
+    assert mismatched.json()["detail"]["code"] == "activity_subject_mismatch"
+
+    other_scope = _learning_scope(client, "be018-negative-other-scope")
+    cross_class_identity = {
+        **_activity_runtime_identity(other_scope),
+        "subject_identity": {
+            "kind": "learner",
+            "id": str(scope["student"]["id"]),
+        },
+    }
+    cross_class = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=cross_class_identity,
+    )
+    assert cross_class.status_code == 403, cross_class.json()
+    cross_course_identity = {
+        **identity,
+        "course_id": other_scope["course_id"],
+    }
+    cross_course = client.post(
+        "/api/learning-evidence/activity-runtime/authority",
+        headers=_auth(scope["student"]["token"]),
+        json=cross_course_identity,
+    )
+    assert cross_course.status_code in {403, 404, 422}, cross_course.json()
+
+    base = _activity_runtime_event_payload(
+        scope,
+        client_event_id="be018-negative:runtime:started:0001",
+        sequence=1,
+        event_type="started",
+        identity=identity,
+    )
+    bad_envelope = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json={**base, "schema_version": "astra-learning-activity-event-v2"},
+    )
+    assert bad_envelope.status_code == 422, bad_envelope.json()
+    extra_envelope = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json={**base, "authority": {"revision": "forbidden"}},
+    )
+    assert extra_envelope.status_code == 422, extra_envelope.json()
+    trimmed_payload = json.loads(json.dumps(base))
+    trimmed_payload["command"]["run"]["run_id"] = f" {identity['run_id']}"
+    trimmed = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=trimmed_payload,
+    )
+    assert trimmed.status_code == 422, trimmed.json()
+    sensitive_snapshot = json.loads(json.dumps(base))
+    sensitive_snapshot["snapshot"]["data"] = {"token": "forbidden"}
+    sensitive = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=sensitive_snapshot,
+    )
+    assert sensitive.status_code == 422, sensitive.json()
+    for terminal_type in ("completed", "transferred"):
+        terminal_payload = json.loads(json.dumps(base))
+        terminal_payload["command"]["event_type"] = terminal_type
+        forbidden_terminal = client.post(
+            "/api/learning-evidence/activity-runtime/events",
+            headers=_auth(scope["student"]["token"]),
+            json=terminal_payload,
+        )
+        assert forbidden_terminal.status_code == 422, forbidden_terminal.json()
+    bad_schema_payload = json.loads(json.dumps(base))
+    bad_schema_payload["command"]["versions"]["event_schema_version"] = 2
+    bad_schema = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=bad_schema_payload,
+    )
+    assert bad_schema.status_code == 409, bad_schema.json()
+    assert bad_schema.json()["detail"]["code"] == "activity_event_schema_incompatible"
+
+    created = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=base,
+    )
+    assert created.status_code == 201, created.json()
+    other_actor_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["other_student"]["token"]),
+        json=base,
+    )
+    assert other_actor_replay.status_code == 403, other_actor_replay.json()
+    assert other_actor_replay.json()["detail"]["code"] == "idempotency_scope_mismatch"
+
+    drift_identity = {**identity, "generation": "generation-2"}
+    generation_drift = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id="be018-negative:runtime:started:0002",
+            sequence=2,
+            event_type="started",
+            identity=drift_identity,
+        ),
+    )
+    assert generation_drift.status_code == 409, generation_drift.json()
+    assert generation_drift.json()["detail"]["code"] == "activity_runtime_identity_conflict"
+
+    with get_session_factory(get_settings().database_url)() as db:
+        student = db.get(User, scope["student"]["id"])
+        assert student is not None
+        original_updated_at = student.updated_at
+        student.updated_at = original_updated_at + timedelta(seconds=1)
+        db.commit()
+    stale_authority = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert stale_authority.status_code == 200, stale_authority.json()
+    assert stale_authority.json()["exact_available"] is False
+    assert stale_authority.json()["reason"] == "activity_authority_revision_stale"
+    stale_authority_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=base,
+    )
+    assert stale_authority_replay.status_code == 409, stale_authority_replay.json()
+    assert stale_authority_replay.json()["detail"]["code"] == (
+        "activity_authority_revision_stale"
+    )
+    with get_session_factory(get_settings().database_url)() as db:
+        student = db.get(User, scope["student"]["id"])
+        assert student is not None
+        student.updated_at = original_updated_at
+        db.commit()
+
+    with get_session_factory(get_settings().database_url)() as db:
+        membership = db.scalar(
+            select(ClassMembership).where(
+                ClassMembership.class_id == scope["class_id"],
+                ClassMembership.user_id == scope["student"]["id"],
+                ClassMembership.role == "student",
+            )
+        )
+        assert membership is not None
+        original_membership_updated_at = membership.updated_at
+        db.execute(
+            text(
+                "UPDATE class_memberships SET status = 'inactive', updated_at = :updated_at "
+                "WHERE id = :membership_id"
+            ),
+            {
+                "membership_id": membership.id,
+                "updated_at": original_membership_updated_at + timedelta(seconds=1),
+            },
+        )
+        db.commit()
+    revoked_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=base,
+    )
+    assert revoked_replay.status_code == 403, revoked_replay.json()
+    with get_session_factory(get_settings().database_url)() as db:
+        db.execute(
+            text(
+                "UPDATE class_memberships SET status = 'active', updated_at = :updated_at "
+                "WHERE class_id = :class_id AND user_id = :user_id"
+            ),
+            {
+                "class_id": scope["class_id"],
+                "user_id": scope["student"]["id"],
+                "updated_at": original_membership_updated_at,
+            },
+        )
+        db.commit()
+
+    with get_session_factory(get_settings().database_url)() as db:
+        runtime = db.scalar(select(LearningActivityRuntime))
+        assert runtime is not None
+        db.execute(
+            text(
+                "UPDATE learning_activity_runtimes SET subject_identity_id = :bad "
+                "WHERE id = :runtime_id"
+            ),
+            {"bad": str(scope["other_student"]["id"]), "runtime_id": runtime.id},
+        )
+        db.commit()
+    corrupt_subject_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=base,
+    )
+    assert corrupt_subject_replay.status_code == 409, corrupt_subject_replay.json()
+    assert corrupt_subject_replay.json()["detail"]["code"] == (
+        "activity_runtime_subject_conflict"
+    )
+    with get_session_factory(get_settings().database_url)() as db:
+        db.execute(
+            text(
+                "UPDATE learning_activity_runtimes SET subject_identity_id = :subject "
+                "WHERE subject_user_id = :subject_user_id"
+            ),
+            {
+                "subject": str(scope["student"]["id"]),
+                "subject_user_id": scope["student"]["id"],
+            },
+        )
+        db.commit()
+
+    release_change = client.patch(
+        f"/api/courses/{scope['course_id']}/classes/{scope['class_id']}/release-plan",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "expected_version": 1,
+            "items": [
+                {"course_unit_id": scope["unit_two"]["id"], "release_mode": "locked"}
+            ],
+        },
+    )
+    assert release_change.status_code == 200, release_change.json()
+    exact_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=base,
+    )
+    assert exact_replay.status_code == 409, exact_replay.json()
+    assert exact_replay.json()["detail"]["code"] == (
+        "activity_release_revision_stale"
+    )
+    stale_append = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id="be018-negative:runtime:started:0002b",
+            sequence=2,
+            event_type="started",
+            identity=identity,
+        ),
+    )
+    assert stale_append.status_code == 409, stale_append.json()
+    assert stale_append.json()["detail"]["code"] == "activity_release_revision_stale"
+    stale_recovery = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert stale_recovery.status_code == 200, stale_recovery.json()
+    assert stale_recovery.json()["exact_available"] is False
+    assert stale_recovery.json()["reason"] == "activity_release_revision_stale"
+    locked_change = client.patch(
+        f"/api/courses/{scope['course_id']}/classes/{scope['class_id']}/release-plan",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "expected_version": 2,
+            "items": [
+                {
+                    "course_unit_id": scope["unit_one"]["id"],
+                    "release_mode": "locked",
+                }
+            ],
+        },
+    )
+    assert locked_change.status_code == 200, locked_change.json()
+    locked_replay = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=base,
+    )
+    assert locked_replay.status_code == 409, locked_replay.json()
+    locked_detail = locked_replay.json()["detail"]
+    assert (
+        locked_detail.get("code") == "activity_locked"
+        if isinstance(locked_detail, dict)
+        else "locked" in locked_detail.lower()
+    )
+
+
+def test_be018_missing_or_early_terminal_witness_requires_manual_recovery(client):
+    scope, identity = _completed_activity_runtime(client, "be018-witness")
+    with get_session_factory(get_settings().database_url)() as db:
+        derived = db.scalar(
+            select(LearningEvidenceEvent).where(
+                LearningEvidenceEvent.producer_type == "rule"
+            )
+        )
+        assert derived is not None
+        derived_id = derived.id
+        db.execute(
+            text(
+                "UPDATE learning_evidence_events "
+                "SET source_event_ids_json = :sources WHERE id = :event_id"
+            ),
+            {"sources": "[]", "event_id": derived_id},
+        )
+        db.commit()
+    missing = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert missing.status_code == 200, missing.json()
+    assert missing.json()["exact_available"] is False
+    assert missing.json()["manual_intervention_required"] is True
+    assert missing.json()["reason"] == "activity_completion_witness_unproven"
+
+    with get_session_factory(get_settings().database_url)() as db:
+        db.execute(
+            text(
+                "UPDATE learning_evidence_events "
+                "SET source_event_ids_json = :sources WHERE id = :event_id"
+            ),
+            {"sources": json.dumps([derived_id]), "event_id": derived_id},
+        )
+        db.commit()
+    early = client.post(
+        "/api/learning-evidence/activity-runtime/recovery",
+        headers=_auth(scope["student"]["token"]),
+        json=identity,
+    )
+    assert early.status_code == 200, early.json()
+    assert early.json()["exact_available"] is False
+    assert early.json()["manual_intervention_required"] is True
+    assert early.json()["reason"] == "activity_completion_witness_unproven"
+
+
+def test_be018_learner_sequence_is_fail_closed_when_two_arrives_before_one(client):
+    scope = _learning_scope(client, "be018-out-of-order")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    identity = _activity_runtime_identity(scope)
+    second_payload = _activity_runtime_event_payload(
+        scope,
+        client_event_id="be018-out-of-order:attempted:0002",
+        sequence=2,
+        event_type="attempted",
+        evidence={"operation": "submit"},
+        identity=identity,
+    )
+    early_second = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=second_payload,
+    )
+    assert early_second.status_code == 409, early_second.json()
+    assert early_second.json()["detail"]["code"] == (
+        "activity_runtime_learner_sequence_gap"
+    )
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(select(text("count(*)")).select_from(LearningActivityRuntime)) == 0
+
+    first = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id="be018-out-of-order:started:0001",
+            sequence=1,
+            event_type="started",
+            identity=identity,
+        ),
+    )
+    assert first.status_code == 201, first.json()
+    second = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=second_payload,
+    )
+    assert second.status_code == 201, second.json()
+    assert second.json()["learner_sequence"] == 2
+    assert second.json()["server_sequence"] == 2
+    assert second.json()["server_last_sequence"] == 3
+
+
+def test_be018_transaction_failure_does_not_consume_either_cursor(
+    client,
+    monkeypatch,
+):
+    scope = _learning_scope(client, "be018-rollback")
+    rule = _create_rule(client, scope)
+    _activate_rule(client, scope, rule)
+    payload = _activity_runtime_event_payload(
+        scope,
+        client_event_id="be018-rollback:started:0001",
+        sequence=1,
+        event_type="started",
+    )
+    original_rebuild = learning_activity_runtime_service.rebuild_activity_projection
+
+    def fail_projection(*_args, **_kwargs):
+        raise RuntimeError("injected projection failure")
+
+    monkeypatch.setattr(
+        learning_activity_runtime_service,
+        "rebuild_activity_projection",
+        fail_projection,
+    )
+    failed = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=payload,
+    )
+    assert failed.status_code == 500, failed.json()
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(select(text("count(*)")).select_from(LearningActivityRuntime)) == 0
+        assert db.scalar(
+            select(text("count(*)")).select_from(LearningEvidenceEvent).where(
+                LearningEvidenceEvent.client_event_id
+                == "be018-rollback:started:0001"
+            )
+        ) == 0
+
+    monkeypatch.setattr(
+        learning_activity_runtime_service,
+        "rebuild_activity_projection",
+        original_rebuild,
+    )
+    retried = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=payload,
+    )
+    assert retried.status_code == 201, retried.json()
+    assert retried.json()["learner_sequence"] == 1
+    assert retried.json()["server_sequence"] == 1
+    assert retried.json()["server_last_sequence"] == 1
+
+
+def test_be018_sqlite_file_independent_connections_reconcile_exact_replay(
+    tmp_path,
+    monkeypatch,
+):
+    database_path = tmp_path / "be018-concurrent.db"
+    database_url = f"sqlite+pysqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
+    monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
+    get_settings.cache_clear()
+    reset_database_state()
+    try:
+        with TestClient(create_app()) as client:
+            scope = _learning_scope(client, "be018-concurrent")
+            rule = _create_rule(client, scope)
+            _activate_rule(client, scope, rule)
+            command = LearningActivityRuntimeEventCreate.model_validate(
+                _activity_runtime_event_payload(
+                    scope,
+                    client_event_id="be018-concurrent:runtime:started:0001",
+                    sequence=1,
+                    event_type="started",
+                )
+            )
+            session_factory = get_session_factory(database_url)
+            with session_factory() as db:
+                detached_student = db.get(User, scope["student"]["id"])
+                assert detached_student is not None
+                db.expunge(detached_student)
+            barrier = Barrier(2)
+
+            def submit():
+                with session_factory() as db:
+                    raw_connection = db.connection().connection.driver_connection
+                    connection_identity = id(raw_connection)
+                    barrier.wait(timeout=5)
+                    receipt = (
+                        learning_activity_runtime_service.append_learning_activity_event(
+                            db,
+                            actor=detached_student,
+                            payload=command,
+                        )
+                    )
+                    return receipt, connection_identity
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(submit), pool.submit(submit)]
+                outcomes = [future.result(timeout=15) for future in futures]
+            responses = [outcome[0] for outcome in outcomes]
+            assert len({outcome[1] for outcome in outcomes}) == 2
+            assert sorted(response["status"] for response in responses) == [
+                "confirmed",
+                "reconciled",
+            ]
+            assert {response["server_event_id"] for response in responses} == {
+                responses[0]["server_event_id"]
+            }
+            assert {response["server_sequence"] for response in responses} == {1}
+            assert {response["server_last_sequence"] for response in responses} == {
+                1
+            }
+            with session_factory() as db:
+                assert db.scalar(
+                    select(text("count(*)")).select_from(LearningActivityRuntime)
+                ) == 1
+                runtime = db.scalar(select(LearningActivityRuntime))
+                assert runtime is not None
+                assert db.scalar(
+                    select(text("count(*)"))
+                    .select_from(LearningEvidenceEvent)
+                    .where(LearningEvidenceEvent.activity_runtime_id == runtime.id)
+                ) == 1
+                assert runtime.last_learner_sequence == 1
+                assert runtime.last_server_sequence == 1
+    finally:
+        reset_database_state()
+        get_settings.cache_clear()
 
 
 def test_rule_permissions_version_cas_binding_and_immutability(client):
@@ -4757,6 +6137,269 @@ def test_0051_sqlite_upgrade_downgrade_reupgrade_and_mysql_compile(tmp_path, mon
         if index.name == "ix_le_events_subject_scope_order"
     )
     assert "occurred_at" in str(CreateIndex(event_index).compile(dialect=mysql.dialect()))
+
+
+def test_be018_0053_sqlite_history_roundtrip_constraints_and_mysql_compile(
+    tmp_path,
+    monkeypatch,
+):
+    database_path = tmp_path / "learning-activity-runtime-roundtrip.db"
+    database_url = f"sqlite+pysqlite:///{database_path.as_posix()}"
+    backend_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    reset_database_state()
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    engine = create_engine(database_url)
+    try:
+        command.upgrade(config, "20260809_0052")
+        now = datetime.now(UTC).isoformat()
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(id, username, normalized_username, display_name, password_hash, role, status, created_at, updated_at) "
+                    "VALUES (1, 'runtime_student', 'runtime_student', 'Runtime student', 'hash', 'student', 'active', :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO schools (id, name, status, version, created_at, updated_at) "
+                    "VALUES (1, 'Runtime School', 'active', 1, :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO class_groups "
+                    "(id, school_id, name, status, version, created_at, updated_at) "
+                    "VALUES (1, 1, 'Runtime Class', 'active', 1, :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO courses "
+                    "(id, school_id, creator_user_id, galaxy_key, course_key, title, status, created_at, updated_at) "
+                    "VALUES (1, 1, 1, 'englab', 'runtime-course', 'Runtime Course', 'published', :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO course_units "
+                    "(id, course_id, activity_key, title, position, status, created_at, updated_at) "
+                    "VALUES (1, 1, 'runtime.activity', 'Runtime Unit', 1, 'published', :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO learning_completion_rules "
+                    "(id, course_id, version_number, status, definition_json, definition_sha256, "
+                    "created_by_user_id, activated_by_user_id, activated_at, created_at) "
+                    "VALUES (1, 1, 1, 'active', :definition, :sha, 1, 1, :now, :now)"
+                ),
+                {"definition": '{"schema_version":1,"activities":[]}', "sha": "a" * 64, "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO learning_evidence_events "
+                    "(id, client_event_id, request_sha256, actor_user_id, subject_user_id, producer_type, "
+                    "school_id, class_id, course_id, course_unit_id, assignment_id, activity_key, rule_id, "
+                    "rule_version, event_schema_version, event_type, evidence_json, source_event_ids_json, "
+                    "corrects_event_id, occurred_at, received_at) "
+                    "VALUES (:id, :client_event_id, :sha, 1, 1, 'learner', 1, 1, 1, 1, NULL, "
+                    "'runtime.activity', 1, 1, 1, 'started', '{}', '[]', NULL, :now, :now)"
+                ),
+                [
+                    {
+                        "id": event_id,
+                        "client_event_id": f"legacy-runtime-event-{event_id:04d}",
+                        "sha": str(event_id) * 64,
+                        "now": now,
+                    }
+                    for event_id in (1, 2)
+                ],
+            )
+
+        command.upgrade(config, "20260810_0053")
+        script = ScriptDirectory.from_config(config)
+        repository_heads = script.get_heads()
+        assert len(repository_heads) == 1
+        repository_head = repository_heads[0]
+        columns = {
+            column["name"]: column
+            for column in inspect(engine).get_columns("learning_evidence_events")
+        }
+        assert columns["activity_runtime_id"]["nullable"] is True
+        assert columns["server_sequence"]["nullable"] is True
+        assert columns["learner_sequence"]["nullable"] is True
+        assert columns["activity_sidecar_json"]["nullable"] is True
+        assert columns["activity_sidecar_sha256"]["nullable"] is True
+        assert "learning_activity_runtimes" in inspect(engine).get_table_names()
+        constraints = {
+            constraint["name"]: tuple(constraint["column_names"])
+            for constraint in inspect(engine).get_unique_constraints(
+                "learning_evidence_events"
+            )
+        }
+        assert constraints["uq_le_events_runtime_server_sequence"] == (
+            "activity_runtime_id",
+            "server_sequence",
+        )
+        assert constraints["uq_le_events_runtime_learner_sequence"] == (
+            "activity_runtime_id",
+            "learner_sequence",
+        )
+        runtime_constraints = {
+            constraint["name"]: tuple(constraint["column_names"])
+            for constraint in inspect(engine).get_unique_constraints(
+                "learning_activity_runtimes"
+            )
+        }
+        assert runtime_constraints["uq_le_activity_runtime_identity"] == (
+            "subject_user_id",
+            "class_id",
+            "course_id",
+            "course_unit_id",
+            "run_id",
+            "group_id",
+        )
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT id, activity_runtime_id, server_sequence, learner_sequence, "
+                    "activity_sidecar_json, activity_sidecar_sha256 "
+                    "FROM learning_evidence_events ORDER BY id"
+                )
+            ).all()
+            assert rows == [
+                (1, None, None, None, None, None),
+                (2, None, None, None, None, None),
+            ]
+
+        command.downgrade(config, "20260809_0052")
+        assert "learning_activity_runtimes" not in inspect(engine).get_table_names()
+        assert "activity_runtime_id" not in {
+            column["name"]
+            for column in inspect(engine).get_columns("learning_evidence_events")
+        }
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM learning_evidence_events")
+            ).scalar_one() == 2
+        command.upgrade(config, "20260810_0053")
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO learning_activity_runtimes "
+                    "(id, subject_user_id, subject_identity_kind, subject_identity_id, school_id, class_id, "
+                    "course_id, course_unit_id, activity_key, run_id, group_id, manifest_version, content_version, "
+                    "event_schema_version, state_schema_version, rule_id, rule_version, generation, "
+                    "authority_revision, release_revision, last_learner_sequence, last_server_sequence, "
+                    "snapshot_applied_through_learner_sequence, "
+                    "snapshot_json, snapshot_captured_at, created_at, updated_at) "
+                    "VALUES (1, 1, 'learner', '1', 1, 1, 1, 1, 'runtime.activity', "
+                    "'runtime-run-0001', 'runtime-group-0001', 'manifest-v1', 'content-v1', 1, 'state-v1', "
+                    "1, 1, 'generation-1', :authority, :release, 1, 1, 1, '{}', :now, :now, :now)"
+                ),
+                {"authority": "b" * 64, "release": "c" * 64, "now": now},
+            )
+            connection.execute(
+                text(
+                    "UPDATE learning_evidence_events SET activity_runtime_id = 1, server_sequence = 1, "
+                    "learner_sequence = 1, activity_sidecar_json = :sidecar, "
+                    "activity_sidecar_sha256 = :sidecar_sha "
+                    "WHERE id = 1"
+                ),
+                {"sidecar": "{}", "sidecar_sha": "d" * 64},
+            )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE learning_evidence_events SET activity_runtime_id = 1, server_sequence = 1, "
+                    "learner_sequence = 2, activity_sidecar_json = :sidecar, "
+                    "activity_sidecar_sha256 = :sidecar_sha "
+                    "WHERE id = 2"
+                ),
+                {"sidecar": "{}", "sidecar_sha": "e" * 64},
+            )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE learning_evidence_events SET activity_runtime_id = 1, server_sequence = 2, "
+                    "learner_sequence = 1, activity_sidecar_json = :sidecar, "
+                    "activity_sidecar_sha256 = :sidecar_sha "
+                    "WHERE id = 2"
+                ),
+                {"sidecar": "{}", "sidecar_sha": "e" * 64},
+            )
+        with pytest.raises(RuntimeError, match="cannot downgrade BE-018"):
+            command.downgrade(config, "20260809_0052")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE learning_evidence_events SET activity_runtime_id = NULL, server_sequence = NULL, "
+                    "learner_sequence = NULL, activity_sidecar_json = NULL, "
+                    "activity_sidecar_sha256 = NULL "
+                    "WHERE id = 1"
+                )
+            )
+            connection.execute(text("DELETE FROM learning_activity_runtimes WHERE id = 1"))
+        command.downgrade(config, "20260809_0052")
+        command.upgrade(config, "20260810_0053")
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM learning_evidence_events")
+            ).scalar_one() == 2
+        command.upgrade(config, repository_head)
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == repository_head
+    finally:
+        engine.dispose()
+        reset_database_state()
+        get_settings.cache_clear()
+
+    revision_script = ScriptDirectory.from_config(config).get_revision(
+        "20260810_0053"
+    )
+    assert revision_script is not None
+    assert revision_script.down_revision == "20260809_0052"
+    token_ddl = str(
+        revision_script.module._token_type("mysql").compile(
+            dialect=mysql.dialect()
+        )
+    )
+    assert "CHARACTER SET ascii" in token_ddl
+    assert "COLLATE ascii_bin" in token_ddl
+    for table in (
+        LearningActivityRuntime.__table__,
+        LearningEvidenceEvent.__table__,
+    ):
+        ddl = str(CreateTable(table).compile(dialect=mysql.dialect()))
+        assert "FOREIGN KEY" in ddl
+        assert "DATETIME(6)" in ddl
+    runtime_ddl = str(
+        CreateTable(LearningActivityRuntime.__table__).compile(
+            dialect=mysql.dialect()
+        )
+    )
+    assert "uq_le_activity_runtime_identity" in runtime_ddl
+    assert "COLLATE ascii_bin" in runtime_ddl
+    event_ddl = str(
+        CreateTable(LearningEvidenceEvent.__table__).compile(
+            dialect=mysql.dialect()
+        )
+    )
+    assert "uq_le_events_runtime_server_sequence" in event_ddl
+    assert "uq_le_events_runtime_learner_sequence" in event_ddl
+    assert "ck_le_events_runtime_cursor_sidecar_shape" in event_ddl
 
 
 @pytest.mark.mysql_release_evidence

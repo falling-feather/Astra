@@ -23,6 +23,7 @@ from app.models.code_judge import CodeJudgeAttempt, CodeProblem, CodeProblemVers
 from app.models.learning_evidence import (
     LegacyAccessEntitlement,
     LearningActivityProjection,
+    LearningActivityRuntime,
     LearningCompletionRule,
     LearningEvidenceEvent,
     LearningResumeProjection,
@@ -84,6 +85,7 @@ __all__ = [
     "KnowledgeSnapshotRun",
     "LegacyAccessEntitlement",
     "LearningActivityProjection",
+    "LearningActivityRuntime",
     "LearningCompletionRule",
     "LearningEvidenceEvent",
     "LearningResumeProjection",
