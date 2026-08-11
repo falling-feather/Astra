@@ -68,6 +68,12 @@ const PhysicsSim = {
     _courseRetryIds: new Map(),
     _courseGeneration: 0,
     _courseNextFocus: '',
+    _motionQuery: null,
+    _reducedMotion: false,
+    _lastReducedRender: 0,
+    _lastCourseHudUpdate: 0,
+    _courseVisualPhase: '',
+    _courseVisualDirty: true,
 
     init() {
         this.destroy();
@@ -75,6 +81,17 @@ const PhysicsSim = {
         if (!this.canvas) return;
 
         this.ctx = this.canvas.getContext('2d');
+        this._motionQuery = typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-reduced-motion: reduce)')
+            : null;
+        this._reducedMotion = Boolean(this._motionQuery && this._motionQuery.matches);
+        if (this._motionQuery && typeof this._motionQuery.addEventListener === 'function') {
+            this._on(this._motionQuery, 'change', event => {
+                this._reducedMotion = Boolean(event && event.matches);
+                this._courseVisualDirty = true;
+                this.render();
+            });
+        }
         this.resizeCanvas();
         this.bindCourse();
         this.bindControls();
@@ -127,6 +144,12 @@ const PhysicsSim = {
         this._panelCommandPermit = null;
         this._courseRetryIds = new Map();
         this._courseNextFocus = '';
+        this._motionQuery = null;
+        this._reducedMotion = false;
+        this._lastReducedRender = 0;
+        this._lastCourseHudUpdate = 0;
+        this._courseVisualPhase = '';
+        this._courseVisualDirty = true;
         this.canvas = null;
         this.ctx = null;
     },
@@ -280,6 +303,7 @@ const PhysicsSim = {
                 : '无法确认当前身份、路由与课程作用域；所有受控实验输入与动作已失败关闭。',
             'blocked'
         );
+        this._setCourseVisualPhase('blocked', null);
         this._syncCourseUi();
         return false;
     },
@@ -512,6 +536,7 @@ const PhysicsSim = {
     },
 
     bindCourse() {
+        this._mountCourseShowcase();
         const prediction = this._courseNode('mechanics-prediction-submit');
         const trial040 = this._courseNode('mechanics-trial-040');
         const trial080 = this._courseNode('mechanics-trial-080');
@@ -540,6 +565,155 @@ const PhysicsSim = {
         this._syncCourseUi();
     },
 
+    _mountCourseShowcase() {
+        if (typeof document.createElement !== 'function'
+            || typeof document.querySelector !== 'function') return;
+        const root = document.querySelector('[data-mechanics-course]');
+        if (root && typeof root.querySelector === 'function') {
+            if (!root.querySelector('[data-mechanics-progress]')
+                && typeof root.insertBefore === 'function') {
+                const progress = document.createElement('nav');
+                progress.className = 'mechanics-course__progress';
+                progress.dataset.mechanicsProgress = 'true';
+                progress.setAttribute('aria-label', '恢复系数实验学习步骤');
+                progress.innerHTML = `
+                    <ol>
+                        <li data-mechanics-progress-step="0"><span>01</span><strong>预测</strong></li>
+                        <li data-mechanics-progress-step="1"><span>02</span><strong>e=0.40</strong></li>
+                        <li data-mechanics-progress-step="2"><span>03</span><strong>e=0.80</strong></li>
+                        <li data-mechanics-progress-step="3"><span>04</span><strong>比较</strong></li>
+                        <li data-mechanics-progress-step="4"><span>05</span><strong>修正</strong></li>
+                        <li data-mechanics-progress-step="5"><span>06</span><strong>解释</strong></li>
+                    </ol>`;
+                const goal = root.querySelector('.mechanics-course__goal');
+                root.insertBefore(progress, goal && goal.nextSibling || root.firstChild || null);
+            }
+            if (!root.querySelector('[data-mechanics-locks]')
+                && typeof root.insertBefore === 'function') {
+                const locks = document.createElement('section');
+                locks.className = 'mechanics-course__locks';
+                locks.dataset.mechanicsLocks = 'true';
+                locks.setAttribute('aria-label', '受控实验固定变量');
+                locks.innerHTML = `
+                    <div class="mechanics-course__only-variable"><span>唯一改变</span><strong>e = 0.40 → 0.80</strong></div>
+                    <dl>
+                        <div><dt>落高 H</dt><dd>200 px · 锁定</dd></div>
+                        <div><dt>重力 g</dt><dd>980 px/s² · 锁定</dd></div>
+                        <div><dt>半径 r</dt><dd>16 px · 锁定</dd></div>
+                        <div><dt>水平速度 vₓ</dt><dd>0 · 锁定</dd></div>
+                        <div><dt>μ / 教学阻尼</dt><dd>0 · 锁定</dd></div>
+                    </dl>`;
+                const progress = root.querySelector('[data-mechanics-progress]');
+                root.insertBefore(locks, progress && progress.nextSibling || root.firstChild || null);
+            }
+        }
+        const visual = this.canvas && this.canvas.parentElement;
+        if (!visual || typeof visual.querySelector !== 'function'
+            || typeof visual.insertBefore !== 'function'
+            || visual.querySelector('[data-mechanics-canvas-hud]')) return;
+        const hud = document.createElement('section');
+        hud.className = 'mechanics-canvas-hud';
+        hud.dataset.mechanicsCanvasHud = 'true';
+        hud.setAttribute('aria-label', '受控实验实时读数');
+        hud.innerHTML = `
+            <div class="mechanics-canvas-hud__phase"><span>真实循环阶段</span><strong data-mechanics-live-phase>等待受控实验</strong></div>
+            <div><span>当前恢复系数</span><strong data-mechanics-live-e>—</strong></div>
+            <div><span>实时高度</span><strong data-mechanics-live-height>—</strong></div>
+            <div><span>垂直运动</span><strong data-mechanics-live-velocity>—</strong></div>`;
+        visual.insertBefore(hud, this.canvas);
+    },
+
+    _updateCourseShowcase(state) {
+        if (!state || typeof document.querySelector !== 'function') return;
+        const root = document.querySelector('[data-mechanics-course]');
+        if (!root) return;
+        if (root.dataset) root.dataset.mechanicsStage = state.stage;
+        const stageIndex = {
+            [MECHANICS_STAGE.P0]: 0,
+            [MECHANICS_STAGE.P1]: 1,
+            [MECHANICS_STAGE.P2]: 1,
+            [MECHANICS_STAGE.P3]: 2,
+            [MECHANICS_STAGE.P4]: 2,
+            [MECHANICS_STAGE.P5]: 3,
+            [MECHANICS_STAGE.P6]: 4,
+            [MECHANICS_STAGE.P7]: 5,
+            [MECHANICS_STAGE.P8]: 6
+        }[state.stage] ?? 0;
+        if (typeof root.querySelectorAll === 'function') {
+            root.querySelectorAll('[data-mechanics-progress-step]').forEach(item => {
+                const index = Number(item.dataset && item.dataset.mechanicsProgressStep);
+                if (!Number.isFinite(index)) return;
+                item.dataset.state = index < stageIndex ? 'complete' : index === stageIndex ? 'active' : 'locked';
+                if (typeof item.setAttribute === 'function' && index === stageIndex && stageIndex < 6) {
+                    item.setAttribute('aria-current', 'step');
+                } else if (typeof item.removeAttribute === 'function') {
+                    item.removeAttribute('aria-current');
+                }
+            });
+        }
+    },
+
+    _setCourseVisualPhase(phase, ball, label) {
+        const changed = phase !== this._courseVisualPhase;
+        this._courseVisualPhase = phase;
+        if (changed) this._courseVisualDirty = true;
+        const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        const reducedControlledTrial = Boolean(
+            this._reducedMotion
+            && ball
+            && ball.controlled
+            && this._controlledTrial === ball.controlled
+        );
+        if (reducedControlledTrial && !changed) return;
+        const hudInterval = this._reducedMotion ? 250 : 100;
+        if (!changed && now - this._lastCourseHudUpdate < hudInterval) return;
+        this._lastCourseHudUpdate = now;
+        if (typeof document.querySelector !== 'function') return;
+        const phaseNode = document.querySelector('[data-mechanics-live-phase]');
+        const eNode = document.querySelector('[data-mechanics-live-e]');
+        const heightNode = document.querySelector('[data-mechanics-live-height]');
+        const velocityNode = document.querySelector('[data-mechanics-live-velocity]');
+        const phaseLabels = {
+            idle: '等待受控实验',
+            ready: '固定条件已锁定',
+            falling: '释放下降',
+            impact: '第一次碰撞',
+            rising: '第一次回弹上升',
+            peak: '第一峰值已捕获',
+            compare: '两次真实峰值对照',
+            cancelled: '本次观察已取消',
+            blocked: '实验保持只读'
+        };
+        if (phaseNode) phaseNode.textContent = label || phaseLabels[phase] || '等待受控实验';
+        const trial = ball && ball.controlled;
+        if (eNode) eNode.textContent = trial ? `e=${trial.restitution.toFixed(2)}` : '—';
+        if (!trial) {
+            if (heightNode) heightNode.textContent = '—';
+            if (velocityNode) velocityNode.textContent = '—';
+            if (this.canvas && typeof this.canvas.setAttribute === 'function') {
+                const stageLabel = label || phaseLabels[phase] || '等待受控实验';
+                this.canvas.setAttribute('aria-label', `恢复系数受控实验画布，当前阶段：${stageLabel}`);
+            }
+            return;
+        }
+        const height = Math.max(0, Math.min(trial.dropHeight, trial.floorCenterY - ball.y));
+        if (heightNode) heightNode.textContent = `${height.toFixed(1)} px`;
+        if (velocityNode) {
+            const direction = phase === 'peak' ? '峰值静止'
+                : ball.vy > 1 ? '向下'
+                : ball.vy < -1 ? '向上' : '释放';
+            velocityNode.textContent = `${direction} · vᵧ ${Number(ball.vy).toFixed(0)} px/s`;
+        }
+        if (this.canvas && typeof this.canvas.setAttribute === 'function') {
+            this.canvas.setAttribute(
+                'aria-label',
+                `恢复系数受控实验，${phaseNode ? phaseNode.textContent : phaseLabels[phase] || ''}，e=${trial.restitution.toFixed(2)}，实时高度 ${height.toFixed(1)} 像素`
+            );
+        }
+    },
+
     _resetCourseOwnerState() {
         this._evidenceBinding = null;
         this._courseActionInFlight = false;
@@ -547,6 +721,9 @@ const PhysicsSim = {
         this._panelCommandPermit = null;
         this._courseRetryIds = new Map();
         this._courseNextFocus = '';
+        this._courseVisualPhase = '';
+        this._courseVisualDirty = true;
+        this._lastCourseHudUpdate = 0;
         this._courseState = {
             prediction: null,
             measurements: Object.create(null),
@@ -566,6 +743,7 @@ const PhysicsSim = {
         this._setCourseStage('正在确认学习证据范围');
         this._setCourseFeedback('范围确认完成前，受控实验输入与动作保持禁用。', 'checking');
         this._resetFreeControls();
+        this._setCourseVisualPhase('idle', null);
         const ballCount = this._courseNode('ball-count');
         if (ballCount) ballCount.textContent = '0';
         const fps = this._courseNode('physics-fps');
@@ -700,6 +878,7 @@ const PhysicsSim = {
         if (this.canvas && typeof this.canvas.setAttribute === 'function') {
             this.canvas.setAttribute('aria-disabled', controlledBusy ? 'true' : 'false');
         }
+        this._updateCourseShowcase(state);
         this._refreshEvidenceCommands();
     },
 
@@ -735,6 +914,7 @@ const PhysicsSim = {
             state.stage = MECHANICS_STAGE.P1;
             this._setCourseStage('预测已记录 · 仅开放 e=0.40');
             this._setCourseFeedback('现在只改变恢复系数。完成 e=0.40 的完整快照和证据后，才会开放 e=0.80。', 'ready');
+            this._setCourseVisualPhase('ready', null, '等待释放 e=0.40');
             this._courseNextFocus = 'mechanics-trial-040';
             return true;
         });
@@ -796,8 +976,16 @@ const PhysicsSim = {
             this.paused = false;
             this._setCourseStage(`正在观察 e=${key} 的第一次反弹`);
             this._setCourseFeedback('只看第一次峰值；改动滑块、拖拽、暂停、清除或 resize 都会取消本次快照且零写入。', 'observing');
+            this._setCourseVisualPhase('falling', this.balls[0]);
             this.updateStats();
             this.render();
+            if (this._reducedMotion) {
+                this._courseVisualDirty = false;
+                this._lastReducedRender = typeof performance !== 'undefined'
+                    && typeof performance.now === 'function'
+                    ? performance.now()
+                    : Date.now();
+            }
             return true;
         });
     },
@@ -914,6 +1102,8 @@ const PhysicsSim = {
                 );
                 this._courseNextFocus = 'mechanics-correction-choice';
             }
+            const completedBall = this.balls.find(ball => ball && ball.controlled === trial);
+            this._setCourseVisualPhase('peak', completedBall || null);
             return true;
         });
     },
@@ -979,6 +1169,7 @@ const PhysicsSim = {
             this.balls = [];
             this._setCourseStage('正在重看两次第一峰值（不新增证据）');
             this._setCourseFeedback('Canvas 标出两组峰值；数值仍以等价测量表为准，本操作不改变课程阶段。', 'replay');
+            this._setCourseVisualPhase('compare', null);
             this.render();
             this._courseNextFocus = 'mechanics-measurements';
             return true;
@@ -1003,6 +1194,7 @@ const PhysicsSim = {
             this._clearCourseGroupDom();
             this._setCourseStage('新受控组 · 等待新的预测');
             this._setCourseFeedback('旧事件保持 append-only；本次显式重做会为新预测和新快照生成新的事件编号。', 'redo');
+            this._setCourseVisualPhase('idle', null, '等待新的预测');
             this._courseNextFocus = 'mechanics-prediction-choice';
             return true;
         });
@@ -1085,6 +1277,7 @@ const PhysicsSim = {
             message || '本次未形成完整第一峰值快照，也没有写入尝试证据；请重新运行同一固定预设。',
             'retry'
         );
+        this._setCourseVisualPhase('cancelled', null);
         this.updateStats();
         this._syncCourseUi();
         return true;
@@ -1283,7 +1476,15 @@ const PhysicsSim = {
         }
 
         if (!this.paused) this.update(dt);
-        this.render();
+        const reducedControlledTrial = Boolean(this._reducedMotion && this._controlledTrial);
+        const shouldRender = !this._reducedMotion
+            || this._courseVisualDirty
+            || (!reducedControlledTrial && now - this._lastReducedRender >= 250);
+        if (shouldRender) {
+            this.render();
+            this._lastReducedRender = now;
+            this._courseVisualDirty = false;
+        }
     },
 
     update(dt) {
@@ -1325,6 +1526,8 @@ const PhysicsSim = {
                     b.controlled.rebounded = true;
                     b.controlled.rising = true;
                     b.controlled.peakY = b.y;
+                    b.controlled.visualImpactFrames = this._reducedMotion ? 1 : 4;
+                    this._setCourseVisualPhase('impact', b);
                 }
 
                 // Friction on ground
@@ -1345,11 +1548,18 @@ const PhysicsSim = {
                 if (b.vy < 0) {
                     b.controlled.rising = true;
                     b.controlled.peakY = Math.min(b.controlled.peakY, b.y);
+                    if (b.controlled.visualImpactFrames > 0) {
+                        b.controlled.visualImpactFrames -= 1;
+                        this._setCourseVisualPhase('impact', b);
+                    } else {
+                        this._setCourseVisualPhase('rising', b);
+                    }
                 } else if (b.controlled.rising) {
                     b.controlled.completed = true;
                     b.y = b.controlled.peakY;
                     b.vx = 0;
                     b.vy = 0;
+                    this._setCourseVisualPhase('peak', b);
                     const reboundHeight = Math.max(
                         0,
                         b.controlled.floorCenterY - b.controlled.peakY
@@ -1365,6 +1575,8 @@ const PhysicsSim = {
                         )).catch(() => {});
                     }
                 }
+            } else if (b.controlled && !b.controlled.rebounded) {
+                this._setCourseVisualPhase('falling', b);
             }
 
             // Ball-to-ball collisions
@@ -1443,7 +1655,7 @@ const PhysicsSim = {
         // Balls
         for (const b of this.balls) {
             // Trail
-            if (b.trail.length > 1) {
+            if (!this._reducedMotion && b.trail.length > 1) {
                 const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
                 if (speed > 30) {
                     ctx.beginPath();
@@ -1546,9 +1758,11 @@ const PhysicsSim = {
     },
 
     _renderCourseGuide(ctx) {
-        const active = this._controlledTrial;
+        const controlledBall = this.balls.find(ball => ball && ball.controlled);
+        const active = this._controlledTrial || controlledBall && controlledBall.controlled;
         if (active) {
             const startY = active.floorCenterY - active.dropHeight;
+            const rulerX = Math.max(26, this.W * 0.1);
             ctx.save();
             ctx.strokeStyle = 'rgba(125, 211, 252, 0.75)';
             ctx.fillStyle = 'rgba(224, 242, 254, 0.92)';
@@ -1566,6 +1780,64 @@ const PhysicsSim = {
                 Math.max(16, this.W * 0.18),
                 Math.max(22, startY - 10)
             );
+            ctx.strokeStyle = 'rgba(125, 211, 252, 0.42)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(rulerX, startY);
+            ctx.lineTo(rulerX, active.floorCenterY);
+            ctx.stroke();
+            ctx.font = `500 11px ${CF.sans}`;
+            ctx.textAlign = 'right';
+            [0, 50, 100, 150, 200].forEach(height => {
+                const y = active.floorCenterY - height;
+                ctx.beginPath();
+                ctx.moveTo(rulerX - 5, y);
+                ctx.lineTo(rulerX + 5, y);
+                ctx.stroke();
+                ctx.fillText(`${height}`, rulerX - 9, y + 4);
+            });
+            ctx.textAlign = 'left';
+            ctx.fillStyle = 'rgba(191, 219, 254, 0.78)';
+            ctx.fillText('h / px', rulerX - 8, Math.max(16, startY - 18));
+            if (controlledBall) {
+                const height = Math.max(0, Math.min(active.dropHeight, active.floorCenterY - controlledBall.y));
+                const markerY = active.floorCenterY - height;
+                ctx.strokeStyle = controlledBall.color;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(rulerX + 8, markerY);
+                ctx.lineTo(Math.max(rulerX + 38, controlledBall.x - controlledBall.r - 12), markerY);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(248, 250, 252, 0.94)';
+                ctx.font = `600 12px ${CF.sans}`;
+                ctx.textAlign = 'left';
+                ctx.fillText(`实时 h=${height.toFixed(1)} px`, rulerX + 12, Math.max(20, markerY - 7));
+                if (Math.abs(controlledBall.vy) > 4) {
+                    const direction = controlledBall.vy > 0 ? 1 : -1;
+                    const arrowLength = Math.min(58, 22 + Math.abs(controlledBall.vy) * 0.035);
+                    const startArrowY = controlledBall.y - direction * (controlledBall.r + 7);
+                    const endArrowY = startArrowY + direction * arrowLength;
+                    ctx.strokeStyle = 'rgba(248, 250, 252, 0.78)';
+                    ctx.fillStyle = 'rgba(248, 250, 252, 0.78)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(controlledBall.x + controlledBall.r + 12, startArrowY);
+                    ctx.lineTo(controlledBall.x + controlledBall.r + 12, endArrowY);
+                    ctx.stroke();
+                    const arrowDirection = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
+                    const arrowX = controlledBall.x + controlledBall.r + 12;
+                    ctx.beginPath();
+                    ctx.moveTo(arrowX, endArrowY);
+                    ctx.lineTo(arrowX - Math.cos(arrowDirection - Math.PI / 6) * 8, endArrowY - Math.sin(arrowDirection - Math.PI / 6) * 8);
+                    ctx.lineTo(arrowX - Math.cos(arrowDirection + Math.PI / 6) * 8, endArrowY - Math.sin(arrowDirection + Math.PI / 6) * 8);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+            ctx.fillStyle = 'rgba(167, 139, 250, 0.84)';
+            ctx.font = `600 11px ${CF.sans}`;
+            ctx.textAlign = 'right';
+            ctx.fillText('锁定：g=980 · r=16 · vₓ=0 · μ/阻尼=0', this.W - 18, 24);
             ctx.restore();
         }
 

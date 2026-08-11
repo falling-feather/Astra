@@ -405,6 +405,13 @@
         controlledAbort: null,
         controlledActivity: false,
         rafId: 0,
+        reducedMotion: false,
+        controlledFlowState: null,
+        controlledVisualResult: null,
+        controlledVisualNode: '',
+        controlledVisualPosition: 1,
+        controlledVisualReveal: 0,
+        controlledVisualAnimating: false,
         dpr: 1,
         state: {
             load: 60,
@@ -434,6 +441,9 @@
             const settings = options || {};
             this.destroy();
             this.controlledActivity = settings.controlledActivity === true;
+            this.reducedMotion = typeof window.matchMedia === 'function'
+                && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            this._resetControlledVisual();
             this.state.load = 60;
             this.state.loadJoint = this.controlledActivity ? 'B' : 'C';
             this.state.memberMode = 'full';
@@ -499,11 +509,18 @@
             this.controlledActivity = false;
             if (this.rafId) cancelAnimationFrame(this.rafId);
             this.rafId = 0;
+            this.controlledFlowState = null;
+            this.controlledVisualResult = null;
+            this.controlledVisualNode = '';
+            this.controlledVisualPosition = 1;
+            this.controlledVisualReveal = 0;
+            this.controlledVisualAnimating = false;
             if (this._boundResize) window.removeEventListener('resize', this._boundResize);
         },
 
         _initControlledFlow(options) {
             this.controlledRoot = document.querySelector('[data-load-path-flow]');
+            this._mountControlledShowcase();
             const controller = options && options.evidenceController;
             const provider = window.FutureGalaxyPublicationContext;
             if (!this.controlledRoot || !controller || !provider
@@ -525,8 +542,9 @@
                     this.state.load = 60;
                     this.state.loadJoint = node;
                     this.state.memberMode = 'full';
-                    this.render();
-                    return normalizeLoadPathObservation(node, this.solve());
+                    const exactResult = this.solve();
+                    this._animateControlledResult(node, exactResult);
+                    return normalizeLoadPathObservation(node, exactResult);
                 },
                 onChange: state => this._renderControlledFlow(state)
             });
@@ -561,6 +579,7 @@
                         this.state.load = 60;
                         this.state.loadJoint = 'B';
                         this.state.memberMode = 'full';
+                        this._resetControlledVisual();
                         this.render();
                     }
                 }
@@ -575,6 +594,7 @@
 
         _renderControlledFlow(flowState) {
             if (!this.controlledRoot || !flowState) return;
+            this.controlledFlowState = flowState;
             const stage = flowState.stage;
             const busy = flowState.busy;
             const blocked = flowState.blocked === true;
@@ -632,6 +652,235 @@
             this._setControlledStatus(blocked
                 ? '证据冲突需处理，本活动只读。'
                 : busy ? '正在保存本次证据，请勿重复操作。' : messages[stage] || '活动保持失败关闭。');
+            this._updateControlledShowcase(flowState);
+            if (!busy && this.controlledActivity) this._syncControlledVisualFromFlow(flowState);
+        },
+
+        _mountControlledShowcase() {
+            const root = this.controlledRoot;
+            if (!root || typeof document.createElement !== 'function'
+                || typeof root.querySelector !== 'function') return;
+            if (!root.querySelector('[data-load-path-progress]')
+                && typeof root.insertBefore === 'function') {
+                const progress = document.createElement('nav');
+                progress.className = 'fg-load-path__progress';
+                progress.dataset.loadPathProgress = 'true';
+                progress.setAttribute('aria-label', '载荷路径学习步骤');
+                progress.innerHTML = `
+                    <ol>
+                        <li data-load-path-progress-step="0"><span>01</span><strong>预测</strong></li>
+                        <li data-load-path-progress-step="1"><span>02</span><strong>基线 B</strong></li>
+                        <li data-load-path-progress-step="2"><span>03</span><strong>变化 C</strong></li>
+                        <li data-load-path-progress-step="3"><span>04</span><strong>判断</strong></li>
+                        <li data-load-path-progress-step="4"><span>05</span><strong>镜像 D</strong></li>
+                        <li data-load-path-progress-step="5"><span>06</span><strong>解释</strong></li>
+                    </ol>`;
+                root.insertBefore(progress, root.firstChild || null);
+            }
+            if (root.querySelector('[data-load-path-delta]')) return;
+            const delta = document.createElement('aside');
+            delta.className = 'fg-load-path__delta';
+            delta.dataset.loadPathDelta = 'true';
+            delta.hidden = true;
+            delta.innerHTML = `
+                <span>B → C 可观察变化</span>
+                <div data-load-path-delta-copy></div>
+                <p>数值来自上方两次完整求解；颜色和过渡动画不作为学习证据。</p>`;
+            const table = root.querySelector('.fg-load-path__table-wrap');
+            if (table && table.parentNode && typeof table.parentNode.insertBefore === 'function') {
+                table.parentNode.insertBefore(delta, table.nextSibling || null);
+            } else if (typeof root.appendChild === 'function') {
+                root.appendChild(delta);
+            }
+        },
+
+        _updateControlledShowcase(flowState) {
+            const root = this.controlledRoot;
+            if (!root || !flowState) return;
+            const stage = flowState.stage;
+            if (root.dataset) root.dataset.loadPathStage = stage;
+            const stageIndex = {
+                prediction: 0,
+                predicted: 1,
+                'observed-b': 2,
+                'observed-c': 3,
+                assessed: 4,
+                'observed-d': 4,
+                corrected: 5,
+                'waiting-server': 6
+            }[stage] ?? 0;
+            if (typeof root.querySelectorAll === 'function') {
+                root.querySelectorAll('[data-load-path-progress-step]').forEach(item => {
+                    const index = Number(item.dataset && item.dataset.loadPathProgressStep);
+                    if (!Number.isFinite(index)) return;
+                    item.dataset.state = index < stageIndex ? 'complete' : index === stageIndex ? 'active' : 'locked';
+                    if (typeof item.setAttribute === 'function' && index === stageIndex && stageIndex < 6) {
+                        item.setAttribute('aria-current', 'step');
+                    } else if (typeof item.removeAttribute === 'function') {
+                        item.removeAttribute('aria-current');
+                    }
+                });
+            }
+            const delta = typeof root.querySelector === 'function'
+                ? root.querySelector('[data-load-path-delta]')
+                : null;
+            const copy = typeof root.querySelector === 'function'
+                ? root.querySelector('[data-load-path-delta-copy]')
+                : null;
+            const baseline = flowState.observations && flowState.observations.B;
+            const changed = flowState.observations && flowState.observations.C;
+            const ready = validObservation(baseline, 'B') && validObservation(changed, 'C');
+            if (delta) delta.hidden = !ready;
+            if (ready && copy) {
+                const spreadB = Math.abs(baseline.reaction_ay_kn - baseline.reaction_ey_kn);
+                const spreadC = Math.abs(changed.reaction_ay_kn - changed.reaction_ey_kn);
+                const ghDelta = Math.abs(changed.member_gh_kn) - Math.abs(baseline.member_gh_kn);
+                const cdDelta = Math.abs(changed.member_cd_kn) - Math.abs(baseline.member_cd_kn);
+                copy.innerHTML = `
+                    <strong><small>反力差 |Aᵧ−Eᵧ|</small>${spreadB.toFixed(1)} → ${spreadC.toFixed(1)} kN</strong>
+                    <strong><small>|GH|</small>${Math.abs(baseline.member_gh_kn).toFixed(1)} → ${Math.abs(changed.member_gh_kn).toFixed(1)} kN <em>+${ghDelta.toFixed(1)}</em></strong>
+                    <strong><small>|CD|</small>${Math.abs(baseline.member_cd_kn).toFixed(1)} → ${Math.abs(changed.member_cd_kn).toFixed(1)} kN <em>+${cdDelta.toFixed(1)}</em></strong>`;
+            }
+            if (this.canvas && typeof this.canvas.setAttribute === 'function') {
+                const labels = {
+                    prediction: '载荷路径实验：预测阶段，只显示中性桁架与固定荷载，不显示求解答案',
+                    predicted: '载荷路径实验：预测已记录，等待运行 B 基线',
+                    'observed-b': '载荷路径实验：B 基线已观察，等待只改为 C',
+                    'observed-c': '载荷路径实验：B 与 C 已观察，等待判断',
+                    assessed: '载荷路径实验：判断已保存，等待 D 镜像复核',
+                    'observed-d': '载荷路径实验：D 镜像已观察，等待纠正',
+                    corrected: '载荷路径实验：纠正已记录，等待结构化解释',
+                    'waiting-server': '载荷路径实验：解释已记录，等待服务端完成投影'
+                };
+                this.canvas.setAttribute('aria-label', labels[stage] || '载荷路径受控实验');
+            }
+        },
+
+        _resetControlledVisual() {
+            if (this.rafId) cancelAnimationFrame(this.rafId);
+            this.rafId = 0;
+            this.controlledVisualResult = null;
+            this.controlledVisualNode = '';
+            this.controlledVisualPosition = 1;
+            this.controlledVisualReveal = 0;
+            this.controlledVisualAnimating = false;
+        },
+
+        _syncControlledVisualFromFlow(flowState) {
+            if (!flowState || !this.controlledActivity) return;
+            const observations = flowState.observations || {};
+            const node = validObservation(observations.D, 'D') ? 'D'
+                : validObservation(observations.C, 'C') ? 'C'
+                : validObservation(observations.B, 'B') ? 'B' : '';
+            if (!node) {
+                if (this.controlledVisualResult || this.controlledVisualAnimating) {
+                    this._resetControlledVisual();
+                    this.state.loadJoint = 'B';
+                    this.render();
+                }
+                return;
+            }
+            if (this.controlledVisualNode === node) return;
+            if (this.rafId) cancelAnimationFrame(this.rafId);
+            this.rafId = 0;
+            this.controlledVisualAnimating = false;
+            this.state.load = 60;
+            this.state.loadJoint = node;
+            this.state.memberMode = 'full';
+            this.controlledVisualResult = this.solve();
+            this.controlledVisualNode = node;
+            this.controlledVisualPosition = this._controlledNodePosition(node);
+            this.controlledVisualReveal = 1;
+            this.render();
+        },
+
+        _controlledNodePosition(node) {
+            return ({ B: 1, C: 2, D: 3 })[node] || 1;
+        },
+
+        _animateControlledResult(node, exactResult) {
+            const targetPosition = this._controlledNodePosition(node);
+            const startPosition = Number.isFinite(this.controlledVisualPosition)
+                ? this.controlledVisualPosition
+                : targetPosition;
+            const startResult = this.controlledVisualResult
+                || this._zeroControlledResult(exactResult);
+            const startReveal = this.controlledVisualResult ? this.controlledVisualReveal : 0;
+            if (this.rafId) cancelAnimationFrame(this.rafId);
+            this.rafId = 0;
+            this.controlledVisualNode = node;
+            if (this.reducedMotion || typeof requestAnimationFrame !== 'function') {
+                this.controlledVisualResult = exactResult;
+                this.controlledVisualPosition = targetPosition;
+                this.controlledVisualReveal = 1;
+                this.controlledVisualAnimating = false;
+                this.render();
+                return;
+            }
+            const startedAt = typeof performance !== 'undefined' && typeof performance.now === 'function'
+                ? performance.now()
+                : Date.now();
+            const duration = 620;
+            this.controlledVisualAnimating = true;
+            const frame = timestamp => {
+                const now = Number.isFinite(timestamp) ? timestamp : Date.now();
+                const progress = Math.max(0, Math.min(1, (now - startedAt) / duration));
+                const eased = 1 - Math.pow(1 - progress, 3);
+                this.controlledVisualResult = this._interpolateControlledResult(startResult, exactResult, eased);
+                this.controlledVisualPosition = startPosition + (targetPosition - startPosition) * eased;
+                this.controlledVisualReveal = startReveal + (1 - startReveal) * eased;
+                this.render();
+                if (progress < 1) {
+                    this.rafId = requestAnimationFrame(frame);
+                    return;
+                }
+                this.rafId = 0;
+                this.controlledVisualResult = exactResult;
+                this.controlledVisualPosition = targetPosition;
+                this.controlledVisualReveal = 1;
+                this.controlledVisualAnimating = false;
+                this.render();
+            };
+            this.rafId = requestAnimationFrame(frame);
+        },
+
+        _zeroControlledResult(result) {
+            return {
+                ...result,
+                memberForces: result.memberForces.map(member => ({ ...member, force: 0, type: 'zero' })),
+                reactions: { Ax: 0, Ay: 0, Ey: 0 },
+                maxForce: 1,
+                critical: { ...result.critical, force: 0, type: 'zero' }
+            };
+        },
+
+        _interpolateControlledResult(from, to, progress) {
+            const lerp = (left, right) => left + (right - left) * progress;
+            const fromMembers = new Map(from.memberForces.map(member => [member.name, member]));
+            const memberForces = to.memberForces.map(member => {
+                const start = fromMembers.get(member.name) || { force: 0 };
+                const force = lerp(Number(start.force) || 0, Number(member.force) || 0);
+                return {
+                    ...member,
+                    force,
+                    type: Math.abs(force) < 0.01 ? 'zero' : force > 0 ? 'tension' : 'compression'
+                };
+            });
+            const maxForce = Math.max(1, ...memberForces.map(member => Math.abs(member.force)));
+            const critical = memberForces.reduce((best, member) => (
+                Math.abs(member.force) > Math.abs(best.force) ? member : best
+            ), memberForces[0]);
+            return {
+                ...to,
+                memberForces,
+                maxForce,
+                critical,
+                reactions: {
+                    Ax: lerp(Number(from.reactions.Ax) || 0, Number(to.reactions.Ax) || 0),
+                    Ay: lerp(Number(from.reactions.Ay) || 0, Number(to.reactions.Ay) || 0),
+                    Ey: lerp(Number(from.reactions.Ey) || 0, Number(to.reactions.Ey) || 0)
+                }
+            };
         },
 
         render() {
@@ -650,12 +899,22 @@
                 button.setAttribute('aria-pressed', active ? 'true' : 'false');
             });
 
-            const result = this.solve();
+            const exactResult = this.solve();
+            const result = this.controlledActivity && this.controlledVisualResult
+                ? this.controlledVisualResult
+                : exactResult;
             if (this.canvas && this.ctx) {
                 this._resizeCanvas();
-                this.draw(result);
+                this.draw(result, this.controlledActivity ? {
+                    loadPosition: this.controlledVisualPosition,
+                    answerVisibility: this.controlledVisualReveal
+                } : null);
             }
-            this.updateInfo(result);
+            this.updateInfo(result, this.controlledActivity ? {
+                revealResults: this.controlledVisualReveal >= 0.999,
+                animating: this.controlledVisualAnimating,
+                node: this.controlledVisualNode
+            } : null);
         },
 
         solve() {
@@ -784,7 +1043,7 @@
             };
         },
 
-        draw(result) {
+        draw(result, presentation) {
             const ctx = this.ctx;
             const w = this.canvas.clientWidth;
             const h = this.canvas.clientHeight;
@@ -800,17 +1059,30 @@
                 y: deckY - joint.y * height
             });
             const joints = new Map(this.joints.map(joint => [joint.id, { ...joint, ...toScreen(joint) }]));
+            const answerVisibility = presentation
+                ? Math.max(0, Math.min(1, Number(presentation.answerVisibility) || 0))
+                : 1;
+            const loadPosition = presentation && Number.isFinite(presentation.loadPosition)
+                ? presentation.loadPosition
+                : this.joints.find(joint => joint.id === this.state.loadJoint)?.x || 1;
+            const loadJoint = {
+                x: padX + (loadPosition / 4) * span,
+                y: deckY
+            };
 
             this._drawGrid(ctx, w, h, deckY, padX, span);
             this._drawSupports(ctx, joints);
-            this._drawLoad(ctx, joints.get(this.state.loadJoint), this.state.load);
-            if (result.structuralStatus.stable) this._drawReactions(ctx, joints, result.reactions);
+            this._drawLoad(ctx, loadJoint, this.state.load);
+            if (result.structuralStatus.stable && answerVisibility > 0.04) {
+                this._drawReactions(ctx, joints, result.reactions);
+            }
 
             result.memberForces.forEach(member => {
                 const a = joints.get(member.from);
                 const b = joints.get(member.to);
                 const ratio = Math.abs(member.force) / result.maxForce;
-                const width = member.disabled ? 1.4 : 2 + ratio * 7;
+                const visibleRatio = ratio * answerVisibility;
+                const width = member.disabled ? 1.4 : 2 + visibleRatio * 7;
                 ctx.beginPath();
                 ctx.moveTo(a.x, a.y);
                 ctx.lineTo(b.x, b.y);
@@ -819,10 +1091,12 @@
                 ctx.setLineDash(member.disabled ? [7, 6] : []);
                 ctx.strokeStyle = member.disabled
                     ? 'rgba(184,84,80,0.92)'
+                    : answerVisibility <= 0.01
+                    ? 'rgba(138,144,160,0.55)'
                     : member.type === 'tension'
-                    ? `rgba(79,168,163,${0.46 + ratio * 0.5})`
+                    ? `rgba(79,168,163,${0.34 + visibleRatio * 0.62})`
                     : member.type === 'compression'
-                    ? `rgba(216,163,72,${0.46 + ratio * 0.5})`
+                    ? `rgba(216,163,72,${0.34 + visibleRatio * 0.62})`
                     : 'rgba(138,144,160,0.38)';
                 ctx.stroke();
                 ctx.setLineDash([]);
@@ -833,7 +1107,7 @@
                 const b = joints.get(member.to);
                 const mx = (a.x + b.x) / 2;
                 const my = (a.y + b.y) / 2;
-                if (Math.abs(member.force) < result.maxForce * 0.18) return;
+                if (answerVisibility < 0.82 || Math.abs(member.force) < result.maxForce * 0.18) return;
                 this._label(ctx, mx, my, `${Math.abs(member.force).toFixed(0)} kN`, member.type);
             });
 
@@ -859,7 +1133,9 @@
             ctx.font = `600 12px ${this._fontMono()}`;
             ctx.textAlign = 'left';
             const safetyText = this.controlledActivity
-                ? '理想二维铰接桁架读数 · 非现实结构安全结论'
+                ? answerVisibility <= 0.01
+                    ? '60 kN 固定工况 · 预测提交前隐藏求解答案'
+                    : '理想二维铰接桁架读数 · 非现实结构安全结论'
                 : result.safety.available
                 ? `安全校核：利用率 ${(result.safety.utilization * 100).toFixed(0)}% / 系数 ${result.safety.factor.toFixed(1)}`
                 : '构件路径中断：本模型不可校核';
@@ -867,8 +1143,26 @@
             ctx.restore();
         },
 
-        updateInfo(result) {
+        updateInfo(result, presentation) {
             if (!this.infoRoot) return;
+            if (this.controlledActivity && (!presentation || !presentation.revealResults)) {
+                const processText = presentation && presentation.animating
+                    ? `荷载正在移向 ${presentation.node || '目标'} 节点；画面只插值展示，最终数值仍由完整静力求解产生。`
+                    : '先提交结构化预测，再运行 B 基线。预测提交前不显示支座反力、杆件轴力或颜色答案。';
+                this.infoRoot.innerHTML = `
+                    <div class="truss-panel truss-panel--locked">
+                        <span class="truss-panel__label">固定实验条件</span>
+                        <strong>60 kN · 完整 15 杆 · 理想二维铰接</strong>
+                        <p>本课程只改变荷载节点 B → C → D；荷载、杆系与支座模型保持锁定。</p>
+                    </div>
+                    <div class="truss-panel truss-panel--process">
+                        <span class="truss-panel__label">当前可观察过程</span>
+                        <strong>${presentation && presentation.animating ? '求解画面更新中' : '等待预测与首个基线'}</strong>
+                        <p>${processText}</p>
+                    </div>
+                `;
+                return;
+            }
             if (!result.structuralStatus.stable) {
                 this.infoRoot.innerHTML = `
                     <div class="truss-panel">
