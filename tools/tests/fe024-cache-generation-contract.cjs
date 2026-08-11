@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260812v822PublicationSingleflightP0';
+const generation = '20260812v824PublicationRouteP0';
 const moduleGeneration = '20260812v819PhysicsFirstLoadP0';
 const studentGeneration = '20260812v817RoleFeedbackP0';
 const frontierGeneration = '20260812v814FlagshipMotionP0';
@@ -93,13 +93,13 @@ function testStaticGenerationChain() {
     assert.match(document, new RegExp(generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
     assert.match(document, /ARCH-004/);
-    const v822EvidenceLine = document
+    const v824EvidenceLine = document
       .split(/\r?\n/)
-      .find((line) => line.includes('V8.0.22') && line.includes(generation));
-    assert.ok(v822EvidenceLine, 'V8.0.22 documentation must identify the exact V822 cache generation');
-    assert.match(v822EvidenceLine, /QA-022/);
-    assert.match(v822EvidenceLine, /V820→V822/);
-    assert.match(v822EvidenceLine, /QA-022[\s\S]*(?:待同 revision 复验|PASS)/);
+      .find((line) => line.includes('V8.0.24') && line.includes(generation));
+    assert.ok(v824EvidenceLine, 'V8.0.24 documentation must identify the exact V824 cache generation');
+    assert.match(v824EvidenceLine, /QA-022/);
+    assert.match(v824EvidenceLine, /V822→V824/);
+    assert.match(v824EvidenceLine, /QA-022[\s\S]*(?:待同 revision 复验|PASS)/);
   }
 }
 
