@@ -1,11 +1,8 @@
 (function () {
     'use strict';
-    const TEACHER_ASSET_VERSION = '20260730v785TeacherNaturalWorkflowP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
-    const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' });
-    const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
-    const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' });
-    const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' });
-    const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
+    const TEACHER_ASSET_VERSION = '20260812v813RoleWorkspacesP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
+    const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' }); const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
+    const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' }); const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' }); const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
     const CODE_STATUS_LABELS = Object.freeze({
         queued: '排队中', runner_unavailable: '判题器未启用', running: '判题中', accepted: '通过',
         wrong_answer: '答案不符', partial: '部分通过', compile_error: '编译错误', runtime_error: '运行错误',
@@ -35,34 +32,21 @@
     function initTeacher() {
         state.root = document.querySelector('[data-teacher-workbench]');
         if (!state.root) return;
-        state.active = true;
-        state.online = navigator.onLine !== false;
+        state.active = true; state.online = navigator.onLine !== false;
         if (window.AstraApiClient) AstraApiClient.scrubLegacyTokens();
-        state.apiBase = resolveApiBase();
-        renderShell();
-        mountTeacherLearningEvidence();
-        if (!state.initialized) {
-            bindEvents();
-            state.initialized = true;
-        }
+        state.apiBase = resolveApiBase(); renderShell(); mountTeacherLearningEvidence();
+        if (!state.initialized) { bindEvents(); state.initialized = true; }
         bindRuntimeEvents();
         if (!state.online) {
-            renderAuthError(AstraApiClient.offlineError());
-            refreshIcons();
-            return;
+            renderAuthError(AstraApiClient.offlineError()); refreshIcons(); return;
         }
         refreshAll();
     }
     function destroyTeacher() {
-        state.active = false;
-        state.learningEvidenceLoadGeneration += 1;
+        state.active = false; state.learningEvidenceLoadGeneration += 1;
         if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
-        invalidateRequests();
-        unbindRuntimeEvents();
-        clearWorkspace();
-        state.busy = false;
-        state.flash = null;
-        state.learningEvidenceResourceError = null;
+        invalidateRequests(); unbindRuntimeEvents(); clearWorkspace();
+        state.busy = false; state.flash = null; state.learningEvidenceResourceError = null;
         if (state.root) {
             const authContainer = state.root.querySelector('[data-teacher-auth-state]');
             if (authContainer && window.AstraAuthUI) AstraAuthUI.unmount(authContainer);
@@ -75,8 +59,7 @@
         }
     }
     function learningEvidenceResourceIssue(error) {
-        return Object.freeze({ code: String(error && error.code || 'learning_evidence_resource_failed'),
-            message: '教师协同资源加载失败或超时；旧班级与课程数据没有保留。请重试加载。' });
+        return Object.freeze({ code: String(error && error.code || 'learning_evidence_resource_failed'), message: '教师协同资源加载失败或超时；旧班级与课程数据没有保留。请重试加载。' });
     }
     function teacherLearningEvidenceResourceMarkup(issue) {
         return `
@@ -87,13 +70,11 @@
     function renderTeacherLearningEvidenceResourceState() {
         if (!state.root || !state.learningEvidenceResourceError) return;
         state.root.querySelectorAll('[data-teacher-natural-workflow]').forEach((container) => {
-            delete container.dataset.teacherNaturalSignature;
-            container.innerHTML = teacherLearningEvidenceResourceMarkup(state.learningEvidenceResourceError);
+            delete container.dataset.teacherNaturalSignature; container.innerHTML = teacherLearningEvidenceResourceMarkup(state.learningEvidenceResourceError);
         });
     }
     function teacherWorkflowSnapshot() {
-        const classGroup = selectedClass();
-        const course = selectedCourse();
+        const classGroup = selectedClass(), course = selectedCourse();
         return Object.freeze({
             role: state.user && state.user.role || '', online: state.online,
             curriculumAttached: state.data.curriculumAttached === true,
@@ -102,8 +83,7 @@
         });
     }
     async function mountTeacherLearningEvidence() {
-        const generation = ++state.learningEvidenceLoadGeneration;
-        state.learningEvidenceResourceError = null;
+        const generation = ++state.learningEvidenceLoadGeneration; state.learningEvidenceResourceError = null;
         if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
         try {
             const loader = window.AstraLearningEvidenceLoader;
@@ -120,8 +100,7 @@
             window.AstraTeacherLearningEvidence.mount(state.root, {
                 snapshot: teacherWorkflowSnapshot,
                 mutationState: (locked) => {
-                    state.evidenceMutationInFlight = Boolean(locked);
-                    if (state.root) applyWriteAvailability();
+                    state.evidenceMutationInFlight = Boolean(locked); if (state.root) applyWriteAvailability();
                 },
                 lockWrite: (error, confirmed) => {
                     lockUnknownWrite('追加式纠正', error, confirmed);
@@ -131,8 +110,7 @@
             return true;
         } catch (error) {
             if (!state.active || generation !== state.learningEvidenceLoadGeneration) return false;
-            state.learningEvidenceResourceError = learningEvidenceResourceIssue(error);
-            renderTeacherLearningEvidenceResourceState();
+            state.learningEvidenceResourceError = learningEvidenceResourceIssue(error); renderTeacherLearningEvidenceResourceState();
             console.warn('[TeacherWorkbench] teacher collaboration resource unavailable');
             return false;
         }
@@ -140,14 +118,10 @@
     function bindRuntimeEvents() {
         if (state.runtimeBound) return;
         state.onOnline = () => {
-            state.online = true;
-            if (state.active) refreshAll();
+            state.online = true; if (state.active) refreshAll();
         };
         state.onOffline = () => {
-            state.online = false;
-            invalidateRequests();
-            setBusy(false);
-            clearWorkspace();
+            state.online = false; invalidateRequests(); setBusy(false); clearWorkspace();
             if (state.active) {
                 renderAuthError(AstraApiClient.offlineError());
                 setFlash('warning', '已隐藏旧教学数据；恢复网络后将重新读取后端状态');
@@ -155,9 +129,7 @@
             }
         };
         state.onAuthRequired = () => {
-            invalidateRequests();
-            setBusy(false);
-            clearWorkspace();
+            invalidateRequests(); setBusy(false); clearWorkspace();
             if (state.active) {
                 renderAuthError(new AstraApiClient.Error('登录状态已失效', { status: 401, code: 'unauthorized' }));
                 renderWorkspace();
@@ -184,7 +156,7 @@
                 <div class="teacher-workbench__title">
                     <span class="teacher-workbench__eyebrow"><a href="#planets">星序</a><b>/</b>教学工作台</span>
                     <h1>教学工作台</h1>
-                    <p>在星序中统一安排班级、课程、作业与学情，不进入任何单一学习单元的后台。</p>
+                    <p>在一个工作台查看当前班课、安排课程节奏并处理学生反馈。</p>
                 </div>
                 <div class="teacher-workbench__actions">
                     <details class="teacher-connection-settings">
@@ -201,7 +173,7 @@
             <div class="teacher-write-lock" data-teacher-write-lock hidden role="alert"></div>
             <div class="teacher-flash" data-teacher-flash hidden></div>
             <div class="teacher-dashboard" data-teacher-dashboard hidden>
-                <section class="teacher-summary-strip" data-teacher-kpis aria-label="教学运行摘要"></section>
+                <section class="teacher-focus-stage" data-teacher-focus-stage aria-labelledby="teacher-focus-title"></section><section class="teacher-summary-strip" data-teacher-kpis aria-label="教学运行摘要"></section>
                 <section class="teacher-scope-wrap" data-teacher-scope-panel></section>
                 <nav class="teacher-view-nav" role="tablist" aria-label="教师工作台分区">
                     ${Object.entries(TEACHER_VIEWS).map(([key, label]) => `
@@ -698,22 +670,50 @@
         else if (event.key === 'Home') nextIndex = 0;
         else if (event.key === 'End') nextIndex = tabs.length - 1;
         else return;
-        event.preventDefault();
-        const nextTab = tabs[nextIndex];
-        setActiveView(nextTab.dataset.teacherView);
-        nextTab.focus();
+        event.preventDefault(); const nextTab = tabs[nextIndex];
+        setActiveView(nextTab.dataset.teacherView); nextTab.focus();
     }
     function renderWorkspace() {
-        renderFlash();
-        renderWriteLock();
-        const dashboard = getDashboard();
-        if (dashboard) dashboard.hidden = !state.user || !['teacher', 'admin'].includes(state.user.role);
-        renderKpis();
-        renderScope();
-        syncViewNavigation();
-        renderPanels();
-        applyWriteAvailability();
-        refreshIcons();
+        renderFlash(); renderWriteLock();
+        const dashboard = getDashboard(); if (dashboard) dashboard.hidden = !state.user || !['teacher', 'admin'].includes(state.user.role);
+        renderTeachingFocus(); renderKpis();
+        renderScope(); syncViewNavigation(); renderPanels();
+        applyWriteAvailability(); refreshIcons();
+    }
+    function renderTeachingFocus() {
+        const container = state.root && state.root.querySelector('[data-teacher-focus-stage]');
+        if (!container) return;
+        const course = selectedCourse(), classGroup = selectedClass();
+        const plan = state.data.releasePlan && Array.isArray(state.data.releasePlan.items) ? state.data.releasePlan : null;
+        const planItems = plan ? plan.items : [], openItems = planItems.filter((item) => item.effective_release_state === 'open');
+        const focusItem = openItems[0] || planItems[0] || null, focusUnit = focusItem && findById(state.data.units, focusItem.course_unit_id);
+        const pendingTotal = Math.max(0, Number(state.data.submissions.total || state.data.submissions.length) || 0);
+        const syncing = state.busy || state.mutationInFlight || state.evidenceMutationInFlight;
+        const action = pendingTotal > 0
+            ? { view: 'grading', label: '处理待反馈', detail: `${formatNumber(pendingTotal)} 份学生提交等待处理`, icon: 'message-square-text' }
+            : course && plan
+                ? { view: 'curriculum', label: '检查课程节奏', detail: `${formatNumber(openItems.length)} / ${formatNumber(planItems.length)} 个分块已开放`, icon: 'milestone' }
+                : { view: 'structure', label: '建立教学范围', detail: '选择或创建班级与课程后开始教学', icon: 'book-plus' };
+        const statusLabel = !state.online
+            ? '当前离线，所有写操作已停用'
+            : state.writeLock
+                ? '上次写入等待权威核对'
+                : syncing
+                    ? '正在读取最新教学事实'
+                    : '当前班课已与服务端同步';
+        const railMarkup = planItems.length
+            ? `<ol>${planItems.slice(0, 6).map((item, index) => {
+                const unit = findById(state.data.units, item.course_unit_id);
+                const stateLabel = RELEASE_MODE_LABELS[item.effective_release_state] || item.effective_release_state;
+                return `<li data-state="${escapeAttr(item.effective_release_state)}"><span>${formatNumber(index + 1)}</span><strong>${escapeHtml(unit ? unit.title : `课程分块 ${index + 1}`)}</strong><small>${escapeHtml(stateLabel)}</small></li>`;
+            }).join('')}</ol>${planItems.length > 6 ? `<p>另有 ${formatNumber(planItems.length - 6)} 个课程分块，请进入课程节奏查看。</p>` : ''}`
+            : '<p>确认班级与课程后，这里会呈现真实的课程开放轨道。</p>';
+        container.innerHTML = `
+            <div class="teacher-focus-stage__context"><span class="teacher-focus-stage__label">当前班课</span><div><h2 id="teacher-focus-title">${escapeHtml(course ? course.title : '尚未选择课程')}</h2><p>${escapeHtml(classGroup ? classGroup.name : '尚未选择班级')}${focusUnit ? ` · 当前开放：${escapeHtml(focusUnit.title)}` : ''}</p></div></div>
+            <button type="button" class="teacher-focus-stage__action" data-teacher-view-target="${escapeAttr(action.view)}"><span><i data-lucide="${escapeAttr(action.icon)}"></i>下一教学动作</span><strong>${escapeHtml(action.label)}</strong><small>${escapeHtml(action.detail)}</small><i data-lucide="arrow-right"></i></button>
+            <div class="teacher-focus-stage__rail" aria-label="当前课程发布轨道">${railMarkup}</div>
+            <div class="teacher-focus-stage__receipt" role="status"><i data-lucide="${!state.online ? 'wifi-off' : state.writeLock ? 'shield-alert' : syncing ? 'loader-circle' : 'circle-check'}"></i><span>${escapeHtml(statusLabel)}</span></div>
+        `;
     }
     function renderWriteLock() {
         const container = state.root && state.root.querySelector('[data-teacher-write-lock]');
@@ -849,13 +849,13 @@
         return `
             <div class="teacher-overview-layout">
                 <article class="teacher-overview-main">
-                    <header class="teacher-section-heading"><div><span>TEACHING NOW</span><h2>今日教学行动</h2></div><button type="button" data-teacher-view-target="grading">查看全部批改 <i data-lucide="arrow-right"></i></button></header>
-                    <div class="teacher-queue-tabs" aria-label="行动队列"><span class="is-active">待批改</span><span>待发布</span><span>进行中</span></div>
+                    <header class="teacher-section-heading"><div><span>当前教学</span><h2>今日教学行动</h2></div><button type="button" data-teacher-view-target="grading">查看全部批改 <i data-lucide="arrow-right"></i></button></header>
+                    <div class="teacher-queue-status" aria-label="当前反馈队列"><span>待反馈</span><strong>${formatNumber(state.data.submissions.total || state.data.submissions.length || 0)}</strong><small>仅统计当前班级与课程范围</small></div>
                     ${queue}
                 </article>
                 <aside class="teacher-overview-aside">
                     <section class="teacher-scope-tree">
-                        <header><span>CONTEXT</span><h2>当前教学范围</h2></header>
+                        <header><span>教学范围</span><h2>当前教学范围</h2></header>
                         <ol>
                             <li><i data-lucide="school"></i><div><span>学校</span><strong>${escapeHtml(schoolLabel)}</strong></div></li>
                             <li><i data-lucide="users"></i><div><span>班级</span><strong>${escapeHtml(classLabel)}</strong></div></li>
@@ -863,7 +863,7 @@
                         </ol>
                     </section>
                     <section class="teacher-quick-actions">
-                        <header><span>NEXT STEP</span><h2>快速开始</h2></header>
+                        <header><span>下一步</span><h2>快速开始</h2></header>
                         ${renderQuickAction('assignments', 'clipboard-plus', '发布作业', '布置新作业给当前教学范围')}
                         ${renderQuickAction('curriculum', 'milestone', '安排课程节奏', '分批开放分块并查看全班进度')}
                         ${renderQuickAction('structure', 'book-plus', '创建课程', '建立课程并挂接班级')}
@@ -2516,9 +2516,9 @@
     }
     function renderError(error, label) {
         return `
-            <div class="teacher-error">
+            <div class="teacher-error" role="alert">
                 <i data-lucide="triangle-alert"></i>
-                <span>${escapeHtml(label)}：${escapeHtml(errorMessage(error))}</span>
+                <span>${escapeHtml(label)}：${escapeHtml(errorMessage(error))}</span><button type="button" data-teacher-action="refresh">重试</button>
             </div>
         `;
     }

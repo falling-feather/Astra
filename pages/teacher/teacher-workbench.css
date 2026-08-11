@@ -4,9 +4,16 @@
    开放式层级、线性摘要、分区工作流；避免首屏卡片墙与表单墙。
    ═══════════════════════════════════════════════════════════════ */
 .teacher-page {
+    --teacher-accent: #4cc8ff;
+    --teacher-accent-soft: rgba(76, 200, 255, 0.12);
+    --teacher-amber: #ffb84d;
+    --teacher-success: #95d8a5;
+    --teacher-line: rgba(116, 151, 190, 0.24);
+    --teacher-line-strong: rgba(128, 171, 214, 0.4);
+    --teacher-muted: #9fb3c8;
     min-height: 100dvh;
     overflow-x: clip;
-    background: transparent;
+    background: #050d18;
     color: #edf6ff;
 }
 
@@ -73,7 +80,7 @@
 .teacher-workbench__title h1 {
     margin: 0;
     color: #f8fcff;
-    font-size: clamp(1.8rem, 3vw, 2.7rem);
+    font-size: clamp(1.65rem, 2.5vw, 2.25rem);
     font-weight: 730;
     line-height: 1.08;
     letter-spacing: -0.035em;
@@ -209,12 +216,242 @@
     border-bottom: 1px solid rgba(139, 180, 224, 0.18);
 }
 
+.teacher-focus-stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(270px, 0.62fr);
+    min-width: 0;
+    margin-top: 16px;
+    overflow: hidden;
+    border: 1px solid var(--teacher-line-strong);
+    border-radius: 6px;
+    background: rgba(6, 19, 33, 0.96);
+    box-shadow: 0 22px 64px rgba(0, 0, 0, 0.2);
+}
+
+.teacher-focus-stage::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: var(--teacher-accent);
+    box-shadow: 0 0 18px rgba(76, 200, 255, 0.64);
+}
+
+.teacher-focus-stage__context {
+    display: grid;
+    align-content: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 116px;
+    padding: 22px 26px;
+}
+
+.teacher-focus-stage__label,
+.teacher-focus-stage__action > span {
+    color: #7692ad;
+    font-size: 0.65rem;
+    font-weight: 760;
+    letter-spacing: 0.08em;
+}
+
+.teacher-focus-stage__context > div {
+    min-width: 0;
+}
+
+.teacher-focus-stage__context h2 {
+    margin: 0;
+    overflow: hidden;
+    color: #f3f8ff;
+    font-size: clamp(1.38rem, 2.2vw, 2rem);
+    line-height: 1.14;
+    letter-spacing: -0.025em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-focus-stage__context p {
+    margin: 8px 0 0;
+    overflow: hidden;
+    color: var(--teacher-muted);
+    font-size: 0.76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-focus-stage__action {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 18px;
+    align-content: center;
+    gap: 5px 12px;
+    min-width: 0;
+    min-height: 116px;
+    padding: 18px 22px;
+    border: 0;
+    border-left: 1px solid var(--teacher-line);
+    background: rgba(17, 65, 91, 0.22);
+    color: #e9f7ff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+}
+
+.teacher-focus-stage__action:hover,
+.teacher-focus-stage__action:focus-visible {
+    background: rgba(23, 89, 124, 0.42);
+    color: #fff;
+}
+
+.teacher-focus-stage__action > span,
+.teacher-focus-stage__action strong,
+.teacher-focus-stage__action small {
+    grid-column: 1;
+}
+
+.teacher-focus-stage__action > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.teacher-focus-stage__action > span svg,
+.teacher-focus-stage__action > svg {
+    width: 17px;
+    height: 17px;
+}
+
+.teacher-focus-stage__action strong {
+    font-size: 1rem;
+}
+
+.teacher-focus-stage__action small {
+    overflow: hidden;
+    color: #90a9bf;
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-focus-stage__action > svg {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+    color: var(--teacher-accent);
+}
+
+.teacher-focus-stage__rail {
+    grid-column: 1 / -1;
+    min-width: 0;
+    padding: 16px 24px;
+    border-top: 1px solid var(--teacher-line);
+}
+
+.teacher-focus-stage__rail ol {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.teacher-focus-stage__rail li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 4px 8px;
+    min-width: 0;
+    padding-right: 12px;
+}
+
+.teacher-focus-stage__rail li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    right: 0;
+    left: 26px;
+    height: 1px;
+    background: var(--teacher-line);
+}
+
+.teacher-focus-stage__rail li > span {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-row: 1 / 3;
+    place-items: center;
+    align-self: start;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--teacher-line-strong);
+    border-radius: 50%;
+    background: #081523;
+    color: #a5b6c8;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.teacher-focus-stage__rail li[data-state='open'] > span {
+    border-color: rgba(76, 200, 255, 0.72);
+    background: rgba(24, 104, 142, 0.42);
+    color: #e7f8ff;
+}
+
+.teacher-focus-stage__rail li[data-state='hidden'] {
+    opacity: 0.48;
+}
+
+.teacher-focus-stage__rail li strong,
+.teacher-focus-stage__rail li small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-focus-stage__rail li strong {
+    padding-right: 6px;
+    color: #dce8f4;
+    font-size: 0.72rem;
+}
+
+.teacher-focus-stage__rail li small {
+    color: #71879d;
+    font-size: 0.62rem;
+}
+
+.teacher-focus-stage__rail > p {
+    margin: 8px 0 0;
+    color: #7c91a7;
+    font-size: 0.68rem;
+}
+
+.teacher-focus-stage__receipt {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 7px 24px;
+    border-top: 1px solid rgba(116, 151, 190, 0.14);
+    color: #91a7bc;
+    font-size: 0.68rem;
+}
+
+.teacher-focus-stage__receipt svg {
+    width: 15px;
+    height: 15px;
+    color: var(--teacher-success);
+}
+
 .teacher-summary {
     display: grid;
     grid-template-columns: 22px auto 1fr;
     align-items: center;
     gap: 9px;
-    min-height: 66px;
+    min-height: 58px;
     margin: 0;
     padding: 0 24px;
     border-right: 1px solid rgba(139, 180, 224, 0.14);
@@ -459,33 +696,29 @@
     width: 16px;
 }
 
-.teacher-queue-tabs {
+.teacher-queue-status {
     display: flex;
-    gap: 22px;
+    align-items: baseline;
+    gap: 10px;
     margin-top: 16px;
+    min-height: 42px;
     border-bottom: 1px solid rgba(139, 180, 224, 0.15);
 }
 
-.teacher-queue-tabs span {
-    position: relative;
-    min-height: 42px;
-    color: #73869c;
+.teacher-queue-status span,
+.teacher-queue-status small {
+    color: #7d92a8;
     font-size: 0.74rem;
-    line-height: 42px;
 }
 
-.teacher-queue-tabs span.is-active {
-    color: #65e8e2;
+.teacher-queue-status strong {
+    color: var(--teacher-amber);
+    font-size: 1rem;
 }
 
-.teacher-queue-tabs span.is-active::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    bottom: -1px;
-    left: 0;
-    height: 2px;
-    background: #65e8e2;
+.teacher-queue-status small {
+    margin-left: auto;
+    font-size: 0.66rem;
 }
 
 .teacher-overview-empty {
@@ -930,6 +1163,40 @@
         height: 150px;
         opacity: 0.58;
     }
+
+    .teacher-focus-stage {
+        grid-template-columns: 1fr;
+    }
+
+    .teacher-focus-stage__action {
+        border-top: 1px solid var(--teacher-line);
+        border-left: 0;
+    }
+}
+
+.teacher-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.teacher-error > span {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.teacher-error > button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255, 145, 125, 0.42);
+    border-radius: 5px;
+    background: rgba(103, 40, 32, 0.26);
+    color: #ffd6cd;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 740;
+    cursor: pointer;
 }
 
 @media (max-width: 760px) {
@@ -955,6 +1222,43 @@
 
     .teacher-workbench__actions {
         justify-content: flex-start;
+    }
+
+    .teacher-focus-stage {
+        margin-top: 12px;
+    }
+
+    .teacher-focus-stage__context,
+    .teacher-focus-stage__action {
+        min-height: 104px;
+        padding: 18px;
+    }
+
+    .teacher-focus-stage__context h2,
+    .teacher-focus-stage__context p {
+        white-space: normal;
+    }
+
+    .teacher-focus-stage__rail {
+        padding: 16px 18px;
+    }
+
+    .teacher-focus-stage__rail ol {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        row-gap: 18px;
+    }
+
+    .teacher-focus-stage__rail li:nth-child(3n)::after,
+    .teacher-focus-stage__rail li:last-child::after {
+        display: none;
+    }
+
+    .teacher-focus-stage__rail li strong {
+        white-space: normal;
+    }
+
+    .teacher-focus-stage__receipt {
+        padding-inline: 18px;
     }
 
     .teacher-connection-settings .teacher-api-base {
@@ -990,6 +1294,15 @@
         grid-template-columns: 1fr auto;
         min-height: 62px;
         padding: 0 14px;
+    }
+
+    .teacher-queue-status {
+        flex-wrap: wrap;
+    }
+
+    .teacher-queue-status small {
+        width: 100%;
+        margin: -4px 0 10px;
     }
 
     .teacher-summary:first-child {
@@ -1183,6 +1496,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .teacher-focus-stage__action,
     .teacher-secondary-workflow > summary > svg,
     .teacher-quick-action,
     .teacher-view-nav button,

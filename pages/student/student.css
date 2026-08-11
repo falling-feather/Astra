@@ -1,10 +1,7 @@
 .student-page {
     min-height: 100vh;
-    color: #eef6f2;
-    background:
-        radial-gradient(circle at 14% 2%, rgba(42, 179, 126, 0.11), transparent 30%),
-        radial-gradient(circle at 88% 12%, rgba(218, 166, 58, 0.08), transparent 28%),
-        linear-gradient(180deg, #07131e 0%, #091722 46%, #07121c 100%);
+    color: #e6f0ff;
+    background: #050d18;
 }
 
 .student-page .astra-workspace-shell {
@@ -122,17 +119,18 @@
 }
 
 .student-workbench {
-    --student-green: #43c98d;
-    --student-green-strong: #20b874;
-    --student-green-soft: rgba(47, 191, 129, 0.14);
-    --student-gold: #f1ba3d;
+    --student-green: #4cc8ff;
+    --student-green-strong: #28b6f3;
+    --student-green-soft: rgba(76, 200, 255, 0.12);
+    --student-gold: #ffb84d;
     --student-red: #e96c5d;
-    --student-blue: #65a9e8;
-    --student-surface: rgba(10, 25, 36, 0.84);
-    --student-surface-strong: rgba(11, 28, 39, 0.96);
-    --student-border: rgba(151, 177, 191, 0.22);
-    --student-border-strong: rgba(151, 177, 191, 0.34);
-    --student-muted: #9eb0b8;
+    --student-blue: #73d4ff;
+    --student-success: #95d8a5;
+    --student-surface: rgba(7, 20, 35, 0.82);
+    --student-surface-strong: rgba(6, 18, 31, 0.96);
+    --student-border: rgba(116, 151, 190, 0.24);
+    --student-border-strong: rgba(128, 171, 214, 0.4);
+    --student-muted: #9fb3c8;
     width: min(1480px, calc(100% - 48px));
     max-width: 100%;
     min-height: calc(100vh - 76px);
@@ -163,8 +161,10 @@
     display: flex;
     align-items: stretch;
     flex-direction: column;
-    gap: 28px;
-    margin-bottom: 18px;
+    gap: 22px;
+    margin-bottom: 16px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--student-border);
 }
 
 .student-workbench__title {
@@ -173,17 +173,17 @@
 
 .student-workbench__title h1 {
     margin: 0;
-    color: #f7fbf9;
-    font-size: clamp(2rem, 3vw, 2.75rem);
+    color: #f1f7ff;
+    font-size: clamp(1.65rem, 2.4vw, 2.2rem);
     font-weight: 760;
     line-height: 1.08;
     letter-spacing: -0.04em;
 }
 
 .student-workbench__title p {
-    margin: 10px 0 0;
-    color: #c5d2d5;
-    font-size: 1rem;
+    margin: 7px 0 0;
+    color: var(--student-muted);
+    font-size: 0.86rem;
     line-height: 1.5;
 }
 
@@ -202,6 +202,7 @@
 .student-dashboard[hidden],
 .student-layout[hidden],
 .student-join-state[hidden],
+.student-focus-stage[hidden],
 .student-network[hidden],
 .student-flash[hidden] {
     display: none !important;
@@ -345,9 +346,9 @@
     min-height: 44px;
     padding: 0 12px;
     border: 1px solid var(--student-border-strong);
-    border-radius: 8px;
-    background: rgba(7, 18, 28, 0.86);
-    color: #dce9e5;
+    border-radius: 5px;
+    background: rgba(5, 15, 27, 0.86);
+    color: #d9e8f6;
 }
 
 .student-scope-control svg {
@@ -381,7 +382,7 @@
     min-height: 44px;
     padding: 10px 16px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: 5px;
     font: inherit;
     font-size: 0.86rem;
     font-weight: 760;
@@ -407,7 +408,7 @@
 .student-workbench select:focus-visible,
 .student-workbench textarea:focus-visible,
 .student-workbench button:focus-visible {
-    outline: 2px solid rgba(67, 201, 141, 0.9);
+    outline: 2px solid rgba(76, 200, 255, 0.9);
     outline-offset: 2px;
 }
 
@@ -419,20 +420,20 @@
 }
 
 .student-button--primary {
-    border-color: rgba(93, 226, 162, 0.48);
-    background: linear-gradient(135deg, #269d66, #31bf7d);
-    color: #f7fffb;
-    box-shadow: 0 10px 24px rgba(20, 142, 89, 0.18);
+    border-color: rgba(76, 200, 255, 0.56);
+    background: rgba(20, 81, 112, 0.48);
+    color: #e8f8ff;
+    box-shadow: 0 10px 28px rgba(20, 137, 190, 0.14);
 }
 
 .student-button--primary:hover:not(:disabled) {
-    background: linear-gradient(135deg, #2bab70, #3bca87);
+    background: rgba(29, 106, 142, 0.62);
 }
 
 .student-button--outline {
-    border-color: rgba(67, 201, 141, 0.55);
-    background: rgba(26, 128, 85, 0.08);
-    color: #65d99d;
+    border-color: rgba(76, 200, 255, 0.55);
+    background: rgba(28, 116, 156, 0.08);
+    color: #79d9ff;
 }
 
 .student-button--ghost {
@@ -515,10 +516,9 @@
 .student-panel,
 .student-empty-hero {
     border: 1px solid var(--student-border);
-    border-radius: 9px;
+    border-radius: 6px;
     background: var(--student-surface);
-    box-shadow: 0 20px 52px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(10px);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.12);
 }
 
 .student-auth-card {
@@ -559,11 +559,11 @@
 }
 
 .student-auth-card--ready {
-    border-color: rgba(67, 201, 141, 0.32);
+    border-color: rgba(149, 216, 165, 0.34);
 }
 
 .student-auth-card--ready > svg {
-    color: var(--student-green);
+    color: var(--student-success);
 }
 
 .student-auth-card--blocked {
@@ -588,15 +588,159 @@
 }
 
 .student-flash--success {
-    border-color: rgba(67, 201, 141, 0.42);
-    background: rgba(24, 100, 69, 0.34);
-    color: #baf2d3;
+    border-color: rgba(149, 216, 165, 0.42);
+    background: rgba(38, 104, 69, 0.3);
+    color: #c8f3d2;
 }
 
 .student-flash--error {
     border-color: rgba(233, 108, 93, 0.46);
     background: rgba(100, 37, 31, 0.34);
     color: #ffc5bd;
+}
+
+.student-focus-stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(210px, 0.8fr) minmax(180px, 0.62fr);
+    min-width: 0;
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid var(--student-border-strong);
+    border-radius: 6px;
+    background: rgba(6, 19, 33, 0.96);
+    box-shadow: 0 22px 64px rgba(0, 0, 0, 0.2);
+}
+
+.student-focus-stage::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: var(--student-green);
+    box-shadow: 0 0 18px rgba(76, 200, 255, 0.64);
+}
+
+.student-focus-stage__context,
+.student-focus-stage__next,
+.student-focus-stage__progress {
+    min-width: 0;
+    padding: 22px 24px;
+}
+
+.student-focus-stage__next,
+.student-focus-stage__progress {
+    display: grid;
+    align-content: center;
+    gap: 7px;
+    border-left: 1px solid var(--student-border);
+}
+
+.student-focus-stage__label {
+    color: #7692ad;
+    font-size: 0.65rem;
+    font-weight: 760;
+    letter-spacing: 0.08em;
+}
+
+.student-focus-stage__course {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 22px;
+    margin-top: 8px;
+}
+
+.student-focus-stage__course > div {
+    min-width: 0;
+}
+
+.student-focus-stage__course h2 {
+    margin: 0;
+    overflow: hidden;
+    color: #f3f8ff;
+    font-size: clamp(1.35rem, 2.25vw, 2rem);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.student-focus-stage__course p {
+    max-width: 620px;
+    margin: 8px 0 0;
+    overflow: hidden;
+    color: var(--student-muted);
+    font-size: 0.76rem;
+    line-height: 1.55;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.student-focus-stage__primary {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 48px;
+    padding: 0 16px;
+    border: 1px solid rgba(76, 200, 255, 0.72);
+    border-radius: 5px;
+    background: rgba(13, 57, 83, 0.45);
+    color: #cdecff;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 760;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.student-focus-stage__primary:hover:not(:disabled) {
+    border-color: #7dd8ff;
+    background: rgba(23, 89, 124, 0.58);
+    color: #f5fbff;
+}
+
+.student-focus-stage__primary svg {
+    width: 17px;
+    height: 17px;
+}
+
+.student-focus-stage__next strong,
+.student-focus-stage__progress strong {
+    overflow: hidden;
+    color: #edf6ff;
+    font-size: 0.94rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.student-focus-stage__next small,
+.student-focus-stage__progress small {
+    color: var(--student-muted);
+    font-size: 0.68rem;
+    line-height: 1.5;
+}
+
+.student-focus-stage__progress > strong {
+    color: #f4f8ff;
+    font-size: 1.42rem;
+}
+
+.student-focus-stage__progress > div {
+    height: 3px;
+    overflow: hidden;
+    background: rgba(121, 158, 197, 0.18);
+}
+
+.student-focus-stage__progress > div span {
+    display: block;
+    height: 100%;
+    background: var(--student-green);
+    box-shadow: 0 0 12px rgba(76, 200, 255, 0.45);
+    transition: width 180ms ease;
 }
 
 .student-layout {
@@ -1427,6 +1571,7 @@
 }
 
 .student-panel-state--error {
+    flex-wrap: wrap;
     border-style: solid;
     border-color: rgba(233, 108, 93, 0.34);
     background: rgba(93, 36, 31, 0.16);
@@ -1515,6 +1660,25 @@
         justify-content: flex-start;
     }
 
+    .student-focus-stage {
+        grid-template-columns: minmax(0, 1.35fr) minmax(190px, 0.65fr);
+    }
+
+    .student-focus-stage__context {
+        grid-column: 1 / -1;
+        border-bottom: 1px solid var(--student-border);
+    }
+
+    .student-focus-stage__next {
+        border-left: 0;
+    }
+
+}
+
+.student-panel-state--error .student-button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 12px;
 }
 
 @media (max-width: 840px) {
@@ -1526,6 +1690,22 @@
     .student-workbench__controls {
         display: grid;
         grid-template-columns: 1fr 1fr auto;
+    }
+
+    .student-focus-stage {
+        grid-template-columns: 1fr;
+    }
+
+    .student-focus-stage__context,
+    .student-focus-stage__next,
+    .student-focus-stage__progress {
+        grid-column: auto;
+        border-left: 0;
+    }
+
+    .student-focus-stage__context,
+    .student-focus-stage__next {
+        border-bottom: 1px solid var(--student-border);
     }
 
     .student-scope-control {
@@ -1587,8 +1767,58 @@
     }
 
     .student-workbench__controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 8px;
+    }
+
+    .student-workbench__controls .student-scope-control {
+        grid-column: 1 / -1;
+    }
+
+    .student-auth-state .astra-account__actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .student-auth-state .astra-account__actions button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .student-focus-stage {
+        margin-bottom: 12px;
+    }
+
+    .student-focus-stage__context,
+    .student-focus-stage__next,
+    .student-focus-stage__progress {
+        padding: 18px;
+    }
+
+    .student-focus-stage__context {
+        padding: 14px 16px;
+    }
+
+    .student-focus-stage__course {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .student-focus-stage__course h2,
+    .student-focus-stage__course p {
+        white-space: normal;
+    }
+
+    .student-focus-stage__course p {
+        display: none;
+    }
+
+    .student-focus-stage__primary {
+        width: auto;
+        min-height: 46px;
+        padding-inline: 12px;
     }
 
     .student-scope-control,
