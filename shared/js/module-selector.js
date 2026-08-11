@@ -8,6 +8,8 @@ const UNKNOWN_MODULE_WARNING =
     '[ModuleSelector] refusing transition to unknown module';
 const PUBLICATION_CLASSIFICATION_WARNING =
     '[ModuleSelector] publication classification failed; transition refused';
+const EVIDENCE_MOUNT_RECOVERY_DELAY_MS = 120;
+const EVIDENCE_MOUNT_RECOVERY_TIMEOUT_MS = 2500;
 
 const ModuleSelector = {
     activeModule: {},   // { pageName: 'module-id' | null }
@@ -21,6 +23,7 @@ const ModuleSelector = {
     _transitionTimers: {},
     _publicationGateNodes: {},
     _publicationGatePending: {},
+    _evidenceRuntimeMounts: {},
     _pageNames: Object.freeze(['mathematics', 'physics', 'chemistry', 'algorithms', 'biology']),
     _booted: false,
     _catalogueHandler: null,
@@ -363,6 +366,7 @@ const ModuleSelector = {
     },
 
     _beginModuleTransition(page) {
+        this._cancelEvidenceRuntimeMount(page);
         const nextGeneration = (this._transitionGeneration[page] || 0) + 1;
         this._transitionGeneration[page] = nextGeneration;
         const timers = this._transitionTimers[page] || [];
@@ -856,6 +860,7 @@ const ModuleSelector = {
     },
 
     _releaseEvidenceRuntime(page, moduleId, pageEl) {
+        this._cancelEvidenceRuntimeMount(page);
         if (window.AstraLearningEvidenceActivity) {
             window.AstraLearningEvidenceActivity.destroyWithin(pageEl);
         }
@@ -866,6 +871,15 @@ const ModuleSelector = {
         ) {
             window.AstraLearningEvidenceLoader.clearDomainCommands('englab', 'physics.mechanics');
         }
+    },
+
+    _cancelEvidenceRuntimeMount(page, expected = null) {
+        const mounted = this._evidenceRuntimeMounts[page];
+        if (!mounted || (expected && mounted !== expected)) return false;
+        delete this._evidenceRuntimeMounts[page];
+        if (mounted.controller && !mounted.controller.signal.aborted) mounted.controller.abort();
+        if (typeof mounted.destroy === 'function') mounted.destroy();
+        return true;
     },
 
     _ownerReleaseSucceeded(report) {
@@ -887,6 +901,16 @@ const ModuleSelector = {
             || moduleId !== 'mechanics'
             || !window.AstraLearningEvidenceLoader
         ) return;
+        this._cancelEvidenceRuntimeMount(page);
+        const lifecycleController = new AbortController();
+        const mountedIdentity = this._currentCatalogueIdentity();
+        const mountedRuntime = {
+            moduleId,
+            generation,
+            controller: lifecycleController,
+            destroy: null
+        };
+        this._evidenceRuntimeMounts[page] = mountedRuntime;
         const evidenceError = code => {
             const error = new Error(code || 'publication_context_unavailable');
             error.code = code || 'publication_context_unavailable';
@@ -903,9 +927,94 @@ const ModuleSelector = {
             evidenceController = null;
             if (controller && typeof controller.destroy === 'function') controller.destroy();
         };
+        mountedRuntime.destroy = destroyEvidenceController;
+        let host = Array.from(sections).find(
+            section => section.isConnected && section.classList.contains('module-active')
+        ) || null;
+        const isActive = () => !lifecycleController.signal.aborted
+            && this._isCurrentModuleTransition(page, moduleId, generation)
+            && this._currentCatalogueIdentity() === mountedIdentity
+            && pageEl.isConnected
+            && host
+            && host.isConnected
+            && window.location.hash === '#physics/mechanics';
+        const abortableDelay = delay => new Promise(resolve => {
+            if (!isActive()) {
+                resolve(false);
+                return;
+            }
+            let settled = false;
+            let timerId = null;
+            const finish = value => {
+                if (settled) return;
+                settled = true;
+                if (timerId !== null) clearTimeout(timerId);
+                lifecycleController.signal.removeEventListener('abort', cancel);
+                resolve(Boolean(value));
+            };
+            const cancel = () => finish(false);
+            timerId = setTimeout(() => finish(isActive()), delay);
+            lifecycleController.signal.addEventListener('abort', cancel, { once: true });
+        });
+        const catalogueDisposition = () => {
+            if (!isActive()) return false;
+            const catalogue = window.AstraStudentCourseCatalogue;
+            if (!catalogue || typeof catalogue.snapshot !== 'function') return true;
+            let snapshot = null;
+            try { snapshot = catalogue.snapshot(); } catch (error) { return null; }
+            if (!snapshot || snapshot.phase !== 'ready') return null;
+            if (snapshot.role && snapshot.role !== 'student') return false;
+            if (typeof catalogue.allowsActivity === 'function') {
+                try {
+                    if (catalogue.allowsActivity(page, moduleId) !== true) return false;
+                } catch (error) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        const waitForCatalogueAuthority = async () => {
+            const current = catalogueDisposition();
+            if (current !== null) {
+                return current === true
+                    ? abortableDelay(EVIDENCE_MOUNT_RECOVERY_DELAY_MS)
+                    : false;
+            }
+            if (typeof window.addEventListener !== 'function') {
+                return abortableDelay(EVIDENCE_MOUNT_RECOVERY_DELAY_MS);
+            }
+            return new Promise(resolve => {
+                let settled = false;
+                let timeoutId = null;
+                const cleanup = () => {
+                    if (timeoutId !== null) clearTimeout(timeoutId);
+                    if (typeof window.removeEventListener === 'function') {
+                        window.removeEventListener('astra:student-catalogue-ready', onReady);
+                    }
+                    lifecycleController.signal.removeEventListener('abort', onAbort);
+                };
+                const finish = value => {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    resolve(Boolean(value));
+                };
+                const onReady = () => {
+                    const disposition = catalogueDisposition();
+                    if (disposition !== null) finish(disposition);
+                };
+                const onAbort = () => finish(false);
+                window.addEventListener('astra:student-catalogue-ready', onReady);
+                lifecycleController.signal.addEventListener('abort', onAbort, { once: true });
+                timeoutId = setTimeout(() => finish(isActive()), EVIDENCE_MOUNT_RECOVERY_TIMEOUT_MS);
+                onReady();
+            });
+        };
         window.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true }).then(async () => {
             if (!this._isCurrentModuleTransition(page, moduleId, generation)) return;
-            const host = Array.from(sections).find(section => section.isConnected && section.classList.contains('module-active'));
+            host = Array.from(sections).find(
+                section => section.isConnected && section.classList.contains('module-active')
+            ) || null;
             const activity = window.AstraLearningEvidenceActivity;
             const provider = window.AstraEngineeringLabPublicationContext;
             const evidenceClient = window.AstraLearningEvidenceClient;
@@ -926,13 +1035,13 @@ const ModuleSelector = {
             ) throw evidenceError('publication_context_unavailable');
             const mapping = catalog.resolve('englab', 'physics.mechanics');
             if (!mapping || mapping.representative !== true) throw evidenceError('activity_mapping_missing');
-            const isActive = () => this._isCurrentModuleTransition(page, moduleId, generation)
-                && pageEl.isConnected
-                && host.isConnected
-                && window.location.hash === '#physics/mechanics';
             const resolveAuthority = async (expected, signal) => {
                 const assertActive = () => {
-                    if ((signal && signal.aborted) || !isActive()) throw evidenceError('cancelled');
+                    if (
+                        lifecycleController.signal.aborted
+                        || (signal && signal.aborted)
+                        || !isActive()
+                    ) throw evidenceError('cancelled');
                 };
                 assertActive();
                 await evidenceClient.pendingFor(expected);
@@ -954,6 +1063,12 @@ const ModuleSelector = {
                 reusePendingStarted: true,
                 authorizeAfterRecord: true,
                 requireAuthoritativeResult: true,
+                resolveContext: async () => {
+                    if (!isActive()) throw evidenceError('cancelled');
+                    const current = await provider.resolve(mapping, { signal: lifecycleController.signal });
+                    if (!isActive()) throw evidenceError('cancelled');
+                    return current;
+                },
                 operationLabel: '完成上方 e=0.40 / e=0.80 受控对照并修正判断',
                 authorizeRecord: async request => {
                     if (
@@ -972,26 +1087,37 @@ const ModuleSelector = {
                 throw evidenceError('publication_context_unavailable');
             }
             evidenceController = controller;
-            await controller.ready();
-            if (!isActive()) {
-                destroyEvidenceController();
-                return;
+            const initializeBinding = async () => {
+                await controller.ready();
+                if (!isActive()) throw evidenceError('cancelled');
+                const context = controller.context && controller.context();
+                await resolveAuthority(context, lifecycleController.signal);
+                if (!isActive()) throw evidenceError('cancelled');
+                if (!owner.bindCourseEvidence(controller, {
+                    resolveAuthority,
+                    sameAuthority: provider.sameLearningEvidenceAuthority,
+                    isActive
+                })) throw evidenceError('publication_context_unavailable');
+                if (typeof controller.refreshCommands === 'function') controller.refreshCommands();
+            };
+            try {
+                await initializeBinding();
+            } catch (error) {
+                if (
+                    error
+                    && error.code === 'publication_context_unavailable'
+                    && isActive()
+                    && await waitForCatalogueAuthority()
+                ) {
+                    await initializeBinding();
+                    return;
+                }
+                throw error;
             }
-            const context = controller.context && controller.context();
-            await resolveAuthority(context);
-            if (!isActive()) {
-                destroyEvidenceController();
-                return;
-            }
-            if (!owner.bindCourseEvidence(controller, {
-                resolveAuthority,
-                sameAuthority: provider.sameLearningEvidenceAuthority,
-                isActive
-            })) throw evidenceError('publication_context_unavailable');
-            if (typeof controller.refreshCommands === 'function') controller.refreshCommands();
         }).catch(error => {
-            destroyEvidenceController();
-            if (this._isCurrentModuleTransition(page, moduleId, generation)) {
+            const activeAtFailure = isActive();
+            this._cancelEvidenceRuntimeMount(page, mountedRuntime);
+            if (activeAtFailure && this._isCurrentModuleTransition(page, moduleId, generation)) {
                 window.AstraLearningEvidenceLoader.clearDomainCommands('englab', 'physics.mechanics');
                 blockOwner(error);
                 console.warn('[ModuleSelector] learning evidence unavailable', error && (error.code || error.message));
@@ -1298,6 +1424,7 @@ const ModuleSelector = {
 
     // Reset initialization state when leaving a page (so re-entering re-inits)
     resetPage(page) {
+        this._cancelEvidenceRuntimeMount(page);
         const experiments = CONFIG.experiments[page];
         if (!experiments) return;
         this._cancelPublicationGate(page);
