@@ -19,7 +19,7 @@ const homeContainerRule = homeCss.match(/\.home-container\s*\{([^}]*)\}/)?.[1] |
 assert.match(homeContainerRule, /^\s*width:\s*100%;\s*height:\s*100%\s*;/m, 'the home scene must inherit the parent dynamic viewport height');
 assert.match(indexHtml, /pages\/home\/home\.css\?v=20260715v7420HomeViewportClipP1/);
 assert.match(mainSource, /pages\/home\/home\.css\?v=20260715v7420HomeViewportClipP1/);
-assert.match(serviceWorker, /astra-static-v20260812v818ShowcaseRecoveryP0/);
+assert.match(serviceWorker, /astra-static-v20260812v820ShowcaseFirstLoadP0/);
 
 const parent = { clientWidth: 1024, clientHeight: 720 };
 let activeCanvas;
