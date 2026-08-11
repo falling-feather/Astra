@@ -1036,19 +1036,54 @@ async function testPublicationFlightWaitersAndInvalidation() {
   assert.equal((await prepareAllA).error_code, 'cancelled');
   assert.equal((await prepareAllB).error_code, 'cancelled');
 
+  const delayedCanonicalResolve = harness.publication.resolve(mechanics);
+  const delayedCanonicalRequest = harness.requestsFor('/api/courses').at(-1);
+  harness.windowObject.dispatchEvent({
+    type: 'hashchange',
+    oldURL: 'http://127.0.0.1:9001/#physics',
+    newURL: 'http://127.0.0.1:9001/#physics/mechanics',
+  });
+  assert.equal(
+    harness.windowObject.location.hash,
+    '#physics/mechanics',
+    'the production route remains canonical when a delayed hashchange is delivered'
+  );
+  assert.equal(
+    delayedCanonicalRequest.signal.aborted,
+    false,
+    'a delayed same-route hashchange must not cancel the current authority owner'
+  );
+  delayedCanonicalRequest.resolve([{ id: 23, galaxy_key: 'englab', course_key: 'physics' }]);
+  assert.equal((await delayedCanonicalResolve).available, true);
+
   const staleRouteResolve = harness.publication.resolve(mechanics);
-  const staleRouteRequest = harness.requestsFor('/api/courses')[4];
+  const staleRouteRequest = harness.requestsFor('/api/courses').at(-1);
   harness.windowObject.location.hash = '#physics/gas-laws';
-  harness.windowObject.dispatchEvent({ type: 'hashchange' });
+  harness.windowObject.dispatchEvent({
+    type: 'hashchange',
+    oldURL: 'http://127.0.0.1:9001/#physics/mechanics',
+    newURL: 'http://127.0.0.1:9001/#physics/gas-laws',
+  });
   assert.equal(staleRouteRequest.signal.aborted, true, 'route owner change must abort the old resolve flight');
   const nextRouteResolve = harness.publication.resolve(gasLaws);
-  const nextRouteRequest = harness.requestsFor('/api/courses')[5];
+  const nextRouteRequest = harness.requestsFor('/api/courses').at(-1);
   assert.notEqual(nextRouteRequest, staleRouteRequest, 'different route/activity keys must not share a flight');
   nextRouteRequest.resolve([{ id: 23, galaxy_key: 'englab', course_key: 'physics' }]);
   assert.equal((await staleRouteResolve).error_code, 'cancelled');
   const nextRouteContext = await nextRouteResolve;
   assert.equal(nextRouteContext.available, true);
   assert.equal(nextRouteContext.activity_key, 'physics.gas-laws');
+
+  const leaveRouteResolve = harness.publication.resolve(gasLaws);
+  const leaveRouteRequest = harness.requestsFor('/api/courses').at(-1);
+  harness.windowObject.location.hash = '#planets';
+  harness.windowObject.dispatchEvent({
+    type: 'hashchange',
+    oldURL: 'http://127.0.0.1:9001/#physics/gas-laws',
+    newURL: 'http://127.0.0.1:9001/#planets',
+  });
+  assert.equal(leaveRouteRequest.signal.aborted, true, 'leaving the course route must abort the resolve owner');
+  assert.equal((await leaveRouteResolve).error_code, 'cancelled');
 }
 
 async function testColdReloadPublicationRecovery() {
