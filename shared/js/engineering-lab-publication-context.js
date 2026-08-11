@@ -8,8 +8,8 @@
         classes: [],
         selectedClassId: 0,
         authorityGeneration: 0,
-        generation: 0,
-        controller: null,
+        prepareFlight: null,
+        resolveFlight: null,
         navigationGeneration: 0,
         navigationController: null
     };
@@ -40,13 +40,21 @@
 
     function setUser(user) {
         const next = user || null;
-        if (identityKey(next) !== identityKey(state.user)) state.authorityGeneration += 1;
+        if (identityKey(next) !== identityKey(state.user)) {
+            abortPublicationFlights();
+            state.classes = [];
+            state.selectedClassId = 0;
+            state.authorityGeneration += 1;
+        }
         state.user = next;
     }
 
     function setSelectedClassId(value) {
         const next = id(value);
-        if (next !== state.selectedClassId) state.authorityGeneration += 1;
+        if (next !== state.selectedClassId) {
+            abortOwnerFlight('resolveFlight');
+            state.authorityGeneration += 1;
+        }
         state.selectedClassId = next;
     }
 
@@ -80,15 +88,102 @@
         return Object.freeze({ available: false, error_code: 'publication_context_unavailable' });
     }
 
-    function begin() {
-        if (state.controller) state.controller.abort();
-        state.controller = new AbortController();
-        state.generation += 1;
-        return { generation: state.generation, controller: state.controller, signal: state.controller.signal };
+    function cancelledPublication(extra = {}) {
+        return Object.freeze(Object.assign({ available: false, error_code: 'cancelled' }, extra));
     }
 
-    function current(scope) {
-        return scope && scope.generation === state.generation && scope.controller === state.controller && !scope.signal.aborted;
+    function abortOwnerFlight(field, expected = null) {
+        const flight = state[field];
+        if (!flight || (expected && flight !== expected)) return false;
+        state[field] = null;
+        if (!flight.controller.signal.aborted) flight.controller.abort();
+        return true;
+    }
+
+    function abortPublicationFlights() {
+        abortOwnerFlight('prepareFlight');
+        abortOwnerFlight('resolveFlight');
+    }
+
+    function currentOwnerFlight(field, flight) {
+        return Boolean(
+            flight
+            && state[field] === flight
+            && !flight.controller.signal.aborted
+        );
+    }
+
+    function acquireOwnerFlight(field, key, operation) {
+        const existing = state[field];
+        if (existing && existing.key === key && !existing.controller.signal.aborted) return existing;
+        if (existing) abortOwnerFlight(field, existing);
+        const flight = {
+            key,
+            controller: new AbortController(),
+            waiters: 0,
+            settled: false,
+            promise: null
+        };
+        state[field] = flight;
+        try {
+            flight.promise = Promise.resolve(operation(flight));
+        } catch (error) {
+            flight.promise = Promise.reject(error);
+        }
+        const settle = () => {
+            flight.settled = true;
+            if (state[field] === flight) state[field] = null;
+        };
+        flight.promise.then(settle, settle);
+        return flight;
+    }
+
+    function joinOwnerFlight(field, flight, externalSignal, cancelledValue) {
+        flight.waiters += 1;
+        return new Promise((resolve, reject) => {
+            let joined = true;
+            const release = () => {
+                if (!joined) return false;
+                joined = false;
+                if (externalSignal && typeof externalSignal.removeEventListener === 'function') {
+                    externalSignal.removeEventListener('abort', onAbort);
+                }
+                flight.waiters = Math.max(0, flight.waiters - 1);
+                if (!flight.settled && flight.waiters === 0) {
+                    const abortIfUnclaimed = () => {
+                        if (
+                            !flight.settled
+                            && flight.waiters === 0
+                            && currentOwnerFlight(field, flight)
+                        ) abortOwnerFlight(field, flight);
+                    };
+                    if (field === 'prepareFlight') Promise.resolve().then(abortIfUnclaimed);
+                    else abortIfUnclaimed();
+                }
+                return true;
+            };
+            const onAbort = () => {
+                if (!release()) return;
+                resolve(cancelledValue());
+            };
+            if (externalSignal && externalSignal.aborted) {
+                onAbort();
+                return;
+            }
+            if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+                externalSignal.addEventListener('abort', onAbort, { once: true });
+            }
+            flight.promise.then(
+                value => {
+                    if (!release()) return;
+                    resolve(value);
+                },
+                error => {
+                    if (!release()) return;
+                    reject(error);
+                }
+            );
+        });
     }
 
     async function prepare(user, options = {}) {
@@ -98,38 +193,43 @@
         if (!state.user || state.user.role !== 'student') {
             return Object.freeze({ available: false, error_code: 'student_role_required', classes: [] });
         }
-        const scope = begin();
         const externalSignal = options && options.signal;
-        const abortScope = () => scope.controller.abort();
-        if (externalSignal && typeof externalSignal.addEventListener === 'function') {
-            if (externalSignal.aborted) abortScope();
-            else externalSignal.addEventListener('abort', abortScope, { once: true });
+        if (externalSignal && externalSignal.aborted) {
+            return cancelledPublication({ classes: [] });
         }
-        try {
-            const classes = list(await api().request('/api/classes', {
-                params: { mine: true },
-                signal: scope.signal
-            }));
-            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled', classes: [] });
-            state.classes = classes;
-            if (!classes.some(item => id(item.id) === state.selectedClassId)) setSelectedClassId(0);
-            if (classes.length === 1) setSelectedClassId(classes[0].id);
-            return Object.freeze({
-                available: Boolean(state.selectedClassId),
-                error_code: state.selectedClassId ? '' : classes.length ? 'class_selection_required' : 'class_scope_missing',
-                classes: classes.slice(),
-                class_id: state.selectedClassId || null
-            });
-        } catch (error) {
-            if (scope.signal.aborted || (api().isCancelled && api().isCancelled(error))) {
-                return Object.freeze({ available: false, error_code: 'cancelled', classes: [] });
+        const prepareIdentity = identityKey(state.user);
+        const flight = acquireOwnerFlight('prepareFlight', prepareIdentity, async owner => {
+            try {
+                const classes = list(await api().request('/api/classes', {
+                    params: { mine: true },
+                    signal: owner.controller.signal
+                }));
+                if (
+                    !currentOwnerFlight('prepareFlight', owner)
+                    || identityKey(state.user) !== prepareIdentity
+                ) return cancelledPublication({ classes: [] });
+                state.classes = classes;
+                if (!classes.some(item => id(item.id) === state.selectedClassId)) setSelectedClassId(0);
+                if (classes.length === 1) setSelectedClassId(classes[0].id);
+                return Object.freeze({
+                    available: Boolean(state.selectedClassId),
+                    error_code: state.selectedClassId ? '' : classes.length ? 'class_selection_required' : 'class_scope_missing',
+                    classes: classes.slice(),
+                    class_id: state.selectedClassId || null
+                });
+            } catch (error) {
+                if (owner.controller.signal.aborted || (api().isCancelled && api().isCancelled(error))) {
+                    return cancelledPublication({ classes: [] });
+                }
+                throw error;
             }
-            throw error;
-        } finally {
-            if (externalSignal && typeof externalSignal.removeEventListener === 'function') {
-                externalSignal.removeEventListener('abort', abortScope);
-            }
-        }
+        });
+        return joinOwnerFlight(
+            'prepareFlight',
+            flight,
+            externalSignal,
+            () => cancelledPublication({ classes: [] })
+        );
     }
 
     function cancelNavigation() {
@@ -176,9 +276,7 @@
 
     function invalidatePublicationScope() {
         cancelNavigation();
-        if (state.controller) state.controller.abort();
-        state.controller = null;
-        state.generation += 1;
+        abortPublicationFlights();
         state.authorityGeneration += 1;
         state.selectedClassId = 0;
     }
@@ -277,7 +375,7 @@
     async function resolve(activity, options = {}) {
         const externalSignal = options && options.signal;
         if (externalSignal && externalSignal.aborted) {
-            return Object.freeze({ available: false, error_code: 'cancelled' });
+            return cancelledPublication();
         }
         if (!validPhysicsActivity(activity)) {
             return Object.freeze({ available: false, error_code: 'activity_mapping_missing' });
@@ -289,7 +387,7 @@
             if (!state.user || state.user.role !== 'student' || !state.classes.length) {
                 const prepared = await prepare(state.user, { signal: externalSignal });
                 if (prepared.error_code === 'cancelled') {
-                    return Object.freeze({ available: false, error_code: 'cancelled' });
+                    return cancelledPublication();
                 }
                 if (prepared.error_code === 'student_role_required') {
                     return Object.freeze({ available: false, error_code: 'student_role_required' });
@@ -312,91 +410,104 @@
             });
         }
         if (externalSignal && externalSignal.aborted) {
-            return Object.freeze({ available: false, error_code: 'cancelled' });
+            return cancelledPublication();
         }
-        const scope = begin();
-        const abortScope = () => scope.controller.abort();
-        if (externalSignal && typeof externalSignal.addEventListener === 'function') {
-            if (externalSignal.aborted) abortScope();
-            else externalSignal.addEventListener('abort', abortScope, { once: true });
-        }
-        try {
-            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
-            const courses = list(await api().request('/api/courses', {
-                params: { class_id: state.selectedClassId },
-                signal: scope.signal
-            }));
-            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
-            const matches = courses.filter(course => course.galaxy_key === 'englab' && course.course_key === 'physics');
-            if (matches.length !== 1) {
-                return Object.freeze({ available: false, error_code: matches.length ? 'course_scope_ambiguous' : 'course_scope_missing' });
-            }
-            const courseId = id(matches[0].id);
-            if (!courseId) return unavailablePublication();
-            const units = list(await api().request(`/api/courses/${courseId}/units`, {
-                params: { class_id: state.selectedClassId },
-                signal: scope.signal
-            }));
-            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
-            const matchesUnits = units.filter(unit => unit.activity_key === activity.activity_key);
-            if (matchesUnits.length > 1) {
-                return Object.freeze({ available: false, error_code: 'course_unit_ambiguous' });
-            }
-            if (matchesUnits.length === 1) {
-                const unit = matchesUnits[0];
-                if (!routeMatchesActivity(activity.activity_key)) {
-                    return Object.freeze({ available: false, error_code: 'cancelled' });
+        const resolveIdentity = identityKey(state.user);
+        const resolveIdentityId = String(state.user.id);
+        const resolveClassId = state.selectedClassId;
+        const resolveAuthorityGeneration = state.authorityGeneration;
+        const resolveRoute = String((global.location && global.location.hash) || '');
+        const resolveKey = [
+            resolveIdentity,
+            resolveClassId,
+            activity.activity_key,
+            resolveRoute,
+            resolveAuthorityGeneration
+        ].join('|');
+        const flight = acquireOwnerFlight('resolveFlight', resolveKey, async owner => {
+            const currentResolve = () => Boolean(
+                currentOwnerFlight('resolveFlight', owner)
+                && identityKey(state.user) === resolveIdentity
+                && state.selectedClassId === resolveClassId
+                && state.authorityGeneration === resolveAuthorityGeneration
+                && String((global.location && global.location.hash) || '') === resolveRoute
+            );
+            try {
+                if (!currentResolve()) return cancelledPublication();
+                const courses = list(await api().request('/api/courses', {
+                    params: { class_id: resolveClassId },
+                    signal: owner.controller.signal
+                }));
+                if (!currentResolve()) return cancelledPublication();
+                const matches = courses.filter(course => course.galaxy_key === 'englab' && course.course_key === 'physics');
+                if (matches.length !== 1) {
+                    return Object.freeze({ available: false, error_code: matches.length ? 'course_scope_ambiguous' : 'course_scope_missing' });
                 }
-                if (unit.effective_release_state === 'locked') {
-                    return Object.freeze({ available: false, error_code: 'activity_locked' });
+                const courseId = id(matches[0].id);
+                if (!courseId) return unavailablePublication();
+                const units = list(await api().request(`/api/courses/${courseId}/units`, {
+                    params: { class_id: resolveClassId },
+                    signal: owner.controller.signal
+                }));
+                if (!currentResolve()) return cancelledPublication();
+                const matchesUnits = units.filter(unit => unit.activity_key === activity.activity_key);
+                if (matchesUnits.length > 1) {
+                    return Object.freeze({ available: false, error_code: 'course_unit_ambiguous' });
                 }
-                if (unit.effective_release_state === 'hidden') {
-                    return Object.freeze({ available: false, error_code: 'activity_hidden' });
+                if (matchesUnits.length === 1) {
+                    const unit = matchesUnits[0];
+                    if (!routeMatchesActivity(activity.activity_key)) return cancelledPublication();
+                    if (unit.effective_release_state === 'locked') {
+                        return Object.freeze({ available: false, error_code: 'activity_locked' });
+                    }
+                    if (unit.effective_release_state === 'hidden') {
+                        return Object.freeze({ available: false, error_code: 'activity_hidden' });
+                    }
+                    if (unit.effective_release_state !== 'open' || !id(unit.id)) {
+                        return unavailablePublication();
+                    }
+                    return Object.freeze({
+                        available: true,
+                        class_id: resolveClassId,
+                        course_id: courseId,
+                        course_unit_id: id(unit.id),
+                        activity_key: activity.activity_key,
+                        galaxy_key: 'englab',
+                        course_key: 'physics',
+                        identity_id: resolveIdentityId,
+                        authority_generation: resolveAuthorityGeneration,
+                        access_state: 'open'
+                    });
                 }
-                if (unit.effective_release_state !== 'open' || !id(unit.id)) {
-                    return unavailablePublication();
-                }
-                return Object.freeze({
-                    available: true,
-                    class_id: state.selectedClassId,
-                    course_id: courseId,
-                    course_unit_id: id(unit.id),
-                    activity_key: activity.activity_key,
-                    galaxy_key: 'englab',
-                    course_key: 'physics',
-                    identity_id: String(state.user.id),
-                    authority_generation: state.authorityGeneration,
-                    access_state: 'open'
-                });
-            }
 
-            const disposition = unitAccessDisposition(await api().request(
-                `/api/courses/${courseId}/unit-access`,
-                {
-                    params: {
-                        class_id: state.selectedClassId,
-                        activity_key: activity.activity_key
-                    },
-                    signal: scope.signal
-                }
-            ));
-            if (!current(scope)) return Object.freeze({ available: false, error_code: 'cancelled' });
-            if (!disposition || disposition.available === true) return unavailablePublication();
-            return disposition;
-        } catch (error) {
-            const client = global.AstraApiClient;
-            if (
-                scope.signal.aborted
-                || (client && typeof client.isCancelled === 'function' && client.isCancelled(error))
-            ) {
-                return Object.freeze({ available: false, error_code: 'cancelled' });
+                const disposition = unitAccessDisposition(await api().request(
+                    `/api/courses/${courseId}/unit-access`,
+                    {
+                        params: {
+                            class_id: resolveClassId,
+                            activity_key: activity.activity_key
+                        },
+                        signal: owner.controller.signal
+                    }
+                ));
+                if (!currentResolve()) return cancelledPublication();
+                if (!disposition || disposition.available === true) return unavailablePublication();
+                return disposition;
+            } catch (error) {
+                const client = global.AstraApiClient;
+                if (
+                    owner.controller.signal.aborted
+                    || (client && typeof client.isCancelled === 'function' && client.isCancelled(error))
+                ) return cancelledPublication();
+                return unavailablePublication();
             }
-            return unavailablePublication();
-        } finally {
-            if (externalSignal && typeof externalSignal.removeEventListener === 'function') {
-                externalSignal.removeEventListener('abort', abortScope);
-            }
-        }
+        });
+        return joinOwnerFlight(
+            'resolveFlight',
+            flight,
+            externalSignal,
+            () => cancelledPublication()
+        );
     }
 
     function close() {
@@ -420,6 +531,7 @@
     });
     global.addEventListener('astra:api-auth-required', close);
     global.addEventListener('astra:session-signed-out', close);
+    global.addEventListener('hashchange', () => abortOwnerFlight('resolveFlight'));
 
     const session = global.AstraApplicationSession;
     const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
