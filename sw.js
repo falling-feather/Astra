@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astra-static-v20260812v820ShowcaseFirstLoadP0';
+const CACHE_NAME = 'astra-static-v20260812v822PublicationSingleflightP0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,11 +6,11 @@ const APP_SHELL = [
   './shared/js/config.js?v=20260716v7427RoleWorkflowGateP0',
   './shared/js/api-client.js?v=20260719v7437AstraWorkspaceP0',
   './shared/js/auth-ui.js?v=20260716v7427RoleWorkflowGateP0',
-  './shared/js/app-session.js?v=20260812v820ShowcaseFirstLoadP0',
-  './shared/js/experiment-registry.js?v=20260812v820ShowcaseFirstLoadP0',
-  './shared/js/page-registry.js?v=20260812v820ShowcaseFirstLoadP0',
-  './shared/js/router.js?v=20260812v820ShowcaseFirstLoadP0',
-  './shared/js/main.js?v=20260812v820ShowcaseFirstLoadP0',
+  './shared/js/app-session.js?v=20260812v822PublicationSingleflightP0',
+  './shared/js/experiment-registry.js?v=20260812v822PublicationSingleflightP0',
+  './shared/js/page-registry.js?v=20260812v822PublicationSingleflightP0',
+  './shared/js/router.js?v=20260812v822PublicationSingleflightP0',
+  './shared/js/main.js?v=20260812v822PublicationSingleflightP0',
   './shared/js/backend-content.js?v=20260716v7427RoleWorkflowGateP0',
   './shared/css/tokens.css?v=20260424ss',
   './shared/css/base.css?v=20260719v758ReleaseAuditP0',
