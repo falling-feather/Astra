@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const studentRuntimeVersion = '20260731v7969StudentUiP0';
+    const studentRuntimeVersion = '20260812v813RoleWorkspacesP0';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
     const ASSIGNMENT_PAGE_LIMIT = 8;
@@ -168,7 +168,7 @@
     function renderStudentLearningEvidenceResourceState() {
         if (!state.root || !state.learningEvidenceResourceError) return;
         const targets = [
-            ['progress', '权威学习投影'],
+            ['progress', '学习进度'],
             ['knowledge', '活动证据状态']
         ];
         targets.forEach(([name, title]) => {
@@ -214,7 +214,7 @@
         state.root.innerHTML = `
             <header class="student-workbench__header">
                 <div class="student-workbench__title">
-                    <h1>我的学习</h1>
+                    <h1>学习空间</h1>
                     <p data-student-greeting>正在确认学习身份</p>
                 </div>
                 <div class="student-workbench__controls" data-student-controls hidden>
@@ -243,6 +243,7 @@
             <div class="student-flash" data-student-flash hidden role="status" aria-live="polite"></div>
             <div class="student-dashboard" data-student-dashboard hidden>
                 <section class="student-join-state" data-student-join-state hidden></section>
+                <section class="student-focus-stage" data-student-focus-stage hidden aria-labelledby="student-focus-title"></section>
                 <div class="student-layout" data-student-layout hidden>
                     <section class="student-panel student-panel--context" data-student-panel="context" hidden></section>
                     <section class="student-panel student-panel--today" data-student-panel="today"></section>
@@ -256,7 +257,7 @@
             </div>
             <dialog class="student-add-class-dialog" data-student-add-class-dialog aria-labelledby="student-add-class-title">
                 <form data-student-join-form>
-                    <span>CLASS MEMBERSHIP</span>
+                    <span>班级加入</span>
                     <h2 id="student-add-class-title">加入其他班级</h2>
                     <p>输入教师提供的班级代码或数字 ID。每个班级只显示本班已发布的课程。</p>
                     <label>
@@ -1141,10 +1142,16 @@
         }
         if (layout) layout.hidden = !hasClass;
         if (!hasClass) {
+            const focusStage = state.root.querySelector('[data-student-focus-stage]');
+            if (focusStage) {
+                focusStage.hidden = true;
+                focusStage.innerHTML = '';
+            }
             refreshIcons();
             return;
         }
 
+        renderLearningFocus();
         renderCourseContextPanel();
         renderTodayPanel();
         renderProgressPanel();
@@ -1154,6 +1161,93 @@
         renderKnowledgePanel();
         renderPointsPanel();
         refreshIcons();
+    }
+
+    function visibleCourseUnits() {
+        const context = window.AstraEngineeringLabPublicationContext;
+        if (!context || typeof context.describeStudentUnit !== 'function') return [];
+        return (state.data.units || []).map(context.describeStudentUnit).filter(Boolean);
+    }
+
+    function completedActivityKeys() {
+        const activities = state.data.recovery && Array.isArray(state.data.recovery.activities)
+            ? state.data.recovery.activities
+            : [];
+        return new Set(activities.filter((activity) => (
+            activity && ['completed', 'transferred'].includes(activity.status)
+        )).map((activity) => String(activity.activity_key || '')));
+    }
+
+    function primaryLearningTarget() {
+        const completed = completedActivityKeys();
+        const executableUnits = visibleCourseUnits().filter((unit) => unit.executable);
+        const nextUnit = executableUnits.find((candidate) => !completed.has(String(candidate.activity_key || ''))) || null;
+        const unit = nextUnit || executableUnits[0] || null;
+        if (unit) {
+            return Object.freeze({
+                kind: 'course',
+                title: unit.title,
+                detail: nextUnit ? `课程第 ${formatNumber(unit.position)} 个开放学习单元` : '当前开放学习单元已完成，可继续巩固',
+                label: nextUnit ? (completed.size ? '继续上次学习' : '开始本课学习') : '继续巩固本课',
+                href: `#${unit.content_slug}`,
+                activityKey: unit.engineering_activity ? unit.activity_key : ''
+            });
+        }
+        const assignments = state.data.todayAssignments.items || [];
+        const item = assignments.find(itemCanSubmit) || assignments[0] || null;
+        if (!item) return null;
+        const assignment = assignmentOf(item);
+        return Object.freeze({
+            kind: 'assignment',
+            title: assignment.title || '当前作业',
+            detail: dueInfo(assignment.due_at).label,
+            label: itemCanSubmit(item) ? '继续完成作业' : '查看作业记录',
+            assignmentId: String(assignmentIdOf(item))
+        });
+    }
+
+    function renderLearningFocus() {
+        const container = state.root && state.root.querySelector('[data-student-focus-stage]');
+        if (!container) return;
+        const course = selectedCourse();
+        const classGroup = selectedClass();
+        const progress = authoritativeCourseProgress();
+        const target = primaryLearningTarget();
+        const syncLabel = !state.online
+            ? '离线保护中，写操作已停用'
+            : state.busy || state.loadingScope
+                ? '正在同步最新学习范围'
+                : state.errors.recovery || state.learningEvidenceResourceError
+                    ? '进度暂不可用，可继续浏览已开放内容'
+                    : '学习范围与进度已同步';
+        const progressPercent = progress ? progress.percent : 0;
+        container.hidden = false;
+        container.innerHTML = `
+            <div class="student-focus-stage__context">
+                <span class="student-focus-stage__label">当前班课</span>
+                <div class="student-focus-stage__course">
+                    <div>
+                        <h2 id="student-focus-title">${escapeHtml(course ? course.title : '等待课程开放')}</h2>
+                        <p>${escapeHtml(classGroup ? classGroup.name : '当前班级')} ${course && course.summary ? `· ${escapeHtml(course.summary)}` : ''}</p>
+                    </div>
+                    ${target ? target.kind === 'course'
+                        ? `<a class="student-focus-stage__primary" href="${escapeAttr(target.href)}"${target.activityKey ? ` data-student-englab-activity="${escapeAttr(target.activityKey)}"` : ''}><i data-lucide="play"></i><span>${escapeHtml(target.label)}</span><i data-lucide="arrow-right"></i></a>`
+                        : `<button type="button" class="student-focus-stage__primary" data-student-assignment-id="${escapeAttr(target.assignmentId)}"><i data-lucide="clipboard-pen-line"></i><span>${escapeHtml(target.label)}</span><i data-lucide="arrow-right"></i></button>`
+                        : `<button type="button" class="student-focus-stage__primary" disabled><i data-lucide="lock-keyhole"></i><span>等待教师开放</span></button>`}
+                </div>
+            </div>
+            <div class="student-focus-stage__next">
+                <span class="student-focus-stage__label">下一步</span>
+                <strong>${escapeHtml(target ? target.title : '当前没有可进入的学习任务')}</strong>
+                <small>${escapeHtml(target ? target.detail : '教师开放课程或作业后会在这里出现')}</small>
+            </div>
+            <div class="student-focus-stage__progress">
+                <span class="student-focus-stage__label">课程进度</span>
+                <strong>${progress ? `${formatNumber(progress.completed)} / ${formatNumber(progress.total)}` : '--'}</strong>
+                <div aria-label="课程完成 ${progressPercent}%"><span style="width:${progressPercent}%"></span></div>
+                <small>${escapeHtml(syncLabel)}</small>
+            </div>
+        `;
     }
 
     function renderHeaderControls() {
@@ -1482,10 +1576,10 @@
         delete container.dataset.authoritySignature;
         if (state.learningEvidenceResourceError) {
             container.classList.add('astra-authority-summary');
-            container.innerHTML = learningEvidenceResourceMarkup(state.learningEvidenceResourceError, '权威学习投影');
+            container.innerHTML = learningEvidenceResourceMarkup(state.learningEvidenceResourceError, '学习进度');
             return;
         }
-        container.innerHTML = renderLoading('正在读取 0051 权威学习投影');
+        container.innerHTML = renderLoading('正在同步学习进度');
     }
 
     function renderCoursePanel() {
@@ -1493,8 +1587,7 @@
         if (!container) return;
         const course = selectedCourse();
         const units = state.data.units || [];
-        const context = window.AstraEngineeringLabPublicationContext;
-        const visibleUnits = context ? units.map(context.describeStudentUnit).filter(Boolean) : [];
+        const visibleUnits = visibleCourseUnits();
         container.innerHTML = panelHeader('课程内容', 'route', course ? course.title : '') + (state.errors.units
             ? renderPanelError(state.errors.units, '课程内容读取失败')
             : state.loadingScope && !units.length
@@ -1723,7 +1816,7 @@
     }
 
     function renderPanelError(error, label) {
-        return `<div class="student-panel-state student-panel-state--error"><i data-lucide="triangle-alert"></i><span>${escapeHtml(label)}：${escapeHtml(errorMessage(error))}</span></div>`;
+        return `<div class="student-panel-state student-panel-state--error" role="alert"><i data-lucide="triangle-alert"></i><span>${escapeHtml(label)}：${escapeHtml(errorMessage(error))}</span><button type="button" class="student-button student-button--outline" data-student-action="refresh">重试</button></div>`;
     }
 
     function showDashboard() {
@@ -1745,12 +1838,17 @@
             select.innerHTML = '';
         });
         const joinState = state.root.querySelector('[data-student-join-state]');
+        const focusStage = state.root.querySelector('[data-student-focus-stage]');
         const layout = state.root.querySelector('[data-student-layout]');
         if (joinState) {
             joinState.hidden = true;
             joinState.innerHTML = '';
         }
         if (layout) layout.hidden = true;
+        if (focusStage) {
+            focusStage.hidden = true;
+            focusStage.innerHTML = '';
+        }
         state.root.querySelectorAll('[data-student-panel]').forEach((panel) => {
             panel.innerHTML = '';
         });
