@@ -5,14 +5,17 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260809v805MechanicsSequenceP0';
-const frontierGeneration = '20260809v804FutureEvidenceP0';
+const generation = '20260812v815ShowcaseP0';
+const frontierGeneration = '20260812v814FlagshipMotionP0';
 
 const html = read('index.html');
 const router = read('shared/js/router.js');
 const session = read('shared/js/app-session.js');
 const loader = read('shared/js/learning-evidence-loader.js');
 const experimentRegistry = read('shared/js/experiment-registry.js');
+const pageRegistry = read('shared/js/page-registry.js');
+const frontierLearning = read('shared/js/frontier-learning.js');
+const studentLearningEvidence = read('shared/js/student-learning-evidence.js');
 const main = read('shared/js/main.js');
 const serviceWorker = read('sw.js');
 const developerDoc = read('doc/01-开发者文档.md');
@@ -52,12 +55,24 @@ function testStaticGenerationChain() {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`),
-      `index direct boot must request ${asset}.js from the V805 generation`,
+      `index direct boot must request ${asset}.js from the V815 generation`,
     );
   }
   assert.match(router, new RegExp(`shared/js/module-selector\\.js\\?v=${generation}`));
   assert.match(router, new RegExp(`shared/js/frontier-learning\\.js\\?v=${frontierGeneration}`));
-  assert.match(experimentRegistry, new RegExp(`pages/physics/physics\\.js\\?v=${generation}`));
+  assert.match(experimentRegistry, new RegExp(`pages/physics/physics\\.js\\?v=${frontierGeneration}`));
+  assert.match(html, new RegExp(`pages/engineering/engineering\\.css\\?v=${frontierGeneration}`));
+  assert.match(html, new RegExp(`pages/physics/physics\\.css\\?v=${frontierGeneration}`));
+  assert.match(pageRegistry, /const ROLE_RESOURCE_VERSION = '20260812v813RoleWorkspacesP0'/);
+  assert.match(pageRegistry, /const TEACHER_RESOURCE_VERSION = '20260812v813RoleWorkspacesP0'/);
+  assert.match(pageRegistry, new RegExp(`const FUTURE_RESOURCE_VERSION = '${frontierGeneration}'`));
+  assert.match(frontierLearning, new RegExp(`pages/frontier/frontier\\.css\\?v=${frontierGeneration}`));
+  assert.match(frontierLearning, new RegExp(`pages/engineering/bridge-truss\\.js\\?v=${frontierGeneration}`));
+  assert.match(main, new RegExp(`pages/physics/physics\\.css\\?v=${frontierGeneration}`));
+  assert.match(main, new RegExp(`pages/frontier/frontier\\.css\\?v=${frontierGeneration}`));
+  assert.match(main, new RegExp(`shared/js/frontier-learning\\.js\\?v=${frontierGeneration}`));
+  assert.doesNotMatch(studentLearningEvidence, /0051 RECOVERY|权威学习投影|SERVER PROJECTION ONLY/);
+  assert.match(studentLearningEvidence, /学习进度[\s\S]*进度同步[\s\S]*学习活动记录[\s\S]*课程记录/);
   assert.match(main, new RegExp(`const SHELL_RUNTIME_ASSET_VERSION = '${generation}'`));
   assert.match(main, new RegExp(`const PAGE_REGISTRY_ASSET_VERSION = '${generation}'`));
   assert.match(main, /'\.\/shared\/js\/app-session\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
@@ -69,24 +84,20 @@ function testStaticGenerationChain() {
     assert.match(
       serviceWorker,
       new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`),
-      `service-worker app shell must precache ${asset}.js from the V805 generation`,
+      `service-worker app shell must precache ${asset}.js from the V815 generation`,
     );
   }
   for (const document of [developerDoc, frontendDoc]) {
     assert.match(document, new RegExp(generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
     assert.match(document, /ARCH-004/);
-    const v805EvidenceLine = document
+    const v815EvidenceLine = document
       .split(/\r?\n/)
-      .find((line) => line.includes('V8.0.5') && line.includes(generation));
-    assert.ok(v805EvidenceLine, 'V8.0.5 documentation must identify the exact V805 cache generation');
-    assert.match(v805EvidenceLine, /external Edge/);
-    assert.match(v805EvidenceLine, /V804→V805/);
-    assert.doesNotMatch(
-      v805EvidenceLine,
-      /NOT-RUN/,
-      'post-integration V8.0.5 documentation must not retain the candidate-stage Browser NOT-RUN claim',
-    );
+      .find((line) => line.includes('V8.0.15') && line.includes(generation));
+    assert.ok(v815EvidenceLine, 'V8.0.15 documentation must identify the exact V815 cache generation');
+    assert.match(v815EvidenceLine, /QA-022/);
+    assert.match(v815EvidenceLine, /V805→V815/);
+    assert.match(v815EvidenceLine, /QA-022[\s\S]*(?:待同 revision 终验|PASS)/);
   }
 }
 
@@ -133,7 +144,7 @@ async function testAppSessionCreatesVersionedLoader() {
   await context.__fe024EnsureLearningEvidenceLoader();
   assert.deepEqual(createdScripts, [
     `https://astra.test/shared/js/learning-evidence-loader.js?v=${generation}`,
-  ], 'app-session must propagate its exact V805 query to the loader it actually creates');
+  ], 'app-session must propagate its exact V815 query to the loader it actually creates');
 }
 
 async function testLoaderCreatesVersionedChildren() {
@@ -199,7 +210,7 @@ async function testLoaderCreatesVersionedChildren() {
   await context.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true });
   assert.deepEqual(childScripts, Object.keys(ownerByFile).map((file) => (
     `https://astra.test/shared/js/${file}?v=${generation}`
-  )), 'loader must propagate V805 to every queue/client/status/catalog/engineering-context/activity script it creates');
+  )), 'loader must propagate V815 to every queue/client/status/catalog/engineering-context/activity script it creates');
 }
 
 async function run() {

@@ -47,7 +47,9 @@ assert.equal(registry.galaxyFor('teacher'), 'astra');
 assert.equal(registry.galaxyFor('admin'), 'astra');
 assert.equal(registry.galaxyFor('cosmos'), 'frontier');
 assert.equal(registry.galaxyFor('unknown-page'), 'englab');
-assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260730v785TeacherNaturalWorkflowP0');
+assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?v=20260812v813RoleWorkspacesP0');
+assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260812v813RoleWorkspacesP0');
+assert.equal(registry.scriptFor('engineering'), 'shared/js/frontier-learning.js?v=20260812v814FlagshipMotionP0');
 assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260731v7969StudentUiP0');
 assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260729v794AdminGovernanceP0');
 assert.equal(registry.isReady('teacher'), false);
@@ -65,7 +67,7 @@ assert.equal(registry.enter('mathematics'), false);
 assert.equal(registry.leave('mathematics'), false);
 
 assert.match(html, /app-session\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/);
-assert.match(serviceWorker, /page-registry\.js\?v=20260809v805MechanicsSequenceP0/);
+assert.match(serviceWorker, /page-registry\.js\?v=20260812v815ShowcaseP0/);
 assert.match(router, /AstraPageRegistry\.pagesByTag\('course'\)/);
 assert.match(router, /AstraPageRegistry\.galaxyFor\(page\)/);
 assert.match(router, /AstraPageRegistry\.scriptFor\(page\)/);
@@ -76,7 +78,7 @@ assert.doesNotMatch(router, /\['mathematics', 'physics', 'chemistry', 'algorithm
 assert.match(router, /ModuleSelector\.leavePage\(page, \{ preserveHash: true \}\)/);
 assert.match(moduleSelector, /closeModule\(page, options = \{\}\)/);
 assert.match(moduleSelector, /if \(!options\.preserveHash\)/);
-assert.match(router, /module-selector\.js\?v=20260809v805MechanicsSequenceP0/);
+assert.match(router, /module-selector\.js\?v=20260812v815ShowcaseP0/);
 assert.match(main, /module-selector\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
 assert.match(main, /page-registry\.js\?v=' \+ PAGE_REGISTRY_ASSET_VERSION/);
 assert.match(main, /AstraPageRegistry\.galaxyFor\(hash\)/);

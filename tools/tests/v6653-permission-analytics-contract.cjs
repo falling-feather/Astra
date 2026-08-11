@@ -41,7 +41,8 @@ function main() {
     assert.match(student, /data-student-panel="knowledge"/);
     assert.doesNotMatch(student, /knowledge\.rule_version/);
     assert.match(studentEvidence, /recovery\.rule_version/);
-    assert.match(studentEvidence, /旧 knowledge 统计仅属历史兼容数据/);
+    assert.match(studentEvidence, /历史兼容统计不会用于判断学习掌握情况/);
+    assert.doesNotMatch(studentEvidence, /旧 knowledge|0051 RECOVERY|SERVER PROJECTION ONLY/);
 
     assert.match(admin, /\/api\/admin\/class-join-requests\/\$\{Number\(authority\.id\)\}/);
     assert.match(admin, /AstraApiClient\.isAmbiguousMutation/);

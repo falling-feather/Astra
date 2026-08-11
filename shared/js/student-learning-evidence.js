@@ -35,14 +35,14 @@
     function messageFor(code) {
         const messages = {
             explicit_scope_required: '请先明确选择班级与课程；多作用域不会静默选择第一项。',
-            rule_binding_missing: '当前课程尚未绑定学习证据规则，因此不显示零完成率或推断进度。',
-            rule_binding_invalid: '当前规则绑定无效，服务端投影已按失败关闭。',
-            recovery_schema_invalid: '服务端 recovery 与当前作用域或冻结 schema 不一致，页面已拒绝渲染。',
+            rule_binding_missing: '当前课程尚未配置学习记录规则，因此不会用零完成率猜测你的进度。',
+            rule_binding_invalid: '当前课程记录配置异常，页面已停止显示可能不准确的进度。',
+            recovery_schema_invalid: '返回的课程记录与当前班课不一致，页面已停止显示旧数据。',
             forbidden: '当前身份无权读取所选学习范围。',
-            identity_required: '当前会话已失效；请重新登录并确认身份后读取权威投影。',
-            offline: '离线时不使用历史浏览记录替代权威投影；请恢复网络后刷新。'
+            identity_required: '当前会话已失效；请重新登录后读取学习进度。',
+            offline: '离线时不会把历史浏览记录当作最新进度；请恢复网络后刷新。'
         };
-        return messages[code] || '权威学习投影暂不可用；历史浏览/兼容访问不会被当作完成或掌握。';
+        return messages[code] || '学习进度暂不可用；历史浏览记录不会被当作课程完成。';
     }
 
     function projectionSummary(recovery, pending, pendingError) {
@@ -55,24 +55,24 @@
             return result;
         }, { not_started: 0, in_progress: 0, completed: 0, transferred: 0 });
         const pendingIssue = pendingError
-            ? '<p class="astra-authority-summary__pending"><strong>sync_state_unavailable</strong> · 未同步证据数量当前未知；已保留上次计数，不会显示为已同步。</p><button type="button" class="astra-authority-summary__retry" data-student-evidence-retry>重新读取</button>'
+            ? '<p class="astra-authority-summary__pending"><strong>同步状态待确认</strong> · 未同步记录数量当前未知；已保留上次计数，不会显示为已同步。</p><button type="button" class="astra-authority-summary__retry" data-student-evidence-retry>重新读取</button>'
             : '';
         return `
             ${pendingIssue}
-            <div class="astra-authority-summary__metrics" aria-label="服务端学习投影">
+            <div class="astra-authority-summary__metrics" aria-label="课程学习进度">
                 <div><strong>${counts.not_started}</strong><span>未开始</span></div>
                 <div><strong>${counts.in_progress}</strong><span>进行中</span></div>
-                <div><strong>${counts.completed}</strong><span>服务端完成</span></div>
-                <div><strong>${counts.transferred}</strong><span>服务端迁移</span></div>
+                <div><strong>${counts.completed}</strong><span>已确认完成</span></div>
+                <div><strong>${counts.transferred}</strong><span>记录已迁移</span></div>
             </div>
             ${Number(pending && pending.count || 0) > 0 ? `<p class="astra-authority-summary__pending">本账号有 ${Number(pending.count)} 条证据未同步；以上投影不提前计入本地待同步事件。</p>` : ''}
-            <p class="astra-authority-summary__note">规则版本 ${escapeHtml(recovery.rule_version)}；完成与迁移只来自 0051 服务端投影。</p>`;
+            <p class="astra-authority-summary__note">记录规则 ${escapeHtml(recovery.rule_version)}；完成状态只采用平台已确认的课程记录。</p>`;
     }
 
     function activityList(recovery) {
         const activities = recovery && Array.isArray(recovery.activities) ? recovery.activities : [];
         if (!activities.length) {
-            return '<p class="astra-authority-summary__note">当前规则尚无活动投影；历史浏览/兼容访问不构成掌握证据。</p>';
+            return '<p class="astra-authority-summary__note">当前课程还没有学习活动记录；历史浏览不会被当作课程完成。</p>';
         }
         return `<ul class="astra-authority-summary__activities">${activities.slice(0, 8).map(item => `
             <li>
@@ -95,7 +95,7 @@
 
     function stateMarkup(title, eyebrow, phase, code) {
         const loading = phase === 'loading';
-        return `${header(title, eyebrow)}<div class="astra-authority-summary__state" role="status"><strong>${escapeHtml(loading ? '正在读取' : code || 'partial')}</strong><p>${escapeHtml(loading ? '正在按明确作用域读取 0051 服务端 recovery。' : messageFor(code))}</p>${loading ? '' : '<button type="button" class="astra-authority-summary__retry" data-student-evidence-retry>重新读取</button>'}</div>`;
+        return `${header(title, eyebrow)}<div class="astra-authority-summary__state" role="status"><strong>${escapeHtml(loading ? '正在读取' : code || '暂不可用')}</strong><p>${escapeHtml(loading ? '正在读取当前班课的学习进度。' : messageFor(code))}</p>${loading ? '' : '<button type="button" class="astra-authority-summary__retry" data-student-evidence-retry>重新读取</button>'}</div>`;
     }
 
     function render(session) {
@@ -110,15 +110,15 @@
             progress.dataset.authoritySignature = signature;
             progress.classList.add('astra-authority-summary');
             progress.innerHTML = session.phase === 'ready'
-                ? `${header('权威学习投影', '0051 RECOVERY')}${projectionSummary(session.recovery, session.pending, session.pendingError)}`
-                : stateMarkup('权威学习投影', '0051 RECOVERY', session.phase, session.errorCode);
+                ? `${header('学习进度', '进度同步')}${projectionSummary(session.recovery, session.pending, session.pendingError)}`
+                : stateMarkup('学习进度', '进度同步', session.phase, session.errorCode);
         }
         if (compatibility && compatibility.dataset.authoritySignature !== signature) {
             compatibility.dataset.authoritySignature = signature;
             compatibility.classList.add('astra-authority-summary');
             compatibility.innerHTML = session.phase === 'ready'
-                ? `${header('活动证据状态', 'SERVER PROJECTION ONLY')}${activityList(session.recovery)}<p class="astra-authority-summary__note">旧 knowledge 统计仅属历史兼容数据，本页不再据此声明掌握。</p>`
-                : stateMarkup('活动证据状态', 'SERVER PROJECTION ONLY', session.phase, session.errorCode);
+                ? `${header('学习活动记录', '课程记录')}${activityList(session.recovery)}<p class="astra-authority-summary__note">历史兼容统计不会用于判断学习掌握情况。</p>`
+                : stateMarkup('学习活动记录', '课程记录', session.phase, session.errorCode);
         }
     }
 

@@ -221,8 +221,8 @@ window.updateFooterVisibility = updateFooterVisibility;
 const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0';
 const ROLE_LANDING_ASSET_VERSION = '20260731v7969StudentUiP0';
 const SESSION_STYLE_ASSET_VERSION = '20260719v759A11yP0';
-const SHELL_RUNTIME_ASSET_VERSION = '20260809v805MechanicsSequenceP0';
-const PAGE_REGISTRY_ASSET_VERSION = '20260809v805MechanicsSequenceP0';
+const SHELL_RUNTIME_ASSET_VERSION = '20260812v815ShowcaseP0';
+const PAGE_REGISTRY_ASSET_VERSION = '20260812v815ShowcaseP0';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',
@@ -262,7 +262,7 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './shared/css/experiment-polish.css?v=20260526v61c',
         './pages/home/home.css?v=20260715v7420HomeViewportClipP1',
         './pages/mathematics/mathematics.css?v=20260618mathModelP1',
-        './pages/physics/physics.css?v=20260618thermoP1',
+        './pages/physics/physics.css?v=20260812v814FlagshipMotionP0',
         './pages/chemistry/chemistry.css?v=20260618ionP1',
         './pages/algorithms/algorithms.css?v=20260618algoTextP1',
         './pages/biology/biology.css?v=20260618neuralP1',
@@ -280,10 +280,10 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/home/home.js?v=20260704qianduanV70'
     ],
     frontier: [
-        './pages/frontier/frontier.css?v=20260809v804FutureEvidenceP0',
+        './pages/frontier/frontier.css?v=20260812v814FlagshipMotionP0',
         './pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0',
         './shared/js/frontier-publication-context.js?v=20260809v804FutureEvidenceP0',
-        './shared/js/frontier-learning.js?v=20260809v804FutureEvidenceP0'
+        './shared/js/frontier-learning.js?v=20260812v814FlagshipMotionP0'
     ]
 };
 
