@@ -2344,6 +2344,7 @@ function runMechanicsZoomRestoreContract() {
   assert.equal(prepareAbortCalls[0].route, '/api/classes');
   assert.equal(prepareAbortCalls[0].signal.aborted, false);
   prepareAbortController.abort();
+  await settlePromises(2);
   assert.equal(prepareAbortCalls[0].signal.aborted, true, 'external cancellation must bridge into prepare');
   settlePrepareClasses([{ id: 42, name: 'B 班' }]);
   assert.equal((await prepareAbortResolution).error_code, 'cancelled');
@@ -2463,19 +2464,23 @@ function runMechanicsZoomRestoreContract() {
   const firstNavigation = navigationPublication.navigateStudent(
     { id: 7, role: 'student' }, 41, '#physics/mechanics'
   );
-  const secondNavigation = navigationPublication.navigateStudent(
-    { id: 7, role: 'student' }, 42, '#physics/gas-laws'
-  );
-  assert.equal(navigationRequests.length, 2);
-  assert.equal(navigationRequests[0].signal.aborted, true, 'a newer navigation must abort the older prepare request');
-  navigationRequests[1].resolve([{ id: 41, name: 'A 班' }, { id: 42, name: 'B 班' }]);
-  assert.equal(await secondNavigation, true);
-  assert.equal(navigationWindow.location.hash, '#physics/gas-laws');
-  navigationRequests[0].resolve([{ id: 41, name: 'A 班' }, { id: 42, name: 'B 班' }]);
-  const firstResult = await firstNavigation.then(
+  const firstNavigationResult = firstNavigation.then(
     () => ({ code: 'unexpected_success' }),
     (error) => ({ code: error && error.code })
   );
+  const secondNavigation = navigationPublication.navigateStudent(
+    { id: 7, role: 'student' }, 42, '#physics/gas-laws'
+  );
+  assert.equal(navigationRequests.length, 1, 'same-identity navigation must share one prepare owner');
+  assert.equal(
+    navigationRequests[0].signal.aborted,
+    false,
+    'cancelling one navigation waiter must preserve the prepare owner for the newer waiter'
+  );
+  navigationRequests[0].resolve([{ id: 41, name: 'A 班' }, { id: 42, name: 'B 班' }]);
+  assert.equal(await secondNavigation, true);
+  assert.equal(navigationWindow.location.hash, '#physics/gas-laws');
+  const firstResult = await firstNavigationResult;
   assert.equal(firstResult.code, 'cancelled');
   assert.equal(navigationWindow.location.hash, '#physics/gas-laws', 'late A-class prepare must not overwrite the B-class route');
 
@@ -2483,8 +2488,8 @@ function runMechanicsZoomRestoreContract() {
     { id: 7, role: 'student' }, 41, '#physics/mechanics'
   );
   assert.equal(navigationPublication.selectClass(42), true);
-  assert.equal(navigationRequests[2].signal.aborted, true, 'an explicit class switch must abort pending navigation');
-  navigationRequests[2].resolve([{ id: 41, name: 'A 班' }, { id: 42, name: 'B 班' }]);
+  assert.equal(navigationRequests[1].signal.aborted, true, 'an explicit class switch must abort pending navigation');
+  navigationRequests[1].resolve([{ id: 41, name: 'A 班' }, { id: 42, name: 'B 班' }]);
   const classSwitchResult = await classSwitchNavigation.then(
     () => ({ code: 'unexpected_success' }),
     (error) => ({ code: error && error.code })
