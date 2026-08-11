@@ -105,6 +105,15 @@
         abortOwnerFlight('resolveFlight');
     }
 
+    function abortResolveFlightOnRouteChange() {
+        const flight = state.resolveFlight;
+        if (!flight) return;
+        const currentRoute = String((global.location && global.location.hash) || '');
+        if (!flight.route || flight.route !== currentRoute) {
+            abortOwnerFlight('resolveFlight', flight);
+        }
+    }
+
     function currentOwnerFlight(field, flight) {
         return Boolean(
             flight
@@ -425,6 +434,7 @@
             resolveAuthorityGeneration
         ].join('|');
         const flight = acquireOwnerFlight('resolveFlight', resolveKey, async owner => {
+            owner.route = resolveRoute;
             const currentResolve = () => Boolean(
                 currentOwnerFlight('resolveFlight', owner)
                 && identityKey(state.user) === resolveIdentity
@@ -531,7 +541,7 @@
     });
     global.addEventListener('astra:api-auth-required', close);
     global.addEventListener('astra:session-signed-out', close);
-    global.addEventListener('hashchange', () => abortOwnerFlight('resolveFlight'));
+    global.addEventListener('hashchange', abortResolveFlightOnRouteChange);
 
     const session = global.AstraApplicationSession;
     const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
