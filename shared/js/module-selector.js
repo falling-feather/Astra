@@ -10,6 +10,7 @@ const PUBLICATION_CLASSIFICATION_WARNING =
     '[ModuleSelector] publication classification failed; transition refused';
 const EVIDENCE_MOUNT_RECOVERY_DELAY_MS = 120;
 const EVIDENCE_MOUNT_RECOVERY_TIMEOUT_MS = 2500;
+const EVIDENCE_MOUNT_RECOVERY_POLL_MS = 40;
 
 const ModuleSelector = {
     activeModule: {},   // { pageName: 'module-id' | null }
@@ -904,6 +905,13 @@ const ModuleSelector = {
         this._cancelEvidenceRuntimeMount(page);
         const lifecycleController = new AbortController();
         const mountedIdentity = this._currentCatalogueIdentity();
+        const mountedSession = window.AstraApplicationSession;
+        const mountedUser = mountedSession && typeof mountedSession.getUser === 'function'
+            ? mountedSession.getUser()
+            : null;
+        const mountedIdentityId = mountedUser && (mountedUser.id != null || mountedUser.user_id != null)
+            ? String(mountedUser.id != null ? mountedUser.id : mountedUser.user_id)
+            : '';
         const mountedRuntime = {
             moduleId,
             generation,
@@ -938,24 +946,6 @@ const ModuleSelector = {
             && host
             && host.isConnected
             && window.location.hash === '#physics/mechanics';
-        const abortableDelay = delay => new Promise(resolve => {
-            if (!isActive()) {
-                resolve(false);
-                return;
-            }
-            let settled = false;
-            let timerId = null;
-            const finish = value => {
-                if (settled) return;
-                settled = true;
-                if (timerId !== null) clearTimeout(timerId);
-                lifecycleController.signal.removeEventListener('abort', cancel);
-                resolve(Boolean(value));
-            };
-            const cancel = () => finish(false);
-            timerId = setTimeout(() => finish(isActive()), delay);
-            lifecycleController.signal.addEventListener('abort', cancel, { once: true });
-        });
         const catalogueDisposition = () => {
             if (!isActive()) return false;
             const catalogue = window.AstraStudentCourseCatalogue;
@@ -973,24 +963,42 @@ const ModuleSelector = {
             }
             return true;
         };
-        const waitForCatalogueAuthority = async () => {
-            const current = catalogueDisposition();
-            if (current !== null) {
-                return current === true
-                    ? abortableDelay(EVIDENCE_MOUNT_RECOVERY_DELAY_MS)
-                    : false;
-            }
-            if (typeof window.addEventListener !== 'function') {
-                return abortableDelay(EVIDENCE_MOUNT_RECOVERY_DELAY_MS);
-            }
+        const publicationAuthorityKey = () => {
+            if (!isActive() || !mountedIdentityId) return false;
+            const provider = window.AstraEngineeringLabPublicationContext;
+            if (!provider || typeof provider.snapshot !== 'function') return false;
+            let snapshot = null;
+            try { snapshot = provider.snapshot(); } catch (error) { return null; }
+            if (!snapshot || typeof snapshot !== 'object') return null;
+            const identityId = snapshot.identity_id == null ? '' : String(snapshot.identity_id);
+            if (!identityId) return null;
+            if (identityId !== mountedIdentityId) return false;
+            const classId = Number(snapshot.class_id);
+            const authorityGeneration = Number(snapshot.authority_generation);
+            const classes = Array.isArray(snapshot.classes) ? snapshot.classes : [];
+            if (
+                !Number.isInteger(classId)
+                || classId <= 0
+                || !Number.isInteger(authorityGeneration)
+                || authorityGeneration <= 0
+                || !classes.some(item => Number(item && item.id) === classId)
+            ) return null;
+            return `${identityId}:${classId}:${authorityGeneration}`;
+        };
+        const recoveryAuthorityKey = () => {
+            const catalogue = catalogueDisposition();
+            if (catalogue !== true) return catalogue;
+            return publicationAuthorityKey();
+        };
+        const waitForPublicationAuthority = () => {
             return new Promise(resolve => {
                 let settled = false;
                 let timeoutId = null;
+                let stableKey = '';
+                let stableSince = 0;
+                const startedAt = Date.now();
                 const cleanup = () => {
                     if (timeoutId !== null) clearTimeout(timeoutId);
-                    if (typeof window.removeEventListener === 'function') {
-                        window.removeEventListener('astra:student-catalogue-ready', onReady);
-                    }
                     lifecycleController.signal.removeEventListener('abort', onAbort);
                 };
                 const finish = value => {
@@ -999,15 +1007,45 @@ const ModuleSelector = {
                     cleanup();
                     resolve(Boolean(value));
                 };
-                const onReady = () => {
-                    const disposition = catalogueDisposition();
-                    if (disposition !== null) finish(disposition);
+                const inspect = () => {
+                    if (!isActive()) {
+                        finish(false);
+                        return;
+                    }
+                    const now = Date.now();
+                    const elapsed = now - startedAt;
+                    if (elapsed >= EVIDENCE_MOUNT_RECOVERY_TIMEOUT_MS) {
+                        finish(false);
+                        return;
+                    }
+                    const authorityKey = recoveryAuthorityKey();
+                    if (authorityKey === false) {
+                        finish(false);
+                        return;
+                    }
+                    if (typeof authorityKey === 'string' && authorityKey) {
+                        if (authorityKey !== stableKey) {
+                            stableKey = authorityKey;
+                            stableSince = now;
+                        } else if (now - stableSince >= EVIDENCE_MOUNT_RECOVERY_DELAY_MS) {
+                            finish(true);
+                            return;
+                        }
+                    } else {
+                        stableKey = '';
+                        stableSince = 0;
+                    }
+                    timeoutId = setTimeout(
+                        inspect,
+                        Math.min(
+                            EVIDENCE_MOUNT_RECOVERY_POLL_MS,
+                            EVIDENCE_MOUNT_RECOVERY_TIMEOUT_MS - elapsed
+                        )
+                    );
                 };
                 const onAbort = () => finish(false);
-                window.addEventListener('astra:student-catalogue-ready', onReady);
                 lifecycleController.signal.addEventListener('abort', onAbort, { once: true });
-                timeoutId = setTimeout(() => finish(isActive()), EVIDENCE_MOUNT_RECOVERY_TIMEOUT_MS);
-                onReady();
+                inspect();
             });
         };
         window.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true }).then(async () => {
@@ -1107,7 +1145,7 @@ const ModuleSelector = {
                     error
                     && error.code === 'publication_context_unavailable'
                     && isActive()
-                    && await waitForCatalogueAuthority()
+                    && await waitForPublicationAuthority()
                 ) {
                     await initializeBinding();
                     return;
