@@ -135,6 +135,7 @@
         state.flash = null;
         state.data = emptyData();
         state.learningEvidenceResourceError = null;
+        syncWorkbenchBusyState();
 
         if (state.root) {
             const authContainer = state.root.querySelector('[data-student-auth-state]');
@@ -1163,10 +1164,82 @@
         refreshIcons();
     }
 
+    function scopedFutureCourseUnitHref(unit) {
+        const course = selectedCourse();
+        const user = state.user;
+        const classId = String(state.selected.classId || '').trim();
+        const courseId = String(state.selected.courseId || '').trim();
+        const galaxyKey = String(course && course.galaxy_key || '').trim();
+        const courseKey = String(course && course.course_key || '').trim();
+        const activityKey = String(unit && unit.activity_key || '').trim();
+        const releaseState = String(unit && unit.effective_release_state || '').trim().toLowerCase();
+        if (
+            !state.authorized
+            || !user
+            || user.role !== 'student'
+            || !classId
+            || !courseId
+            || String(entityId(course)) !== courseId
+            || galaxyKey !== 'future-galaxy'
+            || !courseKey
+            || !activityKey
+            || releaseState !== 'open'
+        ) return '';
+        if (unit.course_id != null && String(unit.course_id) !== courseId) return '';
+
+        const catalog = window.AstraLearningActivityCatalog;
+        const catalogue = window.AstraStudentCourseCatalogue;
+        if (
+            !catalog
+            || typeof catalog.resolve !== 'function'
+            || typeof catalog.recoveryHref !== 'function'
+            || !catalogue
+            || typeof catalogue.snapshot !== 'function'
+            || typeof catalogue.allowsActivity !== 'function'
+        ) return '';
+
+        const entry = catalog.resolve(galaxyKey, activityKey);
+        if (
+            !entry
+            || entry.galaxy_key !== galaxyKey
+            || entry.course_key !== courseKey
+            || entry.activity_key !== activityKey
+        ) return '';
+
+        const [page, ...moduleParts] = activityKey.split('.');
+        const moduleId = moduleParts.join('.');
+        if (!page || !moduleId) return '';
+        const snapshot = catalogue.snapshot();
+        if (!snapshot || snapshot.role !== 'student' || snapshot.phase !== 'ready') return '';
+        const scopedRecord = (snapshot.records || []).find((record) => (
+            record
+            && record.galaxy_key === galaxyKey
+            && record.course_key === courseKey
+            && record.page === page
+            && Array.isArray(record.class_ids)
+            && record.class_ids.some((candidate) => String(candidate) === classId)
+            && Array.isArray(record.activity_keys)
+            && record.activity_keys.includes(activityKey)
+        ));
+        if (!scopedRecord || catalogue.allowsActivity(page, moduleId) !== true) return '';
+
+        const href = String(catalog.recoveryHref(entry, unit) || '');
+        return /^#[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/.test(href) ? href : '';
+    }
+
     function visibleCourseUnits() {
         const context = window.AstraEngineeringLabPublicationContext;
         if (!context || typeof context.describeStudentUnit !== 'function') return [];
-        return (state.data.units || []).map(context.describeStudentUnit).filter(Boolean);
+        return (state.data.units || []).map((unit, index) => {
+            const visibleUnit = context.describeStudentUnit(unit, index);
+            if (!visibleUnit || visibleUnit.executable) return visibleUnit;
+            const href = scopedFutureCourseUnitHref(unit);
+            return href ? Object.freeze({
+                ...visibleUnit,
+                content_slug: href.slice(1),
+                executable: true
+            }) : visibleUnit;
+        }).filter(Boolean);
     }
 
     function completedActivityKeys() {
@@ -1212,7 +1285,8 @@
         const course = selectedCourse();
         const classGroup = selectedClass();
         const progress = authoritativeCourseProgress();
-        const target = primaryLearningTarget();
+        const resolvingTarget = Boolean(state.busy || state.loadingScope);
+        const target = resolvingTarget ? null : primaryLearningTarget();
         const syncLabel = !state.online
             ? '离线保护中，写操作已停用'
             : state.busy || state.loadingScope
@@ -1233,13 +1307,15 @@
                     ${target ? target.kind === 'course'
                         ? `<a class="student-focus-stage__primary" href="${escapeAttr(target.href)}"${target.activityKey ? ` data-student-englab-activity="${escapeAttr(target.activityKey)}"` : ''}><i data-lucide="play"></i><span>${escapeHtml(target.label)}</span><i data-lucide="arrow-right"></i></a>`
                         : `<button type="button" class="student-focus-stage__primary" data-student-assignment-id="${escapeAttr(target.assignmentId)}"><i data-lucide="clipboard-pen-line"></i><span>${escapeHtml(target.label)}</span><i data-lucide="arrow-right"></i></button>`
-                        : `<button type="button" class="student-focus-stage__primary" disabled><i data-lucide="lock-keyhole"></i><span>等待教师开放</span></button>`}
+                        : resolvingTarget
+                            ? '<button type="button" class="student-focus-stage__primary" disabled><i data-lucide="loader-circle"></i><span>正在读取学习任务</span></button>'
+                            : '<button type="button" class="student-focus-stage__primary" disabled><i data-lucide="lock-keyhole"></i><span>等待教师开放</span></button>'}
                 </div>
             </div>
-            <div class="student-focus-stage__next">
+            <div class="student-focus-stage__next" role="status" aria-live="polite">
                 <span class="student-focus-stage__label">下一步</span>
-                <strong>${escapeHtml(target ? target.title : '当前没有可进入的学习任务')}</strong>
-                <small>${escapeHtml(target ? target.detail : '教师开放课程或作业后会在这里出现')}</small>
+                <strong>${escapeHtml(resolvingTarget ? '正在同步可进入的学习任务' : target ? target.title : '当前没有可进入的学习任务')}</strong>
+                <small>${escapeHtml(resolvingTarget ? '读取完成后将显示当前班课的下一动作' : target ? target.detail : '教师开放课程或作业后会在这里出现')}</small>
             </div>
             <div class="student-focus-stage__progress">
                 <span class="student-focus-stage__label">课程进度</span>
@@ -1252,6 +1328,7 @@
 
     function renderHeaderControls() {
         if (!state.root) return;
+        syncWorkbenchBusyState();
         const greeting = state.root.querySelector('[data-student-greeting]');
         if (greeting) {
             greeting.textContent = state.user
@@ -1292,7 +1369,14 @@
         if (refreshButton) refreshButton.disabled = locked;
         const joinButton = controls.querySelector('[data-student-action="join-class"]');
         if (joinButton) joinButton.disabled = locked || !state.online;
-        state.root.classList.toggle('is-busy', state.busy || state.loadingScope);
+    }
+
+    function syncWorkbenchBusyState() {
+        if (!state.root) return;
+        const busy = Boolean(state.busy || state.loadingScope);
+        state.root.classList.toggle('is-busy', busy);
+        if (busy && typeof state.root.setAttribute === 'function') state.root.setAttribute('aria-busy', 'true');
+        else if (!busy && typeof state.root.removeAttribute === 'function') state.root.removeAttribute('aria-busy');
     }
 
     function renderAuthState(mode, user) {
@@ -2226,6 +2310,11 @@
             bootstrapFutureGalaxyPublication,
             configureFutureGalaxyPublication,
             closeFutureGalaxyPublication,
+            scopedFutureCourseUnitHref,
+            visibleCourseUnits,
+            primaryLearningTarget,
+            renderLearningFocus,
+            syncWorkbenchBusyState,
             renderCoursePanel
         };
     }

@@ -46,7 +46,7 @@
         state.active = false; state.learningEvidenceLoadGeneration += 1;
         if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
         invalidateRequests(); unbindRuntimeEvents(); clearWorkspace();
-        state.busy = false; state.flash = null; state.learningEvidenceResourceError = null;
+        setBusy(false); state.flash = null; state.learningEvidenceResourceError = null;
         if (state.root) {
             const authContainer = state.root.querySelector('[data-teacher-auth-state]');
             if (authContainer && window.AstraAuthUI) AstraAuthUI.unmount(authContainer);
@@ -2732,8 +2732,9 @@
     }
     function setBusy(value) {
         state.busy = Boolean(value);
-        if (state.root) state.root.classList.toggle('is-busy', state.busy);
         if (state.root) {
+            state.root.classList.toggle('is-busy', state.busy);
+            if (state.busy && typeof state.root.setAttribute === 'function') state.root.setAttribute('aria-busy', 'true'); else if (!state.busy && typeof state.root.removeAttribute === 'function') state.root.removeAttribute('aria-busy');
             state.root.querySelectorAll('[data-teacher-action="refresh"], [data-teacher-api-base]').forEach((control) => {
                 control.disabled = state.busy;
             });
@@ -2875,7 +2876,7 @@
         module.exports = {
             state,
             reconcileConfirmedWrite,
-            lockConfirmedWrite
+            lockConfirmedWrite, setBusy
         };
     }
 })();
