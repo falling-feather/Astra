@@ -53,6 +53,12 @@ function createMountHarness(options = {}) {
   let readyCalls = 0;
   let mountCalls = 0;
   let sessionUser = { id: 7, role: 'student' };
+  let providerSnapshotImpl = options.providerSnapshot || (() => Object.freeze({
+    class_id: 12,
+    classes: Object.freeze([{ id: 12 }]),
+    identity_id: '7',
+    authority_generation: 5,
+  }));
   const eventHandlers = new Map();
   const readyImpl = options.ready || (async () => contextValue);
   const controller = options.controller === null ? null : {
@@ -128,6 +134,7 @@ function createMountHarness(options = {}) {
         return providerImpl(mapping, providerCalls.length, requestOptions);
       },
       sameLearningEvidenceAuthority: sameAuthority,
+      snapshot() { return providerSnapshotImpl(); },
     },
     AstraLearningEvidenceClient: {
       async pendingFor(scope) {
@@ -182,6 +189,7 @@ function createMountHarness(options = {}) {
     get mountCalls() { return mountCalls; },
     setPendingImpl(next) { pendingImpl = next; },
     setProviderImpl(next) { providerImpl = next; },
+    setProviderSnapshotImpl(next) { providerSnapshotImpl = next; },
     setPermit(next) { permit = Boolean(next); },
     setCommandReady(next) { commandReady = Boolean(next); },
     setUser(next) { sessionUser = next; },
@@ -359,6 +367,7 @@ function createColdReloadRaceHarness() {
         type: 'astra:student-catalogue-ready',
         detail: { role: 'student', phase: 'ready' },
       });
+      publication.prepare(sessionUser).catch(() => {});
     },
   };
 }
@@ -589,6 +598,82 @@ async function testBoundedRecoveryCancellation() {
   assert.equal(lateGeneration.controllerDestroyed, 1);
 }
 
+async function testFirstCanonicalLoadWaitsForPublicationAuthority() {
+  let publicationReady = false;
+  let attempts = 0;
+  const warmingSnapshot = () => Object.freeze({
+    class_id: publicationReady ? 12 : null,
+    classes: Object.freeze(publicationReady ? [{ id: 12 }] : []),
+    identity_id: '7',
+    authority_generation: publicationReady ? 5 : 4,
+  });
+  const coldLoad = createMountHarness({
+    providerSnapshot: warmingSnapshot,
+    ready: async () => {
+      attempts += 1;
+      if (!publicationReady) throw codedError('publication_context_unavailable');
+      return exactContext();
+    },
+  });
+  await settle();
+  assert.equal(coldLoad.readyCalls, 1);
+  setTimeout(() => { publicationReady = true; }, 320);
+  await wait(250);
+  assert.equal(
+    coldLoad.readyCalls,
+    1,
+    'a lost catalogue-ready event must not spend the only retry before publication authority is ready'
+  );
+  await wait(300);
+  await settle();
+  assert.equal(coldLoad.readyCalls, 2, 'the existing controller may initialize once after authority stabilizes');
+  assert.equal(coldLoad.mountCalls, 1, 'first-load recovery must not duplicate the evidence DOM mount');
+  assert.equal(coldLoad.ownerCalls.filter(call => call.type === 'bound').length, 1);
+  assert.equal(coldLoad.ownerCalls.some(call => call.type === 'blocked'), false);
+  assert.equal(attempts, 2);
+
+  const permanentlyWarming = createMountHarness({
+    providerSnapshot: () => Object.freeze({
+      class_id: null,
+      classes: Object.freeze([]),
+      identity_id: '7',
+      authority_generation: 4,
+    }),
+    ready: async () => { throw codedError('publication_context_unavailable'); },
+  });
+  await wait(2700);
+  await settle();
+  assert.equal(permanentlyWarming.readyCalls, 1, 'an unstable publication owner must not be polled through controller.ready');
+  assert.deepEqual(
+    permanentlyWarming.ownerCalls.filter(call => call.type === 'blocked').map(call => call.code),
+    ['publication_context_unavailable']
+  );
+
+  for (const invalidation of ['route', 'identity']) {
+    const cancelled = createMountHarness({
+      providerSnapshot: () => Object.freeze({
+        class_id: null,
+        classes: Object.freeze([]),
+        identity_id: '7',
+        authority_generation: 4,
+      }),
+      ready: async () => { throw codedError('publication_context_unavailable'); },
+    });
+    await settle();
+    if (invalidation === 'route') {
+      cancelled.selector._beginModuleTransition('physics');
+      cancelled.selector.activeModule.physics = null;
+      cancelled.windowObject.location.hash = '#physics';
+    } else {
+      cancelled.setUser({ id: 8, role: 'student' });
+    }
+    await wait(180);
+    assert.equal(cancelled.readyCalls, 1, `${invalidation} invalidation must cancel provider readiness waiting`);
+    assert.equal(cancelled.ownerCalls.some(call => call.type === 'bound' || call.type === 'blocked'), false);
+    assert.equal(cancelled.controllerDestroyed, 1);
+  }
+}
+
 async function testColdReloadPublicationRecovery() {
   const harness = createColdReloadRaceHarness();
   await settle(48);
@@ -600,7 +685,8 @@ async function testColdReloadPublicationRecovery() {
   assert.equal(harness.ownerCalls.some(call => call.type === 'blocked'), false, 'transient failure must remain recoverable');
 
   harness.setCatalogueReady();
-  await settle(96);
+  await wait(220);
+  await settle();
   assert.equal(harness.windowObject.location.hash, '#physics/mechanics', 'recovery must not require route churn');
   assert.equal(harness.windowObject.PhysicsSim.evidenceReady, true, 'stable authority must bind the existing Physics owner');
   assert.equal(harness.readyCalls, 2, 'cold reload recovery must retry controller.ready exactly once');
@@ -669,6 +755,7 @@ async function testPublicationAuthority() {
   await testMountBinding();
   await testMountFailures();
   await testBoundedRecoveryCancellation();
+  await testFirstCanonicalLoadWaitsForPublicationAuthority();
   await testColdReloadPublicationRecovery();
   await testPublicationAuthority();
   console.log('physics mechanics binding contract: mount/reload-recovery/manual/provider/route/identity/generation gates ok');
