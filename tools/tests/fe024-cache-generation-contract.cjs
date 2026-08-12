@@ -5,8 +5,8 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260812v824PublicationRouteP0';
-const moduleGeneration = '20260812v819PhysicsFirstLoadP0';
+const generation = '20260812v826PhysicsBindOrderP0';
+const moduleGeneration = '20260812v825PhysicsBindOrderP0';
 const studentGeneration = '20260812v817RoleFeedbackP0';
 const frontierGeneration = '20260812v814FlagshipMotionP0';
 
@@ -57,7 +57,7 @@ function testStaticGenerationChain() {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`),
-      `index direct boot must request ${asset}.js from the V818 generation`,
+      `index direct boot must request ${asset}.js from the V826 generation`,
     );
   }
   assert.match(router, new RegExp(`shared/js/module-selector\\.js\\?v=${moduleGeneration}`));
@@ -86,20 +86,20 @@ function testStaticGenerationChain() {
     assert.match(
       serviceWorker,
       new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`),
-      `service-worker app shell must precache ${asset}.js from the V818 generation`,
+      `service-worker app shell must precache ${asset}.js from the V826 generation`,
     );
   }
   for (const document of [developerDoc, frontendDoc]) {
     assert.match(document, new RegExp(generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
     assert.match(document, /ARCH-004/);
-    const v824EvidenceLine = document
+    const v826EvidenceLine = document
       .split(/\r?\n/)
-      .find((line) => line.includes('V8.0.24') && line.includes(generation));
-    assert.ok(v824EvidenceLine, 'V8.0.24 documentation must identify the exact V824 cache generation');
-    assert.match(v824EvidenceLine, /QA-022/);
-    assert.match(v824EvidenceLine, /V822→V824/);
-    assert.match(v824EvidenceLine, /QA-022[\s\S]*(?:待同 revision 复验|PASS)/);
+      .find((line) => line.includes('V8.0.26') && line.includes(generation));
+    assert.ok(v826EvidenceLine, 'V8.0.26 documentation must identify the exact V826 cache generation');
+    assert.match(v826EvidenceLine, /QA-022/);
+    assert.match(v826EvidenceLine, /V824→V826/);
+    assert.match(v826EvidenceLine, /QA-022[\s\S]*(?:待同 revision 复验|PASS)/);
   }
 }
 
@@ -146,7 +146,7 @@ async function testAppSessionCreatesVersionedLoader() {
   await context.__fe024EnsureLearningEvidenceLoader();
   assert.deepEqual(createdScripts, [
     `https://astra.test/shared/js/learning-evidence-loader.js?v=${generation}`,
-  ], 'app-session must propagate its exact V818 query to the loader it actually creates');
+  ], 'app-session must propagate its exact V826 query to the loader it actually creates');
 }
 
 async function testLoaderCreatesVersionedChildren() {
@@ -212,7 +212,7 @@ async function testLoaderCreatesVersionedChildren() {
   await context.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true });
   assert.deepEqual(childScripts, Object.keys(ownerByFile).map((file) => (
     `https://astra.test/shared/js/${file}?v=${generation}`
-  )), 'loader must propagate V818 to every queue/client/status/catalog/engineering-context/activity script it creates');
+  )), 'loader must propagate V826 to every queue/client/status/catalog/engineering-context/activity script it creates');
 }
 
 async function run() {
