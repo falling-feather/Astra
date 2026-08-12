@@ -329,6 +329,19 @@
     color: #edc170;
 }
 
+/* Load-path presentation accents: the exact values remain owned by updateInfo(). */
+.fg-stage .truss-panel--reaction,
+.fg-stage .truss-panel--member,
+.fg-stage .truss-panel--load,
+.fg-stage .truss-panel--boundary {
+    border-top-width: 2px;
+}
+
+.fg-stage .truss-panel--reaction { border-top-color: rgba(79, 168, 163, 0.66); }
+.fg-stage .truss-panel--member { border-top-color: rgba(216, 163, 72, 0.62); }
+.fg-stage .truss-panel--load { border-top-color: rgba(100, 174, 219, 0.62); }
+.fg-stage .truss-panel--boundary { border-top-color: rgba(148, 163, 184, 0.48); }
+
 .engineering-note {
     display: grid;
     grid-template-columns: 28px 1fr;

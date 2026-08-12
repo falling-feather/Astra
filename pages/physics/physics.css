@@ -237,6 +237,65 @@
     box-shadow: 0 0 18px rgba(125, 211, 252, 0.3);
 }
 
+.mechanics-course__brief {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.7fr);
+    gap: 10px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid rgba(125, 211, 252, 0.22);
+    border-radius: 10px;
+    background: rgba(7, 25, 45, 0.7);
+}
+
+.mechanics-course__brief > div {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    padding: 10px 12px;
+    border-inline-start: 3px solid #7dd3fc;
+    background: rgba(14, 116, 144, 0.1);
+}
+
+.mechanics-course__brief span,
+.mechanics-course__coach > span,
+.mechanics-course__comparison header span,
+.mechanics-course__conclusion span {
+    color: #7dd3fc;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.mechanics-course__brief strong,
+.mechanics-course__coach > strong,
+.mechanics-course__comparison header strong,
+.mechanics-course__conclusion strong {
+    color: #f0f9ff;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.mechanics-course__brief dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+}
+
+.mechanics-course__brief dl > div {
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid rgba(148, 163, 184, 0.13);
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.3);
+}
+
+.mechanics-course__brief dt { color: #94a3b8; font-size: 0.64rem; }
+.mechanics-course__brief dd { margin: 4px 0 0; color: #dbeafe; font: 600 0.69rem/1.45 var(--font-mono); }
+
 .mechanics-course__locks {
     display: grid;
     grid-template-columns: minmax(150px, 0.7fr) minmax(0, 2.3fr);
@@ -302,6 +361,21 @@
     font: 600 0.7rem var(--font-mono);
     overflow-wrap: anywhere;
 }
+
+.mechanics-course__coach {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid rgba(125, 211, 252, 0.24);
+    border-inline-start: 3px solid #7dd3fc;
+    border-radius: 10px;
+    background: rgba(7, 29, 49, 0.7);
+}
+
+.mechanics-course__coach p { margin: 0; color: #aebfd5; font-size: 0.76rem; line-height: 1.65; }
+.mechanics-course__coach ul,
+.mechanics-course__conclusion ul { display: grid; gap: 5px; margin: 1px 0 0; padding-left: 18px; color: #b8c7da; font-size: 0.72rem; line-height: 1.55; }
 
 .mechanics-course[data-mechanics-stage] .mechanics-course__stage {
     position: relative;
@@ -489,6 +563,25 @@
     overscroll-behavior-inline: contain;
 }
 
+.mechanics-course__comparison {
+    margin-top: var(--space-4);
+    padding: 14px;
+    border: 1px solid rgba(52, 211, 153, 0.28);
+    border-radius: 10px;
+    background: rgba(5, 38, 39, 0.56);
+}
+
+.mechanics-course__comparison[hidden],
+.mechanics-course__conclusion[hidden] { display: none; }
+.mechanics-course__comparison header { display: grid; gap: 5px; margin-bottom: 10px; }
+.mechanics-course__comparison-actual { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mechanics-course__comparison-actual article { display: grid; gap: 5px; min-width: 0; padding: 11px; border: 1px solid rgba(125, 211, 252, 0.18); border-radius: 8px; background: rgba(2, 8, 23, 0.42); }
+.mechanics-course__comparison-actual span { color: #9db0c7; font-size: 0.66rem; }
+.mechanics-course__comparison-actual strong { color: #ecfeff; font: 700 1.05rem var(--font-mono); }
+.mechanics-course__comparison-actual small { color: #7dd3fc; font: 600 0.72rem var(--font-mono); }
+.mechanics-course__comparison p { margin: 10px 0 4px; padding: 10px; color: #b9d8d1; background: rgba(2, 19, 25, 0.48); border-inline-start: 2px solid #34d399; font-size: 0.72rem; line-height: 1.65; }
+.mechanics-course__comparison > div > small { color: #8fa7bb; font-size: 0.68rem; }
+
 .mechanics-course table {
     width: 100%;
     min-width: 520px;
@@ -547,6 +640,18 @@
     margin-bottom: 0;
     font-size: var(--text-sm);
 }
+
+.mechanics-course__conclusion {
+    margin-top: var(--space-4);
+    padding: 14px;
+    border: 1px solid rgba(52, 211, 153, 0.28);
+    border-radius: 10px;
+    background: rgba(5, 38, 39, 0.5);
+}
+
+.mechanics-course__conclusion > div { display: grid; gap: 8px; }
+.mechanics-course__conclusion p { margin: 2px 0 0; padding: 10px; color: #b9d8d1; background: rgba(2, 19, 25, 0.5); border-inline-start: 2px solid #34d399; font-size: 0.72rem; line-height: 1.65; }
+.mechanics-course__conclusion > div > small { color: #86aaa4; font-size: 0.68rem; line-height: 1.55; }
 
 .mechanics-free-explore-heading {
     min-width: 0;
@@ -1059,7 +1164,10 @@
 
 @media (max-width: 480px) {
     .mechanics-course__fields,
-    .mechanics-course__trial-grid {
+    .mechanics-course__trial-grid,
+    .mechanics-course__brief,
+    .mechanics-course__brief dl,
+    .mechanics-course__comparison-actual {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -1079,6 +1187,12 @@
 
     .mechanics-course {
         padding: 10px;
+    }
+
+    .mechanics-course__coach,
+    .mechanics-course__comparison,
+    .mechanics-course__conclusion {
+        padding: 12px;
     }
 
     .mechanics-course__progress {

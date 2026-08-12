@@ -78,6 +78,74 @@
         );
     }
 
+    // Pure presentation projection: it only reads exact observations already owned by the
+    // controlled flow. It never solves, records evidence or advances the course state.
+    function buildLoadPathStory(stage, observations) {
+        const snapshots = observations || {};
+        const hasB = validObservation(snapshots.B, 'B');
+        const hasC = validObservation(snapshots.C, 'C');
+        const hasD = validObservation(snapshots.D, 'D');
+        const stories = {
+            prediction: {
+                title: '先锁定比较条件，再写下预测',
+                cue: '荷载、杆件数量与理想模型保持不变；此刻只提交推理，不读取反力、杆力或趋势答案。',
+                checks: ['确认唯一变量是荷载节点', '分别预测支座反力、GH 与 CD 的变化', '用节点平衡或载荷路径写出理由']
+            },
+            predicted: {
+                title: '运行 B，建立可复查的基线',
+                cue: '观察完整求解后再记录：Aᵧ / Eᵧ、GH / CD 的正负号与类型，以及平衡残差。',
+                checks: ['确认荷载仍为 60 kN', '先读数值，再读受拉 / 受压类型', '残差接近零才把本次作为基线']
+            },
+            'observed-b': {
+                title: '只把荷载节点由 B 改为 C',
+                cue: '保持 60 kN、完整 15 杆和理想二维铰接模型不变，观察同一组指标如何重分配。',
+                checks: ['对齐比较 Aᵧ 与 Eᵧ', '比较 |GH| 与 |CD|', '再次检查两个方向的平衡残差']
+            },
+            'observed-c': {
+                title: '先用 B / C 实测作判断',
+                cue: '变化摘要只消费上方两次 exact solve；颜色与过渡动画负责解释过程，不进入证据。',
+                checks: ['用反力差描述支座分配', '用绝对值比较杆力强弱', '把符号对应到受拉 / 受压']
+            },
+            assessed: {
+                title: '运行 D，检查“镜像”说法的边界',
+                cue: 'D 是独立完整求解。请逐项核对支座反力、GH 与 CD，不凭画面对称推定数值。',
+                checks: ['核对 Aᵧ / Eᵧ 是否互换', '核对 GH 是否复现基线', '单独核对 CD，避免过度概括']
+            },
+            'observed-d': {
+                title: '三组观察齐全，收束模型结论',
+                cue: '现在可以用 B / C / D 的 exact solve 说明平衡重分配，并明确该模型不能替代真实结构安全校核。',
+                checks: ['结论必须引用三组观察', '区分支座镜像与杆力差异', '确认理想模型边界']
+            },
+            corrected: {
+                title: '把观察压缩成结构化解释',
+                cue: '解释应同时包含反力、关键杆件、平衡依据与模型限制；页面不自行写入完成状态。',
+                checks: ['证据来自三次完整求解', '结论不依赖颜色', '完成状态交由服务端投影']
+            },
+            'waiting-server': {
+                title: '页面解释已提交，等待权威投影',
+                cue: '可复述下方三工况结论；本页保持只读，不新增证据，也不自行判定 completed。',
+                checks: ['回看三组 exact solve', '复述平衡重分配', '说明模型不能直接用于安全判断']
+            }
+        };
+        const active = stories[stage] || stories.prediction;
+        const complete = hasB && hasC && hasD;
+        const conclusion = complete ? {
+            title: '三工况结论 · exact solve',
+            facts: [
+                `B → C：支座反力差 |Aᵧ−Eᵧ| 从 ${Math.abs(snapshots.B.reaction_ay_kn - snapshots.B.reaction_ey_kn).toFixed(1)} kN 变为 ${Math.abs(snapshots.C.reaction_ay_kn - snapshots.C.reaction_ey_kn).toFixed(1)} kN。`,
+                `B → C：|GH| 从 ${Math.abs(snapshots.B.member_gh_kn).toFixed(1)} kN 变为 ${Math.abs(snapshots.C.member_gh_kn).toFixed(1)} kN，|CD| 从 ${Math.abs(snapshots.B.member_cd_kn).toFixed(1)} kN 变为 ${Math.abs(snapshots.C.member_cd_kn).toFixed(1)} kN。`,
+                `D：Aᵧ / Eᵧ = ${snapshots.D.reaction_ay_kn.toFixed(1)} / ${snapshots.D.reaction_ey_kn.toFixed(1)} kN，GH = ${snapshots.D.member_gh_kn.toFixed(1)} kN，CD = ${snapshots.D.member_cd_kn.toFixed(1)} kN；支座反力可作镜像核对，但不能把全部杆力概括为镜像。`
+            ],
+            boundary: '模型边界：结果只属于 60 kN、完整 15 杆、理想二维铰接桁架；未包含材料、屈曲、连接与安全系数，不能直接作为真实结构安全结论。',
+            receipt: stage === 'waiting-server'
+                ? '结构化解释已保存；completed 仍只由服务端规则投影。'
+                : stage === 'corrected'
+                ? '纠正已确认，结构化解释待提交；completed 仍只由服务端规则投影。'
+                : 'B / C / D 三次观察已齐，仅生成只读教学结论；纠正、解释与 completed 尚未完成。'
+        } : null;
+        return Object.freeze({ ...active, checks: Object.freeze(active.checks.slice()), conclusion });
+    }
+
     function validPrediction(value) {
         return Boolean(
             exactKeys(value, ['reaction_balance_id', 'gh_change_id', 'cd_change_id', 'reason_size'])
@@ -677,20 +745,68 @@
                     </ol>`;
                 root.insertBefore(progress, root.firstChild || null);
             }
-            if (root.querySelector('[data-load-path-delta]')) return;
-            const delta = document.createElement('aside');
-            delta.className = 'fg-load-path__delta';
-            delta.dataset.loadPathDelta = 'true';
-            delta.hidden = true;
-            delta.innerHTML = `
-                <span>B → C 可观察变化</span>
-                <div data-load-path-delta-copy></div>
-                <p>数值来自上方两次完整求解；颜色和过渡动画不作为学习证据。</p>`;
-            const table = root.querySelector('.fg-load-path__table-wrap');
-            if (table && table.parentNode && typeof table.parentNode.insertBefore === 'function') {
-                table.parentNode.insertBefore(delta, table.nextSibling || null);
-            } else if (typeof root.appendChild === 'function') {
-                root.appendChild(delta);
+            const progress = root.querySelector('[data-load-path-progress]');
+            if (!root.querySelector('[data-load-path-brief]')) {
+                const brief = document.createElement('section');
+                brief.className = 'fg-load-path__brief';
+                brief.dataset.loadPathBrief = 'true';
+                brief.setAttribute('aria-label', '课程目标与受控条件');
+                brief.innerHTML = `
+                    <div><span>课程目标</span><strong>用三次完整求解解释荷载路径如何重分配</strong><p>最终产出：预测、B / C / D 观察、平衡判断、模型边界与结构化解释。</p></div>
+                    <dl>
+                        <div><dt>唯一变量</dt><dd>荷载节点 B → C → D</dd></div>
+                        <div><dt>固定条件</dt><dd>60 kN · 完整 15 杆</dd></div>
+                        <div><dt>模型</dt><dd>理想二维铰接桁架</dd></div>
+                    </dl>`;
+                root.insertBefore(brief, progress && progress.nextSibling || root.firstChild || null);
+            }
+            if (!root.querySelector('[data-load-path-coach]')) {
+                const coach = document.createElement('aside');
+                coach.className = 'fg-load-path__coach';
+                coach.dataset.loadPathCoach = 'true';
+                coach.setAttribute('aria-live', 'polite');
+                coach.innerHTML = `
+                    <span>当前讲解</span>
+                    <strong data-load-path-coach-title></strong>
+                    <p data-load-path-coach-cue></p>
+                    <ul data-load-path-coach-checks></ul>`;
+                const firstStep = root.querySelector('.fg-load-path__step');
+                root.insertBefore(coach, firstStep || null);
+            }
+            let delta = root.querySelector('[data-load-path-delta]');
+            if (!delta) {
+                delta = document.createElement('aside');
+                delta.className = 'fg-load-path__delta';
+                delta.dataset.loadPathDelta = 'true';
+                delta.hidden = true;
+                delta.innerHTML = `
+                    <span>B → C 可观察变化</span>
+                    <div data-load-path-delta-copy></div>
+                    <p>数值来自上方两次完整求解；颜色和过渡动画不作为学习证据。</p>`;
+                const table = root.querySelector('.fg-load-path__table-wrap');
+                if (table && table.parentNode && typeof table.parentNode.insertBefore === 'function') {
+                    table.parentNode.insertBefore(delta, table.nextSibling || null);
+                } else if (typeof root.appendChild === 'function') {
+                    root.appendChild(delta);
+                }
+            }
+            if (!root.querySelector('[data-load-path-conclusion]')) {
+                const conclusion = document.createElement('section');
+                conclusion.className = 'fg-load-path__conclusion';
+                conclusion.dataset.loadPathConclusion = 'true';
+                conclusion.hidden = true;
+                conclusion.setAttribute('aria-label', '三工况结论与模型边界');
+                conclusion.innerHTML = `
+                    <span>结课收束</span>
+                    <strong data-load-path-conclusion-title></strong>
+                    <ul data-load-path-conclusion-facts></ul>
+                    <p data-load-path-conclusion-boundary></p>
+                    <small data-load-path-conclusion-receipt></small>`;
+                if (delta.parentNode && typeof delta.parentNode.insertBefore === 'function') {
+                    delta.parentNode.insertBefore(conclusion, delta.nextSibling || null);
+                } else if (typeof root.appendChild === 'function') {
+                    root.appendChild(conclusion);
+                }
             }
         },
 
@@ -740,6 +856,25 @@
                     <strong><small>反力差 |Aᵧ−Eᵧ|</small>${spreadB.toFixed(1)} → ${spreadC.toFixed(1)} kN</strong>
                     <strong><small>|GH|</small>${Math.abs(baseline.member_gh_kn).toFixed(1)} → ${Math.abs(changed.member_gh_kn).toFixed(1)} kN <em>+${ghDelta.toFixed(1)}</em></strong>
                     <strong><small>|CD|</small>${Math.abs(baseline.member_cd_kn).toFixed(1)} → ${Math.abs(changed.member_cd_kn).toFixed(1)} kN <em>+${cdDelta.toFixed(1)}</em></strong>`;
+            }
+            const story = buildLoadPathStory(stage, flowState.observations);
+            const coachTitle = root.querySelector('[data-load-path-coach-title]');
+            const coachCue = root.querySelector('[data-load-path-coach-cue]');
+            const coachChecks = root.querySelector('[data-load-path-coach-checks]');
+            if (coachTitle) coachTitle.textContent = story.title;
+            if (coachCue) coachCue.textContent = story.cue;
+            if (coachChecks) coachChecks.innerHTML = story.checks.map(item => `<li>${item}</li>`).join('');
+            const conclusion = root.querySelector('[data-load-path-conclusion]');
+            if (conclusion) conclusion.hidden = !story.conclusion;
+            if (story.conclusion) {
+                const conclusionTitle = root.querySelector('[data-load-path-conclusion-title]');
+                const conclusionFacts = root.querySelector('[data-load-path-conclusion-facts]');
+                const conclusionBoundary = root.querySelector('[data-load-path-conclusion-boundary]');
+                const conclusionReceipt = root.querySelector('[data-load-path-conclusion-receipt]');
+                if (conclusionTitle) conclusionTitle.textContent = story.conclusion.title;
+                if (conclusionFacts) conclusionFacts.innerHTML = story.conclusion.facts.map(item => `<li>${item}</li>`).join('');
+                if (conclusionBoundary) conclusionBoundary.textContent = story.conclusion.boundary;
+                if (conclusionReceipt) conclusionReceipt.textContent = story.conclusion.receipt;
             }
             if (this.canvas && typeof this.canvas.setAttribute === 'function') {
                 const labels = {
@@ -1185,22 +1320,22 @@
                 ? `${nearZero.slice(0, 3).join('、')}${nearZero.length > 3 ? ' 等' : ''}`
                 : '当前工况不明显';
             this.infoRoot.innerHTML = `
-                <div class="truss-panel">
+                <div class="truss-panel truss-panel--reaction">
                     <span class="truss-panel__label">支座反力</span>
                     <strong>A_y ${left} kN / E_y ${right} kN</strong>
                     <p>整体平衡先满足 ΣFy = 0 与 ΣM = 0；荷载越靠近一侧，该侧反力通常越大。</p>
                 </div>
-                <div class="truss-panel">
+                <div class="truss-panel truss-panel--member">
                     <span class="truss-panel__label">最大杆力</span>
                     <strong>${critical.name} · ${Math.abs(critical.force).toFixed(1)} kN · ${typeLabel}</strong>
                     <p>未知杆力先按受拉建立；计算方向相反时显示为受压，线宽随轴力大小变化。</p>
                 </div>
-                <div class="truss-panel">
+                <div class="truss-panel truss-panel--load">
                     <span class="truss-panel__label">当前荷载</span>
                     <strong>${this.state.load} kN 作用于 ${loadJoint} 节点</strong>
                     <p>节点法在每个铰接点列 ΣFx = 0、ΣFy = 0，因此本页只把荷载施加在节点上。</p>
                 </div>
-                <div class="truss-panel">
+                <div class="truss-panel truss-panel--boundary">
                     <span class="truss-panel__label">近零杆件</span>
                     <strong>${zeroText}</strong>
                     <p>近零只针对当前荷载位置；真实桥梁的移动荷载、风载和自重可能让这些杆件重新受力。</p>

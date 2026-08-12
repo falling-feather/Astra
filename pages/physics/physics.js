@@ -27,6 +27,104 @@ const MECHANICS_AUTHORITY_ERRORS = new Set([
     'cancelled'
 ]);
 
+function validMechanicsMeasurement(value, restitution) {
+    return Boolean(
+        value
+        && value.restitution === restitution
+        && value.dropHeight === 200
+        && Number.isFinite(value.reboundHeight)
+        && value.reboundHeight >= 0
+        && value.reboundHeight <= 200
+        && Number.isFinite(value.ratio)
+        && Math.abs(value.ratio - Number((value.reboundHeight / 200).toFixed(2))) <= 0.001
+    );
+}
+
+// Pure presentation projection. Measurements remain owned by the real physics loop;
+// this helper only turns confirmed first-peak snapshots into teaching language.
+function buildMechanicsStory(stage, measurements) {
+    const actual = measurements || {};
+    const measure040 = validMechanicsMeasurement(actual['0.40'], 0.40) ? actual['0.40'] : null;
+    const measure080 = validMechanicsMeasurement(actual['0.80'], 0.80) ? actual['0.80'] : null;
+    const stories = {
+        [MECHANICS_STAGE.P0]: {
+            title: '先预测，再释放第一组小球',
+            cue: '只根据“唯一改变 e”写下方向与理由；预测提交前不展示峰值、比例或理论关系。',
+            checks: ['确认 H、g、r、vₓ 与阻尼全部锁定', '预测哪一组第一反弹峰值更高', '写下可由两次测量检验的理由']
+        },
+        [MECHANICS_STAGE.P1]: {
+            title: '运行 e=0.40，观察真实运动过程',
+            cue: '沿画布读出释放、第一次碰撞、回弹上升与第一峰值；页面以真实 loop 捕获峰值。',
+            checks: ['释放高度保持 200 px', '只记录第一次回弹峰值 h', '用实测 h 计算本行 h/H']
+        },
+        [MECHANICS_STAGE.P2]: {
+            title: '让真实 loop 完成第一峰值捕获',
+            cue: '不要重复操作；依次观察下降、碰撞、上升与峰值反馈，证据只取最终真实测量。',
+            checks: ['观察垂直运动方向', '等待第一峰值静止', '以等价测量表为记录出口']
+        },
+        [MECHANICS_STAGE.P3]: {
+            title: '保留第一行，只把 e 改为 0.80',
+            cue: '第二次实验仍使用相同 H、g、r、vₓ 与阻尼；比较对象仍是第一次回弹峰值。',
+            checks: ['确认第一行已经记录', '核对只有 e 改变', '按同一观察口径运行第二组']
+        },
+        [MECHANICS_STAGE.P4]: {
+            title: '用同一口径捕获第二个真实峰值',
+            cue: '等待真实 loop 完成，不用画面高度猜数；最终读数来自第二行测量。',
+            checks: ['观察同样四个运动阶段', '等待峰值捕获反馈', '将两行实测并排比较']
+        },
+        [MECHANICS_STAGE.P5]: {
+            title: '先读页面实测，再查看理想参照',
+            cue: '两行 h 与 h/H 来自本轮真实测量；理想关系只帮助解释量级，不能替换任何实测峰值。',
+            checks: ['比较两行真实 h', '比较两行真实 h/H', '把 h/H≈e² 标注为理想参照']
+        },
+        [MECHANICS_STAGE.P6]: {
+            title: '正在确认修正与模型边界',
+            cue: '保留两次页面实测，确认理想关系依赖固定落高、竖直碰撞与忽略空气阻力等条件。',
+            checks: ['不改写实测数值', '明确像素是页面模型单位', '确认理想化适用范围']
+        },
+        [MECHANICS_STAGE.P7]: {
+            title: '把真实测量、理想参照与边界写成解释',
+            cue: '结构化解释应先引用两行实测，再说明 h/H≈e² 的理想参照意义与本页模型限制。',
+            checks: ['引用本轮两次真实峰值', '区分实测与理想参照', '说明不能直接外推材料性能']
+        },
+        [MECHANICS_STAGE.P8]: {
+            title: '结课解释已提交，等待服务端投影',
+            cue: '可用下方收束卡复述结论；本页不新增证据，也不自行判定 completed。',
+            checks: ['复述唯一变量与固定量', '复述真实测量差异', '复述模型边界']
+        }
+    };
+    const active = stories[stage] || stories[MECHANICS_STAGE.P0];
+    const hasPair = Boolean(measure040 && measure080);
+    const comparison = hasPair ? Object.freeze({
+        actual: Object.freeze([
+            Object.freeze({ restitution: '0.40', height: measure040.reboundHeight, ratio: measure040.ratio }),
+            Object.freeze({ restitution: '0.80', height: measure080.reboundHeight, ratio: measure080.ratio })
+        ]),
+        ideal: Object.freeze([
+            Object.freeze({ restitution: '0.40', ratio: 0.16 }),
+            Object.freeze({ restitution: '0.80', ratio: 0.64 })
+        ]),
+        heightMultiple: measure040.reboundHeight > 0
+            ? Number((measure080.reboundHeight / measure040.reboundHeight).toFixed(2))
+            : null
+    }) : null;
+    const conclusion = comparison && [MECHANICS_STAGE.P7, MECHANICS_STAGE.P8].includes(stage)
+        ? Object.freeze({
+            title: '结课收束 · 真实测量优先',
+            facts: Object.freeze([
+                `页面实测：e=0.40 的第一峰值为 ${measure040.reboundHeight.toFixed(1)} px（h/H=${measure040.ratio.toFixed(2)}）。`,
+                `页面实测：e=0.80 的第一峰值为 ${measure080.reboundHeight.toFixed(1)} px（h/H=${measure080.ratio.toFixed(2)}）。`,
+                '理想参照 h/H≈e² 用于解释同一受控模型内的量级关系，不覆盖上述真实峰值。'
+            ]),
+            boundary: '模型边界：H=200 px、g=980 px/s²、r=16 px、vₓ=0、阻尼=0；像素不是 SI 单位，本页结果不能直接认证材料或真实碰撞性能。',
+            receipt: stage === MECHANICS_STAGE.P8
+                ? '结构化解释已获得同次记录回执；completed 仍只由服务端规则投影。'
+                : '课内修正已获得权威确认，结构化解释待提交；completed 仍只由服务端规则投影。'
+        })
+        : null;
+    return Object.freeze({ ...active, checks: Object.freeze(active.checks.slice()), comparison, conclusion });
+}
+
 const PhysicsSim = {
     canvas: null,
     ctx: null,
@@ -588,6 +686,22 @@ const PhysicsSim = {
                 const goal = root.querySelector('.mechanics-course__goal');
                 root.insertBefore(progress, goal && goal.nextSibling || root.firstChild || null);
             }
+            const progress = root.querySelector('[data-mechanics-progress]');
+            if (!root.querySelector('[data-mechanics-brief]')
+                && typeof root.insertBefore === 'function') {
+                const brief = document.createElement('section');
+                brief.className = 'mechanics-course__brief';
+                brief.dataset.mechanicsBrief = 'true';
+                brief.setAttribute('aria-label', '课程目标、观察产出与模型范围');
+                brief.innerHTML = `
+                    <div><span>学习产出</span><strong>两次真实第一峰值 + 一段有边界的关系解释</strong></div>
+                    <dl>
+                        <div><dt>操作</dt><dd>只改变 e=0.40 → 0.80</dd></div>
+                        <div><dt>观察</dt><dd>第一次回弹峰值 h 与 h/H</dd></div>
+                        <div><dt>边界</dt><dd>页面像素模型，不作材料认证</dd></div>
+                    </dl>`;
+                root.insertBefore(brief, progress || root.firstChild || null);
+            }
             if (!root.querySelector('[data-mechanics-locks]')
                 && typeof root.insertBefore === 'function') {
                 const locks = document.createElement('section');
@@ -605,6 +719,43 @@ const PhysicsSim = {
                     </dl>`;
                 const progress = root.querySelector('[data-mechanics-progress]');
                 root.insertBefore(locks, progress && progress.nextSibling || root.firstChild || null);
+            }
+            if (!root.querySelector('[data-mechanics-coach]')
+                && typeof root.insertBefore === 'function') {
+                const coach = document.createElement('aside');
+                coach.className = 'mechanics-course__coach';
+                coach.dataset.mechanicsCoach = 'true';
+                coach.setAttribute('aria-live', 'polite');
+                coach.innerHTML = `
+                    <span>当前讲解</span>
+                    <strong data-mechanics-coach-title></strong>
+                    <p data-mechanics-coach-cue></p>
+                    <ul data-mechanics-coach-checks></ul>`;
+                root.insertBefore(coach, root.querySelector('#mechanics-prediction') || null);
+            }
+            if (!root.querySelector('[data-mechanics-comparison]')) {
+                const comparison = document.createElement('section');
+                comparison.className = 'mechanics-course__comparison';
+                comparison.dataset.mechanicsComparison = 'true';
+                comparison.hidden = true;
+                comparison.setAttribute('aria-label', '两次真实测量与理想参照比较');
+                comparison.innerHTML = `<div data-mechanics-comparison-copy></div>`;
+                const table = root.querySelector('.mechanics-course__table-wrap');
+                if (table && table.parentNode && typeof table.parentNode.insertBefore === 'function') {
+                    table.parentNode.insertBefore(comparison, table.nextSibling || null);
+                }
+            }
+            if (!root.querySelector('[data-mechanics-conclusion]')) {
+                const conclusion = document.createElement('section');
+                conclusion.className = 'mechanics-course__conclusion';
+                conclusion.dataset.mechanicsConclusion = 'true';
+                conclusion.hidden = true;
+                conclusion.setAttribute('aria-label', '结课结论与模型边界');
+                conclusion.innerHTML = `<div data-mechanics-conclusion-copy></div>`;
+                const handoff = root.querySelector('.mechanics-course__handoff');
+                if (handoff && handoff.parentNode && typeof handoff.parentNode.insertBefore === 'function') {
+                    handoff.parentNode.insertBefore(conclusion, handoff);
+                }
             }
         }
         const visual = this.canvas && this.canvas.parentElement;
@@ -650,6 +801,36 @@ const PhysicsSim = {
                     item.removeAttribute('aria-current');
                 }
             });
+        }
+        const story = buildMechanicsStory(state.stage, state.measurements);
+        const coachTitle = root.querySelector('[data-mechanics-coach-title]');
+        const coachCue = root.querySelector('[data-mechanics-coach-cue]');
+        const coachChecks = root.querySelector('[data-mechanics-coach-checks]');
+        if (coachTitle) coachTitle.textContent = story.title;
+        if (coachCue) coachCue.textContent = story.cue;
+        if (coachChecks) coachChecks.innerHTML = story.checks.map(item => `<li>${item}</li>`).join('');
+        const comparison = root.querySelector('[data-mechanics-comparison]');
+        const comparisonCopy = root.querySelector('[data-mechanics-comparison-copy]');
+        if (comparison) comparison.hidden = !story.comparison;
+        if (story.comparison && comparisonCopy) {
+            const actualRows = story.comparison.actual.map(item => `
+                <article><span>页面真实测量 · e=${item.restitution}</span><strong>${item.height.toFixed(1)} px</strong><small>h/H=${item.ratio.toFixed(2)}</small></article>`).join('');
+            const idealRows = story.comparison.ideal.map(item => `e=${item.restitution} → ${item.ratio.toFixed(2)}`).join(' · ');
+            comparisonCopy.innerHTML = `
+                <header><span>观察差异</span><strong>先读真实测量，再对照理想关系</strong></header>
+                <div class="mechanics-course__comparison-actual">${actualRows}</div>
+                <p><b>理想参照 h/H≈e²：</b>${idealRows}。参照值不覆盖真实峰值；数值偏差保留为页面积分与峰值采样的真实表现。</p>
+                ${story.comparison.heightMultiple === null ? '' : `<small>本轮页面实测峰值倍数：${story.comparison.heightMultiple.toFixed(2)}×</small>`}`;
+        }
+        const conclusion = root.querySelector('[data-mechanics-conclusion]');
+        const conclusionCopy = root.querySelector('[data-mechanics-conclusion-copy]');
+        if (conclusion) conclusion.hidden = !story.conclusion;
+        if (story.conclusion && conclusionCopy) {
+            conclusionCopy.innerHTML = `
+                <span>结课收束</span><strong>${story.conclusion.title}</strong>
+                <ul>${story.conclusion.facts.map(item => `<li>${item}</li>`).join('')}</ul>
+                <p>${story.conclusion.boundary}</p>
+                <small>${story.conclusion.receipt}</small>`;
         }
     },
 
