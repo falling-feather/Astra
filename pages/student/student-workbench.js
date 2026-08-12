@@ -1295,9 +1295,21 @@
                     ? '进度暂不可用，可继续浏览已开放内容'
                     : '学习范围与进度已同步';
         const progressPercent = progress ? progress.percent : 0;
+        const goalLabel = resolvingTarget
+            ? '正在读取本节目标'
+            : target
+                ? target.title
+                : course && course.summary
+                    ? course.summary
+                    : '等待教师开放具体学习任务';
+        const outputLabel = target && target.kind === 'assignment'
+            ? '将形成本次作业提交与教师反馈记录'
+            : target
+                ? '将形成本节操作、观察与结论记录'
+                : '任务开放后将形成可保存的学习过程记录';
         container.hidden = false;
         container.innerHTML = `
-            <div class="student-focus-stage__context">
+            <div class="student-focus-stage__context student-focus-stage__story">
                 <span class="student-focus-stage__label">当前班课</span>
                 <div class="student-focus-stage__course">
                     <div>
@@ -1311,14 +1323,18 @@
                             ? '<button type="button" class="student-focus-stage__primary" disabled><i data-lucide="loader-circle"></i><span>正在读取学习任务</span></button>'
                             : '<button type="button" class="student-focus-stage__primary" disabled><i data-lucide="lock-keyhole"></i><span>等待教师开放</span></button>'}
                 </div>
+                <div class="student-focus-stage__brief" aria-label="本节学习说明">
+                    <div class="student-focus-stage__goal"><span>本节目标</span><strong>${escapeHtml(goalLabel)}</strong></div>
+                    <div class="student-focus-stage__output"><span>预计产出</span><strong>${escapeHtml(outputLabel)}</strong></div>
+                </div>
             </div>
-            <div class="student-focus-stage__next" role="status" aria-live="polite">
+            <div class="student-focus-stage__next student-focus-stage__action" role="status" aria-live="polite">
                 <span class="student-focus-stage__label">下一步</span>
                 <strong>${escapeHtml(resolvingTarget ? '正在同步可进入的学习任务' : target ? target.title : '当前没有可进入的学习任务')}</strong>
                 <small>${escapeHtml(resolvingTarget ? '读取完成后将显示当前班课的下一动作' : target ? target.detail : '教师开放课程或作业后会在这里出现')}</small>
             </div>
-            <div class="student-focus-stage__progress">
-                <span class="student-focus-stage__label">课程进度</span>
+            <div class="student-focus-stage__progress student-focus-stage__receipt">
+                <span class="student-focus-stage__label">完成回执</span>
                 <strong>${progress ? `${formatNumber(progress.completed)} / ${formatNumber(progress.total)}` : '--'}</strong>
                 <div aria-label="课程完成 ${progressPercent}%"><span style="width:${progressPercent}%"></span></div>
                 <small>${escapeHtml(syncLabel)}</small>

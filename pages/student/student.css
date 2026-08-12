@@ -677,6 +677,44 @@
     white-space: nowrap;
 }
 
+.student-focus-stage__brief {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(116, 151, 190, 0.14);
+}
+
+.student-focus-stage__goal,
+.student-focus-stage__output {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.student-focus-stage__output {
+    padding-left: 14px;
+    border-left: 1px solid rgba(116, 151, 190, 0.14);
+}
+
+.student-focus-stage__goal > span,
+.student-focus-stage__output > span {
+    color: #7f9ab5;
+    font-size: 0.64rem;
+    font-weight: 760;
+    letter-spacing: 0.06em;
+}
+
+.student-focus-stage__goal > strong,
+.student-focus-stage__output > strong {
+    min-width: 0;
+    color: #dceafb;
+    font-size: 0.76rem;
+    font-weight: 650;
+    line-height: 1.52;
+}
+
 .student-focus-stage__primary {
     display: inline-flex;
     flex: 0 0 auto;
@@ -697,7 +735,8 @@
     transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.student-focus-stage__primary:hover:not(:disabled) {
+.student-focus-stage__primary:hover:not(:disabled),
+.student-focus-stage__primary:focus-visible {
     border-color: #7dd8ff;
     background: rgba(23, 89, 124, 0.58);
     color: #f5fbff;
@@ -1749,12 +1788,12 @@
 
     .student-workbench {
         width: min(100% - 20px, 520px);
-        padding: 21px 0 34px;
+        padding: 16px 0 34px;
     }
 
     .student-workbench__header {
-        gap: 18px;
-        margin-bottom: 14px;
+        gap: 10px;
+        margin-bottom: 10px;
     }
 
     .student-workbench__title h1 {
@@ -1762,8 +1801,7 @@
     }
 
     .student-workbench__title p {
-        margin-top: 7px;
-        font-size: 0.88rem;
+        display: none;
     }
 
     .student-workbench__controls {
@@ -1778,6 +1816,20 @@
     .student-auth-state .astra-account__actions {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .student-auth-state .astra-account {
+        gap: 8px;
+        margin: 8px 0 10px;
+        padding: 10px;
+    }
+
+    .student-auth-state .astra-account__identity {
+        gap: 10px;
+    }
+
+    .student-auth-state .astra-account__identity em {
+        display: none;
     }
 
     .student-auth-state .astra-account__actions button {
@@ -1812,7 +1864,19 @@
     }
 
     .student-focus-stage__course p {
-        display: none;
+        margin-top: 5px;
+        font-size: 0.7rem;
+        line-height: 1.4;
+    }
+
+    .student-focus-stage__brief {
+        gap: 10px;
+        margin-top: 12px;
+        padding-top: 11px;
+    }
+
+    .student-focus-stage__output {
+        padding-left: 10px;
     }
 
     .student-focus-stage__primary {
