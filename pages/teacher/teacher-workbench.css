@@ -279,6 +279,44 @@
     white-space: nowrap;
 }
 
+.teacher-focus-stage__teaching-brief {
+    display: grid;
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    gap: 14px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(116, 151, 190, 0.14);
+}
+
+.teacher-focus-stage__goal,
+.teacher-focus-stage__output {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.teacher-focus-stage__output {
+    padding-left: 14px;
+    border-left: 1px solid rgba(116, 151, 190, 0.14);
+}
+
+.teacher-focus-stage__goal > span,
+.teacher-focus-stage__output > span {
+    color: #7f9ab5;
+    font-size: 0.64rem;
+    font-weight: 760;
+    letter-spacing: 0.06em;
+}
+
+.teacher-focus-stage__goal > strong,
+.teacher-focus-stage__output > strong {
+    min-width: 0;
+    color: #dceafb;
+    font-size: 0.75rem;
+    font-weight: 650;
+    line-height: 1.5;
+}
+
 .teacher-focus-stage__action {
     position: relative;
     display: grid;
@@ -444,6 +482,12 @@
     width: 15px;
     height: 15px;
     color: var(--teacher-success);
+}
+
+.teacher-focus-stage__receipt strong {
+    color: #cfe4f8;
+    font-size: 0.66rem;
+    letter-spacing: 0.05em;
 }
 
 .teacher-summary {
@@ -1237,6 +1281,14 @@
     .teacher-focus-stage__context h2,
     .teacher-focus-stage__context p {
         white-space: normal;
+    }
+
+    .teacher-focus-stage__teaching-brief {
+        gap: 10px;
+    }
+
+    .teacher-focus-stage__output {
+        padding-left: 10px;
     }
 
     .teacher-focus-stage__rail {

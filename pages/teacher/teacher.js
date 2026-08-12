@@ -686,8 +686,8 @@
         const course = selectedCourse(), classGroup = selectedClass();
         const plan = state.data.releasePlan && Array.isArray(state.data.releasePlan.items) ? state.data.releasePlan : null;
         const planItems = plan ? plan.items : [], openItems = planItems.filter((item) => item.effective_release_state === 'open');
-        const focusItem = openItems[0] || planItems[0] || null, focusUnit = focusItem && findById(state.data.units, focusItem.course_unit_id);
-        const pendingTotal = Math.max(0, Number(state.data.submissions.total || state.data.submissions.length) || 0);
+        const focusItem = openItems[0] || planItems[0] || null, focusUnit = focusItem && findById(state.data.units, focusItem.course_unit_id), selectedAssignment = findById(state.data.assignments, state.selected.assignmentId);
+        const pendingTotal = Math.max(0, Number(state.data.submissions.total || state.data.submissions.length) || 0), goalLabel = focusUnit ? focusUnit.title : selectedAssignment ? selectedAssignment.title : course && course.summary ? course.summary : '确认当前班课与开放节奏', outputLabel = selectedAssignment ? `将形成“${selectedAssignment.title}”的学生提交与教师反馈记录` : focusUnit ? `将形成“${focusUnit.title}”的开放、学习过程与反馈记录` : course ? '将形成本班课程节奏与学习反馈记录' : '选择班课后将形成可追踪的教学记录';
         const syncing = state.busy || state.mutationInFlight || state.evidenceMutationInFlight;
         const action = pendingTotal > 0
             ? { view: 'grading', label: '处理待反馈', detail: `${formatNumber(pendingTotal)} 份学生提交等待处理`, icon: 'message-square-text' }
@@ -709,10 +709,10 @@
             }).join('')}</ol>${planItems.length > 6 ? `<p>另有 ${formatNumber(planItems.length - 6)} 个课程分块，请进入课程节奏查看。</p>` : ''}`
             : '<p>确认班级与课程后，这里会呈现真实的课程开放轨道。</p>';
         container.innerHTML = `
-            <div class="teacher-focus-stage__context"><span class="teacher-focus-stage__label">当前班课</span><div><h2 id="teacher-focus-title">${escapeHtml(course ? course.title : '尚未选择课程')}</h2><p>${escapeHtml(classGroup ? classGroup.name : '尚未选择班级')}${focusUnit ? ` · 当前开放：${escapeHtml(focusUnit.title)}` : ''}</p></div></div>
+            <div class="teacher-focus-stage__context teacher-focus-stage__story"><span class="teacher-focus-stage__label">当前班课</span><div><h2 id="teacher-focus-title">${escapeHtml(course ? course.title : '尚未选择课程')}</h2><p>${escapeHtml(classGroup ? classGroup.name : '尚未选择班级')}${focusUnit ? ` · 当前开放：${escapeHtml(focusUnit.title)}` : ''}</p></div><div class="teacher-focus-stage__teaching-brief" aria-label="本节教学说明"><div class="teacher-focus-stage__goal"><span>本节目标</span><strong>${escapeHtml(goalLabel)}</strong></div><div class="teacher-focus-stage__output"><span>预计产出</span><strong>${escapeHtml(outputLabel)}</strong></div></div></div>
             <button type="button" class="teacher-focus-stage__action" data-teacher-view-target="${escapeAttr(action.view)}"><span><i data-lucide="${escapeAttr(action.icon)}"></i>下一教学动作</span><strong>${escapeHtml(action.label)}</strong><small>${escapeHtml(action.detail)}</small><i data-lucide="arrow-right"></i></button>
             <div class="teacher-focus-stage__rail" aria-label="当前课程发布轨道">${railMarkup}</div>
-            <div class="teacher-focus-stage__receipt" role="status"><i data-lucide="${!state.online ? 'wifi-off' : state.writeLock ? 'shield-alert' : syncing ? 'loader-circle' : 'circle-check'}"></i><span>${escapeHtml(statusLabel)}</span></div>
+            <div class="teacher-focus-stage__receipt" role="status"><i data-lucide="${!state.online ? 'wifi-off' : state.writeLock ? 'shield-alert' : syncing ? 'loader-circle' : 'circle-check'}"></i><strong>完成回执</strong><span>${escapeHtml(statusLabel)}</span></div>
         `;
     }
     function renderWriteLock() {
