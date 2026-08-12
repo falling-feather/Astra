@@ -479,6 +479,95 @@ function configureStudentPublication(harness, access) {
   assert.equal(failed.selector._transitionGeneration.physics, 0, 'failed cleanup must not advance generation');
   assert.equal(failed.timers.tasks.size, 1, 'failed cleanup must preserve current module tasks');
 
+  const coldBindingOrder = createHarness();
+  let coldOwnerReady = false;
+  let coldInitCalls = 0;
+  let coldMountCalls = 0;
+  let resolveColdAssets;
+  coldBindingOrder.selector._loadModuleAssets = () => new Promise(resolve => { resolveColdAssets = resolve; });
+  coldBindingOrder.registry.init = () => {
+    coldInitCalls += 1;
+    coldBindingOrder.order.push('cold-owner-init');
+    coldOwnerReady = true;
+    return true;
+  };
+  coldBindingOrder.selector._mountEvidenceRuntime = () => {
+    coldMountCalls += 1;
+    coldBindingOrder.order.push(coldOwnerReady ? 'cold-evidence-mount' : 'cold-evidence-before-owner');
+  };
+  coldBindingOrder.selector._focusExperiment = () => {};
+  coldBindingOrder.selector._showRelatedExperiments = () => {};
+  assert.equal(coldBindingOrder.selector.openModule('physics', 'mechanics'), true);
+  assert.equal(coldBindingOrder.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  assert.equal(coldMountCalls, 0, 'cold mechanics evidence must wait while owner assets are loading');
+  resolveColdAssets();
+  await settlePromises();
+  await coldBindingOrder.timers.drain();
+  assert.equal(coldInitCalls, 1, 'cold mechanics entry must initialize the owner once');
+  assert.equal(
+    coldMountCalls,
+    1,
+    'cold mechanics entry must mount one evidence runtime'
+  );
+  assert.equal(
+    coldBindingOrder.order.includes('cold-evidence-before-owner'),
+    false,
+    'cold mechanics entry must not mount evidence before the owner initializes'
+  );
+  assert.ok(
+    coldBindingOrder.order.indexOf('cold-owner-init') < coldBindingOrder.order.indexOf('cold-evidence-mount'),
+    'cold mechanics owner initialization must complete before evidence binding starts'
+  );
+
+  const reloadBindingOrder = createHarness();
+  let reloadEvidenceReady = false;
+  let reloadInitCalls = 0;
+  let reloadMountCalls = 0;
+  reloadBindingOrder.selector._loadModuleAssets = () => Promise.resolve();
+  reloadBindingOrder.registry.init = () => {
+    reloadInitCalls += 1;
+    reloadBindingOrder.order.push('reload-owner-init-reset');
+    reloadEvidenceReady = false;
+    return true;
+  };
+  reloadBindingOrder.selector._mountEvidenceRuntime = () => {
+    reloadMountCalls += 1;
+    reloadBindingOrder.order.push('reload-evidence-bind');
+    reloadEvidenceReady = true;
+  };
+  reloadBindingOrder.selector._focusExperiment = () => {};
+  reloadBindingOrder.selector._showRelatedExperiments = () => {};
+  assert.equal(reloadBindingOrder.selector.openModule('physics', 'mechanics'), true);
+  assert.equal(reloadBindingOrder.selector.openModule('physics', 'mechanics'), true);
+  await settlePromises();
+  await reloadBindingOrder.timers.drain();
+  assert.equal(reloadInitCalls, 1, 'cached mechanics entry must initialize the owner once');
+  assert.equal(reloadMountCalls, 1, 'reload mechanics entry must mount one evidence runtime');
+  assert.equal(reloadEvidenceReady, true, 'late owner initialization must not erase an established evidence binding');
+  assert.ok(
+    reloadBindingOrder.order.indexOf('reload-owner-init-reset') < reloadBindingOrder.order.indexOf('reload-evidence-bind'),
+    'reload mechanics owner reset must finish before evidence binding starts'
+  );
+
+  const initializedCompletion = createHarness();
+  activate(initializedCompletion, 'mechanics');
+  let initializedCompletionCalls = 0;
+  initializedCompletion.selector._initModule('physics', 'mechanics', 0, () => {
+    initializedCompletionCalls += 1;
+  });
+  assert.equal(initializedCompletionCalls, 1, 'an initialized current owner must complete synchronously');
+  assert.equal(initializedCompletion.getInitCalls(), 0, 'an initialized owner must not initialize twice');
+
+  const dirtyCompletion = createHarness();
+  activate(dirtyCompletion, 'mechanics', false);
+  dirtyCompletion.selector._runtimeDirty['physics:mechanics'] = true;
+  let dirtyCompletionCalls = 0;
+  dirtyCompletion.selector._initModule('physics', 'mechanics', 0, () => {
+    dirtyCompletionCalls += 1;
+  });
+  assert.equal(dirtyCompletionCalls, 0, 'a dirty owner must not authorize evidence mounting');
+
   const zoomFailed = createHarness();
   activate(zoomFailed, 'mechanics');
   zoomFailed.zoom.close = () => { throw new Error('zoom probe'); };
@@ -492,7 +581,10 @@ function configureStudentPublication(harness, access) {
   let resolveAssets;
   stale.selector._loadModuleAssets = () => new Promise(resolve => { resolveAssets = resolve; });
   stale.selector._showModuleTools = () => stale.order.push('tools');
-  stale.selector._initModule('physics', 'mechanics', generation);
+  let staleCompletionCalls = 0;
+  stale.selector._initModule('physics', 'mechanics', generation, () => {
+    staleCompletionCalls += 1;
+  });
   stale.selector._beginModuleTransition('physics');
   stale.selector.activeModule.physics = null;
   resolveAssets();
@@ -502,6 +594,7 @@ function configureStudentPublication(harness, access) {
   assert.equal(stale.getInitCalls(), 0, 'stale asset resolution must not initialize');
   assert.equal(stale.selector._initialized['physics:mechanics'], undefined);
   assert.equal(stale.order.includes('tools'), false);
+  assert.equal(staleCompletionCalls, 0, 'a stale transition must not authorize evidence mounting');
 
   const retry = createHarness();
   activate(retry, 'mechanics', false);
