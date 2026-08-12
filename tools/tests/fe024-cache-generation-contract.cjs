@@ -5,10 +5,11 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260812v826PhysicsBindOrderP0';
+const generation = '20260812v830ShowcaseStoryP0';
 const moduleGeneration = '20260812v825PhysicsBindOrderP0';
-const studentGeneration = '20260812v817RoleFeedbackP0';
-const frontierGeneration = '20260812v814FlagshipMotionP0';
+const studentGeneration = '20260812v828RoleStoryP0';
+const teacherGeneration = '20260812v828RoleStoryP0';
+const frontierGeneration = '20260812v829FlagshipStoryP0';
 
 const html = read('index.html');
 const router = read('shared/js/router.js');
@@ -57,7 +58,7 @@ function testStaticGenerationChain() {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`),
-      `index direct boot must request ${asset}.js from the V826 generation`,
+      `index direct boot must request ${asset}.js from the V830 generation`,
     );
   }
   assert.match(router, new RegExp(`shared/js/module-selector\\.js\\?v=${moduleGeneration}`));
@@ -66,7 +67,7 @@ function testStaticGenerationChain() {
   assert.match(html, new RegExp(`pages/engineering/engineering\\.css\\?v=${frontierGeneration}`));
   assert.match(html, new RegExp(`pages/physics/physics\\.css\\?v=${frontierGeneration}`));
   assert.match(pageRegistry, new RegExp(`const ROLE_RESOURCE_VERSION = '${studentGeneration}'`));
-  assert.match(pageRegistry, /const TEACHER_RESOURCE_VERSION = '20260812v813RoleWorkspacesP0'/);
+  assert.match(pageRegistry, new RegExp(`const TEACHER_RESOURCE_VERSION = '${teacherGeneration}'`));
   assert.match(pageRegistry, new RegExp(`const FUTURE_RESOURCE_VERSION = '${frontierGeneration}'`));
   assert.match(frontierLearning, new RegExp(`pages/frontier/frontier\\.css\\?v=${frontierGeneration}`));
   assert.match(frontierLearning, new RegExp(`pages/engineering/bridge-truss\\.js\\?v=${frontierGeneration}`));
@@ -86,20 +87,20 @@ function testStaticGenerationChain() {
     assert.match(
       serviceWorker,
       new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`),
-      `service-worker app shell must precache ${asset}.js from the V826 generation`,
+      `service-worker app shell must precache ${asset}.js from the V830 generation`,
     );
   }
   for (const document of [developerDoc, frontendDoc]) {
     assert.match(document, new RegExp(generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
     assert.match(document, /ARCH-004/);
-    const v826EvidenceLine = document
+    const v830EvidenceLine = document
       .split(/\r?\n/)
-      .find((line) => line.includes('V8.0.26') && line.includes(generation));
-    assert.ok(v826EvidenceLine, 'V8.0.26 documentation must identify the exact V826 cache generation');
-    assert.match(v826EvidenceLine, /QA-022/);
-    assert.match(v826EvidenceLine, /V824→V826/);
-    assert.match(v826EvidenceLine, /QA-022[\s\S]*(?:待同 revision 复验|PASS)/);
+      .find((line) => line.includes('V8.0.30') && line.includes(generation));
+    assert.ok(v830EvidenceLine, 'V8.0.30 documentation must identify the exact V830 cache generation');
+    assert.match(v830EvidenceLine, /QA-023/);
+    assert.match(v830EvidenceLine, /V828[\s\S]*V829[\s\S]*V830/);
+    assert.match(v830EvidenceLine, /待同 revision 验收/);
   }
 }
 
@@ -146,7 +147,7 @@ async function testAppSessionCreatesVersionedLoader() {
   await context.__fe024EnsureLearningEvidenceLoader();
   assert.deepEqual(createdScripts, [
     `https://astra.test/shared/js/learning-evidence-loader.js?v=${generation}`,
-  ], 'app-session must propagate its exact V826 query to the loader it actually creates');
+  ], 'app-session must propagate its exact V830 query to the loader it actually creates');
 }
 
 async function testLoaderCreatesVersionedChildren() {
@@ -212,7 +213,7 @@ async function testLoaderCreatesVersionedChildren() {
   await context.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true });
   assert.deepEqual(childScripts, Object.keys(ownerByFile).map((file) => (
     `https://astra.test/shared/js/${file}?v=${generation}`
-  )), 'loader must propagate V826 to every queue/client/status/catalog/engineering-context/activity script it creates');
+  )), 'loader must propagate V830 to every queue/client/status/catalog/engineering-context/activity script it creates');
 }
 
 async function run() {

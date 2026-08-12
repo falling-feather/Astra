@@ -4,9 +4,9 @@
 
     if (global.AstraPageRegistry) return;
 
-    const ROLE_RESOURCE_VERSION = '20260812v817RoleFeedbackP0';
-    const TEACHER_RESOURCE_VERSION = '20260812v813RoleWorkspacesP0';
-    const FUTURE_RESOURCE_VERSION = '20260812v814FlagshipMotionP0';
+    const ROLE_RESOURCE_VERSION = '20260812v828RoleStoryP0';
+    const TEACHER_RESOURCE_VERSION = '20260812v828RoleStoryP0';
+    const FUTURE_RESOURCE_VERSION = '20260812v829FlagshipStoryP0';
     const ADMIN_RESOURCE_VERSION = '20260729v794AdminGovernanceP0';
     const PLANETS_RESOURCE_VERSION = '20260731v7969StudentUiP0';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';

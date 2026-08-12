@@ -81,7 +81,7 @@
         stylePromise = new Promise((resolve, reject) => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'pages/frontier/frontier.css?v=20260812v814FlagshipMotionP0';
+            link.href = 'pages/frontier/frontier.css?v=20260812v829FlagshipStoryP0';
             link.dataset.frontierCourseStyle = 'true';
             link.addEventListener('load', resolve, { once: true });
             link.addEventListener('error', () => reject(new Error('Future course style failed to load')), { once: true });
@@ -333,7 +333,7 @@
 
     const OWNER_CONFIG = Object.freeze({
         'earth-space': { script: 'pages/cosmos/earth-sun.js?v=20260719re7', init: 'initCosmosSeasons', destroy: 'destroyCosmosSeasons' },
-        'engineering-systems': { script: 'pages/engineering/bridge-truss.js?v=20260812v814FlagshipMotionP0', init: 'initBridgeTruss', destroy: 'destroyBridgeTruss' },
+        'engineering-systems': { script: 'pages/engineering/bridge-truss.js?v=20260812v829FlagshipStoryP0', init: 'initBridgeTruss', destroy: 'destroyBridgeTruss' },
         'data-ai': { script: 'pages/datascience/linear-regression.js?v=20260719v755Game001', init: 'initLinearRegressionLab', destroy: 'destroyLinearRegressionLab' },
         'information-technology': { script: 'pages/infotech/network-layers.js?v=20260719re7', init: 'initNetworkLayersLab', destroy: 'destroyNetworkLayersLab' },
         'materials-science': { script: 'pages/materials/materials-lab.js?v=20260719re7', init: 'initMaterialsLab', destroy: 'destroyMaterialsLab' },

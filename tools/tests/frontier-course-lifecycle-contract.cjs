@@ -192,9 +192,9 @@ assert.doesNotMatch(index, /<script src="shared\/js\/frontier-learning\.js/, 'Fu
 
 const main = read('shared/js/main.js');
 assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0'"));
-assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260812v814FlagshipMotionP0'"));
+assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260812v829FlagshipStoryP0'"));
 assert.ok(main.includes("'./shared/js/frontier-publication-context.js?v=20260809v804FutureEvidenceP0'"));
-assert.ok(main.includes("'./shared/js/frontier-learning.js?v=20260812v814FlagshipMotionP0'"));
+assert.ok(main.includes("'./shared/js/frontier-learning.js?v=20260812v829FlagshipStoryP0'"));
 assert.ok(!main.includes("'./pages/cosmos/earth-sun.js?v=20260630mainV64'"), 'future galaxy must not warm every legacy activity');
 const registry = read('shared/js/page-registry.js');
 assert.ok(registry.includes("ready: 'initFrontierCourse'"));
