@@ -381,7 +381,10 @@ function createRouterPublicationHarness(options = {}) {
   selector._clearPublicationGate = (pageName) => {
     delete selector._publicationGateNodes[pageName];
   };
-  selector._initModule = () => { ownerInitializations += 1; };
+  selector._initModule = (_page, _moduleId, _generation, onInitialized) => {
+    ownerInitializations += 1;
+    if (typeof onInitialized === 'function') onInitialized();
+  };
   selector._mountEvidenceRuntime = (_page, targetModuleId) => {
     if (targetModuleId === 'mechanics') ownerInitializations += 1;
   };
@@ -606,7 +609,10 @@ function createPublicationModuleHarness(publication, options = {}) {
   selector._clearPublicationGate = (pageName) => {
     delete selector._publicationGateNodes[pageName];
   };
-  selector._initModule = () => { ownerInitializations += 1; };
+  selector._initModule = (_page, _moduleId, _generation, onInitialized) => {
+    ownerInitializations += 1;
+    if (typeof onInitialized === 'function') onInitialized();
+  };
   selector._mountEvidenceRuntime = () => { ownerInitializations += 1; };
   selector._focusExperiment = () => {};
   selector._showRelatedExperiments = () => {};

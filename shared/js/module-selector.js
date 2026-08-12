@@ -508,8 +508,10 @@ const ModuleSelector = {
         } catch (e) {}
 
         // Lazy-initialize this specific module
-        this._initModule(page, moduleId, generation);
-        this._mountEvidenceRuntime(page, moduleId, pageEl, sections, generation);
+        this._initModule(page, moduleId, generation, () => {
+            if (!this._isCurrentModuleTransition(page, moduleId, generation)) return;
+            this._mountEvidenceRuntime(page, moduleId, pageEl, sections, generation);
+        });
         const backendSchemaReady = this._applyBackendSchema(page, moduleId);
 
         // Scroll to top
@@ -1360,9 +1362,22 @@ const ModuleSelector = {
         );
     },
 
-    _initModule(page, moduleId, generation = this._transitionGeneration[page]) {
+    _initModule(page, moduleId, generation = this._transitionGeneration[page], onInitialized = null) {
         const key = `${page}:${moduleId}`;
-        if (this._initialized[key] || this._runtimeDirty[key]) {
+        const complete = () => {
+            if (
+                typeof onInitialized === 'function'
+                && this._isCurrentModuleTransition(page, moduleId, generation)
+            ) onInitialized();
+        };
+        if (this._initialized[key]) {
+            if (this._isCurrentModuleTransition(page, moduleId, generation)) {
+                this._showModuleTools(page, moduleId);
+                complete();
+            }
+            return;
+        }
+        if (this._runtimeDirty[key]) {
             if (this._isCurrentModuleTransition(page, moduleId, generation)) {
                 this._showModuleTools(page, moduleId);
             }
@@ -1400,6 +1415,7 @@ const ModuleSelector = {
                 try { window.BiologyZoom.init(); } catch (error) {}
             }
             this._showModuleTools(page, moduleId);
+            complete();
         };
         this._loadModuleAssets(page, moduleId)
             .then(() => {
