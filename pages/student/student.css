@@ -1838,6 +1838,7 @@
     }
 
     .student-focus-stage {
+        grid-template-columns: minmax(0, 1.35fr) minmax(132px, 0.65fr);
         margin-bottom: 12px;
     }
 
@@ -1848,7 +1849,28 @@
     }
 
     .student-focus-stage__context {
-        padding: 14px 16px;
+        grid-column: 1 / -1;
+        padding: 10px 12px;
+    }
+
+    .student-focus-stage__next,
+    .student-focus-stage__progress {
+        min-height: 58px;
+        padding: 8px 12px;
+        gap: 3px;
+    }
+
+    .student-focus-stage__next {
+        grid-column: 1;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        border-bottom: 0;
+    }
+
+    .student-focus-stage__progress {
+        grid-column: 2;
+        grid-template-columns: auto minmax(0, 1fr);
+        border-left: 1px solid var(--student-border);
     }
 
     .student-focus-stage__course {
@@ -1864,25 +1886,62 @@
     }
 
     .student-focus-stage__course p {
-        margin-top: 5px;
-        font-size: 0.7rem;
-        line-height: 1.4;
+        margin-top: 2px;
+        font-size: 0.68rem;
+        line-height: 1.28;
     }
 
     .student-focus-stage__brief {
-        gap: 10px;
-        margin-top: 12px;
-        padding-top: 11px;
+        gap: 8px;
+        margin-top: 7px;
+        padding-top: 6px;
     }
 
     .student-focus-stage__output {
-        padding-left: 10px;
+        padding-left: 8px;
+    }
+
+    .student-focus-stage__goal,
+    .student-focus-stage__output {
+        gap: 2px;
+    }
+
+    .student-focus-stage__goal > strong,
+    .student-focus-stage__output > strong {
+        font-size: 0.7rem;
+        line-height: 1.35;
     }
 
     .student-focus-stage__primary {
         width: auto;
         min-height: 46px;
         padding-inline: 12px;
+    }
+
+    .student-focus-stage__next strong,
+    .student-focus-stage__next small,
+    .student-focus-stage__progress small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .student-focus-stage__next small {
+        grid-column: 1 / -1;
+    }
+
+    .student-focus-stage__progress > strong {
+        justify-self: end;
+        font-size: 0.86rem;
+    }
+
+    .student-focus-stage__progress > div {
+        grid-column: 1;
+    }
+
+    .student-focus-stage__progress > small {
+        grid-column: 2;
+        font-size: 0.64rem;
     }
 
     .student-scope-control,
