@@ -416,7 +416,7 @@ assert.match(router, /ModuleSelector\.leavePage\(page, \{ preserveHash: true \}\
 assert.match(html, /config\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/);
 assert.match(main, /experiment-registry\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
 assert.match(main, /module-selector\.js\?v=20260812v825PhysicsBindOrderP0/);
-assert.match(serviceWorker, /experiment-registry\.js\?v=20260812v830ShowcaseStoryP0/);
-assert.match(serviceWorker, /astra-static-v20260812v830ShowcaseStoryP0/);
+assert.match(serviceWorker, /experiment-registry\.js\?v=20260813v834ShowcaseLayoutP0/);
+assert.match(serviceWorker, /astra-static-v20260813v834ShowcaseLayoutP0/);
 
 console.log('experiment-registry-contract: ok');

@@ -11,7 +11,7 @@ const context = { window: {} };
 
 vm.runInNewContext(registrySource, context, { filename: 'shared/js/page-registry.js' });
 const styles = Array.from(context.window.AstraPageRegistry.stylesFor('teacher'));
-const version = '20260812v828RoleStoryP0';
+const version = '20260813v832RoleMobileReceiptP0';
 const expected = [
   `pages/teacher/teacher-foundation.css?v=${version}`,
   `pages/teacher/teacher-workbench.css?v=${version}`,

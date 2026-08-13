@@ -81,7 +81,7 @@
         stylePromise = new Promise((resolve, reject) => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'pages/frontier/frontier.css?v=20260812v829FlagshipStoryP0';
+            link.href = 'pages/frontier/frontier.css?v=20260813v833LoadPathSameFrameP0';
             link.dataset.frontierCourseStyle = 'true';
             link.addEventListener('load', resolve, { once: true });
             link.addEventListener('error', () => reject(new Error('Future course style failed to load')), { once: true });

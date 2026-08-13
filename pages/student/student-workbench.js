@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const studentRuntimeVersion = '20260812v828RoleStoryP0';
+    const studentRuntimeVersion = '20260813v832RoleMobileReceiptP0';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
     const ASSIGNMENT_PAGE_LIMIT = 8;

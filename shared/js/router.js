@@ -48,7 +48,7 @@ const Router = {
         ],
         frontier: [
             'shared/js/lucide.min.js?v=20260417d',
-            'shared/js/frontier-learning.js?v=20260812v829FlagshipStoryP0',
+            'shared/js/frontier-learning.js?v=20260813v833LoadPathSameFrameP0',
             'shared/js/scroll-animations.js?v=20260731v7969StudentUiP0'
         ]
     },
