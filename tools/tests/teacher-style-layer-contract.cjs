@@ -80,8 +80,8 @@ function cascadedMinHeight(matchingSelectors) {
 
 assert.equal(
   crypto.createHash('sha256').update(normalizedCascade).digest('hex'),
-  '8df9e999adc053e1ebdd39c8f50e29490ba74d62e49c09f5a0cebf6c3e5877ef',
-  'teacher style layers must preserve the reviewed UI-006 showcase-story cascade byte order',
+  '7afb0302c6ebff5465a158a9ec89f1cda4cdac6038bc87ea9ed4a562a2687dbe',
+  'teacher style layers must preserve the reviewed UI-007 mobile-receipt cascade byte order',
 );
 
 assert.match(foundation, /^\.teacher-page\s*\{/);

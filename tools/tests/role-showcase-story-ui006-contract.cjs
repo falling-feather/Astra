@@ -55,7 +55,8 @@ assert.match(studentCss, /@media \(max-width: 600px\)[\s\S]*\.student-focus-stag
 assert.match(studentCss, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.student-workbench \*[\s\S]*transition-duration:\s*0\.01ms/);
 assert.match(teacherCss, /\.teacher-page\s*\{[\s\S]*overflow-x:\s*clip/);
 assert.match(teacherCss, /@media \(max-width: 900px\)[\s\S]*\.teacher-focus-stage\s*\{\s*grid-template-columns:\s*1fr/);
-assert.match(teacherCss, /@media \(max-width: 760px\)[\s\S]*\.teacher-focus-stage__context,[\s\S]*\.teacher-focus-stage__action\s*\{[\s\S]*min-height:\s*104px/);
+assert.match(teacherCss, /@media \(max-width: 760px\)[\s\S]*\.teacher-focus-stage__context\s*\{[\s\S]*grid-column:\s*1 \/ -1/);
+assert.match(teacherCss, /@media \(max-width: 760px\)[\s\S]*\.teacher-focus-stage__action\s*\{[\s\S]*min-height:\s*60px/);
 assert.match(teacherCss, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.teacher-focus-stage__action[\s\S]*transition:\s*none/);
 
 assertSurfaceSets(studentSource, {

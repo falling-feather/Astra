@@ -1269,13 +1269,23 @@
     }
 
     .teacher-focus-stage {
+        grid-template-columns: minmax(0, 1.45fr) minmax(116px, 0.65fr);
         margin-top: 12px;
     }
 
-    .teacher-focus-stage__context,
+    .teacher-focus-stage__context {
+        grid-column: 1 / -1;
+        min-height: 0;
+        gap: 4px;
+        padding: 10px 14px;
+    }
+
     .teacher-focus-stage__action {
-        min-height: 104px;
-        padding: 18px;
+        grid-column: 1;
+        grid-row: 2;
+        min-height: 60px;
+        gap: 2px 8px;
+        padding: 8px 12px;
     }
 
     .teacher-focus-stage__context h2,
@@ -1283,15 +1293,36 @@
         white-space: normal;
     }
 
+    .teacher-focus-stage__context p {
+        margin-top: 4px;
+        font-size: 0.7rem;
+        line-height: 1.3;
+    }
+
     .teacher-focus-stage__teaching-brief {
-        gap: 10px;
+        gap: 8px;
+        margin-top: 4px;
+        padding-top: 6px;
     }
 
     .teacher-focus-stage__output {
-        padding-left: 10px;
+        padding-left: 8px;
+    }
+
+    .teacher-focus-stage__goal,
+    .teacher-focus-stage__output {
+        gap: 2px;
+    }
+
+    .teacher-focus-stage__goal > strong,
+    .teacher-focus-stage__output > strong {
+        font-size: 0.7rem;
+        line-height: 1.35;
     }
 
     .teacher-focus-stage__rail {
+        grid-column: 1 / -1;
+        grid-row: 3;
         padding: 16px 18px;
     }
 
@@ -1310,7 +1341,22 @@
     }
 
     .teacher-focus-stage__receipt {
-        padding-inline: 18px;
+        grid-column: 2;
+        grid-row: 2;
+        align-content: center;
+        flex-wrap: wrap;
+        min-width: 0;
+        min-height: 60px;
+        padding: 8px 10px;
+        border-left: 1px solid var(--teacher-line);
+    }
+
+    .teacher-focus-stage__receipt span {
+        flex: 1 0 100%;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .teacher-connection-settings .teacher-api-base {
