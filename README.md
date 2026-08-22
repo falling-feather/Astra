@@ -13,7 +13,7 @@
 - `main@V7.5.11` 是公开稳定线；`主开发` 已进入 V7.6 活动集成，`houduan` 保留下轮后端起点，`review` 保持冻结。
 - 登录前置、Cookie Session、三角色资源裁剪、星序统一角色工作台、三星系课程、教师编排、组织治理和 9001 本机同源交付已经进入当前实现。
 - 代码空间和未来星系均为 6 组/18 活动；默认 `DisabledCodeRunnerAdapter` 只诚实持久化 `runner_unavailable`，不会把未配置判题器伪报为通过。
-- Alembic 当前 head 为 `20260809_0052`；0051 提供权威学习证据，0052 把学生源码修订与网络重放分离：同一 `client_submission_id` 的精确重放返回原提交，同键异载荷返回 `409`，新键可形成新的 submission/attempt。V8.0.3 的 SQLite 迁移、幂等、权限与 QA-016 CODE-01 定向门禁已通过；完整后端仍只有 484 秒 `TIMEOUT`，真实 MySQL 与隔离 runner 均为 `NOT-RUN`，不得外推为生产 OJ 已完成。
+- Alembic 当前唯一 head 为 `20260810_0053`；0051 提供权威学习证据，0052 把学生源码修订与网络重放分离，0053 增加学习活动运行身份、learner/server 双游标与精确服务器恢复半包。BE-018 已由独立 QA 完成 639 passed、8 skipped、1 known xfailed、0 failed；8 项 skip 均为未提供显式真实 MySQL。现有产品页仍未接通统一活动内核、完整 IndexedDB pending 与页面步骤级精确续学，隔离 runner 也仍不可用，不得外推为生产 OJ 或全量精确续学已完成。
 - 当前作品定位为课程作业 / 设计大赛本地展示版：优先完成代表课程互动和学生—教师—管理员三端协同。真实 MySQL、隔离 runner、staging/production、公网 TLS、压力测试和真实课堂试点保留为后置工程，不阻塞 V8.0 展示候选。
 
 当前实现见 [`doc/01-开发者手册.md`](doc/01-开发者手册.md)，下一阶段任务与版本见 [`doc/02-更新规划.md`](doc/02-更新规划.md)，全部版本、验收证据与历史档案统一见 [`doc/03-发布历史.md`](doc/03-发布历史.md)。
