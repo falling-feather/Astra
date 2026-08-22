@@ -22,7 +22,7 @@ const frontierLearning = read('shared/js/frontier-learning.js');
 const studentLearningEvidence = read('shared/js/student-learning-evidence.js');
 const main = read('shared/js/main.js');
 const serviceWorker = read('sw.js');
-const developerDoc = read('doc/01-开发者文档.md');
+const developerDoc = read('doc/01-开发者手册.md');
 const frontendDoc = read('doc/08-前端页面实现索引.md');
 
 class FakeResource {

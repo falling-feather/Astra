@@ -36,7 +36,7 @@ codevis/
   - JavaScript：[JS-Interpreter](https://github.com/NeilFraser/JS-Interpreter)（acorn + interpreter）
   - Python：[Skulpt](https://skulpt.org/)（纯 JS Python 3 子集）
   - C / C++：[JSCPP](https://github.com/felixhao28/JSCPP) v2.0.9（纯 JS C++ 子集，不支持 namespace/class）
-- **待验收**：QA-010/V7.5.9 独立终验；状态只在 `doc/02-项目规划.md` 维护。
+- **待验收**：QA-010/V7.5.9 独立终验；状态只在 `doc/02-更新规划.md` 维护。
 
 ## 沙箱 API 速查
 所有后端共享相同的"标记函数"协议，由 runtime 拦截后驱动可视化：
@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
 
 ## 📝 更新日志（子站视角）
 
-> 仅记录与代码空间子站直接相关的变更；平台级更新见 [主站 README](../README.md#-更新日志)。
+> 仅记录与代码空间子站直接相关的变更；平台级更新统一见 [发布历史](../doc/03-发布历史.md)。
 
 ### V7.5.8 — 2026-07-19
 - 统一入口 CSS/JS 静态代际为 `758r1`，新增合同阻止资源查询版本漂移；全量前端门禁为 193 个受跟踪 JavaScript 与 31/31 合同。

@@ -1,5 +1,7 @@
 # 星序 Astra 项目指引
 
+> **2026-08-22 当前控制点**：主线基线为 `V8.0.34 / d1c4d24`。项目处于暂停收束态，既有工作组全部解散，不自动恢复任何后台开发或 QA；根工作区只允许完成 `PM-024 / V8.0.35` 的文档归并与 Git 对账。可安全退出的临时工作树已用非强制方式移除，7 棵含未提交修改、1 棵含独有提交的工作树保持只读保全；全部 66 条本地分支均保留。恢复产品开发前必须以 `doc/02-更新规划.md` 重新登记最小责任组、写入边界和版本。
+
 ## 当前基线
 
 星序 Astra 是多星系全栈学习平台：
@@ -50,9 +52,9 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 
 - `README.md`：项目入口、启动、质量门禁和文档导航。
 - `doc/00-项目总纲.md`：项目定位、宏观系统边界、文档控制面和协作入口。
-- `doc/01-开发者文档.md`：当前实现的规范入口；`doc/01-开发者手册.md` 保留为详细实现卷。
-- `doc/02-项目规划.md`：任务原件、责任组、依赖、版本、项目对接、风险和当前状态的唯一权威来源；`doc/02-更新规划.md` 只作兼容入口。
-- `doc/03-开发历史.md`：V7.4.12 起的新提交和阶段结果；`doc/03-发布历史.md` 保留 V7.4.11 及以前的历史档案。
+- `doc/01-开发者手册.md`：当前实现、架构、模块、运行、验证和扩展方式的完整主文档。
+- `doc/02-更新规划.md`：任务原件、责任组、依赖、版本、项目对接、风险和当前状态的唯一规划主文档。
+- `doc/03-发布历史.md`：全部版本提交、阶段结果、验证证据和历史档案的统一主文档。
 - `doc/04-部署指南.md`：环境、迁移、代理、服务、回滚和运维。
 - `doc/05-UI规范模板.md`：UI、Canvas、响应式和可访问性。
 - `doc/07-后端优化与设计.md`：后端/数据/权限/三端长期设计。
@@ -62,9 +64,9 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 
 ## 项目对接与写入
 
-1. 当前项目对接模式保持停用，CONTENT、FE、QA、BE、UI、DATA 长期工作组继续解散；只恢复“星序 Astra｜主开发｜总控”在 `主开发` 根工作区对 `FE-022 / V7.9.71` 的单写。`main` 只接收已收束的稳定版本，`houduan` 保留下一轮后端开发起点。
-2. 其他未完成专业任务和工作树继续只读保全。V7.8.9 / fr89、FE-017 / f017、UX-001 / ux64 与 UI-003 / u358 均不得因本轮恢复而写入、复制、集成或清理；QA-014、QA-015 也未恢复。FE-022 只消费 `主开发@3b9462b` 与当前 9003 对照账号，不替代这些任务的独立复审或 QA 结论。
-3. `doc/02-项目规划.md` 与 `doc/03-开发历史.md` 由主开发集中写入；恢复后的专业组只维护各自专属实现文档差异并在 handoff 中提供任务 / 历史摘要，禁止并行修改共享 02/03 造成冲突。
+1. 当前项目对接模式为暂停，CONTENT、FE、QA、BE、UI、DATA 及本轮 UI/FE/QA 展示组均已解散；除 `PM-024 / V8.0.35` 收束外没有活动派单。`main`、`houduan` 和全部 `codex/*` 历史分支均保持原样，不因工作组解散而删除。
+2. 未完成专业候选继续只读保全。`5779`、`f017/f017a/f017b/f017c`、`fr89`、`ux64` 含未提交修改，`u358@3734a2f` 含一条主线未集成提交；未经用户明确决定归档、吸收或放弃，不得 reset、clean、rebase、强制移除或删除分支。
+3. `doc/01-开发者手册.md`、`doc/02-更新规划.md` 与 `doc/03-发布历史.md` 由主开发集中写入；恢复后的专业组只维护各自专属实现差异并在 handoff 中提供摘要，禁止并行复制或新建同职责主文档。
 4. 恢复后的 QA 必须独立验收主开发或专业组交付；主开发自测不能替代 QA 回执。
 5. `qianduan` 旧 worktree 无唯一提交，已由 `ARCH-002 / V7.6.9` 删除；`qianduan` 分支与本地标签 `archive/qianduan-wip-before-main-sync-20260727` 继续保留，标签只用于恢复和审计，不是开发入口。
 6. 后端 `dafe` 工作树已安全移除；前端 FE-012 的唯一未提交候选保存在 detached `C:/Users/niu-h/.codex/worktrees/a02c/工科实验室`。该目录现在是不可写的保全来源：任何组都不得在其中删除、覆盖、提交、清理或继续开发。FE 只能只读审查，并在主开发发放版本令牌后把获准范围选择性重放到已登记的独立 FE 工作树。`codex/team-be` 与 `codex/team-fe` 仅作历史 / 候选审计锚点。
@@ -82,7 +84,7 @@ TOOLS-002 / V7.7.25 已在 `C:/Users/niu-h/.codex/worktrees/6f2a/工科实验室
 6. 外部投递/问题同步/审计锚定默认关闭，启用需要独立审批和真实 staging 证据。
 7. 数据库结构变化必须带 Alembic、回滚考虑和 SQLite 升级 / 降级 / 再升级；MySQL DDL / 条件门禁不得破坏。真实 MySQL 实证只在用户恢复生产发布任务后成为硬门禁。
 8. 学生 AI 助教、教师 AI 教学助手、AI 维护 / 管理助手均为展示后条件任务；当前不得显示为可用。以后接入时，AI 输出只作建议，权威完成、评分、发布、权限和治理写入必须继续由人确认并通过既有领域 API 与审计链执行。
-9. 未来星系层级重构以 `doc/02-项目规划.md` 第 1.4、2.12—2.14 节、`doc/02-子文档/25-V7.7未来星系18课程内容与路由冻结矩阵.md`、`doc/02-子文档/26-V7.7未来星系页面视觉规格.md`、`FE-017`、`QA-015` 为唯一规划入口。18 门课程全部保留；CONTENT-003 / V7.9.51 已完成来源校准，不改变课程数量、身份、教学闭环或代表课选择。目标只注册一个 `page-frontier` 并由共享 Router 独占 hash，canonical route 为 `#frontier/<direction>/<course>`，legacy 只 `replaceState` 一次。只有精确 open 课程可以加载自己的内容模块、唯一 owner 和 evidence；publication 未决 / 失败与 hidden / missing / unknown 不得把课程身份写入目录、导航或页脚，locked 仅显示授权允许的安全元数据。课程事件只能在 evidence owner 明确接收后返回 true；两门 `domain_evidence` 代表课的 explained 必须由课程门禁发出第 27 号专用 schema，不能使用共享通用解释控件绕过。证据数值必须同时满足 finite、range 与精确小数位，不能用容差接受超精度值。Future 根元素不得以 `overflow-x:hidden|clip` 掩盖真实溢出，所有主动作保持 `#8CE7FF`。六个真实 owner 目录是 `pages/cosmos`、`pages/engineering`、`pages/datascience`、`pages/infotech`、`pages/materials`、`pages/humanities`。FE-012 的 V7.7.33 产品观察 finding=0，但不得把平台能力导致的 BLOCKED / NOT-RUN 冒充 A03a PASS；FE-017 的 R8 独立复审同样不得被静态门禁、R7 PASS 或主开发自测替代。26 号视觉规格与 PM-017 三图已完成两次产品确认；f017 只读冻结，待同一独立复审门禁安全恢复后才可继续 Browser 与最终提交。
+9. 未来星系层级重构以 `doc/02-更新规划.md` 第 1.4、2.12—2.14 节、`doc/02-子文档/25-V7.7未来星系18课程内容与路由冻结矩阵.md`、`doc/02-子文档/26-V7.7未来星系页面视觉规格.md`、`FE-017`、`QA-015` 为唯一规划入口。18 门课程全部保留；CONTENT-003 / V7.9.51 已完成来源校准，不改变课程数量、身份、教学闭环或代表课选择。目标只注册一个 `page-frontier` 并由共享 Router 独占 hash，canonical route 为 `#frontier/<direction>/<course>`，legacy 只 `replaceState` 一次。只有精确 open 课程可以加载自己的内容模块、唯一 owner 和 evidence；publication 未决 / 失败与 hidden / missing / unknown 不得把课程身份写入目录、导航或页脚，locked 仅显示授权允许的安全元数据。课程事件只能在 evidence owner 明确接收后返回 true；两门 `domain_evidence` 代表课的 explained 必须由课程门禁发出第 27 号专用 schema，不能使用共享通用解释控件绕过。证据数值必须同时满足 finite、range 与精确小数位，不能用容差接受超精度值。Future 根元素不得以 `overflow-x:hidden|clip` 掩盖真实溢出，所有主动作保持 `#8CE7FF`。六个真实 owner 目录是 `pages/cosmos`、`pages/engineering`、`pages/datascience`、`pages/infotech`、`pages/materials`、`pages/humanities`。FE-012 的 V7.7.33 产品观察 finding=0，但不得把平台能力导致的 BLOCKED / NOT-RUN 冒充 A03a PASS；FE-017 的 R8 独立复审同样不得被静态门禁、R7 PASS 或主开发自测替代。26 号视觉规格与 PM-017 三图已完成两次产品确认；f017 只读冻结，待同一独立复审门禁安全恢复后才可继续 Browser 与最终提交。
 
 ## 验证要求
 
