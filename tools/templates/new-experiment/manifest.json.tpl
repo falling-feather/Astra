@@ -7,6 +7,7 @@
   "title": "__EXPERIMENT_TITLE__",
   "owner": "__OWNER__",
   "namespace": "astra-exp--__NAMESPACE__",
+  "module": "pages/__SUBJECT__/__EXPERIMENT_ID__/module.html?v=__ASSET_VERSION__",
   "script": "pages/__SUBJECT__/__EXPERIMENT_ID__/index.js?v=__ASSET_VERSION__",
   "style": "pages/__SUBJECT__/__EXPERIMENT_ID__/styles.css?v=__ASSET_VERSION__",
   "preview": {

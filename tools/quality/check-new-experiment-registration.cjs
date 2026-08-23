@@ -230,7 +230,12 @@ function validateCandidateManifests({ manifests, root = DEFAULT_ROOT, baseline =
         const expectedPrefix = key ? `pages/${subject}/${id}/` : '';
         const script = String(manifest.script || '');
         const style = String(manifest.style || '');
-        for (const [kind, value, extension] of [['script', script, '.js'], ['style', style, '.css']]) {
+        const moduleMarkup = String(manifest.module || '');
+        for (const [kind, value, extension] of [
+            ['script', script, '.js'],
+            ['style', style, '.css'],
+            ['module', moduleMarkup, '.html']
+        ]) {
             const bare = stripQuery(value);
             if (!value.includes('?v=') || value.endsWith('?v=')) {
                 addError(source, 'asset_version_missing', `${kind} must include a non-empty ?v= resource version`);

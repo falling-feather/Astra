@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "task": "EXT-07",
+  "version": "V8.2.6",
+  "scope": "new-experiment-only",
+  "production_registration": false,
+  "purpose": "Run every new experiment through the same isolated browser journey before production registration.",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "reduced_motion": false
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "reduced_motion": false
+    },
+    {
+      "name": "reduced-motion",
+      "width": 1440,
+      "height": 900,
+      "reduced_motion": true
+    }
+  ],
+  "required_checks": [
+    "enter",
+    "first-draw",
+    "operate",
+    "mode-control",
+    "reset",
+    "horizontal-overflow",
+    "leave-release",
+    "re-enter",
+    "console-clean"
+  ],
+  "mobile_checks": [
+    "drawer-toggle",
+    "touch-targets"
+  ],
+  "operation": {
+    "parameter_value": 72,
+    "reentry_parameter_value": 64,
+    "reset_parameter_value": 50
+  },
+  "resource_release": {
+    "owner_references_null": [
+      "root",
+      "canvas",
+      "context",
+      "readout",
+      "parameterControl",
+      "parameterOutput",
+      "toggleButton",
+      "stateOutput",
+      "notice",
+      "controls",
+      "resizeObserver",
+      "motionPreference"
+    ],
+    "frame_zero": true,
+    "abort_signal_aborted": true,
+    "active_resize_observers": 0,
+    "active_animation_frames": 0
+  },
+  "console_policy": {
+    "forbidden_types": [
+      "warning",
+      "warn",
+      "error"
+    ],
+    "page_errors": 0,
+    "request_failures": 0,
+    "http_errors": 0
+  },
+  "minimum_touch_target_px": 44,
+  "evidence": {
+    "report_filename": "browser-journey-report.json",
+    "screenshot_pattern": "<activity-key>-<viewport>.png",
+    "required_screenshots": [
+      "desktop",
+      "mobile",
+      "reduced-motion"
+    ],
+    "output_root": "test-screenshots/new-experiment/<activity-key>"
+  },
+  "old_activity_policy": "Existing activities are not mounted by this runner and remain protected only by the 124-activity baseline smoke gate."
+}

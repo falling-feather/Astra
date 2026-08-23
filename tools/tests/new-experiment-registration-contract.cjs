@@ -56,6 +56,7 @@ try {
     const modelDocumentDirectory = path.join(temporaryRoot, 'doc/01-子文档');
     fs.mkdirSync(candidateDirectory, { recursive: true });
     fs.mkdirSync(modelDocumentDirectory, { recursive: true });
+    fs.writeFileSync(path.join(candidateDirectory, 'module.html'), render(read(path.join(templateRoot, 'module.html.tpl'))));
     fs.writeFileSync(path.join(candidateDirectory, 'index.js'), render(read(path.join(templateRoot, 'index.js.tpl'))));
     fs.writeFileSync(path.join(candidateDirectory, 'styles.css'), render(read(path.join(templateRoot, 'styles.css.tpl'))));
     const previewFixture = path.join(root, 'UI/future-galaxy/orbit-observatory.webp');
@@ -155,6 +156,9 @@ try {
 
     const missingResource = { ...validManifest, script: 'pages/physics/registration-probe/missing.js?v=20260824v821Ext02P0' };
     assert.ok(codes(validate(missingResource)).has('resource_missing'));
+
+    const missingModule = { ...validManifest, module: 'pages/physics/registration-probe/missing.html' };
+    assert.ok(codes(validate(missingModule)).has('resource_missing'));
 
     const traversal = { ...validManifest, style: '../styles.css?v=20260824v821Ext02P0' };
     assert.ok(codes(validate(traversal)).has('resource_outside_root'));

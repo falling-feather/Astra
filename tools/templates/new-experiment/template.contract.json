@@ -36,5 +36,7 @@
   "model_validation": "node tools/quality/check-new-experiment-model-document.cjs --manifest <pages/subject/experiment/manifest.json>",
   "preview_contract": "preview-assets.contract.json",
   "preview_inspection": "node tools/quality/check-new-experiment-preview.cjs --inspect <preview.webp>",
-  "preview_validation": "node tools/quality/check-new-experiment-preview.cjs --manifest <pages/subject/experiment/manifest.json>"
+  "preview_validation": "node tools/quality/check-new-experiment-preview.cjs --manifest <pages/subject/experiment/manifest.json>",
+  "browser_journey_contract": "browser-journey.contract.json",
+  "browser_journey_validation": "node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --out <test-screenshots/new-experiment/activity-key>"
 }

@@ -33,6 +33,12 @@ assert.equal(
     contract.preview_validation,
     'node tools/quality/check-new-experiment-preview.cjs --manifest <pages/subject/experiment/manifest.json>'
 );
+assert.equal(contract.browser_journey_contract, 'browser-journey.contract.json');
+assert.ok(fs.existsSync(path.join(templateRoot, contract.browser_journey_contract)));
+assert.equal(
+    contract.browser_journey_validation,
+    'node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --out <test-screenshots/new-experiment/activity-key>'
+);
 assert.deepEqual(contract.required_files, [
     'manifest.json.tpl',
     'module.html.tpl',
@@ -74,6 +80,10 @@ const manifest = JSON.parse(render(manifestSource));
 assert.equal(manifest.activity_key, 'physics.showcase-template-probe');
 assert.equal(manifest.route, '#physics/showcase-template-probe');
 assert.equal(manifest.owner, 'ShowcaseTemplateProbe');
+assert.equal(
+    manifest.module,
+    'pages/physics/showcase-template-probe/module.html?v=20260824v820Ext01P0'
+);
 assert.equal(manifest.init_hook, 'initShowcaseTemplateProbe');
 assert.equal(manifest.cleanup.owner, 'ShowcaseTemplateProbe');
 assert.equal(manifest.cleanup.method, 'destroy');
