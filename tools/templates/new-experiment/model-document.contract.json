@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "task": "EXT-05",
+  "version": "V8.2.4",
+  "scope": "new-experiment-only",
+  "placement": "documentation-only",
+  "production_registration": false,
+  "anchor_pattern": "model-<experiment-id>",
+  "required_metadata": [
+    "实验身份",
+    "复核状态",
+    "复核人",
+    "复核日期",
+    "实现版本"
+  ],
+  "approved_review_status": "已复核",
+  "required_sections": [
+    "1. 现象与结论边界",
+    "2. 变量、单位与显示精度",
+    "3. 核心关系与符号约定",
+    "4. 适用条件、假设与限制",
+    "5. 数值方法与稳定性",
+    "6. 画面映射",
+    "7. 可复核样例",
+    "8. 误差预算",
+    "9. 实现对应关系",
+    "10. 参考依据",
+    "11. 发布前复核"
+  ],
+  "required_statements": {
+    "1. 现象与结论边界": ["主要现象", "允许结论", "禁止外推"],
+    "3. 核心关系与符号约定": ["符号约定", "量纲/类型检查", "依据引用"]
+  },
+  "tables": [
+    {
+      "section": "2. 变量、单位与显示精度",
+      "columns": ["符号", "角色", "含义", "SI 单位", "显示单位", "有效范围", "默认值", "显示精度"],
+      "minimum_rows": 2,
+      "required_first_column_values": []
+    },
+    {
+      "section": "4. 适用条件、假设与限制",
+      "columns": ["类型", "内容", "超出后的影响"],
+      "minimum_rows": 3,
+      "required_first_column_values": ["适用条件", "简化假设", "已知限制"]
+    },
+    {
+      "section": "5. 数值方法与稳定性",
+      "columns": ["项目", "取值或方法", "选择依据"],
+      "minimum_rows": 2,
+      "required_first_column_values": ["求解方式", "步长、容差或停止条件"]
+    },
+    {
+      "section": "6. 画面映射",
+      "columns": ["视觉元素", "对应变量或对象", "编码规则", "不代表什么"],
+      "minimum_rows": 2,
+      "required_first_column_values": []
+    },
+    {
+      "section": "7. 可复核样例",
+      "columns": ["样例", "输入", "期望输出", "容差或判定规则", "推导或来源", "实测结果"],
+      "minimum_rows": 2,
+      "required_first_column_values": ["典型值", "边界值"]
+    },
+    {
+      "section": "8. 误差预算",
+      "columns": ["来源", "类型", "估计范围", "可见影响", "处理方式"],
+      "minimum_rows": 2,
+      "required_first_column_values": []
+    },
+    {
+      "section": "9. 实现对应关系",
+      "columns": ["模型项", "实现位置", "验证入口"],
+      "minimum_rows": 2,
+      "required_first_column_values": ["核心计算", "画面映射"]
+    }
+  ],
+  "required_variable_roles": ["自变量", "因变量"],
+  "minimum_equation_blocks": 1,
+  "minimum_references": 2,
+  "minimum_reference_fields": 5,
+  "required_review_items": [
+    "变量、单位与范围已逐项核对",
+    "核心关系与符号约定已核对",
+    "典型值和边界值均已复算",
+    "误差与已知限制已写明",
+    "模型说明未复制到实验首屏"
+  ],
+  "forbidden_markers": [
+    "__[A-Z0-9_]+__",
+    "\\[待填写",
+    "TODO",
+    "TBD",
+    "待补充"
+  ],
+  "forbidden_section_headings": [
+    "学习目标",
+    "课程导语",
+    "课前任务",
+    "课后作业"
+  ],
+  "content_policy": "The model record belongs to developer, thesis and review documentation. Do not copy it into the experiment first viewport."
+}

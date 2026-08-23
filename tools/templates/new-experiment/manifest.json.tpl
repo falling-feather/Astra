@@ -15,6 +15,6 @@
     "method": "destroy",
     "verified": true
   },
-  "model_document": "doc/01-子文档/15-学科实验与内容开发指南.md#__MODEL_DOC_ANCHOR__",
+  "model_document": "doc/01-子文档/15-学科实验与内容开发指南.md#model-__EXPERIMENT_ID__",
   "registration_state": "candidate-unregistered"
 }

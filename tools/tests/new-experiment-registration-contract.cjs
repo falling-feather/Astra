@@ -36,7 +36,6 @@ const replacements = Object.freeze({
     __OWNER__: 'RegistrationProbe',
     __NAMESPACE__: 'registration-probe',
     __ASSET_VERSION__: '20260824v821Ext02P0',
-    __MODEL_DOC_ANCHOR__: 'model-registration-probe',
     __PARAMETER_LABEL__: '主变量',
     __PARAMETER_UNIT__: 'm',
     __PRIMARY_LEGEND__: '运动对象',
@@ -52,9 +51,20 @@ const render = (source) => Object.entries(replacements).reduce(
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-ext02-'));
 try {
     const candidateDirectory = path.join(temporaryRoot, 'pages/physics/registration-probe');
+    const modelDocumentDirectory = path.join(temporaryRoot, 'doc/01-子文档');
     fs.mkdirSync(candidateDirectory, { recursive: true });
+    fs.mkdirSync(modelDocumentDirectory, { recursive: true });
     fs.writeFileSync(path.join(candidateDirectory, 'index.js'), render(read(path.join(templateRoot, 'index.js.tpl'))));
     fs.writeFileSync(path.join(candidateDirectory, 'styles.css'), render(read(path.join(templateRoot, 'styles.css.tpl'))));
+    const modelDocument = read(path.join(templateRoot, 'model-notes.example.md'))
+        .replaceAll('model-model-document-probe', 'model-registration-probe')
+        .replaceAll('physics.model-document-probe', 'physics.registration-probe')
+        .replaceAll('匀速运动校核样例', '新增实验注册探针')
+        .replaceAll('pages/physics/model-document-probe', 'pages/physics/registration-probe');
+    fs.writeFileSync(
+        path.join(modelDocumentDirectory, '15-学科实验与内容开发指南.md'),
+        modelDocument
+    );
     const validManifest = JSON.parse(render(read(path.join(templateRoot, 'manifest.json.tpl'))));
     const validate = (...manifests) => validateCandidateManifests({
         manifests: manifests.map((data, index) => ({ source: `fixture-${index + 1}.json`, data })),
@@ -67,6 +77,12 @@ try {
     assert.equal(valid.ok, true, JSON.stringify(valid.errors));
     assert.equal(valid.checked, 1);
     assert.equal(valid.protectedExperiments, 88);
+
+    const missingModelDocument = {
+        ...validManifest,
+        model_document: 'doc/01-子文档/missing.md#model-registration-probe'
+    };
+    assert.ok(codes(validate(missingModelDocument)).has('model_document_missing'));
 
     const duplicateIdentity = {
         ...validManifest,
@@ -131,4 +147,4 @@ try {
 }
 
 assert.deepEqual(protectedFiles.map(sha256), beforeHashes, 'EXT-02 checker must not mutate production registry surfaces');
-console.log('new-experiment-registration-contract: conflicts, resources, owner and cleanup PASS');
+console.log('new-experiment-registration-contract: conflicts, resources, model document, owner and cleanup PASS');

@@ -18,6 +18,12 @@ assert.equal(
 );
 assert.equal(contract.visual_contract, 'visual-primitives.contract.json');
 assert.equal(contract.visual_validation, 'node tools/tests/new-experiment-visual-primitives-contract.cjs');
+assert.equal(contract.model_contract, 'model-document.contract.json');
+assert.equal(contract.model_example, 'model-notes.example.md');
+assert.equal(
+    contract.model_validation,
+    'node tools/quality/check-new-experiment-model-document.cjs --manifest <pages/subject/experiment/manifest.json>'
+);
 assert.deepEqual(contract.required_files, [
     'manifest.json.tpl',
     'module.html.tpl',
@@ -36,7 +42,6 @@ const replacements = Object.freeze({
     __OWNER__: 'ShowcaseTemplateProbe',
     __NAMESPACE__: 'showcase-template-probe',
     __ASSET_VERSION__: '20260824v820Ext01P0',
-    __MODEL_DOC_ANCHOR__: 'model-showcase-template-probe',
     __PARAMETER_LABEL__: '主变量',
     __PARAMETER_UNIT__: 'm',
     __PRIMARY_LEGEND__: '运动对象',
@@ -62,6 +67,10 @@ assert.equal(manifest.init_hook, 'initShowcaseTemplateProbe');
 assert.equal(manifest.cleanup.owner, 'ShowcaseTemplateProbe');
 assert.equal(manifest.cleanup.method, 'destroy');
 assert.equal(manifest.cleanup.verified, true);
+assert.equal(
+    manifest.model_document,
+    'doc/01-子文档/15-学科实验与内容开发指南.md#model-showcase-template-probe'
+);
 assert.equal(manifest.registration_state, 'candidate-unregistered');
 
 const html = render(read('module.html.tpl'));
@@ -199,20 +208,13 @@ assert.match(css, /@media \(max-width: 760px\)/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 
 const modelNotes = render(read('model-notes.md.tpl'));
-for (const requiredLabel of [
-    '自变量与单位',
-    '因变量与单位',
-    '核心关系',
-    '适用条件',
-    '简化假设',
-    '误差来源',
-    '参考依据',
-    '已知限制',
-    '画面映射',
-    '验证样例'
-]) {
-    assert.match(modelNotes, new RegExp(requiredLabel));
+const modelContract = JSON.parse(read('model-document.contract.json'));
+assert.match(modelNotes, /^<a id="model-showcase-template-probe"><\/a>/);
+assert.match(modelNotes, /^### 展示实验模板探针｜模型说明与验证记录$/m);
+for (const requiredSection of modelContract.required_sections) {
+    assert.match(modelNotes, new RegExp(requiredSection.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
+assert.match(modelNotes, /不复制到实验首屏/);
 
 const productionFiles = [
     'shared/js/config.js',

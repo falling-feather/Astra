@@ -34,7 +34,6 @@ const replacements = Object.freeze({
     __OWNER__: 'VisualPrimitivesProbe',
     __NAMESPACE__: 'visual-primitives-probe',
     __ASSET_VERSION__: '20260824v823Ext04P0',
-    __MODEL_DOC_ANCHOR__: 'model-visual-primitives-probe',
     __PARAMETER_LABEL__: '位移',
     __PARAMETER_UNIT__: 'm',
     __PRIMARY_LEGEND__: '运动对象',

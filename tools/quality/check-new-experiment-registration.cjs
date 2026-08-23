@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { validateModelDocumentReference } = require('./check-new-experiment-model-document.cjs');
 
 const DEFAULT_ROOT = path.resolve(__dirname, '../..');
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/;
@@ -207,6 +208,11 @@ function validateCandidateManifests({ manifests, root = DEFAULT_ROOT, baseline =
             addError(source, 'registration_state_invalid', 'registration_state must remain candidate-unregistered before production wiring');
         }
 
+        const modelDocument = validateModelDocumentReference({ manifest, root });
+        for (const error of modelDocument.errors) {
+            addError(source, `model_${error.code}`, error.message);
+        }
+
         const cleanup = manifest.cleanup;
         if (!cleanup || typeof cleanup !== 'object') {
             addError(source, 'cleanup_required', 'cleanup contract is required');
@@ -301,7 +307,10 @@ function runCli(argv = process.argv.slice(2)) {
         result.errors.forEach((error) => console.error(`${error.code}: ${error.source}: ${error.message}`));
         return 1;
     }
-    console.log(`new-experiment-registration: ${result.checked} candidate(s) PASS against ${result.protectedExperiments} protected experiments`);
+    console.log(
+        `new-experiment-registration: ${result.checked} candidate(s) PASS against `
+        + `${result.protectedExperiments} protected experiments; model documents reviewed`
+    );
     return 0;
 }
 

@@ -15,7 +15,6 @@
     "__OWNER__",
     "__NAMESPACE__",
     "__ASSET_VERSION__",
-    "__MODEL_DOC_ANCHOR__",
     "__PARAMETER_LABEL__",
     "__PARAMETER_UNIT__",
     "__PRIMARY_LEGEND__",
@@ -29,5 +28,8 @@
   "validation": "node tools/tests/new-experiment-template-contract.cjs",
   "registration_validation": "node tools/quality/check-new-experiment-registration.cjs --manifest <pages/subject/experiment/manifest.json>",
   "visual_contract": "visual-primitives.contract.json",
-  "visual_validation": "node tools/tests/new-experiment-visual-primitives-contract.cjs"
+  "visual_validation": "node tools/tests/new-experiment-visual-primitives-contract.cjs",
+  "model_contract": "model-document.contract.json",
+  "model_example": "model-notes.example.md",
+  "model_validation": "node tools/quality/check-new-experiment-model-document.cjs --manifest <pages/subject/experiment/manifest.json>"
 }
