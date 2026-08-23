@@ -10,6 +10,11 @@ const DEFAULT_CONTRACT = path.join(
     DEFAULT_ROOT,
     'tools/templates/new-experiment/browser-journey.contract.json'
 );
+const DEFAULT_DEBUG_CONTRACT = path.join(
+    DEFAULT_ROOT,
+    'tools/templates/new-experiment/debug-panel.contract.json'
+);
+const DEBUG_PANEL_SCRIPT = path.join(__dirname, 'new-experiment-debug-panel.js');
 const SERIOUS_CONSOLE_TYPES = new Set(['warning', 'warn', 'error']);
 
 function parseArgs(argv) {
@@ -35,6 +40,22 @@ function readJson(file) {
 
 function loadContract(file = DEFAULT_CONTRACT) {
     return readJson(path.resolve(file));
+}
+
+function loadDebugContract(file = DEFAULT_DEBUG_CONTRACT) {
+    return readJson(path.resolve(file));
+}
+
+function normalizeDebugHold(value) {
+    if (value === undefined || value === null || value === '') return 0;
+    if (typeof value === 'boolean') {
+        throw new Error('--debug-hold requires an integer number of milliseconds');
+    }
+    const milliseconds = Number(value);
+    if (!Number.isInteger(milliseconds) || milliseconds < 0 || milliseconds > 3600000) {
+        throw new Error('--debug-hold must be an integer from 0 to 3600000 milliseconds');
+    }
+    return milliseconds;
 }
 
 function stripQuery(value) {
@@ -147,12 +168,26 @@ function harnessScript(candidate, contract) {
     return [
         '(() => {',
         "  'use strict';",
-        '  const metrics = { activeFrames: new Set(), activeObservers: new Set(), framesCreated: 0, observersCreated: 0 };',
+        '  const metrics = { activeFrames: new Set(), activeObservers: new Set(), framesCreated: 0, framesExecuted: 0, observersCreated: 0, lastFrameTime: 0, lastFrameIntervalMs: 0, fpsWindowStart: 0, fpsWindowFrames: 0, framesPerSecond: 0 };',
         '  const nativeRequest = window.requestAnimationFrame.bind(window);',
         '  const nativeCancel = window.cancelAnimationFrame.bind(window);',
         '  window.requestAnimationFrame = (callback) => {',
         '    let frame = 0;',
-        '    frame = nativeRequest((time) => { metrics.activeFrames.delete(frame); callback(time); });',
+        '    frame = nativeRequest((time) => {',
+        '      metrics.activeFrames.delete(frame);',
+        '      metrics.framesExecuted += 1;',
+        '      if (metrics.lastFrameTime) metrics.lastFrameIntervalMs = Math.max(0, time - metrics.lastFrameTime);',
+        '      metrics.lastFrameTime = time;',
+        '      if (!metrics.fpsWindowStart) metrics.fpsWindowStart = time;',
+        '      metrics.fpsWindowFrames += 1;',
+        '      const fpsElapsed = time - metrics.fpsWindowStart;',
+        '      if (fpsElapsed >= 250) {',
+        '        metrics.framesPerSecond = metrics.fpsWindowFrames * 1000 / fpsElapsed;',
+        '        metrics.fpsWindowStart = time;',
+        '        metrics.fpsWindowFrames = 0;',
+        '      }',
+        '      callback(time);',
+        '    });',
         '    metrics.activeFrames.add(frame);',
         '    metrics.framesCreated += 1;',
         '    return frame;',
@@ -175,6 +210,9 @@ function harnessScript(candidate, contract) {
         '    activeAnimationFrames: metrics.activeFrames.size,',
         '    activeResizeObservers: metrics.activeObservers.size,',
         '    framesCreated: metrics.framesCreated,',
+        '    framesExecuted: metrics.framesExecuted,',
+        '    lastFrameIntervalMs: metrics.lastFrameIntervalMs,',
+        '    framesPerSecond: metrics.framesPerSecond,',
         '    observersCreated: metrics.observersCreated',
         '  });',
         '  const ownerState = () => {',
@@ -202,6 +240,8 @@ function harnessScript(candidate, contract) {
         "      return typeof init === 'function' ? init() !== false : false;",
         '    },',
         '    leave() {',
+        '      const debugPanel = window.AstraNewExperimentDebugPanel || null;',
+        '      debugPanel?.destroy?.();',
         '      const owner = window[ownerName];',
         '      const oldSignal = owner && owner.controls ? owner.controls.signal : null;',
         "      if (owner && typeof owner.destroy === 'function') owner.destroy();",
@@ -210,9 +250,15 @@ function harnessScript(candidate, contract) {
         '        signalAborted: Boolean(oldSignal && oldSignal.aborted),',
         '        moduleRemoved: !document.querySelector(moduleSelector),',
         '        owner: ownerState(),',
-        '        metrics: metricsSnapshot()',
+        '        metrics: metricsSnapshot(),',
+        '        debugPanel: {',
+        '          exported: Boolean(debugPanel),',
+        '          panelNodes: document.querySelectorAll("#astra-new-experiment-debug-panel").length,',
+        '          status: debugPanel?.status?.() || null',
+        '        }',
         '      };',
         '    },',
+        '    debugMetrics() { return metricsSnapshot(); },',
         '    inspect() {',
         '      const module = document.querySelector(moduleSelector);',
         "      const root = module && module.querySelector('.astra-exp');",
@@ -293,12 +339,17 @@ function contentType(file) {
     })[path.extname(file).toLowerCase()] || 'application/octet-stream';
 }
 
-function buildHarnessHtml(candidate, contract) {
+function buildHarnessHtml(candidate, contract, options = {}) {
     const manifest = candidate.manifest;
     const moduleDirectory = path.posix.dirname(stripQuery(manifest.module));
     const baseHref = '/' + (moduleDirectory === '.' ? '' : moduleDirectory + '/');
     const styleHref = '/' + manifest.style.replace(/^\/+/, '');
     const scriptSrc = '/' + manifest.script.replace(/^\/+/, '');
+    const debugScript = options.debug && options.debugContract
+        ? '<script src="'
+            + escapeHtmlAttribute(options.debugContract.activation.script_request)
+            + '"></script>'
+        : '';
     return [
         '<!doctype html>',
         '<html lang="zh-CN">',
@@ -322,13 +373,23 @@ function buildHarnessHtml(candidate, contract) {
         '<main id="page-' + manifest.subject + '"></main>',
         '<script>' + harnessScript(candidate, contract).replaceAll('</script', '<\\/script') + '</script>',
         '<script src="' + escapeHtmlAttribute(scriptSrc) + '"></script>',
+        debugScript,
         '</body>',
         '</html>'
     ].join('\n');
 }
 
-async function startHarnessServer(candidate, contract) {
-    const page = buildHarnessHtml(candidate, contract);
+async function startHarnessServer(candidate, contract, options = {}) {
+    const debugScriptRequest = options.debug && options.debugContract
+        ? options.debugContract.activation.script_request
+        : null;
+    const debugPathname = debugScriptRequest
+        ? new URL(debugScriptRequest, 'http://127.0.0.1').pathname
+        : null;
+    const debugSource = debugPathname
+        ? await fsp.readFile(DEBUG_PANEL_SCRIPT)
+        : null;
+    const page = buildHarnessHtml(candidate, contract, options);
     const server = http.createServer(async (request, response) => {
         const url = new URL(request.url || '/', 'http://127.0.0.1');
         if (url.pathname === '/' || url.pathname === '/index.html') {
@@ -339,6 +400,15 @@ async function startHarnessServer(candidate, contract) {
         if (url.pathname === '/favicon.ico') {
             response.writeHead(204);
             response.end();
+            return;
+        }
+        if (debugPathname && url.pathname === debugPathname) {
+            response.writeHead(200, {
+                'Content-Type': 'text/javascript; charset=utf-8',
+                'Content-Length': debugSource.length,
+                'Cache-Control': 'no-store'
+            });
+            response.end(debugSource);
             return;
         }
         try {
@@ -367,6 +437,7 @@ async function startHarnessServer(candidate, contract) {
     const address = server.address();
     return {
         url: 'http://127.0.0.1:' + address.port + '/',
+        debugPathname,
         close: () => new Promise((resolve, reject) => {
             server.close((error) => error ? reject(error) : resolve());
         })
@@ -435,7 +506,50 @@ async function inspect(page) {
     return page.evaluate(() => window.__newExperimentAcceptance.inspect());
 }
 
-async function runViewport(browser, harness, candidate, contract, profile, outDir) {
+async function inspectDebugPanel(page, refresh = false) {
+    return page.evaluate((forceRefresh) => {
+        const api = window.AstraNewExperimentDebugPanel || null;
+        const host = document.getElementById('astra-new-experiment-debug-panel');
+        const root = host?.shadowRoot || null;
+        const panel = root?.querySelector('.panel') || null;
+        const close = root?.querySelector('[data-debug-close]') || null;
+        const rectOf = (element) => {
+            if (!element) return null;
+            const rect = element.getBoundingClientRect();
+            return {
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height
+            };
+        };
+        const snapshot = api
+            ? (forceRefresh ? api.refresh() : api.snapshot())
+            : null;
+        return {
+            globalExport: Boolean(api),
+            panelCount: document.querySelectorAll('#astra-new-experiment-debug-panel').length,
+            status: api?.status?.() || null,
+            snapshot,
+            sections: Array.from(root?.querySelectorAll('h3') || [], (node) => (
+                node.textContent.trim()
+            )),
+            layout: {
+                viewport: { width: window.innerWidth, height: window.innerHeight },
+                host: rectOf(host),
+                panel: rectOf(panel),
+                closeButton: rectOf(close),
+                panelClientHeight: panel?.clientHeight || 0,
+                panelScrollHeight: panel?.scrollHeight || 0,
+                panelScrollable: Boolean(panel && panel.scrollHeight > panel.clientHeight)
+            }
+        };
+    }, refresh);
+}
+
+async function runViewport(browser, harness, candidate, contract, profile, outDir, options = {}) {
     const context = await browser.newContext({
         viewport: { width: profile.width, height: profile.height },
         reducedMotion: profile.reduced_motion ? 'reduce' : 'no-preference',
@@ -443,6 +557,14 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
         locale: 'zh-CN'
     });
     const page = await context.newPage();
+    const clickCandidateControl = async (selector) => {
+        const locator = page.locator(selector);
+        if (options.debug) {
+            await locator.evaluate((element) => element.click());
+        } else {
+            await locator.click();
+        }
+    };
     const run = {
         name: profile.name,
         viewport: { width: profile.width, height: profile.height },
@@ -451,8 +573,18 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
         console: [],
         page_errors: [],
         network_failures: [],
+        debug_mode: Boolean(options.debug),
+        debug_script_requests: 0,
         screenshot: ''
     };
+    page.on('request', (request) => {
+        if (
+            harness.debugPathname
+            && new URL(request.url()).pathname === harness.debugPathname
+        ) {
+            run.debug_script_requests += 1;
+        }
+    });
     page.on('console', (message) => {
         if (SERIOUS_CONSOLE_TYPES.has(message.type())) {
             run.console.push({ type: message.type(), text: message.text().slice(0, 1000) });
@@ -480,6 +612,12 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
     try {
         await page.goto(harness.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
         const mounted = await page.evaluate(() => window.__newExperimentAcceptance.mount());
+        let debugMounted = false;
+        if (options.debug) {
+            debugMounted = await page.evaluate((ownerName) => (
+                window.AstraNewExperimentDebugPanel?.mount?.({ ownerName }) === true
+            ), candidate.manifest.owner);
+        }
         await page.waitForFunction(() => {
             const state = window.__newExperimentAcceptance.inspect();
             return Boolean(
@@ -491,6 +629,23 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
         }, undefined, { timeout: 5000 });
         await page.waitForTimeout(120);
         const initial = await inspect(page);
+        if (!options.debug) {
+            const debugOff = await inspectDebugPanel(page);
+            addCheck(
+                run,
+                'debug-off',
+                run.debug_script_requests === 0
+                    && debugOff.globalExport === false
+                    && debugOff.panelCount === 0
+                    && debugOff.status === null,
+                {
+                    scriptRequests: run.debug_script_requests,
+                    globalExport: debugOff.globalExport,
+                    panelCount: debugOff.panelCount,
+                    status: debugOff.status
+                }
+            );
+        }
         addCheck(
             run,
             'enter',
@@ -501,6 +656,7 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
                 && Object.values(initial.owner.references).some((value) => value === false),
             { mounted, state: initial.state, metrics: initial.metrics }
         );
+
         addCheck(
             run,
             'first-draw',
@@ -542,6 +698,66 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
             }
         );
 
+        if (options.debug) {
+            await page.waitForTimeout(options.debugContract.refresh_interval_ms + 80);
+            const debugState = await inspectDebugPanel(page, true);
+            const debugSnapshot = debugState.snapshot;
+            const expectedState = profile.reduced_motion ? 'reduced-motion' : 'running';
+            const motionMetricsOk = profile.reduced_motion
+                ? debugSnapshot?.timing?.frames_per_second === 0
+                    && debugSnapshot?.timing?.last_step_seconds === 0
+                    && debugSnapshot?.resources?.animation_frames === 0
+                : debugSnapshot?.timing?.frames_per_second > 0
+                    && debugSnapshot?.timing?.last_step_seconds > 0
+                    && debugSnapshot?.resources?.animation_frames > 0;
+            const layout = debugState.layout;
+            const hostWithinViewport = layout.host
+                && layout.host.left >= -1
+                && layout.host.right <= layout.viewport.width + 1
+                && layout.host.top >= -1
+                && layout.host.bottom <= layout.viewport.height + 1;
+            const mobileLayoutOk = profile.name !== 'mobile'
+                || (
+                    layout.closeButton
+                    && layout.closeButton.width >= options.debugContract.responsive.minimum_action_height_px
+                    && layout.closeButton.height >= options.debugContract.responsive.minimum_action_height_px
+                    && layout.panelScrollable
+                );
+            addCheck(
+                run,
+                'debug-panel',
+                debugMounted
+                    && run.debug_script_requests === options.debugContract.on_mode.script_requests
+                    && debugState.globalExport
+                    && debugState.panelCount === options.debugContract.on_mode.panel_nodes
+                    && debugState.status?.mounted === true
+                    && debugState.status?.timerActive === true
+                    && debugState.status?.ownerName === candidate.manifest.owner
+                    && debugState.sections.length === options.debugContract.required_sections.length
+                    && options.debugContract.required_sections.every((section) => (
+                        debugState.sections.includes(section)
+                    ))
+                    && debugSnapshot?.state === expectedState
+                    && Number(debugSnapshot?.model?.parameter) === operationValue
+                    && debugSnapshot?.resources?.resize_observers === 1
+                    && debugSnapshot?.resources?.control_scopes === 1
+                    && debugSnapshot?.resources?.canvas_bitmap?.width > 0
+                    && debugSnapshot?.resources?.canvas_bitmap?.height > 0
+                    && motionMetricsOk
+                    && hostWithinViewport
+                    && mobileLayoutOk,
+                {
+                    mounted: debugMounted,
+                    scriptRequests: run.debug_script_requests,
+                    panel: debugState,
+                    expectedState,
+                    motionMetricsOk,
+                    hostWithinViewport,
+                    mobileLayoutOk
+                }
+            );
+        }
+
         if (profile.reduced_motion) {
             const beforeStaticWait = operated.owner.snapshot.elapsed_seconds;
             await page.waitForTimeout(180);
@@ -564,13 +780,13 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
                 }
             );
         } else {
-            await page.locator('[data-action="toggle"]').click();
+            await clickCandidateControl('[data-action="toggle"]');
             await page.waitForTimeout(80);
             const paused = await inspect(page);
             const pausedElapsed = paused.owner.snapshot.elapsed_seconds;
             await page.waitForTimeout(140);
             const pausedAgain = await inspect(page);
-            await page.locator('[data-action="toggle"]').click();
+            await clickCandidateControl('[data-action="toggle"]');
             await page.waitForTimeout(140);
             const resumed = await inspect(page);
             addCheck(
@@ -594,7 +810,7 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
             );
         }
 
-        await page.locator('[data-action="reset"]').click();
+        await clickCandidateControl('[data-action="reset"]');
         await page.waitForTimeout(30);
         const reset = await inspect(page);
         addCheck(
@@ -623,9 +839,9 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
 
         if (profile.name === 'mobile') {
             const beforeDrawer = reset.details;
-            await page.locator('[data-role="control-drawer"] > summary').click();
+            await clickCandidateControl('[data-role="control-drawer"] > summary');
             const closedDrawer = (await inspect(page)).details;
-            await page.locator('[data-role="control-drawer"] > summary').click();
+            await clickCandidateControl('[data-role="control-drawer"] > summary');
             const openedDrawer = (await inspect(page)).details;
             addCheck(
                 run,
@@ -656,7 +872,18 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
             );
         }
 
-        const screenshotName = candidate.manifest.activity_key + '-' + profile.name + '.png';
+        if (options.debug) {
+            await page.waitForTimeout(options.debugContract.refresh_interval_ms + 20);
+            run.debug_before_screenshot = await inspectDebugPanel(page, true);
+        }
+        if (options.debug && profile.name === 'desktop' && options.debugHoldMs > 0) {
+            await page.waitForTimeout(options.debugHoldMs);
+        }
+        const screenshotName = candidate.manifest.activity_key
+            + '-'
+            + profile.name
+            + (options.debug ? '-debug' : '')
+            + '.png';
         const screenshot = path.join(outDir, screenshotName);
         await page.screenshot({
             path: screenshot,
@@ -675,11 +902,26 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
                 && Object.values(releaseReferences).every(Boolean)
                 && released.owner.frame === 0
                 && released.metrics.activeResizeObservers === 0
-                && released.metrics.activeAnimationFrames === 0,
+                && released.metrics.activeAnimationFrames === 0
+                && (
+                    !options.debug
+                    || (
+                        released.debugPanel
+                        && released.debugPanel.exported === true
+                        && released.debugPanel.panelNodes === 0
+                        && released.debugPanel.status?.mounted === false
+                        && released.debugPanel.status?.timerActive === false
+                    )
+                ),
             released
         );
 
         const remounted = await page.evaluate(() => window.__newExperimentAcceptance.mount());
+        const debugRemounted = options.debug
+            ? await page.evaluate((ownerName) => (
+                window.AstraNewExperimentDebugPanel?.mount?.({ ownerName }) === true
+            ), candidate.manifest.owner)
+            : false;
         await page.waitForTimeout(100);
         await page.evaluate((value) => {
             const control = document.querySelector('[data-control="parameter"]');
@@ -688,6 +930,9 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
         }, contract.operation.reentry_parameter_value);
         await page.waitForTimeout(30);
         const reentered = await inspect(page);
+        const reenteredDebug = options.debug
+            ? await inspectDebugPanel(page, true)
+            : null;
         addCheck(
             run,
             're-enter',
@@ -701,16 +946,45 @@ async function runViewport(browser, harness, candidate, contract, profile, outDi
                     profile.reduced_motion
                         ? reentered.metrics.activeAnimationFrames === 0
                         : reentered.metrics.activeAnimationFrames > 0
+                )
+                && (
+                    !options.debug
+                    || (
+                        debugRemounted
+                        && reenteredDebug?.status?.mounted === true
+                        && reenteredDebug?.status?.timerActive === true
+                        && Number(reenteredDebug?.snapshot?.model?.parameter)
+                            === contract.operation.reentry_parameter_value
+                    )
                 ),
             {
                 remounted,
                 state: reentered.state,
                 snapshot: reentered.owner && reentered.owner.snapshot,
                 readout: reentered.readout,
-                metrics: reentered.metrics
+                metrics: reentered.metrics,
+                debugRemounted,
+                debugPanel: reenteredDebug
             }
         );
         run.final_release = await page.evaluate(() => window.__newExperimentAcceptance.leave());
+        addCheck(
+            run,
+            'final-release',
+            run.final_release.signalAborted
+                && run.final_release.moduleRemoved
+                && run.final_release.metrics.activeResizeObservers === 0
+                && run.final_release.metrics.activeAnimationFrames === 0
+                && (
+                    !options.debug
+                    || (
+                        run.final_release.debugPanel?.panelNodes === 0
+                        && run.final_release.debugPanel?.status?.mounted === false
+                        && run.final_release.debugPanel?.status?.timerActive === false
+                    )
+                ),
+            run.final_release
+        );
         addCheck(
             run,
             'console-clean',
@@ -816,6 +1090,14 @@ function validateJourneyReport(report, options = {}) {
 
 async function runJourney(options = {}) {
     const contract = loadContract(options.contractFile || DEFAULT_CONTRACT);
+    const debugMode = options.debug === true;
+    const debugHoldMs = normalizeDebugHold(options.debugHoldMs);
+    if (!debugMode && debugHoldMs > 0) {
+        throw new Error('--debug-hold requires --debug');
+    }
+    const debugContract = debugMode
+        ? loadDebugContract(options.debugContractFile || DEFAULT_DEBUG_CONTRACT)
+        : null;
     const candidate = loadCandidate(options);
     const outDir = path.resolve(
         options.out
@@ -829,6 +1111,14 @@ async function runJourney(options = {}) {
         generated_at: new Date().toISOString(),
         scope: contract.scope,
         production_registration: false,
+        debug_mode: debugMode,
+        debug_contract: debugContract
+            ? {
+                task: debugContract.task,
+                version: debugContract.version,
+                delivery: debugContract.delivery
+            }
+            : null,
         candidate: {
             subject: candidate.manifest.subject,
             id: candidate.manifest.id,
@@ -849,7 +1139,10 @@ async function runJourney(options = {}) {
     let harness = null;
     let fatalError = null;
     try {
-        harness = await startHarnessServer(candidate, contract);
+        harness = await startHarnessServer(candidate, contract, {
+            debug: debugMode,
+            debugContract
+        });
         launched = await launchBrowser(options);
         report.browser = {
             target: launched.label,
@@ -863,7 +1156,12 @@ async function runJourney(options = {}) {
                     candidate,
                     contract,
                     profile,
-                    outDir
+                    outDir,
+                    {
+                        debug: debugMode,
+                        debugContract,
+                        debugHoldMs
+                    }
                 )
             );
         }
@@ -902,9 +1200,10 @@ async function runJourney(options = {}) {
 function printHelp() {
     console.log([
         'Usage:',
-        '  node tools/browser/check-new-experiment-journey.cjs --manifest <manifest.json> [--root <repository>] [--out <directory>]',
+        '  node tools/browser/check-new-experiment-journey.cjs --manifest <manifest.json> [--root <repository>] [--out <directory>] [--debug]',
         '  node tools/browser/check-new-experiment-journey.cjs --validate-report <report.json> [--manifest <manifest.json>] [--contract <contract.json>]',
         '',
+        'Development inspector: --debug [--headed] [--debug-hold <0..3600000 milliseconds>]',
         'Optional browser selection: --channel msedge | --executable <browser.exe> | --headed'
     ].join('\n'));
 }
@@ -919,6 +1218,14 @@ async function main(argv = process.argv.slice(2)) {
     const contractFile = args.contract
         ? path.resolve(args.contract)
         : path.join(root, 'tools/templates/new-experiment/browser-journey.contract.json');
+    const debugMode = args.debug === true;
+    if (args.debug !== undefined && !debugMode) {
+        throw new Error('--debug is a flag and does not accept a value');
+    }
+    const debugHoldMs = normalizeDebugHold(args['debug-hold']);
+    if (!debugMode && debugHoldMs > 0) {
+        throw new Error('--debug-hold requires --debug');
+    }
     if (args['validate-report']) {
         const reportFile = path.resolve(String(args['validate-report']));
         const report = readJson(reportFile);
@@ -944,7 +1251,12 @@ async function main(argv = process.argv.slice(2)) {
         contractFile,
         channel: args.channel,
         executable: args.executable,
-        headed: args.headed === true
+        headed: args.headed === true,
+        debug: debugMode,
+        debugHoldMs,
+        debugContractFile: args['debug-contract']
+            ? path.resolve(args['debug-contract'])
+            : path.join(root, 'tools/templates/new-experiment/debug-panel.contract.json')
     });
     console.log(JSON.stringify({
         ok: result.report.ok,
@@ -963,6 +1275,7 @@ async function main(argv = process.argv.slice(2)) {
 
 module.exports = Object.freeze({
     loadContract,
+    loadDebugContract,
     loadCandidate,
     validateJourneyReport,
     runJourney,

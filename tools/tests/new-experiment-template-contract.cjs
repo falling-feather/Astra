@@ -39,6 +39,12 @@ assert.equal(
     contract.browser_journey_validation,
     'node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --out <test-screenshots/new-experiment/activity-key>'
 );
+assert.equal(contract.debug_panel_contract, 'debug-panel.contract.json');
+assert.ok(fs.existsSync(path.join(templateRoot, contract.debug_panel_contract)));
+assert.equal(
+    contract.debug_panel_command,
+    'node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --debug --headed --debug-hold <milliseconds>'
+);
 assert.deepEqual(contract.required_files, [
     'manifest.json.tpl',
     'module.html.tpl',
@@ -127,6 +133,9 @@ assert.match(runtime, /\.controls\?\.abort\(\)/);
 assert.match(runtime, /\.resizeObserver\?\.disconnect\(\)/);
 assert.match(runtime, /prefers-reduced-motion: reduce/);
 assert.match(runtime, /devicePixelRatio/);
+assert.match(runtime, /debugSnapshot\(\)/);
+assert.match(runtime, /last_step_seconds/);
+assert.doesNotMatch(runtime, /AstraNewExperimentDebugPanel|setInterval/);
 
 const listeners = new Map();
 const createControl = () => ({
@@ -209,15 +218,33 @@ assert.match(notice.textContent, /减少动态效果/);
 assert.equal(toggleControl.disabled, true);
 assert.equal(rootElement.dataset.state, 'reduced-motion');
 assert.equal(owner.snapshot().parameter, 50);
+const initialDebugSnapshot = owner.debugSnapshot();
+assert.equal(initialDebugSnapshot.state, 'reduced-motion');
+assert.equal(initialDebugSnapshot.model.parameter, 50);
+assert.equal(initialDebugSnapshot.timing.last_step_seconds, 0);
+assert.equal(initialDebugSnapshot.timing.maximum_step_seconds, 0.05);
+assert.equal(initialDebugSnapshot.resources.animation_frames, 0);
+assert.equal(initialDebugSnapshot.resources.resize_observers, 1);
+assert.equal(initialDebugSnapshot.resources.control_scopes, 1);
+assert.equal(initialDebugSnapshot.resources.canvas_bitmap.width, 640);
+assert.equal(initialDebugSnapshot.resources.canvas_bitmap.height, 360);
 const abortSignal = owner.controls.signal;
 listeners.get(parameterControl).listener({ target: { value: '80' } });
 assert.equal(owner.snapshot().parameter, 80);
 assert.equal(parameterOutput.textContent, '80 m');
+assert.equal(owner.debugSnapshot().model.parameter, 80);
 owner.destroy();
 assert.equal(abortSignal.aborted, true, 'destroy must abort control listeners');
 assert.equal(observerDisconnected, true, 'destroy must disconnect ResizeObserver');
 assert.equal(owner.root, null);
 assert.equal(owner.canvas, null);
+const destroyedDebugSnapshot = owner.debugSnapshot();
+assert.equal(destroyedDebugSnapshot.state, 'detached');
+assert.equal(destroyedDebugSnapshot.resources.animation_frames, 0);
+assert.equal(destroyedDebugSnapshot.resources.resize_observers, 0);
+assert.equal(destroyedDebugSnapshot.resources.control_scopes, 0);
+assert.equal(destroyedDebugSnapshot.resources.canvas_bitmap.width, 0);
+assert.equal(destroyedDebugSnapshot.resources.canvas_bitmap.height, 0);
 
 const css = render(read('styles.css.tpl'));
 const selectorLines = css.split(/\r?\n/).filter((line) => {

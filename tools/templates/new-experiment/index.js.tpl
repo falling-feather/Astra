@@ -20,6 +20,7 @@
         motionPreference: null,
         frame: 0,
         lastTime: 0,
+        lastStepSeconds: 0,
         parameter: DEFAULT_PARAMETER,
         elapsed: 0,
         paused: false,
@@ -70,7 +71,10 @@
             this.toggleButton.addEventListener('click', () => {
                 if (this.reducedMotion) return;
                 this.paused = !this.paused;
-                if (this.paused) this.stopLoop();
+                if (this.paused) {
+                    this.lastStepSeconds = 0;
+                    this.stopLoop();
+                }
                 this.syncUi();
                 if (!this.paused && !this.frame) this.startLoop();
             }, { signal });
@@ -79,7 +83,10 @@
             }, { signal });
             this.motionPreference.addEventListener?.('change', (event) => {
                 this.reducedMotion = Boolean(event.matches);
-                if (this.reducedMotion) this.stopLoop();
+                if (this.reducedMotion) {
+                    this.lastStepSeconds = 0;
+                    this.stopLoop();
+                }
                 this.syncUi();
                 this.render();
                 if (!this.reducedMotion && !this.paused) this.startLoop();
@@ -95,6 +102,7 @@
         reset() {
             this.parameter = DEFAULT_PARAMETER;
             this.elapsed = 0;
+            this.lastStepSeconds = 0;
             this.paused = false;
             this.stopLoop();
             if (this.parameterControl) this.parameterControl.value = String(DEFAULT_PARAMETER);
@@ -161,12 +169,14 @@
 
         startLoop() {
             if (this.frame || this.paused || this.reducedMotion) return;
+            this.lastStepSeconds = 0;
             this.lastTime = performance.now();
             const tick = (now) => {
                 this.frame = 0;
                 if (!this.root || this.paused || this.reducedMotion) return;
                 const dt = clamp((now - this.lastTime) / 1000, 0, 0.05);
                 this.lastTime = now;
+                this.lastStepSeconds = dt;
                 this.elapsed += dt;
                 this.render();
                 this.frame = requestAnimationFrame(tick);
@@ -178,6 +188,29 @@
             return Object.freeze({
                 parameter: this.parameter,
                 elapsed_seconds: this.elapsed
+            });
+        },
+
+        debugSnapshot() {
+            const rootState = this.root
+                ? (this.root.dataset.state || 'mounted')
+                : 'detached';
+            return Object.freeze({
+                state: rootState,
+                model: this.snapshot(),
+                timing: Object.freeze({
+                    last_step_seconds: this.lastStepSeconds,
+                    maximum_step_seconds: 0.05
+                }),
+                resources: Object.freeze({
+                    animation_frames: this.frame ? 1 : 0,
+                    resize_observers: this.resizeObserver ? 1 : 0,
+                    control_scopes: this.controls ? 1 : 0,
+                    canvas_bitmap: Object.freeze({
+                        width: this.canvas ? this.canvas.width : 0,
+                        height: this.canvas ? this.canvas.height : 0
+                    })
+                })
             });
         },
 
@@ -222,6 +255,7 @@
             this.paused = false;
             this.reducedMotion = false;
             this.elapsed = 0;
+            this.lastStepSeconds = 0;
         }
     };
 

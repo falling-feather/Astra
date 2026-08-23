@@ -38,5 +38,7 @@
   "preview_inspection": "node tools/quality/check-new-experiment-preview.cjs --inspect <preview.webp>",
   "preview_validation": "node tools/quality/check-new-experiment-preview.cjs --manifest <pages/subject/experiment/manifest.json>",
   "browser_journey_contract": "browser-journey.contract.json",
-  "browser_journey_validation": "node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --out <test-screenshots/new-experiment/activity-key>"
+  "browser_journey_validation": "node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --out <test-screenshots/new-experiment/activity-key>",
+  "debug_panel_contract": "debug-panel.contract.json",
+  "debug_panel_command": "node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --debug --headed --debug-hold <milliseconds>"
 }

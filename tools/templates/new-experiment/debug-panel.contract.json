@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "task": "EXT-08",
+  "version": "V8.2.7",
+  "scope": "new-experiment-only",
+  "delivery": "development-tool-only",
+  "production_registration": false,
+  "default_enabled": false,
+  "purpose": "Inspect a new candidate's model state, simulation step, frame rate and live resources without shipping debug UI in the experiment.",
+  "activation": {
+    "cli_flag": "--debug",
+    "interactive_command": "node tools/browser/check-new-experiment-journey.cjs --manifest <pages/subject/experiment/manifest.json> --debug --headed --debug-hold <milliseconds>",
+    "script_request": "/__astra_new_experiment_debug_panel.js?v=V8.2.7"
+  },
+  "provider": {
+    "method": "debugSnapshot",
+    "polling": false,
+    "dom_nodes": 0,
+    "timers": 0,
+    "network_requests": 0,
+    "mutable_owner_references": false
+  },
+  "refresh_interval_ms": 250,
+  "maximum_refresh_hz": 4,
+  "required_sections": [
+    "运行状态",
+    "模型变量",
+    "模拟步长",
+    "帧率",
+    "资源数量",
+    "画布尺寸"
+  ],
+  "required_snapshot_fields": [
+    "state",
+    "model",
+    "timing.last_step_seconds",
+    "timing.frames_per_second",
+    "resources.animation_frames",
+    "resources.resize_observers",
+    "resources.control_scopes",
+    "resources.canvas_bitmap"
+  ],
+  "off_mode": {
+    "script_requests": 0,
+    "global_export": false,
+    "panel_nodes": 0,
+    "panel_timers": 0
+  },
+  "on_mode": {
+    "script_requests": 1,
+    "panel_nodes": 1,
+    "model_updates_after_operation": true,
+    "reduced_motion_fps": 0
+  },
+  "responsive": {
+    "desktop": "fixed right-side inspector that does not resize the candidate stage",
+    "mobile": "bounded bottom inspector with internal scrolling",
+    "minimum_action_height_px": 44
+  },
+  "cleanup": {
+    "destroy_on_candidate_leave": true,
+    "panel_nodes_after_destroy": 0,
+    "panel_timers_after_destroy": 0
+  },
+  "content_policy": "The panel is a developer instrument, not a lesson, student control, competition overlay or production feature.",
+  "old_activity_policy": "The debug script may inspect only an isolated new candidate and must never be linked from existing activity pages."
+}
