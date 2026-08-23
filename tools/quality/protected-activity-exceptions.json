@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "purpose": "Exact one-change exceptions approved by the project owner. Every entry must bind one issue signature to a task, approver, date and reason; remove it after the protected baseline is deliberately renewed.",
+  "exceptions": []
+}

@@ -1,0 +1,5947 @@
+{
+  "schema_version": 1,
+  "baseline_id": "V8.2.2-EXT-03",
+  "source_revision": "0744205",
+  "purpose": "Read-only projection of the 124 pre-existing activities; additions are allowed, protected changes require an exact approved exception.",
+  "counts": {
+    "total": 124,
+    "englab": 88,
+    "code-space": 18,
+    "future-galaxy": 18
+  },
+  "generated_sources": [
+    "shared/js/config.js",
+    "shared/js/experiment-registry.js",
+    "shared/js/learning-activity-catalog.js",
+    "codevis/shared/js/course-manifest.js",
+    "pages/frontier/frontier-manifest.js",
+    "shared/js/frontier-learning.js",
+    "index.html"
+  ],
+  "activities": [
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.bst-avl",
+      "route": "#algorithms/bst-avl",
+      "title": "二叉搜索树",
+      "owners": [
+        "BSTAVL"
+      ],
+      "init_hooks": [
+        "initBSTAVL"
+      ],
+      "cleanup_hooks": [
+        "BSTAVL"
+      ],
+      "presentation": {
+        "description": "BST 插入/删除与 AVL 旋转",
+        "icon": "git-branch",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.bst-avl",
+        "shared/js/experiment-registry.js#algorithms.bst-avl"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"bst-avl\"]",
+          "sha256": "4a9b640e0417869b30b4492465cf7ecd4e38163ca8c34df88f2e23f25a54ba78"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/bst-avl.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "4946aed0205b871330e8ee6a5d22cf3be555bbb47c6b2cd9093bcbd9e83c9508"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.data-structures",
+      "route": "#algorithms/data-structures",
+      "title": "数据结构",
+      "owners": [
+        "DataStructVis"
+      ],
+      "init_hooks": [
+        "initDataStructVis"
+      ],
+      "cleanup_hooks": [
+        "DataStructVis"
+      ],
+      "presentation": {
+        "description": "栈、队列、树",
+        "icon": "layers",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.data-structures",
+        "shared/js/experiment-registry.js#algorithms.data-structures"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"data-structures\"]",
+          "sha256": "291738e3dc99153eff7870874a2c5abafc150ce7d57577eebda0edd9e49af377"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/data-structures.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "4f6954506e014cf03ff292fd29f5bf7daeb28cd8612ab19a449caa8757c9fc21"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.dynamic-programming",
+      "route": "#algorithms/dynamic-programming",
+      "title": "动态规划",
+      "owners": [
+        "DPVis"
+      ],
+      "init_hooks": [
+        "initDPVis"
+      ],
+      "cleanup_hooks": [
+        "DPVis"
+      ],
+      "presentation": {
+        "description": "0/1背包问题DP表填充",
+        "icon": "grid",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.dynamic-programming",
+        "shared/js/experiment-registry.js#algorithms.dynamic-programming"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"dynamic-programming\"]",
+          "sha256": "42eff09c8fc74ff47fdcb3fad6e5363265713675b71927f44999da56edf76594"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/dynamic-programming.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "5c099d0f0da072c4ff58e05448e0a7a70a98cb7a2cd17ce2e2dcb7206ef7c44a"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.graph",
+      "route": "#algorithms/graph",
+      "title": "图算法",
+      "owners": [
+        "GraphAlgo"
+      ],
+      "init_hooks": [
+        "initGraphAlgo"
+      ],
+      "cleanup_hooks": [
+        "GraphAlgo"
+      ],
+      "presentation": {
+        "description": "最短路径、生成树",
+        "icon": "network",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.graph",
+        "shared/js/experiment-registry.js#algorithms.graph"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"graph\"]",
+          "sha256": "f2eb65300d92697f0c5c758a79df03fac711ed67cdcf0983b3a38f02f77a8482"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/graph-algo.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "b39646470c0cc89f0a083a51acfbda345532fe7b2695c87333ea3843ec8f5706"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.greedy-scheduling",
+      "route": "#algorithms/greedy-scheduling",
+      "title": "贪心算法",
+      "owners": [
+        "GreedyScheduling"
+      ],
+      "init_hooks": [
+        "initGreedyScheduling"
+      ],
+      "cleanup_hooks": [
+        "GreedyScheduling"
+      ],
+      "presentation": {
+        "description": "活动选择与区间调度",
+        "icon": "list-checks",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.greedy-scheduling",
+        "shared/js/experiment-registry.js#algorithms.greedy-scheduling"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"greedy-scheduling\"]",
+          "sha256": "9ba1bc35506465cb4f157fefdc348ed992ce9ddd8e628e388e61f6d3acc4f9dc"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/greedy-scheduling.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "cd1cd239db71c3aee3d0158cdc8bc55d59cd5afe5b5542b35272b19a8a18fb07"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.hash-tables",
+      "route": "#algorithms/hash-tables",
+      "title": "哈希表",
+      "owners": [
+        "HashTablesLab"
+      ],
+      "init_hooks": [
+        "initHashTablesLab"
+      ],
+      "cleanup_hooks": [
+        "HashTablesLab"
+      ],
+      "presentation": {
+        "description": "链地址法/线性探测与负载因子",
+        "icon": "hash",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.hash-tables",
+        "shared/js/experiment-registry.js#algorithms.hash-tables"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"hash-tables\"]",
+          "sha256": "9d23b595caa70d96dc4d08fd6113d8aa357516aa7fc8f4ee7f6168a4abcf1091"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/hash-tables.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d003d4801235a514546d923465f8579c5c4dcb6210f5618c1a9617b80ee41100"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.mst-compare",
+      "route": "#algorithms/mst-compare",
+      "title": "最小生成树对比",
+      "owners": [
+        "MSTCompare"
+      ],
+      "init_hooks": [
+        "initMSTCompare"
+      ],
+      "cleanup_hooks": [
+        "MSTCompare"
+      ],
+      "presentation": {
+        "description": "Prim 与 Kruskal 选边顺序对照",
+        "icon": "git-compare",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.mst-compare",
+        "shared/js/experiment-registry.js#algorithms.mst-compare"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"mst-compare\"]",
+          "sha256": "31fffb1c1d181d6b735bbb057bdab9392128ca7ce13505f2412d126f0d5fea3e"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/mst-compare.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "fb7f80d59fafee94ad1b844a7b323a62192fec2ab7ce9de51c6871294dab8b57"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.recursion-vis",
+      "route": "#algorithms/recursion-vis",
+      "title": "递归可视化",
+      "owners": [
+        "RecursionVis"
+      ],
+      "init_hooks": [
+        "initRecursionVis"
+      ],
+      "cleanup_hooks": [
+        "RecursionVis"
+      ],
+      "presentation": {
+        "description": "Fibonacci树/汉诺塔动画",
+        "icon": "git-branch",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.recursion-vis",
+        "shared/js/experiment-registry.js#algorithms.recursion-vis"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"recursion-vis\"]",
+          "sha256": "89fc74382fe149e1265b2cf6780c69cba5fe320100bb1f9608787305083d8756"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/recursion-vis.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "55fba7edd91edfbb5a333e98c7bf7aa218b64ccec1b3c80f33b049dd34f108fc"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.searching",
+      "route": "#algorithms/searching",
+      "title": "搜索算法",
+      "owners": [
+        "HashSearch",
+        "SearchComparison",
+        "TreeTraversal"
+      ],
+      "init_hooks": [
+        "initSearchAlgorithms"
+      ],
+      "cleanup_hooks": [
+        "HashSearch",
+        "SearchComparison",
+        "TreeTraversal"
+      ],
+      "presentation": {
+        "description": "二分查找、DFS/BFS",
+        "icon": "search",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.searching",
+        "shared/js/experiment-registry.js#algorithms.searching"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"searching\"]",
+          "sha256": "194e07d56d09f2851d6c4bd625e45c9ddfbf445768f2858dba0aa5e025e61654"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/search-algorithms.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "5eae000ee4cae6a3bf3ce1df35d7d6238ed118a1e31361239940de133233aef7"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.sorting",
+      "route": "#algorithms/sorting",
+      "title": "排序算法",
+      "owners": [
+        "SortingLab"
+      ],
+      "init_hooks": [
+        "initAlgorithms"
+      ],
+      "cleanup_hooks": [
+        "SortingLab"
+      ],
+      "presentation": {
+        "description": "冒泡、快排、归并",
+        "icon": "arrow-up-down",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.sorting",
+        "shared/js/experiment-registry.js#algorithms.sorting"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"sorting\"]",
+          "sha256": "2be122b76e17fe6b325a1b0ce018a0ed71f3438090e068a9c68d325d83f24065"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/algorithms.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "4caa3d95ae29b3720e1d25fe3a87d4401d6bb1e62142c84d7b621da22bf98eba"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.sorting-compare",
+      "route": "#algorithms/sorting-compare",
+      "title": "排序对比",
+      "owners": [
+        "SortCompare"
+      ],
+      "init_hooks": [
+        "initSortCompare"
+      ],
+      "cleanup_hooks": [
+        "SortCompare"
+      ],
+      "presentation": {
+        "description": "5种排序算法动画对比",
+        "icon": "bar-chart",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.sorting-compare",
+        "shared/js/experiment-registry.js#algorithms.sorting-compare"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"sorting-compare\"]",
+          "sha256": "2f94fad31c4a1957f6346c9a80623588eba8d7603bb5328d2804ee40c6042185"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/sorting-compare.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "8f5ef34be64bb6b8294afb92dc1da1f1caf8a4abe1e07a061ef49c1744eac2ad"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "algorithms",
+      "activity_key": "algorithms.string-matching",
+      "route": "#algorithms/string-matching",
+      "title": "字符串匹配",
+      "owners": [
+        "StringMatch"
+      ],
+      "init_hooks": [
+        "initStringMatch"
+      ],
+      "cleanup_hooks": [
+        "StringMatch"
+      ],
+      "presentation": {
+        "description": "KMP算法逐步动画",
+        "icon": "search",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#algorithms.string-matching",
+        "shared/js/experiment-registry.js#algorithms.string-matching"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"string-matching\"]",
+          "sha256": "18e64cc2514485e484927a0331e2c4825458dbbbc6cb206186411c77be1f49a8"
+        },
+        {
+          "path": "pages/algorithms/algorithms.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "d5a73b77632f01100225249efbed437b0364dcc341f2d2b80934aa0ef059bf77"
+        },
+        {
+          "path": "pages/algorithms/string-matching.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "38ea2a9d88802f2ea31c37f34fcd75d0c7a3ef0feb69bee3036b88cd8b2a7e2d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.cell-structure",
+      "route": "#biology/cell-structure",
+      "title": "细胞结构",
+      "owners": [
+        "CellStructure"
+      ],
+      "init_hooks": [
+        "initCellStructure"
+      ],
+      "cleanup_hooks": [
+        "CellStructure"
+      ],
+      "presentation": {
+        "description": "动植物细胞的结构与功能",
+        "icon": "microscope",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.cell-structure",
+        "shared/js/experiment-registry.js#biology.cell-structure"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"cell-structure\"]",
+          "sha256": "1085ab958c5f2917b175704c7b1f6a6faa4c41fded56d247ad25b26345016ade"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/cell-structure.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "0c9fbce99b6b89d5b78af99e97919794d6ff8c8adf23ae7dc0ac28edd6ab6d5c"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.cellular-respiration",
+      "route": "#biology/cellular-respiration",
+      "title": "细胞呼吸",
+      "owners": [
+        "CellularResp"
+      ],
+      "init_hooks": [
+        "initCellularResp"
+      ],
+      "cleanup_hooks": [
+        "CellularResp"
+      ],
+      "presentation": {
+        "description": "糖酵解/柠檬酸循环/电子传递链",
+        "icon": "flame",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.cellular-respiration",
+        "shared/js/experiment-registry.js#biology.cellular-respiration"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"cellular-respiration\"]",
+          "sha256": "2cf4b25165def95ba4bc52ae5fddb8e8f2c003355f1ee19f896ac519c59fed2c"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/cellular-respiration.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "2d25511bd5b78b45580ba7ef411ad20da321cf4537ffe9087fdb0bc5594bd20a"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.dna",
+      "route": "#biology/dna",
+      "title": "DNA结构",
+      "owners": [
+        "DNAHelix"
+      ],
+      "init_hooks": [
+        "initDNAHelix"
+      ],
+      "cleanup_hooks": [
+        "DNAHelix"
+      ],
+      "presentation": {
+        "description": "双螺旋结构与复制过程",
+        "icon": "dna",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.dna",
+        "shared/js/experiment-registry.js#biology.dna"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"dna\"]",
+          "sha256": "84f9439d3925f7ff70a460855e28b684b17fd3c7800b3308ae6dc43c2f4d8d61"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/dna-helix.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "702d1484e8a3bbfc7637c166dacb172cbe6ad9a730ee9a5a28d8741307fd650f"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.ecosystem",
+      "route": "#biology/ecosystem",
+      "title": "生态系统",
+      "owners": [
+        "Ecosystem"
+      ],
+      "init_hooks": [
+        "initEcosystem"
+      ],
+      "cleanup_hooks": [
+        "Ecosystem"
+      ],
+      "presentation": {
+        "description": "食物链能量流动与种群动态模拟",
+        "icon": "trees",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.ecosystem",
+        "shared/js/experiment-registry.js#biology.ecosystem"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"ecosystem\"]",
+          "sha256": "a9e0c2f83415170e1c51b4faa1ae16abdc13f57f1190fc6bd789b5dc15c7951e"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/ecosystem.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "b51f1a44c4b1478d0972ecbc5975c075c61860b959e9f3e3153d227b92929e1e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.enzyme-properties",
+      "route": "#biology/enzyme-properties",
+      "title": "酶的特性",
+      "owners": [
+        "EnzymeProperties"
+      ],
+      "init_hooks": [
+        "initEnzymeProperties"
+      ],
+      "cleanup_hooks": [
+        "EnzymeProperties"
+      ],
+      "presentation": {
+        "description": "活化能、温度/pH 与底物浓度曲线",
+        "icon": "activity",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.enzyme-properties",
+        "shared/js/experiment-registry.js#biology.enzyme-properties"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"enzyme-properties\"]",
+          "sha256": "6c0ee83b9da935609ac49d232983cffd41b02966a95bd31629dbf082f4905f25"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/enzyme-properties.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "4c406934d63df09d6e326018512631d89d1958b57d93724a09ed0af7a4962ea9"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.gene-engineering",
+      "route": "#biology/gene-engineering",
+      "title": "基因工程",
+      "owners": [
+        "GeneEngineering"
+      ],
+      "init_hooks": [
+        "initGeneEngineering"
+      ],
+      "cleanup_hooks": [
+        "GeneEngineering"
+      ],
+      "presentation": {
+        "description": "限制酶、连接酶与载体构建",
+        "icon": "scissors",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.gene-engineering",
+        "shared/js/experiment-registry.js#biology.gene-engineering"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"gene-engineering\"]",
+          "sha256": "a0b1a3098bbfe33f5cdb238513048a5f22e1e75bd93a73cc338e1f764d98a6e4"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/gene-engineering.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "9c9992c2eabfbbb5fa7900fdd5e7bf8cbe8528e5c694d4ef4334be3b887dd86d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.gene-expression",
+      "route": "#biology/gene-expression",
+      "title": "基因表达",
+      "owners": [
+        "GeneExpression"
+      ],
+      "init_hooks": [
+        "initGeneExpression"
+      ],
+      "cleanup_hooks": [
+        "GeneExpression"
+      ],
+      "presentation": {
+        "description": "转录(DNA→mRNA)与翻译(mRNA→蛋白质)",
+        "icon": "dna",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.gene-expression",
+        "shared/js/experiment-registry.js#biology.gene-expression"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"gene-expression\"]",
+          "sha256": "b0481494e22949325fb14e004f8a055635422f6352c4d2b5e69c80e5a2743409"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/gene-expression.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "1b30f7f2150225e73dae3d26dec8c2de17039dbcd19082ba4b01e49dc629905d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.gene-mutation",
+      "route": "#biology/gene-mutation",
+      "title": "基因突变",
+      "owners": [
+        "GeneMutation"
+      ],
+      "init_hooks": [
+        "initGeneMutation"
+      ],
+      "cleanup_hooks": [
+        "GeneMutation"
+      ],
+      "presentation": {
+        "description": "碱基替换/插入/缺失对蛋白质的影响",
+        "icon": "alert-triangle",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.gene-mutation",
+        "shared/js/experiment-registry.js#biology.gene-mutation"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"gene-mutation\"]",
+          "sha256": "ae3c6904d2400d00c629062d8a7fdbb40753d25b5a6f18a432f70972a8463aa9"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/gene-mutation.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "22279269a169884e91523e3da0db2f5a88d8c4c884573e587c2c38fd98e558e7"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.genetics",
+      "route": "#biology/genetics",
+      "title": "遗传学",
+      "owners": [
+        "Genetics"
+      ],
+      "init_hooks": [
+        "initGenetics"
+      ],
+      "cleanup_hooks": [
+        "Genetics"
+      ],
+      "presentation": {
+        "description": "孟德尔定律与遗传图谱",
+        "icon": "git-branch",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.genetics",
+        "shared/js/experiment-registry.js#biology.genetics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"genetics\"]",
+          "sha256": "15a72d7862f50e71eac7f4341f2035323b65920cb91459577491cbd3dcf9931c"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/genetics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "1c293efd0348ae133487b14e512ebfb033b5432f6c85efd6140ebd21f1fd84b9"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.homeostasis",
+      "route": "#biology/homeostasis",
+      "title": "内环境稳态",
+      "owners": [
+        "Homeostasis"
+      ],
+      "init_hooks": [
+        "initHomeostasis"
+      ],
+      "cleanup_hooks": [
+        "Homeostasis"
+      ],
+      "presentation": {
+        "description": "血糖、体温与反馈调节模型",
+        "icon": "gauge",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.homeostasis",
+        "shared/js/experiment-registry.js#biology.homeostasis"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"homeostasis\"]",
+          "sha256": "df1a108b3e0354e78cef23c55be39b91e3480e63eac4ff7869d14d15d1255aed"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/homeostasis.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "b8645895f9d4d073116a68e7502c8e5f6f097f9151e53c212d2cea0315705def"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.humoral-regulation",
+      "route": "#biology/humoral-regulation",
+      "title": "体液调节",
+      "owners": [
+        "HumoralRegulation"
+      ],
+      "init_hooks": [
+        "initHumoralRegulation"
+      ],
+      "cleanup_hooks": [
+        "HumoralRegulation"
+      ],
+      "presentation": {
+        "description": "HPT 轴、甲状腺激素与负反馈",
+        "icon": "network",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.humoral-regulation",
+        "shared/js/experiment-registry.js#biology.humoral-regulation"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"humoral-regulation\"]",
+          "sha256": "992261e4681ae5b35d2e53009538fe011d888e96b39f8eeaefaf30453d9a642b"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/humoral-regulation.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f9a480fdad69b8d9dca4db960b7b4fd4ed61ebc995caa7fb054cb4df7bcc24f1"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.immune-system",
+      "route": "#biology/immune-system",
+      "title": "免疫系统",
+      "owners": [
+        "ImmuneSystem"
+      ],
+      "init_hooks": [
+        "initImmuneSystem"
+      ],
+      "cleanup_hooks": [
+        "ImmuneSystem"
+      ],
+      "presentation": {
+        "description": "巨噬细胞/抗体/T细胞免疫模拟",
+        "icon": "shield",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.immune-system",
+        "shared/js/experiment-registry.js#biology.immune-system"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"immune-system\"]",
+          "sha256": "d228cc723057effa772cf790bfb6d692bf890dabc7790aa562624c755a8c44e5"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/immune-system.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "cdfac4d1d29966e576c12c82eec48fbd7bfdb24ce4148e691aa61e3997ef76b6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.material-cycles",
+      "route": "#biology/material-cycles",
+      "title": "生态系统物质循环",
+      "owners": [
+        "MaterialCycles"
+      ],
+      "init_hooks": [
+        "initMaterialCycles"
+      ],
+      "cleanup_hooks": [
+        "MaterialCycles"
+      ],
+      "presentation": {
+        "description": "碳循环、氮循环与温室效应",
+        "icon": "refresh-cw",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.material-cycles",
+        "shared/js/experiment-registry.js#biology.material-cycles"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"material-cycles\"]",
+          "sha256": "48cd5cd79dc5905f9d60d67d58f3345b87e6a20e8456db669800e3e152bef8d2"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/material-cycles.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d8f4af374c02e4118c65bb7e29e88a2edd181bcf95cfb1ae57d74a1756abf04b"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.meiosis",
+      "route": "#biology/meiosis",
+      "title": "减数分裂",
+      "owners": [
+        "Meiosis"
+      ],
+      "init_hooks": [
+        "initMeiosis"
+      ],
+      "cleanup_hooks": [
+        "Meiosis"
+      ],
+      "presentation": {
+        "description": "同源染色体联会与分裂全过程",
+        "icon": "git-merge",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.meiosis",
+        "shared/js/experiment-registry.js#biology.meiosis"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"meiosis\"]",
+          "sha256": "2cebb2150b569649a3c7e54ca9cc607a2ed50a84ef4bd954eca96aa63f630458"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/meiosis.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "fd71be5cb25799aed7655a5823da9cace854a24a1774b52de388043ed225ea7e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.mitosis",
+      "route": "#biology/mitosis",
+      "title": "有丝分裂",
+      "owners": [
+        "Mitosis"
+      ],
+      "init_hooks": [
+        "initMitosis"
+      ],
+      "cleanup_hooks": [
+        "Mitosis"
+      ],
+      "presentation": {
+        "description": "细胞分裂各时期动画演示",
+        "icon": "split",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.mitosis",
+        "shared/js/experiment-registry.js#biology.mitosis"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"mitosis\"]",
+          "sha256": "98599dfb9549af7cc94e385a35d261ba094091e9ec0c137614ad5e459d62f546"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/mitosis.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "587ac6adc360b4ec9d36a14950f0417c43d8feedec1519053ce4681a50a353d8"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.neural-regulation",
+      "route": "#biology/neural-regulation",
+      "title": "神经调节",
+      "owners": [
+        "NeuralReg"
+      ],
+      "init_hooks": [
+        "initNeuralReg"
+      ],
+      "cleanup_hooks": [
+        "NeuralReg"
+      ],
+      "presentation": {
+        "description": "突触传递与动作电位可视化",
+        "icon": "zap",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.neural-regulation",
+        "shared/js/experiment-registry.js#biology.neural-regulation"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"neural-regulation\"]",
+          "sha256": "2563aa1a48e637e5c91028ac1c453d71d480dd00daf51e4b802ee0cf3be7f957"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/neural-regulation.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "54ee5d3d4a672b68289951b67c53018a6b3009188f986ee2cda433bb4bb3b57c"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.photosynthesis",
+      "route": "#biology/photosynthesis",
+      "title": "光合作用",
+      "owners": [
+        "Photosynthesis"
+      ],
+      "init_hooks": [
+        "initPhotosynthesis"
+      ],
+      "cleanup_hooks": [
+        "Photosynthesis"
+      ],
+      "presentation": {
+        "description": "光反应与 Calvin 循环可视化",
+        "icon": "sun",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.photosynthesis",
+        "shared/js/experiment-registry.js#biology.photosynthesis"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"photosynthesis\"]",
+          "sha256": "1740b190aa1b8c7ea0e0fe0b4093fb54582d6a8e65bc189dc1df3d60123483a3"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/photosynthesis.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "3287532c6b35fe133e6c33a5b6a8d2f4625fa79f2b24bc0b278a84117053eae9"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.population-community",
+      "route": "#biology/population-community",
+      "title": "种群与群落",
+      "owners": [
+        "PopulationCommunity"
+      ],
+      "init_hooks": [
+        "initPopulationCommunity"
+      ],
+      "cleanup_hooks": [
+        "PopulationCommunity"
+      ],
+      "presentation": {
+        "description": "J/S 型增长、K 值与种间关系",
+        "icon": "network",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.population-community",
+        "shared/js/experiment-registry.js#biology.population-community"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"population-community\"]",
+          "sha256": "39b221497d96835d3e035ddc1f71aef3a0223761caf6d442376551e136a23873"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/population-community.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "5c8de3415a2feca7738b2bcfffbb779b8f6643ffe3a508cd0b0b91b8b63ff95c"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "biology",
+      "activity_key": "biology.substance-transport",
+      "route": "#biology/substance-transport",
+      "title": "物质运输",
+      "owners": [
+        "SubstanceTransport"
+      ],
+      "init_hooks": [
+        "initSubstanceTransport"
+      ],
+      "cleanup_hooks": [
+        "SubstanceTransport"
+      ],
+      "presentation": {
+        "description": "自由扩散/协助扩散/主动运输/胞吞胞吐",
+        "icon": "arrow-left-right",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#biology.substance-transport",
+        "shared/js/experiment-registry.js#biology.substance-transport"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"substance-transport\"]",
+          "sha256": "39948c357828953156349ea297a3cca27eadd35508a47c860ef7491bbba54c48"
+        },
+        {
+          "path": "pages/biology/biology.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "26001b994c6dddca992226b45ed25e124535c6a3ab39e3405296ebdfb529fb24"
+        },
+        {
+          "path": "pages/biology/substance-transport.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "74596fecea5a0bd5e4229ac97086a5002d2e47dfa105e950976b2c3c6e7defa8"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.atomic-structure",
+      "route": "#chemistry/atomic-structure",
+      "title": "原子结构与电子排布",
+      "owners": [
+        "AtomicStructure"
+      ],
+      "init_hooks": [
+        "initAtomicStructure"
+      ],
+      "cleanup_hooks": [
+        "AtomicStructure"
+      ],
+      "presentation": {
+        "description": "电子云轨道·排布规则·玻尔模型",
+        "icon": "atom",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.atomic-structure",
+        "shared/js/experiment-registry.js#chemistry.atomic-structure"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"atomic-structure\"]",
+          "sha256": "6fde3b8ec28bb241b4687bf11a8169969e3d082de50cce9c1cd30f171a66ba9f"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/atomic-structure.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d1b7e5b6f086b50df86ef62a5b697300df4281c04516fa693913333995612dcb"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.chemical-bond",
+      "route": "#chemistry/chemical-bond",
+      "title": "化学键",
+      "owners": [
+        "ChemBond"
+      ],
+      "init_hooks": [
+        "initChemBond"
+      ],
+      "cleanup_hooks": [
+        "ChemBond"
+      ],
+      "presentation": {
+        "description": "离子键/共价键/金属键微观结构",
+        "icon": "link",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.chemical-bond",
+        "shared/js/experiment-registry.js#chemistry.chemical-bond"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"chemical-bond\"]",
+          "sha256": "07f0ccf2b0b22de1d47c49339dc25da38d6568b460a432467544ae88e5e41866"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/chemical-bond.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "b097cd8193f6e4a9e2354f0b9f8abaf56038a5c2cd49fa0b318572e7eae0a049"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.chemical-equilibrium",
+      "route": "#chemistry/chemical-equilibrium",
+      "title": "化学平衡",
+      "owners": [
+        "ChemEquilibrium"
+      ],
+      "init_hooks": [
+        "initChemEquilibrium"
+      ],
+      "cleanup_hooks": [
+        "ChemEquilibrium"
+      ],
+      "presentation": {
+        "description": "勒夏特列原理与平衡移动",
+        "icon": "scale",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.chemical-equilibrium",
+        "shared/js/experiment-registry.js#chemistry.chemical-equilibrium"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"chemical-equilibrium\"]",
+          "sha256": "4793c2d3c98977d601cfd618ddba264f008b36206c95d8b6da41fa863a8e41fc"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/chemical-equilibrium.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "a8a49e837252cdbdfa9130abd2db3f44f8aaedc960dc2f716d89ca10aff2361c"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.crystal-structures",
+      "route": "#chemistry/crystal-structures",
+      "title": "晶体结构",
+      "owners": [
+        "CrystalStructures"
+      ],
+      "init_hooks": [
+        "initCrystalStructures"
+      ],
+      "cleanup_hooks": [
+        "CrystalStructures"
+      ],
+      "presentation": {
+        "description": "离子/金属/共价网络/分子晶体对比",
+        "icon": "box",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.crystal-structures",
+        "shared/js/experiment-registry.js#chemistry.crystal-structures"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"crystal-structures\"]",
+          "sha256": "522c0bd43330cb907a467cca60eb643c917765cd8de634ac92680536e9dee3ca"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/crystal-structures.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d1deef6ab4eb67560f43e33a368e489b11092813e1ed9befe752110c6359c29b"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.electrochemistry",
+      "route": "#chemistry/electrochemistry",
+      "title": "电化学",
+      "owners": [
+        "Electrochemistry"
+      ],
+      "init_hooks": [
+        "initElectrochemistry"
+      ],
+      "cleanup_hooks": [
+        "Electrochemistry"
+      ],
+      "presentation": {
+        "description": "原电池/电解池电子流动",
+        "icon": "battery-charging",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.electrochemistry",
+        "shared/js/experiment-registry.js#chemistry.electrochemistry"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"electrochemistry\"]",
+          "sha256": "0bdd5cd34d19f58b3ee2bbaf56652c228f53c54a6926682f221093544999600c"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/electrochemistry.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "315f9993a55b56f88d4c208a3f2665a4f3fab81393d50ab14e319d59ba0bb771"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.element-compounds",
+      "route": "#chemistry/element-compounds",
+      "title": "元素化合物",
+      "owners": [
+        "ElementCompounds"
+      ],
+      "init_hooks": [
+        "initElementCompounds"
+      ],
+      "cleanup_hooks": [
+        "ElementCompounds"
+      ],
+      "presentation": {
+        "description": "Na/Fe/Al/Cl/N/S 价类二维图与焰色反应",
+        "icon": "flame",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.element-compounds",
+        "shared/js/experiment-registry.js#chemistry.element-compounds"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"element-compounds\"]",
+          "sha256": "6b0612853fe0251aba27f64e53a2342e65cc7a0b759af7cb564c4c891710818a"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/element-compounds.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "32dc6f6e56492030e0cf083337ca1a3daca9b7522520e5bc4ddef76260ebb6ba"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.experiments",
+      "route": "#chemistry/experiments",
+      "title": "虚拟实验",
+      "owners": [
+        "ChemVirtualExperiments"
+      ],
+      "init_hooks": [
+        "initChemVirtualExperiments"
+      ],
+      "cleanup_hooks": [
+        "ChemVirtualExperiments"
+      ],
+      "presentation": {
+        "description": "滴定·沉淀·指示剂虚拟观察",
+        "icon": "beaker",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.experiments",
+        "shared/js/experiment-registry.js#chemistry.experiments"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"experiments\"]",
+          "sha256": "5c0945636fb56da6cfb1011f347c3c7516c2dfa748e6ddf66cbb39eec7b30c79"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/virtual-experiments.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "03fd6c8f3d7c31afb899e594c206cd90efc6a960cb98fad97d517253831c0350"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.hybrid-orbitals",
+      "route": "#chemistry/hybrid-orbitals",
+      "title": "杂化轨道理论",
+      "owners": [
+        "HybridOrbitals"
+      ],
+      "init_hooks": [
+        "initHybridOrbitals"
+      ],
+      "cleanup_hooks": [
+        "HybridOrbitals"
+      ],
+      "presentation": {
+        "description": "sp/sp²/sp³ 与 VSEPR 构型联动",
+        "icon": "orbit",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.hybrid-orbitals",
+        "shared/js/experiment-registry.js#chemistry.hybrid-orbitals"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"hybrid-orbitals\"]",
+          "sha256": "37e40ff9d85221e90df71a10bb0585b2704c9fce202ee5c39f49fb99838091fc"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/hybrid-orbitals.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "121d1ecf8680e9fbcba2ad796167965cddd315a6b4b95506b6983c0baed7378e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.intermolecular-forces",
+      "route": "#chemistry/intermolecular-forces",
+      "title": "分子间力与氢键",
+      "owners": [
+        "Intermolecular"
+      ],
+      "init_hooks": [
+        "initIntermolecular"
+      ],
+      "cleanup_hooks": [
+        "Intermolecular"
+      ],
+      "presentation": {
+        "description": "氢化物沸点趋势·氢键网络模型",
+        "icon": "droplets",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.intermolecular-forces",
+        "shared/js/experiment-registry.js#chemistry.intermolecular-forces"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"intermolecular-forces\"]",
+          "sha256": "d5e14a4de1b592a6b5ea29ffcdd3196b6bcca57b7848f602807fb1be5bc63feb"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/intermolecular-forces.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "da6d56edc10b052d33ea191560345b527dc588260eee0099364cbfdabb20d4ca"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.ionic-reaction",
+      "route": "#chemistry/ionic-reaction",
+      "title": "离子反应",
+      "owners": [
+        "IonicReaction"
+      ],
+      "init_hooks": [
+        "initIonicReaction"
+      ],
+      "cleanup_hooks": [
+        "IonicReaction"
+      ],
+      "presentation": {
+        "description": "离子方程式拆分与旁观离子",
+        "icon": "split",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.ionic-reaction",
+        "shared/js/experiment-registry.js#chemistry.ionic-reaction"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"ionic-reaction\"]",
+          "sha256": "6f8832b3e5095aab4a83d55d9253488a140386e40f398156b0292309f0e4b7db"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/ionic-reaction.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "199dc8502af2deda9076569ab999a83e590e8202f24128097c816135a588edc6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.molecular-structure",
+      "route": "#chemistry/molecular-structure",
+      "title": "分子结构",
+      "owners": [
+        "MoleculeVis"
+      ],
+      "init_hooks": [
+        "initMoleculeVis"
+      ],
+      "cleanup_hooks": [
+        "MoleculeVis"
+      ],
+      "presentation": {
+        "description": "3D可视化分子",
+        "icon": "atom",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.molecular-structure",
+        "shared/js/experiment-registry.js#chemistry.molecular-structure"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"molecular-structure\"]",
+          "sha256": "eb1185b20582eaca693d80bd6fbfeaa886becb48eabc70e2819ca76caac0dca8"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/molecular-structure.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d8e9e657fddf3980fe3056ee43a949d7f0e261cd34a7afd8b67aef1af8cc00b6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.organic-chemistry",
+      "route": "#chemistry/organic-chemistry",
+      "title": "有机化学",
+      "owners": [
+        "OrganicChem"
+      ],
+      "init_hooks": [
+        "initOrganicChem"
+      ],
+      "cleanup_hooks": [
+        "OrganicChem"
+      ],
+      "presentation": {
+        "description": "碳链结构与常见有机分子",
+        "icon": "hexagon",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.organic-chemistry",
+        "shared/js/experiment-registry.js#chemistry.organic-chemistry"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"organic-chemistry\"]",
+          "sha256": "5a1772d265c26cd93292b3f241a1388a7bab34c03afdc39b9da24ea76da7b8b7"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/organic-chemistry.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "273193952605ebe6d9e17e280a680c238934d54241d1931cf105b8c41aa5c584"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.periodic-table",
+      "route": "#chemistry/periodic-table",
+      "title": "元素周期表",
+      "owners": [
+        "PeriodicTable"
+      ],
+      "init_hooks": [
+        "initPeriodicTable"
+      ],
+      "cleanup_hooks": [
+        "PeriodicTable"
+      ],
+      "presentation": {
+        "description": "交互式元素周期表",
+        "icon": "table",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.periodic-table",
+        "shared/js/experiment-registry.js#chemistry.periodic-table"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"periodic-table\"]",
+          "sha256": "5b49aa2576a18b7bb71145a4c79db63f599d66c7df01cb5a8c18f69a1d864379"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/periodic-table.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "ea999af2379605b27741b1f8bd4ea6e1c2a9887525893d10fd99bdb192c236ff"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.reaction-rate",
+      "route": "#chemistry/reaction-rate",
+      "title": "反应速率",
+      "owners": [
+        "ReactionRate"
+      ],
+      "init_hooks": [
+        "initReactionRate"
+      ],
+      "cleanup_hooks": [
+        "ReactionRate"
+      ],
+      "presentation": {
+        "description": "碰撞理论与温度/浓度/催化剂影响",
+        "icon": "trending-up",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.reaction-rate",
+        "shared/js/experiment-registry.js#chemistry.reaction-rate"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"reaction-rate\"]",
+          "sha256": "a459cab0b8372ff6a70ef5fbd68902cf5f77e8e210b1e55d5c3d7730c9a9ab7c"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/reaction-rate.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "162fdf430b24cea85f821c883dddc205dc545f807fe1713d312d74da640331e3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.reactions",
+      "route": "#chemistry/reactions",
+      "title": "化学反应",
+      "owners": [
+        "ChemReaction"
+      ],
+      "init_hooks": [
+        "initChemReaction"
+      ],
+      "cleanup_hooks": [
+        "ChemReaction"
+      ],
+      "presentation": {
+        "description": "模拟原子重排",
+        "icon": "test-tube",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.reactions",
+        "shared/js/experiment-registry.js#chemistry.reactions"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"reactions\"]",
+          "sha256": "bea0154dc2969930421b115d4d9e44927cd29c0f42e658f0abdd31fe65f66cb8"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/chemical-reactions.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "b8c06e4fb1953e642d8569bbd1e64dca99ff6fe235a010f317bbbe5ece0a0355"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.redox",
+      "route": "#chemistry/redox",
+      "title": "氧化还原",
+      "owners": [
+        "Redox"
+      ],
+      "init_hooks": [
+        "initRedox"
+      ],
+      "cleanup_hooks": [
+        "Redox"
+      ],
+      "presentation": {
+        "description": "电子转移可视化与双线桥法",
+        "icon": "arrow-right-left",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.redox",
+        "shared/js/experiment-registry.js#chemistry.redox"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"redox\"]",
+          "sha256": "853d10e57883c6874c0a1ece92a94a97b7f937b5390b21649784575ace69c5ae"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/redox.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "c6cc635db5da0dea27a6078406698de9a8f1dfdd4ef142fdcc6d130b02d94fb7"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "chemistry",
+      "activity_key": "chemistry.solution-ionization",
+      "route": "#chemistry/solution-ionization",
+      "title": "溶液与电离",
+      "owners": [
+        "SolutionIon"
+      ],
+      "init_hooks": [
+        "initSolutionIon"
+      ],
+      "cleanup_hooks": [
+        "SolutionIon"
+      ],
+      "presentation": {
+        "description": "pH指示与强弱电解质",
+        "icon": "droplet",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#chemistry.solution-ionization",
+        "shared/js/experiment-registry.js#chemistry.solution-ionization"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"solution-ionization\"]",
+          "sha256": "d0e3a235c6850f094312467e724279e990f51e4552999d99cdb9a47b38649095"
+        },
+        {
+          "path": "pages/chemistry/chemistry.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "8659e702009b846407d4e734d42830af69a0a87d0ca38cfe694affad74db965f"
+        },
+        {
+          "path": "pages/chemistry/solution-ionization.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "64c7b314f853e61bae86c85aba889cb4369d07cd790a20bb578c0235e9b0c4f4"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.binomial-theorem",
+      "route": "#mathematics/binomial-theorem",
+      "title": "二项式定理",
+      "owners": [
+        "Binomial"
+      ],
+      "init_hooks": [
+        "initBinomial"
+      ],
+      "cleanup_hooks": [
+        "Binomial"
+      ],
+      "presentation": {
+        "description": "杨辉三角与(a+b)ⁿ展开系数联动",
+        "icon": "pyramid",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.binomial-theorem",
+        "shared/js/experiment-registry.js#mathematics.binomial-theorem"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"binomial-theorem\"]",
+          "sha256": "cc28cd19d70005dae6e616d0c01fe4db5da49d9669921c130b9aa616075c9aa0"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/binomial-theorem.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "3c8b4601d50dd9380478bd498e01b15caa0443fe68fb192b9fe070c50d6ebe8f"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.calculus",
+      "route": "#mathematics/calculus",
+      "title": "微积分",
+      "owners": [
+        "Calculus"
+      ],
+      "init_hooks": [
+        "initCalculus"
+      ],
+      "cleanup_hooks": [
+        "Calculus"
+      ],
+      "presentation": {
+        "description": "理解导数、积分和极限",
+        "icon": "trending-up",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.calculus",
+        "shared/js/experiment-registry.js#mathematics.calculus"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"calculus\"]",
+          "sha256": "f3441902cd780678cfef75686d5edf7b40c24fcf5e96530fb8bb21c11e9467c6"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/calculus.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "1fceb24ff3a2607826ba75f26e0cf1c146333245bbb2156b255cba551ec7b670"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.complex",
+      "route": "#mathematics/complex",
+      "title": "复数运算",
+      "owners": [
+        "ComplexVis"
+      ],
+      "init_hooks": [
+        "initComplexVis"
+      ],
+      "cleanup_hooks": [
+        "ComplexVis"
+      ],
+      "presentation": {
+        "description": "复平面上的运算",
+        "icon": "calculator",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.complex",
+        "shared/js/experiment-registry.js#mathematics.complex"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"complex\"]",
+          "sha256": "1fae055a0c2b3a5e2f63bd049b60e51e6203c810a127db6f33b5b5ac7cbc41ae"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/complex-numbers.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d6a51fea5cf13a8b77765d8d3a511f61dec8d6e0c0504d8cb88da8a2c99c8a54"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.conic-sections",
+      "route": "#mathematics/conic-sections",
+      "title": "圆锥曲线",
+      "owners": [
+        "ConicSections"
+      ],
+      "init_hooks": [
+        "initConicSections"
+      ],
+      "cleanup_hooks": [
+        "ConicSections"
+      ],
+      "presentation": {
+        "description": "椭圆/双曲线/抛物线焦点轨迹",
+        "icon": "circle",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.conic-sections",
+        "shared/js/experiment-registry.js#mathematics.conic-sections"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"conic-sections\"]",
+          "sha256": "8b2b47bb65c09d562ebad9c0356ecdf7eaf4567d22fd7aa3598f3d885de0709e"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/conic-sections.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "1ccab69941d6d47c62b7c5efbe0538d40e6cb57d8fd0457d0c5f1ebc1658dc9b"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.derivative-application",
+      "route": "#mathematics/derivative-application",
+      "title": "导数应用",
+      "owners": [
+        "DerivApp"
+      ],
+      "init_hooks": [
+        "initDerivApp"
+      ],
+      "cleanup_hooks": [
+        "DerivApp"
+      ],
+      "presentation": {
+        "description": "切线/单调性/极值与最值的导数分析",
+        "icon": "spline",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.derivative-application",
+        "shared/js/experiment-registry.js#mathematics.derivative-application"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"derivative-application\"]",
+          "sha256": "b3512604f0c4b9fdd01ed36aa7af7bd347badf9e76cd8404ea6f6cf26c6a677a"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/derivative-application.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "1e6cfa4d752c716ee8a34869b38e8a60cfbe60f76ccee0418f38f3da0f39b5f2"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.exp-log",
+      "route": "#mathematics/exp-log",
+      "title": "指数与对数",
+      "owners": [
+        "ExpLog"
+      ],
+      "init_hooks": [
+        "initExpLog"
+      ],
+      "cleanup_hooks": [
+        "ExpLog"
+      ],
+      "presentation": {
+        "description": "底数a对图像影响与互为反函数",
+        "icon": "trending-up",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.exp-log",
+        "shared/js/experiment-registry.js#mathematics.exp-log"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"exp-log\"]",
+          "sha256": "93b6ebf3f7a99c67284d614daa6aede336a91355aa37bffed438364754a223d0"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/exp-log.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "9600071a3aae0ed33b2d9106f1798843324e987a6a0050faf60cf71956bf2c9d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.function-graph",
+      "route": "#mathematics/function-graph",
+      "title": "函数图像",
+      "owners": [
+        "destroyFunctionGraph"
+      ],
+      "init_hooks": [
+        "initFunctionGraph"
+      ],
+      "cleanup_hooks": [
+        "destroyFunctionGraph"
+      ],
+      "presentation": {
+        "description": "可视化各种数学函数",
+        "icon": "function-square",
+        "variant": "featured",
+        "anchor": "func-graph-section"
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.function-graph",
+        "shared/js/experiment-registry.js#mathematics.function-graph"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"function-graph\"]",
+          "sha256": "310e4c154aec6f66a2af4788b762624071a1c604ea7b1621f0b3f70f6eb4d710"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/mathematics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "90f35f50ca6d4c6f221c1907f60758e6bc48856db4612fd58b8464fd4e4d2f8d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.function-properties",
+      "route": "#mathematics/function-properties",
+      "title": "函数性质探究",
+      "owners": [
+        "FuncProps"
+      ],
+      "init_hooks": [
+        "initFuncProps"
+      ],
+      "cleanup_hooks": [
+        "FuncProps"
+      ],
+      "presentation": {
+        "description": "单调性/奇偶性/周期性交互分析",
+        "icon": "scan-line",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.function-properties",
+        "shared/js/experiment-registry.js#mathematics.function-properties"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"function-properties\"]",
+          "sha256": "bfaf2a16133bdf1c44bd3c93e50494c831f4762f3ae712d3ba48e834321965cb"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/function-properties.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "796dfcba0cb3471392ece1ff91b6dd42a94ae413e78e20097c5abfedbc91c88d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.geometry",
+      "route": "#mathematics/geometry",
+      "title": "几何变换",
+      "owners": [
+        "GeoTransform"
+      ],
+      "init_hooks": [
+        "initGeoTransform"
+      ],
+      "cleanup_hooks": [
+        "GeoTransform"
+      ],
+      "presentation": {
+        "description": "探索平移、旋转、缩放",
+        "icon": "shapes",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.geometry",
+        "shared/js/experiment-registry.js#mathematics.geometry"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"geometry\"]",
+          "sha256": "8b6fa0db821d266de4d31d6f4249dddb393992cf109bb635587f30ada0726319"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/geometry.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "6b2495b532cf661e614294df22f7da3ff959f0e3f16b0e27bda0bdce21e8aecf"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.inequality",
+      "route": "#mathematics/inequality",
+      "title": "不等式",
+      "owners": [
+        "Inequality"
+      ],
+      "init_hooks": [
+        "initInequality"
+      ],
+      "cleanup_hooks": [
+        "Inequality"
+      ],
+      "presentation": {
+        "description": "线性规划可行域与最优解",
+        "icon": "maximize-2",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.inequality",
+        "shared/js/experiment-registry.js#mathematics.inequality"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"inequality\"]",
+          "sha256": "86e099654083aa753e6fc70b611ea9592cd81d9b9643badd71aae2ddbc5f92e1"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/inequality.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "e6a5f0fea3b41206a5561c99f42b36e240b7e94038ff45e405d08ac208e5050b"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.modeling-numerical",
+      "route": "#mathematics/modeling-numerical",
+      "title": "建模与数值方法",
+      "owners": [
+        "ModelingNumerical"
+      ],
+      "init_hooks": [
+        "initModelingNumerical"
+      ],
+      "cleanup_hooks": [
+        "ModelingNumerical"
+      ],
+      "presentation": {
+        "description": "拟合误差·Euler步长·Newton迭代",
+        "icon": "line-chart",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.modeling-numerical",
+        "shared/js/experiment-registry.js#mathematics.modeling-numerical"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"modeling-numerical\"]",
+          "sha256": "9ff7425544db5a2fcb49c4e074b6ae80796ec90ea07d93bdd46db437368a0ec4"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/modeling-numerical.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "080c906991882eecebaf5f632c912b4db6088484217ee862eac14cca1ccb19c7"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.permutation-combination",
+      "route": "#mathematics/permutation-combination",
+      "title": "排列组合",
+      "owners": [
+        "PermComb"
+      ],
+      "init_hooks": [
+        "initPermComb"
+      ],
+      "cleanup_hooks": [
+        "PermComb"
+      ],
+      "presentation": {
+        "description": "树状图/计数公式/杨辉三角",
+        "icon": "layers",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.permutation-combination",
+        "shared/js/experiment-registry.js#mathematics.permutation-combination"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"permutation-combination\"]",
+          "sha256": "934036538414c5d2808523bee0cf1b1f730853244f57df6912a7847407af5799"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/permutation-combination.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "59559ae4647c46a013118794c15b99229be7a705381cc21fe48fd51d3065a745"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.probability",
+      "route": "#mathematics/probability",
+      "title": "概率统计",
+      "owners": [
+        "Probability"
+      ],
+      "init_hooks": [
+        "initProbability"
+      ],
+      "cleanup_hooks": [
+        "Probability"
+      ],
+      "presentation": {
+        "description": "抛硬币/掷骰子频率收敛与直方图",
+        "icon": "bar-chart-2",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.probability",
+        "shared/js/experiment-registry.js#mathematics.probability"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"probability\"]",
+          "sha256": "ca5e7e718cd9d95648ba4824f6a74f8f2bc1d82572c8000b7e3170af3b20a451"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/probability.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "286a72e255cd432e167b3c9e73915a8f85583f899cef71937245d76af00557ff"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.sequences",
+      "route": "#mathematics/sequences",
+      "title": "数列可视化",
+      "owners": [
+        "Sequences"
+      ],
+      "init_hooks": [
+        "initSequences"
+      ],
+      "cleanup_hooks": [
+        "Sequences"
+      ],
+      "presentation": {
+        "description": "等差/等比数列图形化与前n项和",
+        "icon": "bar-chart",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.sequences",
+        "shared/js/experiment-registry.js#mathematics.sequences"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"sequences\"]",
+          "sha256": "0734f9e82b0e06c1f9bc57f2729a94b21a3b2b9d64de76fddf36ebd29370cefc"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/sequences.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "468a083f05bf5b33f6f60b7b8bccca713baf0c171e57412349bb16cb7e011b59"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.set-operations",
+      "route": "#mathematics/set-operations",
+      "title": "集合运算",
+      "owners": [
+        "SetOps"
+      ],
+      "init_hooks": [
+        "initSetOps"
+      ],
+      "cleanup_hooks": [
+        "SetOps"
+      ],
+      "presentation": {
+        "description": "Venn图与集合操作可视化",
+        "icon": "combine",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.set-operations",
+        "shared/js/experiment-registry.js#mathematics.set-operations"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"set-operations\"]",
+          "sha256": "f5a42475f7a2cd8a0ea5230f6f24ecaaa02ffcd819efd670a3c120e99b732b3f"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/set-operations.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "a750b241437fe8e9e37edcd82dc1193f2d9b861ec5d045ea0e4804edf6e2cdf3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.solid-geometry",
+      "route": "#mathematics/solid-geometry",
+      "title": "立体几何",
+      "owners": [
+        "SolidGeom"
+      ],
+      "init_hooks": [
+        "initSolidGeom"
+      ],
+      "cleanup_hooks": [
+        "SolidGeom"
+      ],
+      "presentation": {
+        "description": "三维多面体旋转与截面",
+        "icon": "box",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.solid-geometry",
+        "shared/js/experiment-registry.js#mathematics.solid-geometry"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"solid-geometry\"]",
+          "sha256": "026404d82e9073167d0176e6c541ce580212a469ead106e4187e1d6966d765be"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/solid-geometry.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "74f1664c149cd8087e02514f78945ee793bc66c289eb2e0ff735bb3383891705"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.spatial-vector",
+      "route": "#mathematics/spatial-vector",
+      "title": "空间向量",
+      "owners": [
+        "SpatialVec"
+      ],
+      "init_hooks": [
+        "initSpatialVec"
+      ],
+      "cleanup_hooks": [
+        "SpatialVec"
+      ],
+      "presentation": {
+        "description": "3D 向量加法/数量积/向量积/夹角可视化",
+        "icon": "box",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.spatial-vector",
+        "shared/js/experiment-registry.js#mathematics.spatial-vector"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"spatial-vector\"]",
+          "sha256": "69358b122b5bedbe1f2a9094d458a6c501fe7fc2e3e1a2d7dc7b792540bc3066"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/spatial-vector.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f0392a5710b947d8fb386b1002856110c8b0c3caff5526253776aded0d69e56b"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.statistics-regression",
+      "route": "#mathematics/statistics-regression",
+      "title": "统计与回归",
+      "owners": [
+        "StatReg"
+      ],
+      "init_hooks": [
+        "initStatReg"
+      ],
+      "cleanup_hooks": [
+        "StatReg"
+      ],
+      "presentation": {
+        "description": "最小二乘回归/相关系数/正态分布与3σ",
+        "icon": "scatter-chart",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.statistics-regression",
+        "shared/js/experiment-registry.js#mathematics.statistics-regression"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"statistics-regression\"]",
+          "sha256": "8cf6f44a21ee563ee0c26283ec2ea3a24196437a702d66b36ffc4a64ff724bf3"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/statistics-regression.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "ebea05e884fa8421538a83b194ec27722b88d3d5051941f09ef8fbc95501bc3a"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.trigonometry",
+      "route": "#mathematics/trigonometry",
+      "title": "三角函数",
+      "owners": [
+        "TrigVis"
+      ],
+      "init_hooks": [
+        "initTrigVis"
+      ],
+      "cleanup_hooks": [
+        "TrigVis"
+      ],
+      "presentation": {
+        "description": "单位圆与sin/cos/tan联动",
+        "icon": "circle-dot",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.trigonometry",
+        "shared/js/experiment-registry.js#mathematics.trigonometry"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"trigonometry\"]",
+          "sha256": "1cbcbef1a01958023722f5607538fea126f351b005968e1e30a60ad5e8c7fbaa"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/trigonometry.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "39f847c7e64fc62e6d692a56d93ae758c921852fff1e2762d40f83c22a4ab13c"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "mathematics",
+      "activity_key": "mathematics.vector-ops",
+      "route": "#mathematics/vector-ops",
+      "title": "向量运算",
+      "owners": [
+        "VectorOps"
+      ],
+      "init_hooks": [
+        "initVectorOps"
+      ],
+      "cleanup_hooks": [
+        "VectorOps"
+      ],
+      "presentation": {
+        "description": "向量加减/数量积/投影可视化",
+        "icon": "move",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#mathematics.vector-ops",
+        "shared/js/experiment-registry.js#mathematics.vector-ops"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"vector-ops\"]",
+          "sha256": "c58805a07a7680309a2ee9677523888cc75a6853c02331286c0a2b84e4f7b3bc"
+        },
+        {
+          "path": "pages/mathematics/mathematics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "a6a32b48c16bcc4df93bcd3fd22dfac73c10f623979fe09a5701d43998b135b8"
+        },
+        {
+          "path": "pages/mathematics/vector-ops.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "189e3a3637585ddc25bcf85a248231c9b50512414b548c3c1181f3948153a44a"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.alternating-current",
+      "route": "#physics/alternating-current",
+      "title": "交变电流",
+      "owners": [
+        "ACCircuit"
+      ],
+      "init_hooks": [
+        "initACCircuit"
+      ],
+      "cleanup_hooks": [
+        "ACCircuit"
+      ],
+      "presentation": {
+        "description": "AC波形、RMS与变压器",
+        "icon": "radio",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.alternating-current",
+        "shared/js/experiment-registry.js#physics.alternating-current"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"alternating-current\"]",
+          "sha256": "ceecd0095510a3908ad601cf4edcd25b4859123e154c35008752820c22804f4a"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/alternating-current.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d4a2f46762c527bb7a77e48f66e6405e34baa3d45f227355ea5c3f16e2c0378f"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.atomic-physics",
+      "route": "#physics/atomic-physics",
+      "title": "原子物理",
+      "owners": [
+        "AtomicPhysics"
+      ],
+      "init_hooks": [
+        "initAtomicPhysics"
+      ],
+      "cleanup_hooks": [
+        "AtomicPhysics"
+      ],
+      "presentation": {
+        "description": "玻尔能级·光谱跃迁·光电效应",
+        "icon": "orbit",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.atomic-physics",
+        "shared/js/experiment-registry.js#physics.atomic-physics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"atomic-physics\"]",
+          "sha256": "14433610d9b53a5630885e3e8c2846799aa2d3076c585cfeb63bc56a93966bab"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/atomic-physics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "beb8dc0f465c3881a2ab05ed0d7ebdbcb34e6e9f7bf3299e6f33feb4228d390a"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.charged-particle",
+      "route": "#physics/charged-particle",
+      "title": "带电粒子运动",
+      "owners": [
+        "ChargedParticle"
+      ],
+      "init_hooks": [
+        "initChargedParticle"
+      ],
+      "cleanup_hooks": [
+        "ChargedParticle"
+      ],
+      "presentation": {
+        "description": "洛伦兹力偏转·质谱仪·速度选择器",
+        "icon": "atom",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.charged-particle",
+        "shared/js/experiment-registry.js#physics.charged-particle"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"charged-particle\"]",
+          "sha256": "0401f06b068a5af5fffa7f9b83a2eb6b09fcbf1ac9f09fd69ae0b79caf81b270"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/charged-particle.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d788421630f3a87741a1406d137f2486115ba585f735d55f296ec65ccd786618"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.circuit-analysis",
+      "route": "#physics/circuit-analysis",
+      "title": "电路分析",
+      "owners": [
+        "CircuitAnalysis"
+      ],
+      "init_hooks": [
+        "initCircuitAnalysis"
+      ],
+      "cleanup_hooks": [
+        "CircuitAnalysis"
+      ],
+      "presentation": {
+        "description": "串并联电路与欧姆定律",
+        "icon": "cpu",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.circuit-analysis",
+        "shared/js/experiment-registry.js#physics.circuit-analysis"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"circuit-analysis\"]",
+          "sha256": "927955e136cafe5bec73a0ad20d2b7dea7e02b8e9a5145a5f29ba90eddec47c7"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/circuit-analysis.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "d17deb7d9f46fac84a60499edd6cf899b20e3740c82536774d5c6d279becadeb"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.circular-motion",
+      "route": "#physics/circular-motion",
+      "title": "圆周运动",
+      "owners": [
+        "CircularMotion"
+      ],
+      "init_hooks": [
+        "initCircularMotion"
+      ],
+      "cleanup_hooks": [
+        "CircularMotion"
+      ],
+      "presentation": {
+        "description": "向心加速度/向心力/线速度",
+        "icon": "rotate-ccw",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.circular-motion",
+        "shared/js/experiment-registry.js#physics.circular-motion"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"circular-motion\"]",
+          "sha256": "4067ae90c682bbb7983fd717972a14ea610323a437c56f96f4f294fb4056ade2"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/circular-motion.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "3b066bf81422235f985f3d5a6a318549229d52046b75111a3d5cfa92149afc21"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.electromagnetism",
+      "route": "#physics/electromagnetism",
+      "title": "电磁场",
+      "owners": [
+        "EMField"
+      ],
+      "init_hooks": [
+        "initElectromagnetic"
+      ],
+      "cleanup_hooks": [
+        "EMField"
+      ],
+      "presentation": {
+        "description": "电场和磁场分布",
+        "icon": "zap",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.electromagnetism",
+        "shared/js/experiment-registry.js#physics.electromagnetism"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"electromagnetism\"]",
+          "sha256": "118a407fd0861382bc12c3fb019c199b7745faae1176f90f0111b7496f9b5a12"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/electromagnetic.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "4febd94582c048b18ad237dc679ede2da111a3a0510888664674c7177f6b516e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.em-induction",
+      "route": "#physics/em-induction",
+      "title": "电磁感应",
+      "owners": [
+        "EMInduction"
+      ],
+      "init_hooks": [
+        "initEMInduction"
+      ],
+      "cleanup_hooks": [
+        "EMInduction"
+      ],
+      "presentation": {
+        "description": "法拉第定律与感应电动力",
+        "icon": "zap",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.em-induction",
+        "shared/js/experiment-registry.js#physics.em-induction"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"em-induction\"]",
+          "sha256": "89effcb4ed4fadd9bf89244b660c6db1a08cfc1d9c930d7dcede6aa48b2dbda6"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/electromagnetic-induction.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f4fd3a8956f6ea76b5eadf6fe58c191ec5be14cdf2b244167fd4012cedcb64b9"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.energy-conservation",
+      "route": "#physics/energy-conservation",
+      "title": "机械能守恒",
+      "owners": [
+        "EnergyConservation"
+      ],
+      "init_hooks": [
+        "initEnergyConservation"
+      ],
+      "cleanup_hooks": [
+        "EnergyConservation"
+      ],
+      "presentation": {
+        "description": "过山车PE/KE能量条",
+        "icon": "activity",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.energy-conservation",
+        "shared/js/experiment-registry.js#physics.energy-conservation"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"energy-conservation\"]",
+          "sha256": "06216ace34c34b91ee029ef3d5e914ccf09c42db81598928acb499c06b519317"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/energy-conservation.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "61755dda1be201eb84155ac72c3dad3c26a3a36e8447b78b48153737117b10b3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.fluid-dynamics",
+      "route": "#physics/fluid-dynamics",
+      "title": "流体力学",
+      "owners": [
+        "FluidSim"
+      ],
+      "init_hooks": [
+        "initFluidDynamics"
+      ],
+      "cleanup_hooks": [
+        "FluidSim"
+      ],
+      "presentation": {
+        "description": "势流叠加、圆柱绕流与伯努利方程",
+        "icon": "wind",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.fluid-dynamics",
+        "shared/js/experiment-registry.js#physics.fluid-dynamics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"fluid-dynamics\"]",
+          "sha256": "ea63b2f630485a5d5de35fde83bbc3c3bbf79b24037ed49488c27867468cb115"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/fluid-dynamics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "0a184392f7d6ea600249191ec18a0bde2112c4bb00181a8a2e401f44cd2d4cb6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.force-composition",
+      "route": "#physics/force-composition",
+      "title": "力的合成与分解",
+      "owners": [
+        "ForceComposition"
+      ],
+      "init_hooks": [
+        "initForceComposition"
+      ],
+      "cleanup_hooks": [
+        "ForceComposition"
+      ],
+      "presentation": {
+        "description": "平行四边形定则与正交分解",
+        "icon": "move-diagonal-2",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.force-composition",
+        "shared/js/experiment-registry.js#physics.force-composition"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"force-composition\"]",
+          "sha256": "e7a44ebe731bb1e1a21d7c937ce19c66036d33719ab20e401a29a890c6969ea2"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/force-composition.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "098fbba6f61f4cd6c1e345cc7b7cf7275b9231b9e6eed513a8e9b4980cfd243e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.gas-laws",
+      "route": "#physics/gas-laws",
+      "title": "气体实验定律",
+      "owners": [
+        "GasLaws"
+      ],
+      "init_hooks": [
+        "initGasLaws"
+      ],
+      "cleanup_hooks": [
+        "GasLaws"
+      ],
+      "presentation": {
+        "description": "Boyle/Charles/理想气体状态方程",
+        "icon": "thermometer",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.gas-laws",
+        "shared/js/experiment-registry.js#physics.gas-laws"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"gas-laws\"]",
+          "sha256": "2cc85b538ea448532e7528a5425cb8047e27cb4bbf06cffe5b28829533755f6a"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/gas-laws.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "dd9e20738ff69aeb838e46107aa6026bca9363cf68e2b3bc8ecc1f99fe662a9d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.gravitation",
+      "route": "#physics/gravitation",
+      "title": "万有引力",
+      "owners": [
+        "Gravitation"
+      ],
+      "init_hooks": [
+        "initGravitation"
+      ],
+      "cleanup_hooks": [
+        "Gravitation"
+      ],
+      "presentation": {
+        "description": "卫星轨道模拟与引力场",
+        "icon": "orbit",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.gravitation",
+        "shared/js/experiment-registry.js#physics.gravitation"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"gravitation\"]",
+          "sha256": "d3f26f91dc93c65faafd672a87dd6a15a659fb0dbcb09e2b82de3db26fb9166e"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/gravitation.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "df4e4e320259d1b7c6ac39e288eb934acf5119de961dc70a002515f6437430c6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.kinematics",
+      "route": "#physics/kinematics",
+      "title": "匀变速运动",
+      "owners": [
+        "Kinematics"
+      ],
+      "init_hooks": [
+        "initKinematics"
+      ],
+      "cleanup_hooks": [
+        "Kinematics"
+      ],
+      "presentation": {
+        "description": "v-t图与s-t图联动",
+        "icon": "move-right",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.kinematics",
+        "shared/js/experiment-registry.js#physics.kinematics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"kinematics\"]",
+          "sha256": "c70b73a90d94174b842bebc8ebe89b0d9e3977b8b6e66fba56beabde8d8a646a"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/kinematics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "8ea3de58c030109a97a32cca764583a08bc746ac3a771ed2c72798d4e9002c17"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.mechanics",
+      "route": "#physics/mechanics",
+      "title": "恢复系数与反弹高度",
+      "owners": [
+        "PhysicsSim"
+      ],
+      "init_hooks": [
+        "initPhysics"
+      ],
+      "cleanup_hooks": [
+        "PhysicsSim"
+      ],
+      "presentation": {
+        "description": "固定落高，对照 e² 与第一次反弹峰值",
+        "icon": "gauge",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.mechanics",
+        "shared/js/experiment-registry.js#physics.mechanics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"mechanics\"]",
+          "sha256": "f6c048cdcc5b9bef2fe3620d2a336d58980d2a3a7bd3e81791d5bb21f98846d3"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/physics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f603e5b384af3e9869536fc05985f273f56dc267fa39979ea982ce4084dfa583"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.momentum-conservation",
+      "route": "#physics/momentum-conservation",
+      "title": "动量守恒",
+      "owners": [
+        "MomentumConservation"
+      ],
+      "init_hooks": [
+        "initMomentumConservation"
+      ],
+      "cleanup_hooks": [
+        "MomentumConservation"
+      ],
+      "presentation": {
+        "description": "一维碰撞与动量-动能柱状图",
+        "icon": "arrow-right-left",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.momentum-conservation",
+        "shared/js/experiment-registry.js#physics.momentum-conservation"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"momentum-conservation\"]",
+          "sha256": "540d45ffc1ee5ed5335f5725af0974ed2036e761a1afd617fae035ac07dcd9b2"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/momentum-conservation.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "36978074fb02ae6d631a1da85eabf7826b52a52ec0f097a09ae53939318b633d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.optics",
+      "route": "#physics/optics",
+      "title": "光学",
+      "owners": [
+        "OpticsLab"
+      ],
+      "init_hooks": [
+        "initOptics"
+      ],
+      "cleanup_hooks": [
+        "OpticsLab"
+      ],
+      "presentation": {
+        "description": "透镜成像/双缝干涉/折射/色散/偏振",
+        "icon": "eye",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.optics",
+        "shared/js/experiment-registry.js#physics.optics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"optics\"]",
+          "sha256": "cbf9003828c63d2694418d1efa4aba5e7604790255485ac67315f18e8089c930"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/optics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "ae30f4480f5b69ecce7830c59d714bdab67a4f1feea9b9cc3b3cbd6231f66ef4"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.projectile",
+      "route": "#physics/projectile",
+      "title": "抛体运动",
+      "owners": [
+        "Projectile"
+      ],
+      "init_hooks": [
+        "initProjectile"
+      ],
+      "cleanup_hooks": [
+        "Projectile"
+      ],
+      "presentation": {
+        "description": "轨迹、速度分解、射程",
+        "icon": "rocket",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.projectile",
+        "shared/js/experiment-registry.js#physics.projectile"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"projectile\"]",
+          "sha256": "f6162b09d4a06e5dfbda2a042f9207153724a5c69044758c8efa3a1140b38629"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/projectile.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "781b6f6e94e15d500a43d5681bf3939438851a700dd975c3f0249e300a5e23b8"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.relativity",
+      "route": "#physics/relativity",
+      "title": "相对论",
+      "owners": [
+        "RelativityDemo"
+      ],
+      "init_hooks": [
+        "initRelativity"
+      ],
+      "cleanup_hooks": [
+        "RelativityDemo"
+      ],
+      "presentation": {
+        "description": "时间膨胀、长度收缩",
+        "icon": "orbit",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.relativity",
+        "shared/js/experiment-registry.js#physics.relativity"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"relativity\"]",
+          "sha256": "ab89552e1456704ecceefd1f2b7586d78e21cfb8b23013b997365eb25378b208"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/relativity.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "76e60a65087c02e132803bf4cf3eb3050a26659a3a2d14d13e88204ecc8efbd9"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.thermodynamics",
+      "route": "#physics/thermodynamics",
+      "title": "热力学基础",
+      "owners": [
+        "Thermodynamics"
+      ],
+      "init_hooks": [
+        "initThermodynamics"
+      ],
+      "cleanup_hooks": [
+        "Thermodynamics"
+      ],
+      "presentation": {
+        "description": "第一定律·热机效率·熵增方向",
+        "icon": "flame",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.thermodynamics",
+        "shared/js/experiment-registry.js#physics.thermodynamics"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"thermodynamics\"]",
+          "sha256": "766ceab17813cb7ed90f3cbc27bc57470ed7dd8fd51b9cb8d660139c5b0d6d23"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/thermodynamics.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "fc630c47714c8ee238212e974ca7f16e1977302d1aef5119745c10d26c64c8fe"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "englab",
+      "course_key": "physics",
+      "activity_key": "physics.waves",
+      "route": "#physics/waves",
+      "title": "波动演示",
+      "owners": [
+        "WaveDemo"
+      ],
+      "init_hooks": [
+        "initWaves"
+      ],
+      "cleanup_hooks": [
+        "WaveDemo"
+      ],
+      "presentation": {
+        "description": "声波、光波",
+        "icon": "waves",
+        "variant": "featured",
+        "anchor": ""
+      },
+      "sources": [
+        "shared/js/config.js#physics.waves",
+        "shared/js/experiment-registry.js#physics.waves"
+      ],
+      "resources": [
+        {
+          "path": "index.html",
+          "kind": "module-markup",
+          "selector": "[data-module=\"waves\"]",
+          "sha256": "e7e68b44c25100d2ac927e64034c6095477aa781395324d1d7327f3db4990075"
+        },
+        {
+          "path": "pages/physics/physics.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6ef17665116c9de756442466854b6a4f9cd2015ba73342ab102e9e376ee318ac"
+        },
+        {
+          "path": "pages/physics/waves.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "cb3de7bb24e03026f212f278b8459ec369be5b7b58044f076459d82991c0dd9e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "algorithm-thinking",
+      "activity_key": "algorithm-thinking.binary-choice",
+      "route": "codevis/#challenge?activity=algorithm-thinking.binary-choice",
+      "title": "二分选择",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "用区间缩小寻找范围。",
+        "language": "cpp",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#algorithm-thinking.binary-choice"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "algorithm-thinking",
+      "activity_key": "algorithm-thinking.bubble-pass",
+      "route": "codevis/#challenge?activity=algorithm-thinking.bubble-pass",
+      "title": "冒泡的一趟",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "观察相邻元素比较与交换。",
+        "language": "javascript",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#algorithm-thinking.bubble-pass"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "algorithm-thinking",
+      "activity_key": "algorithm-thinking.linear-search",
+      "route": "codevis/#challenge?activity=algorithm-thinking.linear-search",
+      "title": "线性查找",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "从头扫描并在命中时停下。",
+        "language": "cpp",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#algorithm-thinking.linear-search"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "challenge-submission",
+      "activity_key": "challenge-submission.multi-language-counter",
+      "route": "codevis/#challenge?activity=challenge-submission.multi-language-counter",
+      "title": "多语言计数器",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "比较不同语言的相同算法步骤。",
+        "language": "cpp",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#challenge-submission.multi-language-counter"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "challenge-submission",
+      "activity_key": "challenge-submission.public-sample",
+      "route": "codevis/#challenge?activity=challenge-submission.public-sample",
+      "title": "公开样例预检",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "把公开样例视为学习反馈而非判定。",
+        "language": "javascript",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#challenge-submission.public-sample"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "challenge-submission",
+      "activity_key": "challenge-submission.submission-record",
+      "route": "codevis/#challenge?activity=challenge-submission.submission-record",
+      "title": "提交记录",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "理解等待、反馈与重试状态。",
+        "language": "python",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#challenge-submission.submission-record"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "control-flow",
+      "activity_key": "control-flow.branch-doors",
+      "route": "codevis/#challenge?activity=control-flow.branch-doors",
+      "title": "条件分支",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "根据条件选择不同路径。",
+        "language": "python",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#control-flow.branch-doors"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "control-flow",
+      "activity_key": "control-flow.loop-boundary",
+      "route": "codevis/#challenge?activity=control-flow.loop-boundary",
+      "title": "循环与边界",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "预测并验证循环何时停止。",
+        "language": "javascript",
+        "featured": true
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#control-flow.loop-boundary"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "control-flow",
+      "activity_key": "control-flow.nested-grid",
+      "route": "codevis/#challenge?activity=control-flow.nested-grid",
+      "title": "嵌套循环",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "用两层循环扫描规则网格。",
+        "language": "c",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#control-flow.nested-grid"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "data-functions",
+      "activity_key": "data-functions.array-scan",
+      "route": "codevis/#challenge?activity=data-functions.array-scan",
+      "title": "数组扫描",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "使用索引读取连续数据。",
+        "language": "c",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#data-functions.array-scan"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "data-functions",
+      "activity_key": "data-functions.list-snapshot",
+      "route": "codevis/#challenge?activity=data-functions.list-snapshot",
+      "title": "列表快照",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "在修改前后比较数据状态。",
+        "language": "python",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#data-functions.list-snapshot"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "data-functions",
+      "activity_key": "data-functions.parameter-return",
+      "route": "codevis/#challenge?activity=data-functions.parameter-return",
+      "title": "参数与返回",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "追踪值如何进入和离开函数。",
+        "language": "javascript",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#data-functions.parameter-return"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "debugging-testing",
+      "activity_key": "debugging-testing.assert-boundary",
+      "route": "codevis/#challenge?activity=debugging-testing.assert-boundary",
+      "title": "边界断言",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "为临界输入写下可检查的预期。",
+        "language": "python",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#debugging-testing.assert-boundary"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "debugging-testing",
+      "activity_key": "debugging-testing.minimal-case",
+      "route": "codevis/#challenge?activity=debugging-testing.minimal-case",
+      "title": "最小反例",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "缩小输入以复现错误。",
+        "language": "c",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#debugging-testing.minimal-case"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "debugging-testing",
+      "activity_key": "debugging-testing.trace-mismatch",
+      "route": "codevis/#challenge?activity=debugging-testing.trace-mismatch",
+      "title": "轨迹不一致",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "将预测与实际状态逐步对照。",
+        "language": "javascript",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#debugging-testing.trace-mismatch"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "program-start",
+      "activity_key": "program-start.first-output",
+      "route": "codevis/#challenge?activity=program-start.first-output",
+      "title": "第一条输出",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "让输出成为可验证的结果。",
+        "language": "javascript",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#program-start.first-output"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "program-start",
+      "activity_key": "program-start.input-response",
+      "route": "codevis/#challenge?activity=program-start.input-response",
+      "title": "输入与回应",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "区分输入、处理和输出。",
+        "language": "c",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#program-start.input-response"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "code-space",
+      "course_key": "program-start",
+      "activity_key": "program-start.variable-box",
+      "route": "codevis/#challenge?activity=program-start.variable-box",
+      "title": "变量的盒子",
+      "owners": [
+        "CvCourseManifest",
+        "CvCourseCatalog",
+        "CvCourseChallenge"
+      ],
+      "init_hooks": [
+        "CvCourseCatalog.init",
+        "CvCourseChallenge.init"
+      ],
+      "cleanup_hooks": [
+        "CvCourseCatalog.destroy",
+        "CvCourseChallenge.destroy"
+      ],
+      "presentation": {
+        "goal": "观察变量赋值与重写。",
+        "language": "python",
+        "featured": false
+      },
+      "sources": [
+        "codevis/shared/js/course-manifest.js#program-start.variable-box"
+      ],
+      "resources": [
+        {
+          "path": "codevis/shared/js/course-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "fa198b440352a71b4c26f86902ea62ff187cdba54bcafa5352d3ffa887f6b894"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-catalog.js",
+          "kind": "catalog-owner",
+          "selector": "",
+          "sha256": "a2d2e087f7cf8058b6cc7bd33640af9ba4223de20f7bf8b6dcbd3c357db23164"
+        },
+        {
+          "path": "codevis/pages/course-challenge/course-challenge.js",
+          "kind": "challenge-owner",
+          "selector": "",
+          "sha256": "1844c669b74893a0cbd82d1871e8717395e4df03a1afc5b95beb63bf899a2ab2"
+        },
+        {
+          "path": "codevis/pages/course-catalog/course-space.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "6e24bc75b49f24032324ec9adce579ccc3c770b1fee0465f419789925e60b63d"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "earth-space",
+      "activity_key": "cosmos.day-season",
+      "route": "#cosmos/day-season",
+      "title": "昼夜与季节",
+      "owners": [
+        "initCosmosSeasons"
+      ],
+      "init_hooks": [
+        "initCosmosSeasons"
+      ],
+      "cleanup_hooks": [
+        "destroyCosmosSeasons"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "年内日期",
+        "input_control": "cosmos-day"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#cosmos.day-season"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/cosmos/earth-sun.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f8533640f9fdd59c3046be4ef7bf64e4d7bf43b60aa635561eabb05722837bd6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "earth-space",
+      "activity_key": "cosmos.evidence-log",
+      "route": "#cosmos/evidence-log",
+      "title": "证据记录",
+      "owners": [
+        "initCosmosSeasons"
+      ],
+      "init_hooks": [
+        "initCosmosSeasons"
+      ],
+      "cleanup_hooks": [
+        "destroyCosmosSeasons"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "观测时刻",
+        "input_control": "cosmos-hour"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#cosmos.evidence-log"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/cosmos/earth-sun.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f8533640f9fdd59c3046be4ef7bf64e4d7bf43b60aa635561eabb05722837bd6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "earth-space",
+      "activity_key": "cosmos.orbital-scale",
+      "route": "#cosmos/orbital-scale",
+      "title": "轨道与尺度",
+      "owners": [
+        "initCosmosSeasons"
+      ],
+      "init_hooks": [
+        "initCosmosSeasons"
+      ],
+      "cleanup_hooks": [
+        "destroyCosmosSeasons"
+      ],
+      "presentation": {
+        "kind": "webgl",
+        "input": "轨道位置",
+        "input_control": "fg-orbit-position"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#cosmos.orbital-scale"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/cosmos/earth-sun.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f8533640f9fdd59c3046be4ef7bf64e4d7bf43b60aa635561eabb05722837bd6"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "data-ai",
+      "activity_key": "datascience.evidence-claim",
+      "route": "#datascience/evidence-claim",
+      "title": "证据与主张",
+      "owners": [
+        "initLinearRegressionLab"
+      ],
+      "init_hooks": [
+        "initLinearRegressionLab"
+      ],
+      "cleanup_hooks": [
+        "destroyLinearRegressionLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "样本数据集",
+        "input_control": "regression-dataset"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#datascience.evidence-claim"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/datascience/linear-regression.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "7dc3b2353a8440a3bba2753d16adc1c00d72c355dbecf6ed9cf1657e0f7113a3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "data-ai",
+      "activity_key": "datascience.model-fit",
+      "route": "#datascience/model-fit",
+      "title": "模型拟合",
+      "owners": [
+        "initLinearRegressionLab"
+      ],
+      "init_hooks": [
+        "initLinearRegressionLab"
+      ],
+      "cleanup_hooks": [
+        "destroyLinearRegressionLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "斜率",
+        "input_control": "regression-slope"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#datascience.model-fit"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/datascience/linear-regression.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "7dc3b2353a8440a3bba2753d16adc1c00d72c355dbecf6ed9cf1657e0f7113a3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "data-ai",
+      "activity_key": "datascience.outlier-test",
+      "route": "#datascience/outlier-test",
+      "title": "离群点检验",
+      "owners": [
+        "initLinearRegressionLab"
+      ],
+      "init_hooks": [
+        "initLinearRegressionLab"
+      ],
+      "cleanup_hooks": [
+        "destroyLinearRegressionLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "样本数据集",
+        "input_control": "regression-dataset"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#datascience.outlier-test"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/datascience/linear-regression.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "7dc3b2353a8440a3bba2753d16adc1c00d72c355dbecf6ed9cf1657e0f7113a3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "engineering-systems",
+      "activity_key": "engineering.load-path",
+      "route": "#engineering/load-path",
+      "title": "受力路径",
+      "owners": [
+        "initBridgeTruss"
+      ],
+      "init_hooks": [
+        "initBridgeTruss"
+      ],
+      "cleanup_hooks": [
+        "destroyBridgeTruss"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "载荷位置",
+        "input_control": "truss-joint"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#engineering.load-path"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/engineering/engineering.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "1e4eceb097675924f2a9b86989b55da3e2530f6a3c2f97d554b71df81adf7d1e"
+        },
+        {
+          "path": "pages/engineering/bridge-truss.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "ffe8748321458cdb6d9a3bbbbfc9facab755757352e48933991572778ce20805"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "engineering-systems",
+      "activity_key": "engineering.member-choice",
+      "route": "#engineering/member-choice",
+      "title": "构件选择",
+      "owners": [
+        "initBridgeTruss"
+      ],
+      "init_hooks": [
+        "initBridgeTruss"
+      ],
+      "cleanup_hooks": [
+        "destroyBridgeTruss"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "杆件数量",
+        "input_control": "truss-member"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#engineering.member-choice"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/engineering/engineering.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "1e4eceb097675924f2a9b86989b55da3e2530f6a3c2f97d554b71df81adf7d1e"
+        },
+        {
+          "path": "pages/engineering/bridge-truss.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "ffe8748321458cdb6d9a3bbbbfc9facab755757352e48933991572778ce20805"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "engineering-systems",
+      "activity_key": "engineering.safety-check",
+      "route": "#engineering/safety-check",
+      "title": "安全校核",
+      "owners": [
+        "initBridgeTruss"
+      ],
+      "init_hooks": [
+        "initBridgeTruss"
+      ],
+      "cleanup_hooks": [
+        "destroyBridgeTruss"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "安全系数",
+        "input_control": "truss-safety"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#engineering.safety-check"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/engineering/engineering.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "1e4eceb097675924f2a9b86989b55da3e2530f6a3c2f97d554b71df81adf7d1e"
+        },
+        {
+          "path": "pages/engineering/bridge-truss.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "ffe8748321458cdb6d9a3bbbbfc9facab755757352e48933991572778ce20805"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "humanities-futures",
+      "activity_key": "humanities.claim-review",
+      "route": "#humanities/claim-review",
+      "title": "主张审阅",
+      "owners": [
+        "initHumanitiesLab"
+      ],
+      "init_hooks": [
+        "initHumanitiesLab"
+      ],
+      "cleanup_hooks": [
+        "destroyHumanitiesLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "证据阈值",
+        "input_control": "humanities-threshold"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#humanities.claim-review"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/humanities/text-lab.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f8263eb481e95b80dcad5f1395abf39d1905abf0ea62cab26fa7d5353147c8df"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "humanities-futures",
+      "activity_key": "humanities.context-map",
+      "route": "#humanities/context-map",
+      "title": "语境地图",
+      "owners": [
+        "initHumanitiesLab"
+      ],
+      "init_hooks": [
+        "initHumanitiesLab"
+      ],
+      "cleanup_hooks": [
+        "destroyHumanitiesLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "共现证据阈值",
+        "input_control": "humanities-threshold"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#humanities.context-map"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/humanities/text-lab.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f8263eb481e95b80dcad5f1395abf39d1905abf0ea62cab26fa7d5353147c8df"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "humanities-futures",
+      "activity_key": "humanities.voice-shift",
+      "route": "#humanities/voice-shift",
+      "title": "视角切换",
+      "owners": [
+        "initHumanitiesLab"
+      ],
+      "init_hooks": [
+        "initHumanitiesLab"
+      ],
+      "cleanup_hooks": [
+        "destroyHumanitiesLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "文本材料",
+        "input_control": "humanities-sample"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#humanities.voice-shift"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/humanities/text-lab.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "f8263eb481e95b80dcad5f1395abf39d1905abf0ea62cab26fa7d5353147c8df"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "information-technology",
+      "activity_key": "infotech.fault-trace",
+      "route": "#infotech/fault-trace",
+      "title": "故障追踪",
+      "owners": [
+        "initNetworkLayersLab"
+      ],
+      "init_hooks": [
+        "initNetworkLayersLab"
+      ],
+      "cleanup_hooks": [
+        "destroyNetworkLayersLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "故障节点",
+        "input_control": "network-fault"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#infotech.fault-trace"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/infotech/network-layers.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "9846231cb9491aded9b664169ef1634ffdb2f3c8b052cfe6e40d5b61c02e9f7e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "information-technology",
+      "activity_key": "infotech.layer-contract",
+      "route": "#infotech/layer-contract",
+      "title": "分层约定",
+      "owners": [
+        "initNetworkLayersLab"
+      ],
+      "init_hooks": [
+        "initNetworkLayersLab"
+      ],
+      "cleanup_hooks": [
+        "destroyNetworkLayersLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "消息长度",
+        "input_control": "network-payload"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#infotech.layer-contract"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/infotech/network-layers.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "9846231cb9491aded9b664169ef1634ffdb2f3c8b052cfe6e40d5b61c02e9f7e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "information-technology",
+      "activity_key": "infotech.packet-route",
+      "route": "#infotech/packet-route",
+      "title": "分组路由",
+      "owners": [
+        "initNetworkLayersLab"
+      ],
+      "init_hooks": [
+        "initNetworkLayersLab"
+      ],
+      "cleanup_hooks": [
+        "destroyNetworkLayersLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "跳数",
+        "input_control": "network-hops"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#infotech.packet-route"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/infotech/network-layers.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "9846231cb9491aded9b664169ef1634ffdb2f3c8b052cfe6e40d5b61c02e9f7e"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "materials-science",
+      "activity_key": "materials.defect-path",
+      "route": "#materials/defect-path",
+      "title": "缺陷路径",
+      "owners": [
+        "initMaterialsLab"
+      ],
+      "init_hooks": [
+        "initMaterialsLab"
+      ],
+      "cleanup_hooks": [
+        "destroyMaterialsLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "缺陷密度",
+        "input_control": "materials-defect"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#materials.defect-path"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/materials/materials-lab.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "58ac5c42b4aa91ca19f2b4ad36c3bb01dd88e8e574eaebdcdb37bc80e98c1bd3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "materials-science",
+      "activity_key": "materials.grain-boundary",
+      "route": "#materials/grain-boundary",
+      "title": "晶粒边界",
+      "owners": [
+        "initMaterialsLab"
+      ],
+      "init_hooks": [
+        "initMaterialsLab"
+      ],
+      "cleanup_hooks": [
+        "destroyMaterialsLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "晶粒尺度",
+        "input_control": "materials-grain-size"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#materials.grain-boundary"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/materials/materials-lab.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "58ac5c42b4aa91ca19f2b4ad36c3bb01dd88e8e574eaebdcdb37bc80e98c1bd3"
+        }
+      ]
+    },
+    {
+      "galaxy_key": "future-galaxy",
+      "course_key": "materials-science",
+      "activity_key": "materials.process-window",
+      "route": "#materials/process-window",
+      "title": "工艺窗口",
+      "owners": [
+        "initMaterialsLab"
+      ],
+      "init_hooks": [
+        "initMaterialsLab"
+      ],
+      "cleanup_hooks": [
+        "destroyMaterialsLab"
+      ],
+      "presentation": {
+        "kind": "canvas",
+        "input": "冷却速率",
+        "input_control": "materials-cooling"
+      },
+      "sources": [
+        "pages/frontier/frontier-manifest.js#materials.process-window"
+      ],
+      "resources": [
+        {
+          "path": "pages/frontier/frontier-manifest.js",
+          "kind": "activity-manifest",
+          "selector": "",
+          "sha256": "dfe9407e41034b1fddc6d0660a0026e5a8fb90a33c9322a94dd3f4a4e3ff407e"
+        },
+        {
+          "path": "shared/js/frontier-learning.js",
+          "kind": "course-owner",
+          "selector": "",
+          "sha256": "e0043040432151724388b479dc47891694ae7ed6e33d2977aafc105101044574"
+        },
+        {
+          "path": "pages/frontier/frontier.css",
+          "kind": "page-style",
+          "selector": "",
+          "sha256": "50f628ff33e5c4ec8817fc62647cbcb7d1eed614b4cc55161bb1c3a325d9b055"
+        },
+        {
+          "path": "pages/materials/materials-lab.js",
+          "kind": "runtime-script",
+          "selector": "",
+          "sha256": "58ac5c42b4aa91ca19f2b4ad36c3bb01dd88e8e574eaebdcdb37bc80e98c1bd3"
+        }
+      ]
+    }
+  ]
+}
