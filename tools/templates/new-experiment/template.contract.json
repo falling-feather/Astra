@@ -20,5 +20,6 @@
   "copy_target": "pages/__SUBJECT__/__EXPERIMENT_ID__/",
   "production_registration": false,
   "rollback": "Remove the new catalog and runtime registration; the copied directory then has no reachable route.",
-  "validation": "node tools/tests/new-experiment-template-contract.cjs"
+  "validation": "node tools/tests/new-experiment-template-contract.cjs",
+  "registration_validation": "node tools/quality/check-new-experiment-registration.cjs --manifest <pages/subject/experiment/manifest.json>"
 }

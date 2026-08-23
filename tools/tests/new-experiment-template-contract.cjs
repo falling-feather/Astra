@@ -12,6 +12,10 @@ assert.equal(contract.schema_version, 1);
 assert.equal(contract.production_registration, false);
 assert.equal(contract.copy_target, 'pages/__SUBJECT__/__EXPERIMENT_ID__/');
 assert.equal(contract.validation, 'node tools/tests/new-experiment-template-contract.cjs');
+assert.equal(
+    contract.registration_validation,
+    'node tools/quality/check-new-experiment-registration.cjs --manifest <pages/subject/experiment/manifest.json>'
+);
 assert.deepEqual(contract.required_files, [
     'manifest.json.tpl',
     'module.html.tpl',
