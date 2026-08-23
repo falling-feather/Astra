@@ -16,6 +16,8 @@ assert.equal(
     contract.registration_validation,
     'node tools/quality/check-new-experiment-registration.cjs --manifest <pages/subject/experiment/manifest.json>'
 );
+assert.equal(contract.visual_contract, 'visual-primitives.contract.json');
+assert.equal(contract.visual_validation, 'node tools/tests/new-experiment-visual-primitives-contract.cjs');
 assert.deepEqual(contract.required_files, [
     'manifest.json.tpl',
     'module.html.tpl',
@@ -34,7 +36,13 @@ const replacements = Object.freeze({
     __OWNER__: 'ShowcaseTemplateProbe',
     __NAMESPACE__: 'showcase-template-probe',
     __ASSET_VERSION__: '20260824v820Ext01P0',
-    __MODEL_DOC_ANCHOR__: 'model-showcase-template-probe'
+    __MODEL_DOC_ANCHOR__: 'model-showcase-template-probe',
+    __PARAMETER_LABEL__: '主变量',
+    __PARAMETER_UNIT__: 'm',
+    __PRIMARY_LEGEND__: '运动对象',
+    __SECONDARY_LEGEND__: '参考位置',
+    __ACCENT_TOKEN__: '--accent-purple',
+    __ACCENT_RGB__: '139, 111, 192'
 });
 const render = (source) => Object.entries(replacements).reduce(
     (result, [token, value]) => result.split(token).join(value),
@@ -60,6 +68,11 @@ const html = render(read('module.html.tpl'));
 assert.match(html, /data-module="showcase-template-probe"/);
 assert.match(html, /class="astra-exp astra-exp--showcase-template-probe"/);
 assert.match(html, /data-role="canvas"/);
+assert.match(html, /data-role="state"/);
+assert.match(html, /data-role="legend"/);
+assert.match(html, /data-role="parameter-value"/);
+assert.match(html, /data-role="notice"/);
+assert.match(html, /data-role="control-drawer"/);
 assert.match(html, /data-control="parameter"/);
 assert.match(html, /data-action="toggle"/);
 assert.match(html, /data-action="reset"/);
@@ -90,6 +103,9 @@ const parameterControl = createControl();
 const toggleControl = createControl();
 const resetControl = createControl();
 const readout = { textContent: '' };
+const parameterOutput = { value: '', textContent: '' };
+const stateOutput = { value: '', textContent: '' };
+const notice = { textContent: '' };
 const drawingContext = {
     setTransform() {},
     clearRect() {},
@@ -108,10 +124,14 @@ const canvas = {
     getContext: () => drawingContext
 };
 const rootElement = {
+    dataset: {},
     querySelector(selector) {
         return ({
             '[data-role="canvas"]': canvas,
             '[data-role="readout"]': readout,
+            '[data-role="parameter-value"]': parameterOutput,
+            '[data-role="state"]': stateOutput,
+            '[data-role="notice"]': notice,
             '[data-control="parameter"]': parameterControl,
             '[data-action="toggle"]': toggleControl,
             '[data-action="reset"]': resetControl
@@ -127,7 +147,7 @@ class ResizeObserverProbe {
 const runtimeContext = {
     window: {
         devicePixelRatio: 1,
-        matchMedia: () => ({ matches: true })
+        matchMedia: () => ({ matches: true, addEventListener() {} })
     },
     document: {
         querySelector: (selector) => selector.includes('showcase-template-probe') ? rootElement : null
@@ -145,11 +165,17 @@ assert.ok(owner, 'rendered owner must be exposed');
 assert.equal(runtimeContext.window.initShowcaseTemplateProbe(), true);
 assert.equal(canvas.width, 640);
 assert.equal(canvas.height, 360);
-assert.match(readout.textContent, /变量 50 · 时间 0\.0 s/);
+assert.match(readout.textContent, /主变量 50 m · 时间 0\.0 s/);
+assert.equal(parameterOutput.textContent, '50 m');
+assert.equal(stateOutput.textContent, '静态模式');
+assert.match(notice.textContent, /减少动态效果/);
+assert.equal(toggleControl.disabled, true);
+assert.equal(rootElement.dataset.state, 'reduced-motion');
 assert.equal(owner.snapshot().parameter, 50);
 const abortSignal = owner.controls.signal;
 listeners.get(parameterControl).listener({ target: { value: '80' } });
 assert.equal(owner.snapshot().parameter, 80);
+assert.equal(parameterOutput.textContent, '80 m');
 owner.destroy();
 assert.equal(abortSignal.aborted, true, 'destroy must abort control listeners');
 assert.equal(observerDisconnected, true, 'destroy must disconnect ResizeObserver');
@@ -169,7 +195,7 @@ for (const line of selectorLines) {
         `CSS selector must stay inside the new experiment namespace: ${line}`
     );
 }
-assert.match(css, /@media \(max-width: 640px\)/);
+assert.match(css, /@media \(max-width: 760px\)/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 
 const modelNotes = render(read('model-notes.md.tpl'));

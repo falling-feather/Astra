@@ -36,7 +36,13 @@ const replacements = Object.freeze({
     __OWNER__: 'RegistrationProbe',
     __NAMESPACE__: 'registration-probe',
     __ASSET_VERSION__: '20260824v821Ext02P0',
-    __MODEL_DOC_ANCHOR__: 'model-registration-probe'
+    __MODEL_DOC_ANCHOR__: 'model-registration-probe',
+    __PARAMETER_LABEL__: '主变量',
+    __PARAMETER_UNIT__: 'm',
+    __PRIMARY_LEGEND__: '运动对象',
+    __SECONDARY_LEGEND__: '参考位置',
+    __ACCENT_TOKEN__: '--accent-purple',
+    __ACCENT_RGB__: '139, 111, 192'
 });
 const render = (source) => Object.entries(replacements).reduce(
     (result, [token, value]) => result.split(token).join(value),

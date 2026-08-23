@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "task": "EXT-04",
+  "version": "V8.2.3",
+  "scope": "new-experiment-only",
+  "production_registration": false,
+  "namespace_prefix": "#page-__SUBJECT__ [data-module=\"__EXPERIMENT_ID__\"] .astra-exp--__NAMESPACE__",
+  "required_primitives": [
+    {
+      "id": "state",
+      "selector": "[data-role=\"state\"]",
+      "purpose": "Expose running, paused or reduced-motion state without technical implementation text."
+    },
+    {
+      "id": "readout",
+      "selector": "[data-role=\"readout\"]",
+      "purpose": "Keep the current observable value inside the experiment stage."
+    },
+    {
+      "id": "legend",
+      "selector": "[data-role=\"legend\"]",
+      "purpose": "Map visual marks to model objects without adding a course panel."
+    },
+    {
+      "id": "parameter",
+      "selector": "[data-control=\"parameter\"]",
+      "purpose": "Provide one labelled primary parameter with value and unit."
+    },
+    {
+      "id": "parameter-value",
+      "selector": "[data-role=\"parameter-value\"]",
+      "purpose": "Echo the parameter value next to the control."
+    },
+    {
+      "id": "toggle",
+      "selector": "[data-action=\"toggle\"]",
+      "purpose": "Pause or continue the observable process."
+    },
+    {
+      "id": "reset",
+      "selector": "[data-action=\"reset\"]",
+      "purpose": "Return the experiment to one declared initial state."
+    },
+    {
+      "id": "notice",
+      "selector": "[data-role=\"notice\"]",
+      "purpose": "Return one short operation-state sentence."
+    },
+    {
+      "id": "control-drawer",
+      "selector": "[data-role=\"control-drawer\"]",
+      "purpose": "Use a native details disclosure for narrow screens."
+    }
+  ],
+  "required_states": [
+    "running",
+    "paused",
+    "reduced-motion"
+  ],
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "tablet",
+      "width": 834,
+      "height": 1112
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "mobile_breakpoint_px": 760,
+  "minimum_touch_target_px": 44,
+  "motion_policy": "Continuous animation stops in reduced-motion; direct parameter input still renders a static result.",
+  "content_policy": "Keep only model labels, observable values and one short status sentence; course goals and long explanations stay outside the experiment."
+}
