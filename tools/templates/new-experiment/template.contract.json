@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "purpose": "V8.2 EXT-01 copy-only scaffold for experiments that do not modify an existing owner",
+  "required_files": [
+    "manifest.json.tpl",
+    "module.html.tpl",
+    "index.js.tpl",
+    "styles.css.tpl",
+    "model-notes.md.tpl"
+  ],
+  "placeholders": [
+    "__SUBJECT__",
+    "__EXPERIMENT_ID__",
+    "__EXPERIMENT_TITLE__",
+    "__OWNER__",
+    "__NAMESPACE__",
+    "__ASSET_VERSION__",
+    "__MODEL_DOC_ANCHOR__"
+  ],
+  "copy_target": "pages/__SUBJECT__/__EXPERIMENT_ID__/",
+  "production_registration": false,
+  "rollback": "Remove the new catalog and runtime registration; the copied directory then has no reachable route.",
+  "validation": "node tools/tests/new-experiment-template-contract.cjs"
+}
