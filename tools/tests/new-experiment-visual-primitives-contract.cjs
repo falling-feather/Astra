@@ -39,7 +39,8 @@ const replacements = Object.freeze({
     __PRIMARY_LEGEND__: '运动对象',
     __SECONDARY_LEGEND__: '参考位置',
     __ACCENT_TOKEN__: '--accent-purple',
-    __ACCENT_RGB__: '139, 111, 192'
+    __ACCENT_RGB__: '139, 111, 192',
+    __PREVIEW_ALT__: '青色质点随主变量变化并显示相对参考线的位置关系'
 });
 const render = (source) => Object.entries(replacements).reduce(
     (result, [token, value]) => result.split(token).join(value),

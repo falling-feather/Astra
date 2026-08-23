@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task": "EXT-06",
+  "version": "V8.2.5",
+  "scope": "new-experiment-only",
+  "production_registration": false,
+  "poster": {
+    "filename": "preview.webp",
+    "format": "webp",
+    "width": 1600,
+    "height": 900,
+    "minimum_bytes": 1024,
+    "maximum_bytes": 122880,
+    "animated": false
+  },
+  "motion": {
+    "optional": true,
+    "filename": "preview-motion.webp",
+    "format": "animated-webp",
+    "width": 960,
+    "height": 540,
+    "minimum_duration_ms": 1500,
+    "maximum_duration_ms": 5000,
+    "maximum_frames": 60,
+    "maximum_bytes": 786432
+  },
+  "alt": {
+    "minimum_characters": 12,
+    "maximum_characters": 120,
+    "forbidden_generic_terms": ["图片", "封面", "截图", "preview", "image", "webp"]
+  },
+  "source": {
+    "allowed_methods": ["browser-capture", "original-render", "manual-illustration", "generated-original"],
+    "allowed_rights": ["project-original", "licensed-with-record"],
+    "required_viewport": { "width": 1600, "height": 900 }
+  },
+  "reduced_motion": "poster",
+  "content_policy": {
+    "shows_interaction_result": true,
+    "decorative_only": false,
+    "old_activity_source": false,
+    "embedded_title": false
+  },
+  "unresolved_marker_pattern": "__(?:[A-Z0-9_]+)__|\\[待填写|TODO|TBD|待补充"
+}

@@ -9,6 +9,13 @@
   "namespace": "astra-exp--__NAMESPACE__",
   "script": "pages/__SUBJECT__/__EXPERIMENT_ID__/index.js?v=__ASSET_VERSION__",
   "style": "pages/__SUBJECT__/__EXPERIMENT_ID__/styles.css?v=__ASSET_VERSION__",
+  "preview": {
+    "record": "pages/__SUBJECT__/__EXPERIMENT_ID__/preview.json",
+    "poster": "pages/__SUBJECT__/__EXPERIMENT_ID__/preview.webp?v=__ASSET_VERSION__",
+    "alt": "__PREVIEW_ALT__",
+    "motion": null,
+    "reduced_motion": "poster"
+  },
   "init_hook": "init__OWNER__",
   "cleanup": {
     "owner": "__OWNER__",

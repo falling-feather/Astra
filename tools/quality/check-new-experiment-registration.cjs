@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { validateModelDocumentReference } = require('./check-new-experiment-model-document.cjs');
+const { validatePreviewAssets } = require('./check-new-experiment-preview.cjs');
 
 const DEFAULT_ROOT = path.resolve(__dirname, '../..');
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/;
@@ -212,6 +213,10 @@ function validateCandidateManifests({ manifests, root = DEFAULT_ROOT, baseline =
         for (const error of modelDocument.errors) {
             addError(source, `model_${error.code}`, error.message);
         }
+        const previewAssets = validatePreviewAssets({ manifest, root });
+        for (const error of previewAssets.errors) {
+            addError(source, `preview_${error.code}`, error.message);
+        }
 
         const cleanup = manifest.cleanup;
         if (!cleanup || typeof cleanup !== 'object') {
@@ -309,7 +314,7 @@ function runCli(argv = process.argv.slice(2)) {
     }
     console.log(
         `new-experiment-registration: ${result.checked} candidate(s) PASS against `
-        + `${result.protectedExperiments} protected experiments; model documents reviewed`
+        + `${result.protectedExperiments} protected experiments; preview assets and model documents reviewed`
     );
     return 0;
 }

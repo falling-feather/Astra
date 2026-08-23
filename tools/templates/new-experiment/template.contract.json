@@ -6,7 +6,8 @@
     "module.html.tpl",
     "index.js.tpl",
     "styles.css.tpl",
-    "model-notes.md.tpl"
+    "model-notes.md.tpl",
+    "preview-record.json.tpl"
   ],
   "placeholders": [
     "__SUBJECT__",
@@ -20,7 +21,8 @@
     "__PRIMARY_LEGEND__",
     "__SECONDARY_LEGEND__",
     "__ACCENT_TOKEN__",
-    "__ACCENT_RGB__"
+    "__ACCENT_RGB__",
+    "__PREVIEW_ALT__"
   ],
   "copy_target": "pages/__SUBJECT__/__EXPERIMENT_ID__/",
   "production_registration": false,
@@ -31,5 +33,8 @@
   "visual_validation": "node tools/tests/new-experiment-visual-primitives-contract.cjs",
   "model_contract": "model-document.contract.json",
   "model_example": "model-notes.example.md",
-  "model_validation": "node tools/quality/check-new-experiment-model-document.cjs --manifest <pages/subject/experiment/manifest.json>"
+  "model_validation": "node tools/quality/check-new-experiment-model-document.cjs --manifest <pages/subject/experiment/manifest.json>",
+  "preview_contract": "preview-assets.contract.json",
+  "preview_inspection": "node tools/quality/check-new-experiment-preview.cjs --inspect <preview.webp>",
+  "preview_validation": "node tools/quality/check-new-experiment-preview.cjs --manifest <pages/subject/experiment/manifest.json>"
 }

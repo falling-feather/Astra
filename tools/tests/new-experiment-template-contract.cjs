@@ -24,12 +24,22 @@ assert.equal(
     contract.model_validation,
     'node tools/quality/check-new-experiment-model-document.cjs --manifest <pages/subject/experiment/manifest.json>'
 );
+assert.equal(contract.preview_contract, 'preview-assets.contract.json');
+assert.equal(
+    contract.preview_inspection,
+    'node tools/quality/check-new-experiment-preview.cjs --inspect <preview.webp>'
+);
+assert.equal(
+    contract.preview_validation,
+    'node tools/quality/check-new-experiment-preview.cjs --manifest <pages/subject/experiment/manifest.json>'
+);
 assert.deepEqual(contract.required_files, [
     'manifest.json.tpl',
     'module.html.tpl',
     'index.js.tpl',
     'styles.css.tpl',
-    'model-notes.md.tpl'
+    'model-notes.md.tpl',
+    'preview-record.json.tpl'
 ]);
 for (const file of contract.required_files) {
     assert.ok(fs.existsSync(path.join(templateRoot, file)), `template file must exist: ${file}`);
@@ -47,7 +57,8 @@ const replacements = Object.freeze({
     __PRIMARY_LEGEND__: '运动对象',
     __SECONDARY_LEGEND__: '参考位置',
     __ACCENT_TOKEN__: '--accent-purple',
-    __ACCENT_RGB__: '139, 111, 192'
+    __ACCENT_RGB__: '139, 111, 192',
+    __PREVIEW_ALT__: '青色质点随主变量变化并显示相对参考线的位置关系'
 });
 const render = (source) => Object.entries(replacements).reduce(
     (result, [token, value]) => result.split(token).join(value),
@@ -67,6 +78,13 @@ assert.equal(manifest.init_hook, 'initShowcaseTemplateProbe');
 assert.equal(manifest.cleanup.owner, 'ShowcaseTemplateProbe');
 assert.equal(manifest.cleanup.method, 'destroy');
 assert.equal(manifest.cleanup.verified, true);
+assert.deepEqual(manifest.preview, {
+    record: 'pages/physics/showcase-template-probe/preview.json',
+    poster: 'pages/physics/showcase-template-probe/preview.webp?v=20260824v820Ext01P0',
+    alt: '青色质点随主变量变化并显示相对参考线的位置关系',
+    motion: null,
+    reduced_motion: 'poster'
+});
 assert.equal(
     manifest.model_document,
     'doc/01-子文档/15-学科实验与内容开发指南.md#model-showcase-template-probe'
@@ -215,6 +233,14 @@ for (const requiredSection of modelContract.required_sections) {
     assert.match(modelNotes, new RegExp(requiredSection.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 assert.match(modelNotes, /不复制到实验首屏/);
+
+const previewRecord = JSON.parse(render(read('preview-record.json.tpl')));
+assert.equal(previewRecord.subject, 'physics');
+assert.equal(previewRecord.id, 'showcase-template-probe');
+assert.equal(previewRecord.poster.path, 'pages/physics/showcase-template-probe/preview.webp');
+assert.equal(previewRecord.reduced_motion, 'poster');
+assert.equal(previewRecord.content.old_activity_source, false);
+assert.match(String(previewRecord.poster.sha256), /待填写/);
 
 const productionFiles = [
     'shared/js/config.js',

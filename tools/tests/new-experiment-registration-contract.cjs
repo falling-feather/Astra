@@ -12,6 +12,7 @@ const {
     validateCandidateManifests,
     discoverCandidateManifests
 } = require('../quality/check-new-experiment-registration.cjs');
+const { readWebPMetadata } = require('../quality/check-new-experiment-preview.cjs');
 
 const read = (file) => fs.readFileSync(file, 'utf8');
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -41,7 +42,8 @@ const replacements = Object.freeze({
     __PRIMARY_LEGEND__: '运动对象',
     __SECONDARY_LEGEND__: '参考位置',
     __ACCENT_TOKEN__: '--accent-purple',
-    __ACCENT_RGB__: '139, 111, 192'
+    __ACCENT_RGB__: '139, 111, 192',
+    __PREVIEW_ALT__: '青色质点随主变量变化并显示相对参考线的位置关系'
 });
 const render = (source) => Object.entries(replacements).reduce(
     (result, [token, value]) => result.split(token).join(value),
@@ -56,6 +58,44 @@ try {
     fs.mkdirSync(modelDocumentDirectory, { recursive: true });
     fs.writeFileSync(path.join(candidateDirectory, 'index.js'), render(read(path.join(templateRoot, 'index.js.tpl'))));
     fs.writeFileSync(path.join(candidateDirectory, 'styles.css'), render(read(path.join(templateRoot, 'styles.css.tpl'))));
+    const previewFixture = path.join(root, 'UI/future-galaxy/orbit-observatory.webp');
+    const previewFile = path.join(candidateDirectory, 'preview.webp');
+    fs.copyFileSync(previewFixture, previewFile);
+    const previewMetadata = readWebPMetadata(previewFile);
+    fs.writeFileSync(path.join(candidateDirectory, 'preview.json'), `${JSON.stringify({
+        schema_version: 1,
+        subject: 'physics',
+        id: 'registration-probe',
+        alt: replacements.__PREVIEW_ALT__,
+        poster: {
+            path: 'pages/physics/registration-probe/preview.webp',
+            width: previewMetadata.width,
+            height: previewMetadata.height,
+            bytes: previewMetadata.bytes,
+            sha256: previewMetadata.sha256
+        },
+        motion: null,
+        reduced_motion: 'poster',
+        source: {
+            method: 'browser-capture',
+            route: '#physics/registration-probe',
+            selector: '[data-module="registration-probe"] [data-role="stage"]',
+            viewport: { width: 1600, height: 900 },
+            captured_by: '注册合同复核角色',
+            captured_on: '2026-08-24',
+            rights: 'project-original',
+            source_files: [
+                'pages/physics/registration-probe/index.js',
+                'pages/physics/registration-probe/styles.css'
+            ]
+        },
+        content: {
+            shows_interaction_result: true,
+            decorative_only: false,
+            old_activity_source: false,
+            embedded_title: false
+        }
+    }, null, 2)}\n`);
     const modelDocument = read(path.join(templateRoot, 'model-notes.example.md'))
         .replaceAll('model-model-document-probe', 'model-registration-probe')
         .replaceAll('physics.model-document-probe', 'physics.registration-probe')
@@ -83,6 +123,12 @@ try {
         model_document: 'doc/01-子文档/missing.md#model-registration-probe'
     };
     assert.ok(codes(validate(missingModelDocument)).has('model_document_missing'));
+
+    const missingPreviewRecord = {
+        ...validManifest,
+        preview: { ...validManifest.preview, record: 'pages/physics/registration-probe/missing.json' }
+    };
+    assert.ok(codes(validate(missingPreviewRecord)).has('preview_record_missing'));
 
     const duplicateIdentity = {
         ...validManifest,
@@ -147,4 +193,4 @@ try {
 }
 
 assert.deepEqual(protectedFiles.map(sha256), beforeHashes, 'EXT-02 checker must not mutate production registry surfaces');
-console.log('new-experiment-registration-contract: conflicts, resources, model document, owner and cleanup PASS');
+console.log('new-experiment-registration-contract: conflicts, resources, preview, model document, owner and cleanup PASS');
