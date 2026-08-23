@@ -5,7 +5,8 @@
     if (global.FutureGalaxyPublicationContext) return;
 
     const GALAXY_KEY = 'future-galaxy';
-    const MANAGED_PAGES = new Set(['frontier', 'cosmos', 'engineering', 'datascience', 'infotech', 'materials', 'humanities']);
+    // Engineering is a linked independent experiment, not a Future runtime mount.
+    const MANAGED_PAGES = new Set(['frontier', 'cosmos', 'datascience', 'infotech', 'materials', 'humanities']);
     const state = {
         generation: 0,
         controller: null,

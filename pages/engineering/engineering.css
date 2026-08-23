@@ -306,42 +306,6 @@
     line-height: 1.55;
 }
 
-.truss-panel--locked,
-.truss-panel--process {
-    grid-column: span 2;
-    min-height: 132px;
-    background: rgba(12, 28, 43, 0.78);
-}
-
-.truss-panel--locked {
-    border-color: rgba(79,168,163,0.32);
-}
-
-.truss-panel--process {
-    border-color: rgba(216,163,72,0.28);
-}
-
-.truss-panel--locked .truss-panel__label {
-    color: #7ed7c1;
-}
-
-.truss-panel--process .truss-panel__label {
-    color: #edc170;
-}
-
-/* Load-path presentation accents: the exact values remain owned by updateInfo(). */
-.fg-stage .truss-panel--reaction,
-.fg-stage .truss-panel--member,
-.fg-stage .truss-panel--load,
-.fg-stage .truss-panel--boundary {
-    border-top-width: 2px;
-}
-
-.fg-stage .truss-panel--reaction { border-top-color: rgba(79, 168, 163, 0.66); }
-.fg-stage .truss-panel--member { border-top-color: rgba(216, 163, 72, 0.62); }
-.fg-stage .truss-panel--load { border-top-color: rgba(100, 174, 219, 0.62); }
-.fg-stage .truss-panel--boundary { border-top-color: rgba(148, 163, 184, 0.48); }
-
 .engineering-note {
     display: grid;
     grid-template-columns: 28px 1fr;
@@ -439,11 +403,6 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .truss-panel--locked,
-    .truss-panel--process {
-        grid-column: span 1;
-    }
-
     .engineering-model-chain__grid,
     .engineering-interpretation__grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -475,12 +434,5 @@
     .truss-canvas-wrap,
     #bridge-truss-canvas {
         min-height: 420px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .truss-node-buttons button,
-    .truss-action {
-        transition: none;
     }
 }

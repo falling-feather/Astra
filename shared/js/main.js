@@ -219,10 +219,10 @@ function updateFooterVisibility() {
 window.updateFooterVisibility = updateFooterVisibility;
 
 const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0';
-const ROLE_LANDING_ASSET_VERSION = '20260731v7969StudentUiP0';
-const SESSION_STYLE_ASSET_VERSION = '20260719v759A11yP0';
-const SHELL_RUNTIME_ASSET_VERSION = '20260813v834ShowcaseLayoutP0';
-const PAGE_REGISTRY_ASSET_VERSION = '20260813v834ShowcaseLayoutP0';
+const ROLE_LANDING_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
+const SESSION_STYLE_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
+const SHELL_RUNTIME_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
+const PAGE_REGISTRY_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',
@@ -262,11 +262,11 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './shared/css/experiment-polish.css?v=20260526v61c',
         './pages/home/home.css?v=20260715v7420HomeViewportClipP1',
         './pages/mathematics/mathematics.css?v=20260618mathModelP1',
-        './pages/physics/physics.css?v=20260812v829FlagshipStoryP0',
+        './pages/physics/physics.css?v=20260824v816ExperimentRestoreP2',
         './pages/chemistry/chemistry.css?v=20260618ionP1',
         './pages/algorithms/algorithms.css?v=20260618algoTextP1',
         './pages/biology/biology.css?v=20260618neuralP1',
-        './shared/js/module-selector.js?v=20260812v825PhysicsBindOrderP0',
+        './shared/js/module-selector.js?v=20260824v816ExperimentRestoreP2',
         './shared/js/scroll-animations.js?v=20260731v7969StudentUiP0',
         './shared/js/experiment-guide.js?v=20260716v7427RoleWorkflowGateP0',
         './shared/js/experiment-export.js?v=20260528v61f',
@@ -280,10 +280,10 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/home/home.js?v=20260704qianduanV70'
     ],
     frontier: [
-        './pages/frontier/frontier.css?v=20260813v833LoadPathSameFrameP0',
+        './pages/frontier/frontier.css?v=20260824v816ExperimentRestoreP2',
         './pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0',
-        './shared/js/frontier-publication-context.js?v=20260809v804FutureEvidenceP0',
-        './shared/js/frontier-learning.js?v=20260813v833LoadPathSameFrameP0'
+        './shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2',
+        './shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2'
     ]
 };
 

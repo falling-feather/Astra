@@ -102,9 +102,14 @@ for (const literal of [
   'ratio_040',
   'ratio_080',
 ]) {
-  assert.match(physicsProducerSource, new RegExp(literal));
+  assert.doesNotMatch(
+    physicsProducerSource,
+    new RegExp(literal),
+    `restored mechanics must not emit the retired course field: ${literal}`,
+  );
   assert.match(evidenceProfiles, new RegExp(literal));
 }
+assert.doesNotMatch(physicsProducerSource, /astra:learning-domain-command|_recordEvidence|bindCourseEvidence/);
 for (const literal of [
   'prediction-recorded',
   'before-browser-precheck',

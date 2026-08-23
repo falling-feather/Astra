@@ -3,37 +3,35 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..', '..');
-const frontier = fs.readFileSync(path.join(root, 'pages/frontier/frontier.css'), 'utf8');
-const engineering = fs.readFileSync(path.join(root, 'pages/engineering/engineering.css'), 'utf8');
-const bridge = fs.readFileSync(path.join(root, 'pages/engineering/bridge-truss.js'), 'utf8');
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+const html = read('index.html');
+const registry = read('shared/js/page-registry.js');
+const engineering = read('pages/engineering/engineering.css');
+const bridge = read('pages/engineering/bridge-truss.js');
 
-const desktop = frontier.slice(
-  frontier.indexOf('/* FE-036:'),
-  frontier.indexOf('.fg-course-footer', frontier.indexOf('/* FE-036:'))
+const engineeringPage = html.slice(
+  html.indexOf('<section id="page-engineering"'),
+  html.indexOf('<!-- ────────── MATHEMATICS', html.indexOf('<section id="page-engineering"')),
 );
-assert.match(desktop, /@media \(min-width: 761px\)/,
-  'same-frame composition must be desktop-only');
-assert.match(desktop, /data-activity-key="engineering\.load-path"[^}]*\.fg-stage[\s\S]*position: sticky;[\s\S]*top: 72px;/,
-  'the real observation field must remain in the viewport on desktop');
-assert.match(desktop, /data-activity-key="engineering\.load-path"[^}]*\.fg-load-path[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/,
-  'the teaching flow must use a compact desktop grid');
-assert.match(desktop, /data-activity-key="engineering\.load-path"[^}]*\.fg-load-path[\s\S]*grid-auto-flow: dense/,
-  'the desktop flow must backfill the assessment card instead of reserving a blank column');
-assert.match(desktop, /\.fg-load-path__step:nth-of-type\(2\)[\s\S]*grid-column: 1 \/ -1/,
-  'the exact B/C/D table must retain a full-width evidence row');
-assert.match(frontier, /@media \(max-width: 760px\)[\s\S]*\.fg-hero, \.fg-course-head, \.fg-lab \{ grid-template-columns: 1fr;/,
-  'mobile must retain the existing single-column lab');
-assert.match(frontier, /\.fg-load-path select,[\s\S]*\.fg-load-path button \{[^}]*min-height: 44px;/,
-  'load-path actions must retain 44px targets');
-assert.doesNotMatch(desktop, /transform\s*:\s*scale|zoom\s*:|position\s*:\s*fixed/,
-  'same-frame proof must not use page scaling or a fixed fake layer');
-assert.doesNotMatch(desktop, /canvas::|content\s*:/,
-  'CSS must not counterfeit canvas or evidence values');
-assert.doesNotMatch(engineering, /data-load-path-stage|same-frame|sameFrame/,
-  'the general engineering page must not become a second stage owner');
-assert.match(bridge, /const enabledAction = \{[\s\S]*predict: stage === 'prediction'[\s\S]*D: stage === 'assessed'/,
-  'the unique action gate must remain owned by the existing flow');
-assert.doesNotMatch(bridge, /event_type\s*:\s*['"]completed['"]|record\(\s*['"]completed['"]/,
-  'Engineering must not emit completed');
 
-console.log('fe036 engineering same-frame contract: desktop sticky + compact evidence + mobile isolation PASS');
+assert.match(engineeringPage, /id="frontier-engineering-lab"/);
+assert.match(engineeringPage, /id="truss-load"[^>]*type="range"/);
+assert.match(engineeringPage, /data-truss-joint="B"[\s\S]*data-truss-joint="C"[\s\S]*data-truss-joint="D"/);
+assert.match(engineeringPage, /id="bridge-truss-canvas"/);
+assert.match(engineeringPage, /id="truss-info"/);
+assert.doesNotMatch(engineeringPage, /data-frontier-runtime-mount="engineering"|data-load-path-flow|学习证据|先预测/);
+
+const engineeringDefinition = registry.match(/engineering: definePage\([\s\S]*?\n\s*\}\),/);
+assert.ok(engineeringDefinition);
+assert.match(engineeringDefinition[0], /pages\/engineering\/bridge-truss\.js/);
+assert.match(engineeringDefinition[0], /ready: 'initBridgeTruss'[\s\S]*leave: 'destroyBridgeTruss'/);
+assert.doesNotMatch(engineeringDefinition[0], /frontier-learning|initFrontierCourse/);
+
+assert.match(bridge, /loadInput\.addEventListener\('input'/);
+assert.match(bridge, /data-truss-joint/);
+assert.match(bridge, /_solveLinearSystem/);
+assert.match(bridge, /memberForces/);
+assert.doesNotMatch(bridge, /learning-domain-command|evidence|prediction|data-load-path|course/i);
+assert.match(engineering, /@media \(max-width: 640px\)[\s\S]*#bridge-truss-canvas/);
+
+console.log('fe036-engineering-same-frame-contract: restored direct engineering experiment PASS');

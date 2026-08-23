@@ -416,19 +416,19 @@ function recomputeMechanics(index) {
   const state = getRecord(index, 'MECH-01', 'controlled-sequence-state', 'state');
   const responseData = response.payload.data;
   const stateData = state.payload.data;
-  const defectObserved = responseData.prediction_return_truthy === true
-    && stateData.trial_080_disabled_after_prediction === false
-    && responseData.start_080_return_truthy === true
-    && stateData.measurement_040_exists === false;
+  const defectObserved = responseData.direct_controls_present !== true
+    || responseData.launch_worked !== true
+    || stateData.course_symbols_present === true
+    || stateData.balls_after !== stateData.balls_before + 1;
   return fact('MECH-01', [request, response, state], {
     defect_observed: defectObserved,
     actual: defectObserved
-      ? '预测后 e=0.40 与 e=0.80 同时启用，且 e=0.80 可在任何 e=0.40 观察前启动。'
-      : 'e=0.80 在缺少 e=0.40 观察时保持禁用或启动失败；MECH-01 乱序执行历史缺陷未复现。',
+      ? '独立力学实验恢复不完整：原有控件、直接发射操作或课程化隔离至少有一项不符合要求。'
+      : '原有参数控件、按钮、画布和直接发射操作均可用，页面与实验脚本未重新引入课程化标记。',
     request_response: {
       action: request.payload.data.action,
-      prediction_accepted: responseData.prediction_accepted,
-      start_080_returned: responseData.start_080_returned,
+      direct_controls_present: responseData.direct_controls_present,
+      launch_worked: responseData.launch_worked,
     },
     database_or_state_evidence: clone(stateData),
   });

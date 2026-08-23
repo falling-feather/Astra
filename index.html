@@ -30,20 +30,20 @@
     <link rel="stylesheet" href="shared/css/fab-trigger.css?v=20260630mainV64">
     <!-- CSS: Pages -->
     <link rel="stylesheet" href="pages/home/home.css?v=20260715v7420HomeViewportClipP1">
-    <link rel="stylesheet" href="pages/planets/planets.css?v=20260731v7969StudentUiP0">
+    <link rel="stylesheet" href="pages/planets/planets.css?v=20260824v816ExperimentRestoreP2">
     <link rel="stylesheet" href="pages/cosmos/cosmos.css?v=20260630mainV64">
     <link rel="stylesheet" href="pages/datascience/datascience.css?v=20260630mainV64">
     <link rel="stylesheet" href="pages/infotech/infotech.css?v=20260630mainV64">
     <link rel="stylesheet" href="pages/materials/materials.css?v=20260630mainV64">
     <link rel="stylesheet" href="pages/humanities/humanities.css?v=20260630mainV64">
-    <link rel="stylesheet" href="pages/engineering/engineering.css?v=20260812v829FlagshipStoryP0">
+    <link rel="stylesheet" href="pages/engineering/engineering.css?v=20260824v816ExperimentRestoreP2">
     <link rel="stylesheet" href="pages/mathematics/mathematics.css?v=20260618mathModelP1">
-    <link rel="stylesheet" href="pages/physics/physics.css?v=20260812v829FlagshipStoryP0">
+    <link rel="stylesheet" href="pages/physics/physics.css?v=20260824v816ExperimentRestoreP2">
     <link rel="stylesheet" href="pages/chemistry/chemistry.css?v=20260618ionP1">
     <link rel="stylesheet" href="pages/algorithms/algorithms.css?v=20260618algoTextP1">
     <link rel="stylesheet" href="pages/biology/biology.css?v=20260618neuralP1">
     <link rel="stylesheet" href="shared/css/auth-ui.css?v=20260716v7427RoleWorkflowGateP0">
-    <link rel="stylesheet" href="shared/css/app-session.css?v=20260719v759A11yP0">
+    <link rel="stylesheet" href="shared/css/app-session.css?v=20260824v816ExperimentRestoreP2">
     <!-- v4.5-α1 全局搜索 -->
     <link rel="stylesheet" href="shared/css/global-search.css?v=20260606v62e">
     <!-- v4.5-α3 相关实验推荐 -->
@@ -541,9 +541,14 @@
             <div class="frontier-runtime-mount" data-frontier-runtime-mount="humanities" aria-live="polite"></div>
         </section>
 
-        <section id="page-engineering" class="page frontier-page engineering-page" aria-label="工程应用" data-galaxy="frontier">
-            <div class="frontier-runtime-mount" data-frontier-runtime-mount="engineering" aria-live="polite"></div>
-        </section>
+        <section id="page-engineering" class="page frontier-page engineering-page" aria-label="工程应用" data-galaxy="frontier"><div class="frontier-hero"><div class="frontier-hero__text"><span class="frontier-hero__label frontier-hero__label--amber">Engineering</span><h1 class="frontier-hero__title">工程应用</h1><p class="frontier-hero__desc">把物理、数学和材料知识放进真实结构问题：从桥梁桁架受力开始，理解荷载路径、支座反力和杆件拉压。</p><div class="frontier-hero__actions"><a class="frontier-hero__button frontier-hero__button--primary" href="#frontier-engineering-lab">开始实验</a><a class="frontier-hero__button" href="#frontier" data-page="frontier">星系总览</a></div></div><div class="frontier-hero__visual"><canvas id="hero-canvas-engineering" class="frontier-hero__canvas" role="img" aria-label="工程应用桁架结构装饰动画"></canvas></div></div><div class="engineering-shell"><section class="engineering-overview" aria-label="工程学习概览"><div class="engineering-overview__copy"><h2>从受力图到结构判断</h2><p>工程问题通常先把真实物体抽象成可计算模型。这个页面使用理想 Warren 桁架：节点铰接、杆件只承受轴向拉压力、外荷载作用在节点上；它适合帮助你看清力沿结构传递的路径。</p></div><div class="engineering-overview__metrics" aria-label="当前模块要点"><div class="engineering-overview__metric"><span>模型</span><strong>二维静定桁架</strong></div><div class="engineering-overview__metric"><span>方法</span><strong>节点平衡方程</strong></div><div class="engineering-overview__metric">
+        <span>观察</span><strong>拉压与反力分布</strong></div><div class="engineering-overview__metric"><span>范围</span><strong>概念学习模型</strong></div></div></section><section class="engineering-model-chain" aria-label="桁架分析概念桥"><div class="engineering-model-chain__header"><h2>把桥梁问题拆成一条工程判断链</h2><p>理想桁架分析不是直接“算每根杆”。先判断模型能不能简化为简单桁架，再用整体平衡求反力，用节点平衡传递杆力，最后回到真实结构讨论安全边界。</p></div><div class="engineering-model-chain__grid"><article class="engineering-model-card"><span>01 · Idealize</span><h3>先确认模型假设</h3><p>简单桁架把杆件视为二力杆，节点按无摩擦铰接处理，并把荷载和支座反力作用在节点上。</p></article><article class="engineering-model-card"><span>02 · Reactions</span><h3>整体平衡先求反力</h3><p>把整座桁架看成刚体，使用 ΣFx = 0、ΣFy = 0、ΣM = 0。荷载越靠近某侧支座，该侧反力通常越大。</p></article><article class="engineering-model-card"><span>03 · Members</span><h3>节点平衡传递杆力</h3><p>节点法把每个连接点当作受力粒子。每个平面节点可列 ΣFx = 0 与 ΣFy = 0，通常最多先解两个未知杆力。</p>
+        </article><article class="engineering-model-card"><span>04 · Design</span><h3>从杆力走向设计验算</h3><p>轴力只是第一步。真实桥梁还要继续考虑自重、连接刚度、屈曲、疲劳、移动荷载和规范安全系数。</p></article></div></section><section id="frontier-engineering-lab" class="engineering-lab" aria-labelledby="bridge-truss-title"><div class="engineering-lab__header"><div><span class="engineering-lab__eyebrow">Interactive Structure</span><h2 id="bridge-truss-title">桥梁桁架受力实验</h2><p>调整荷载大小和作用节点，观察左右支座反力、关键杆件轴力以及受拉/受压状态如何随之变化。</p></div><span class="engineering-lab__badge">Warren Truss</span></div><div class="truss-workbench"><div class="truss-controls" aria-label="桁架参数控制"><div class="truss-control"><label for="truss-load"><span>竖向荷载</span><strong id="truss-load-value">60 kN</strong></label><input id="truss-load" type="range" min="20" max="120" step="5" value="60"></div><div class="truss-control"><label><span>作用节点</span>
+        <strong>桥面节点</strong></label><div class="truss-node-buttons"><button type="button" data-truss-joint="B" aria-pressed="false">左跨 B</button><button type="button" data-truss-joint="C" class="is-active" aria-pressed="true">中跨 C</button><button type="button" data-truss-joint="D" aria-pressed="false">右跨 D</button></div></div><div class="engineering-note"><i data-lucide="info"></i><p>这是理想桁架的入门模型，不模拟焊接刚度、材料屈服、疲劳、风载、车辆移动和真实规范设计。</p></div></div><div class="truss-canvas-wrap"><canvas id="bridge-truss-canvas" aria-label="Warren 桁架桥受力可视化画布"></canvas></div><div id="truss-info" class="truss-info" aria-live="polite"></div></div></section><section class="engineering-interpretation" aria-label="桁架受力判读路径"><div class="engineering-interpretation__header"><span class="engineering-interpretation__eyebrow">How to Read</span><h2>把桁架图读成四个判断</h2><p>桁架实验不是先看哪根杆最粗，而是先确认模型假设，再按整体平衡和节点平衡追踪力怎样从荷载走向支座。</p></div><div class="engineering-interpretation__grid"><article class="engineering-interpretation__item"><span>01</span><h3>整体先满足平衡</h3><p>把整座桥当作刚体时，竖向力之和和任一点力矩之和都应为零。荷载位置改变时，左右支座反力会随力臂一起改变。</p></article>
+        <article class="engineering-interpretation__item"><span>02</span><h3>节点再分配杆力</h3><p>节点法把每个铰接点当成受力粒子，分别列出 ΣFx = 0 与 ΣFy = 0。已知力会沿相邻杆件传到下一个节点。</p></article><article class="engineering-interpretation__item"><span>03</span><h3>符号决定拉还是压</h3><p>常见做法先假定未知杆力为受拉；计算结果若为负，表示实际方向相反，也就是受压。本页用青色表示受拉、琥珀色表示受压。</p></article><article class="engineering-interpretation__item"><span>04</span><h3>真实设计还要继续检算</h3><p>理想桁架忽略节点刚度、杆件自重、屈曲、疲劳和组合荷载。这里帮助建立受力直觉，不代替截面选择和工程规范验算。</p></article><article class="engineering-interpretation__item"><span>05</span><h3>零力杆只对当前荷载成立</h3><p>某些杆在一个荷载工况下可能近似不传力，但在车辆移动、风载或温度作用下可能重新参与受力，因此不能简单删除。</p></article></div></section><section class="engineering-reference" aria-label="参考资料"><span class="engineering-reference__eyebrow">References</span><h2>参考资料</h2><p>本页的桁架概念、节点法、整体平衡、零力杆和拉压符号说明参考开放静力学教材，并用 OpenStax 静态平衡示例补充整体受力平衡语境；页面数值用于课堂观察，不等同于真实桥梁设计验算。</p><div class="engineering-reference__links"><a href="https://engineeringstatics.org/Chapter_06-trusses.html" target="_blank" rel="noopener">Engineering Statics · Trusses</a><a href="https://engineeringstatics.org/method-of-joints.html" target="_blank" rel="noopener">Engineering Statics · Method of Joints</a><a href="https://openstax.org/books/university-physics-volume-1/pages/12-2-examples-of-static-equilibrium" target="_blank" rel="noopener">OpenStax University Physics · Static Equilibrium</a>
+        <a href="https://engineeringstatics.org/Chapter_06-trusses.html#subsection-110" target="_blank" rel="noopener">Engineering Statics · Zero-Force Members</a><a href="https://engineeringstatics.org/Chapter_05.html" target="_blank" rel="noopener">Engineering Statics · Equilibrium</a></div></section></div></section>
+
+
 
         <!-- ────────── MATHEMATICS ────────── -->
         <section id="page-mathematics" class="page" aria-label="数学可视化">
@@ -1148,14 +1153,10 @@
 
             <div class="content-section" data-module="mechanics">
                 <div class="demo-section">
-                    <div class="section-header"><h2>恢复系数与第一次反弹高度</h2><p>固定落高、重力、半径和初速度，只比较 <em>e=0.40</em> 与 <em>e=0.80</em> 的第一次反弹。</p></div>
-                    <section class="mechanics-course" data-mechanics-course aria-labelledby="mechanics-course-goal">
-                        <div class="mechanics-course__goal"><span>学习目标</span><h3 id="mechanics-course-goal">用受控对照解释恢复系数为何会非线性改变反弹高度</h3><p>统一从 200 px 高度竖直释放，水平初速度、教学阻尼均为 0；Canvas 与下方表格展示同一组测量。</p></div>
-                        <fieldset class="mechanics-course__stage" id="mechanics-prediction"><legend>1 · 先预测</legend><div class="mechanics-course__fields"><label><span>哪一组第一次反弹更高？</span><select id="mechanics-prediction-choice"><option value="">请选择</option><option value="higher-080">e=0.80</option><option value="higher-040">e=0.40</option><option value="same-height">两组相同</option></select></label><label><span>e 从 0.40 加倍后，高度约为</span><select id="mechanics-prediction-relation"><option value="">请选择</option><option value="two-times">2 倍</option><option value="four-times">4 倍</option><option value="cannot-tell">还不能判断</option></select></label><label class="mechanics-course__reason"><span>预测理由</span><textarea id="mechanics-prediction-reason" maxlength="160" rows="2" placeholder="写出你认为恢复系数会怎样影响第一次峰值"></textarea></label></div><button class="mechanics-course__action" type="button" id="mechanics-prediction-submit">记录预测并解锁观察</button></fieldset>
-                        <section class="mechanics-course__stage" aria-labelledby="mechanics-observation-title"><div class="mechanics-course__stage-heading"><div><span>2—3 · 操作与观察</span><h3 id="mechanics-observation-title">按顺序运行两个固定预设</h3></div><strong id="mechanics-course-stage" aria-live="polite">等待预测</strong></div><div class="mechanics-course__trial-grid"><article><h4>对照 A · e=0.40</h4><p>H=200 px，g=980 px/s²，半径 16 px，阻尼 0。</p><button class="mechanics-course__action" type="button" id="mechanics-trial-040" data-mechanics-trial="0.40" disabled>运行 e=0.40</button></article><article><h4>对照 B · e=0.80</h4><p>除恢复系数外，其余条件与 A 完全相同。</p><button class="mechanics-course__action" type="button" id="mechanics-trial-080" data-mechanics-trial="0.80" disabled>运行 e=0.80</button></article></div><div class="mechanics-course__table-wrap"><table id="mechanics-measurements" tabindex="-1"><caption>Canvas 等价测量表（第一次反弹峰值）</caption><thead><tr><th scope="col">预设</th><th scope="col">落高 H</th><th scope="col">峰值 h</th><th scope="col">h/H</th></tr></thead><tbody><tr><th scope="row">e=0.40</th><td>200.0 px</td><td id="mechanics-measure-h-040">待测</td><td id="mechanics-measure-ratio-040">待测</td></tr><tr><th scope="row">e=0.80</th><td>200.0 px</td><td id="mechanics-measure-h-080">待测</td><td id="mechanics-measure-ratio-080">待测</td></tr></tbody></table></div><button class="mechanics-course__action mechanics-course__action--secondary" type="button" id="mechanics-replay" disabled>重看对照（不新增证据）</button></section>
-                        <fieldset class="mechanics-course__stage" id="mechanics-correction"><legend>4 · 修正与模型限制</legend><label><span>根据两行测量，修订关系</span><select id="mechanics-correction-choice"><option value="">请选择</option><option value="height-follows-e-squared">理想竖直碰撞中，h/H 约等于 e²</option><option value="height-follows-e">h/H 与 e 线性相等</option><option value="height-independent">反弹高度与 e 无关</option></select></label><label class="mechanics-course__check"><input type="checkbox" id="mechanics-model-limit"><span>我会在解释中注明：该关系依赖固定落高、竖直碰撞和忽略空气阻力等理想条件。</span></label><button class="mechanics-course__action" type="button" id="mechanics-correction-submit" disabled>记录修正</button><p id="mechanics-course-feedback" class="mechanics-course__feedback" role="status" aria-live="polite">完成预测后再运行两组受控观察。</p><p class="mechanics-course__handoff">修正后，请在本课程底部“学习证据”区记录结构化解释；完成状态只由服务端规则派生。</p></fieldset>
-                    </section>
-                    <div class="mechanics-free-explore-heading"><h3>自由探索（不计课程完成）</h3><p>滑块、拖拽发射、暂停、清空和放大只用于继续观察，不会写入课程学习证据。</p></div>
+                    <div class="section-header">
+                        <h2>力学模拟</h2>
+                        <p>点击画布发射小球，观察重力、弹跳和碰撞效果</p>
+                    </div>
                     <div class="demo-layout">
                         <div class="demo-controls-panel">
                             <div class="physics-controls">
@@ -3700,15 +3701,15 @@
     <script src="shared/js/config.js?v=20260716v7427RoleWorkflowGateP0"></script>
     <script src="shared/js/api-client.js?v=20260719v7437AstraWorkspaceP0"></script>
     <script src="shared/js/auth-ui.js?v=20260716v7427RoleWorkflowGateP0"></script>
-    <script src="shared/js/app-session.js?v=20260813v834ShowcaseLayoutP0"></script>
+    <script src="shared/js/app-session.js?v=20260824v816ExperimentRestoreP2"></script>
     <script src="shared/js/backend-content.js?v=20260716v7427RoleWorkflowGateP0"></script>
-    <script src="shared/js/experiment-registry.js?v=20260813v834ShowcaseLayoutP0"></script>
+    <script src="shared/js/experiment-registry.js?v=20260824v816ExperimentRestoreP2"></script>
     <script src="pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0"></script>
-    <script src="shared/js/frontier-publication-context.js?v=20260809v804FutureEvidenceP0"></script>
-    <script src="pages/planets/planets.js?v=20260731v7969StudentUiP0"></script>
-    <script src="shared/js/page-registry.js?v=20260813v834ShowcaseLayoutP0"></script>
-    <script src="shared/js/router.js?v=20260813v834ShowcaseLayoutP0"></script>
-    <script src="shared/js/main.js?v=20260813v834ShowcaseLayoutP0"></script>
+    <script src="shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2"></script>
+    <script src="pages/planets/planets.js?v=20260824v816ExperimentRestoreP2"></script>
+    <script src="shared/js/page-registry.js?v=20260824v816ExperimentRestoreP2"></script>
+    <script src="shared/js/router.js?v=20260824v816ExperimentRestoreP2"></script>
+    <script src="shared/js/main.js?v=20260824v816ExperimentRestoreP2"></script>
     <script>
         (function () {
             try {

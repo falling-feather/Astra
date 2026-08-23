@@ -23,7 +23,7 @@ const Router = {
     _galaxyCacheVersion: '20260704qianduanV70',
     courseSupportScripts: [
         'shared/js/lucide.min.js?v=20260417d',
-        'shared/js/module-selector.js?v=20260812v825PhysicsBindOrderP0'
+        'shared/js/module-selector.js?v=20260824v816ExperimentRestoreP2'
     ],
     galaxySupportScripts: {
         astra: [
@@ -48,7 +48,7 @@ const Router = {
         ],
         frontier: [
             'shared/js/lucide.min.js?v=20260417d',
-            'shared/js/frontier-learning.js?v=20260813v833LoadPathSameFrameP0',
+            'shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2',
             'shared/js/scroll-animations.js?v=20260731v7969StudentUiP0'
         ]
     },

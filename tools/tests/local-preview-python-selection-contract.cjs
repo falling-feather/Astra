@@ -54,6 +54,11 @@ assert.match(
 assert.match(launcher, /& \$RuntimePython -m pip --isolated check/);
 assert.match(
   launcher,
+  /Get-AstraFileSha256[\s\S]*SHA256\]::Create\(\)[\s\S]*ComputeHash\(\$stream\)/,
+);
+assert.doesNotMatch(launcher, /\bGet-FileHash\b/);
+assert.match(
+  launcher,
   /\$ManagedRequirementsMarker = Join-Path \$ManagedVirtualEnvironment "\.astra-requirements\.sha256"/,
 );
 assert.match(
@@ -781,7 +786,12 @@ try {
         item.args.includes('install') &&
         !item.args.includes('--dry-run')
       )),
-      'external venv dependency install must use its resolved Python',
+      `external venv dependency install must use its resolved Python: ${JSON.stringify({
+        status: externalFailure.status,
+        stdout: externalFailure.stdout,
+        stderr: externalFailure.stderr,
+        invocations: externalFailureInvocations,
+      })}`,
     );
     assertNoRuntimeSideEffects(externalFailureInvocations, 'external venv install failure');
 

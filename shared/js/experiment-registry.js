@@ -105,7 +105,7 @@
         define('mathematics', 'derivative-application', 'pages/mathematics/derivative-application.js?v=20260606fix1', 'initDerivApp', legacyMethod('DerivApp', () => DerivApp)),
 
         // Physics — CONFIG order
-        define('physics', 'mechanics', 'pages/physics/physics.js?v=20260812v829FlagshipStoryP0', 'initPhysics', validatedMethod('PhysicsSim', () => PhysicsSim)),
+        define('physics', 'mechanics', 'pages/physics/physics.js?v=20260824v816ExperimentRestoreP2', 'initPhysics', validatedMethod('PhysicsSim', () => PhysicsSim)),
         define('physics', 'gas-laws', 'pages/physics/gas-laws.js?v=20260618publicClean1', 'initGasLaws', validatedMethod('GasLaws', () => GasLaws)),
         define('physics', 'thermodynamics', 'pages/physics/thermodynamics.js?v=20260618thermoP1', 'initThermodynamics', validatedMethod('Thermodynamics', () => Thermodynamics)),
         define('physics', 'electromagnetism', 'pages/physics/electromagnetic.js', 'initElectromagnetic', legacyMethod('EMField', () => EMField)),

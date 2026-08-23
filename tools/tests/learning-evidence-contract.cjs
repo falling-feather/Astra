@@ -339,11 +339,9 @@ function testStaticOwnershipAndSemantics() {
   assert.match(moduleSelectorSource.slice(leaveStart), /skipEvidenceCleanup: true/);
   assert.doesNotMatch(moduleSelectorSource, /LearningProgress\.markVisited/);
 
-  assert.match(physicsSource, /_recordCourseEvidence\('prediction', 'predicted'/);
-  assert.match(physicsSource, /_recordCourseEvidence\([\s\S]*`attempt-\$\{key\}`,[\s\S]*'attempted'/);
-  assert.match(physicsSource, /_recordCourseEvidence\('correction', 'corrected'/);
-  assert.match(physicsSource, /authorizeCourseRecord\(eventType, evidence\)/);
+  assert.doesNotMatch(physicsSource, /_recordCourseEvidence|authorizeCourseRecord|bindCourseEvidence/);
   assert.doesNotMatch(physicsSource, /astra:learning-domain-command/);
+  assert.match(physicsSource, /bindControls\(\)[\s\S]*bindCanvas\(\)[\s\S]*launchBall\(start, end\)/);
   assert.doesNotMatch(physicsSource, /event_type:\s*'completed'/);
   assert.match(challengeSource, /typeof previousSource === 'string' && previousSource !== sourceCode/);
   assert.match(challengeSource, /reported_correct: Boolean\(localPass\)/);

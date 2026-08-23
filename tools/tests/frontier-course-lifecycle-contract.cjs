@@ -83,11 +83,23 @@ const ownerEvidence = {
   'humanities.voice-shift': ['pages/humanities/text-lab.js', 'humanities-sample', 'sampleId'],
   'humanities.claim-review': ['pages/humanities/text-lab.js', 'humanities-threshold', 'connectionThreshold']
 };
+const retiredEngineeringWrappers = new Set([
+  'engineering.member-choice',
+  'engineering.safety-check',
+]);
 localManifest.courses.forEach((course) => course.activities.forEach((activity) => {
   const expected = ownerEvidence[activity.activity_key];
   assert.ok(expected, `${activity.activity_key} needs an explicit owner evidence contract`);
   const [ownerPath, control, observable] = expected;
   assert.equal(activity.input_control, control, `${activity.activity_key} must declare its real learning input`);
+  if (retiredEngineeringWrappers.has(activity.activity_key)) {
+    assert.doesNotMatch(
+      read(ownerPath),
+      new RegExp(control),
+      `${activity.activity_key} remains historical manifest data and must not re-enter the restored experiment owner`,
+    );
+    return;
+  }
   assert.ok(runtime.includes(control), `${activity.activity_key} control must be rendered by the route runtime`);
   assert.ok(read(ownerPath).includes(observable), `${activity.activity_key} control must change an owner observation or reading`);
   assert.ok(runtime.includes(`'${activity.activity_key}'`), `${activity.activity_key} needs its own route preset and answer feedback`);
@@ -101,20 +113,15 @@ assert.notEqual(morningObservation.currentAltitude, noonObservation.currentAltit
 assert.notEqual(morningObservation.shadowRatio, noonObservation.shadowRatio, 'evidence-log time input must change the shadow reading');
 
 const truss = ownerFor('pages/engineering/bridge-truss.js', 'BridgeTruss');
-const completeTruss = truss.solve();
-truss.state.memberMode = 'remove-fb';
-const reducedTruss = truss.solve();
-assert.equal(reducedTruss.memberForces.find((member) => member.name === 'FB').disabled, true, 'member-choice must visibly remove the selected diagonal');
-assert.equal(reducedTruss.structuralStatus.stable, false, 'member-choice must expose the interrupted structural path instead of inventing a rebalanced truss');
-assert.equal(reducedTruss.safety.available, false, 'an interrupted truss must not report a safety pass or utilisation');
-assert.ok(reducedTruss.memberForces.every((member) => member.disabled || member.unavailable), 'an interrupted truss must not output fabricated member-force readings');
+const centerTruss = truss.solve();
+truss.state.loadJoint = 'B';
+const leftTruss = truss.solve();
+assert.notEqual(leftTruss.reactions.Ay, centerTruss.reactions.Ay, 'restored load-joint control must change the support reaction');
+truss.state.load = 100;
+const heavierTruss = truss.solve();
+assert.ok(heavierTruss.maxForce > leftTruss.maxForce, 'restored load slider must change the calculated member force');
 assert.doesNotMatch(read('pages/engineering/bridge-truss.js'), /transferred\s*\/\s*2/, 'member removal must not hard-code a half-force transfer');
-truss.state.memberMode = 'full';
-truss.state.safetyFactor = 3;
-const strictSafety = truss.solve().safety;
-truss.state.safetyFactor = 1.1;
-const relaxedSafety = truss.solve().safety;
-assert.ok(strictSafety.utilization > relaxedSafety.utilization, 'safety-check input must change utilization evidence');
+assert.doesNotMatch(read('pages/engineering/bridge-truss.js'), /memberMode|safetyFactor|utilization|structuralStatus/);
 
 const regression = ownerFor('pages/datascience/linear-regression.js', 'LinearRegressionLab');
 const baselineRegression = regression._calculate();
@@ -173,16 +180,18 @@ assert.ok(!runtime.includes('sectionPlans:'), 'legacy long-page section plans mu
 assert.match(runtime, /const FrontierLearning = global\.FrontierLearning \|\| \{\};/, 'new runtime must retain the public lifecycle object itself');
 
 const frontierMounts = [
-  ['frontier', 'page-frontier'], ['cosmos', 'page-cosmos'], ['engineering', 'page-engineering'],
+  ['frontier', 'page-frontier'], ['cosmos', 'page-cosmos'],
   ['datascience', 'page-datascience'], ['infotech', 'page-infotech'], ['materials', 'page-materials'], ['humanities', 'page-humanities']
 ];
 frontierMounts.forEach(([page, id]) => {
   const section = new RegExp(`<section\\b[^>]*id="${id}"[^>]*>\\s*<div class="frontier-runtime-mount" data-frontier-runtime-mount="${page}" aria-live="polite"></div>\\s*</section>`);
   assert.match(index, section, `${id} must be a minimal runtime mount, not a prebuilt long page`);
 });
-['earth-sun-canvas', 'bridge-truss-canvas', 'linear-regression-canvas', 'network-layers-canvas', 'materials-canvas', 'humanities-canvas', 'frontier-materials-deep-panels'].forEach((legacyNode) => {
+['earth-sun-canvas', 'linear-regression-canvas', 'network-layers-canvas', 'materials-canvas', 'humanities-canvas', 'frontier-materials-deep-panels'].forEach((legacyNode) => {
   assert.ok(!index.includes(legacyNode), `${legacyNode} must be created by its lazy course owner, not parsed at first paint`);
 });
+assert.match(index, /id="page-engineering"[\s\S]*id="bridge-truss-canvas"/, 'engineering must keep its restored independent experiment page');
+assert.doesNotMatch(index, /data-frontier-runtime-mount="engineering"/);
 assert.ok(!index.includes('#frontier-frontier-route'), 'the resource index must not link to a removed legacy frontier anchor');
 assert.match(index, /href="#frontier" data-page="frontier"/, 'the resource index must enter the new catalogue route');
 assert.equal((index.match(/class="frontier-footer__container"/g) || []).length, 1, 'the future footer must have one real layout container');
@@ -192,9 +201,9 @@ assert.doesNotMatch(index, /<script src="shared\/js\/frontier-learning\.js/, 'Fu
 
 const main = read('shared/js/main.js');
 assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0'"));
-assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260813v833LoadPathSameFrameP0'"));
-assert.ok(main.includes("'./shared/js/frontier-publication-context.js?v=20260809v804FutureEvidenceP0'"));
-assert.ok(main.includes("'./shared/js/frontier-learning.js?v=20260813v833LoadPathSameFrameP0'"));
+assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260824v816ExperimentRestoreP2'"));
+assert.ok(main.includes("'./shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2'"));
+assert.ok(main.includes("'./shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2'"));
 assert.ok(!main.includes("'./pages/cosmos/earth-sun.js?v=20260630mainV64'"), 'future galaxy must not warm every legacy activity');
 const registry = read('shared/js/page-registry.js');
 assert.ok(registry.includes("ready: 'initFrontierCourse'"));

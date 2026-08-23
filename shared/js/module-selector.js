@@ -899,6 +899,10 @@ const ModuleSelector = {
     },
 
     _mountEvidenceRuntime(page, moduleId, pageEl, sections, generation) {
+        // Restoration boundary: completed legacy experiments keep their original
+        // interaction surface. Class/course systems may link to the experiment,
+        // but must not inject an evidence workflow into the experiment itself.
+        if (page === 'physics' && moduleId === 'mechanics') return;
         if (
             page !== 'physics'
             || moduleId !== 'mechanics'

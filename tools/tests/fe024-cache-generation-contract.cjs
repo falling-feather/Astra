@@ -5,12 +5,13 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260813v834ShowcaseLayoutP0';
-const moduleGeneration = '20260812v825PhysicsBindOrderP0';
-const studentGeneration = '20260813v832RoleMobileReceiptP0';
+const generation = '20260824v816ExperimentRestoreP2';
+const v834Generation = '20260813v834ShowcaseLayoutP0';
+const moduleGeneration = '20260824v816ExperimentRestoreP2';
+const studentGeneration = '20260824v816ExperimentRestoreP2';
 const teacherGeneration = '20260813v832RoleMobileReceiptP0';
-const physicsGeneration = '20260812v829FlagshipStoryP0';
-const frontierGeneration = '20260813v833LoadPathSameFrameP0';
+const physicsGeneration = '20260824v816ExperimentRestoreP2';
+const frontierGeneration = '20260824v816ExperimentRestoreP2';
 
 const html = read('index.html');
 const router = read('shared/js/router.js');
@@ -92,12 +93,12 @@ function testStaticGenerationChain() {
     );
   }
   for (const document of [developerDoc, frontendDoc]) {
-    assert.match(document, new RegExp(generation));
+    assert.match(document, new RegExp(v834Generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
     assert.match(document, /ARCH-004/);
     const v834EvidenceLine = document
       .split(/\r?\n/)
-      .find((line) => line.includes('V8.0.34') && line.includes(generation));
+      .find((line) => line.includes('V8.0.34') && line.includes(v834Generation));
     assert.ok(v834EvidenceLine, 'V8.0.34 documentation must identify the exact V834 cache generation');
     assert.match(v834EvidenceLine, /QA-023/);
     assert.match(v834EvidenceLine, /V832[\s\S]*V833[\s\S]*V834/);

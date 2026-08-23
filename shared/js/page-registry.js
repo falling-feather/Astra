@@ -4,11 +4,11 @@
 
     if (global.AstraPageRegistry) return;
 
-    const ROLE_RESOURCE_VERSION = '20260813v832RoleMobileReceiptP0';
+    const ROLE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const TEACHER_RESOURCE_VERSION = '20260813v832RoleMobileReceiptP0';
-    const FUTURE_RESOURCE_VERSION = '20260813v833LoadPathSameFrameP0';
+    const FUTURE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const ADMIN_RESOURCE_VERSION = '20260729v794AdminGovernanceP0';
-    const PLANETS_RESOURCE_VERSION = '20260731v7969StudentUiP0';
+    const PLANETS_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
 
     const definePage = (config) => Object.freeze({
@@ -93,11 +93,11 @@
         engineering: definePage({
             galaxy: 'frontier',
             tags: ['frontier'],
-            styles: [`pages/frontier/frontier.css?v=${FUTURE_RESOURCE_VERSION}`],
-            script: `shared/js/frontier-learning.js?v=${FUTURE_RESOURCE_VERSION}`,
-            ready: 'initFrontierCourse',
-            enter: 'initFrontierCourse',
-            leave: 'destroyFrontierCourse'
+            styles: [`pages/engineering/engineering.css?v=${FUTURE_RESOURCE_VERSION}`],
+            script: `pages/engineering/bridge-truss.js?v=${FUTURE_RESOURCE_VERSION}`,
+            ready: 'initBridgeTruss',
+            enter: 'initBridgeTruss',
+            leave: 'destroyBridgeTruss'
         }),
         datascience: definePage({
             galaxy: 'frontier',

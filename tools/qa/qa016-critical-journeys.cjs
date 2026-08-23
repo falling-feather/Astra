@@ -89,15 +89,15 @@ const ISSUE_CONTRACTS = Object.freeze({
   'MECH-01': Object.freeze({
     owner: 'FE-025',
     preconditions: [
-      '力学课程已记录合法预测。',
-      'e=0.40 尚未运行或记录观察。',
+      '打开已经恢复为独立实验的力学模拟页面。',
+      '页面尚未注入课程步骤、预测门槛或学习证据面板。',
     ],
     steps: [
-      '提交预测。',
-      '检查 e=0.80 控件状态。',
-      '在 e=0.40 前直接启动 e=0.80。',
+      '检查原有参数控件、操作按钮和画布是否仍然存在。',
+      '检查页面与实验脚本是否重新出现课程化标记。',
+      '直接调用原有发射操作并检查小球是否进入模拟。',
     ],
-    expected: 'e=0.80 必须在 e=0.40 权威观察完成前保持不可执行。',
+    expected: '力学模拟保持原有直接操作方式，不依赖课程步骤、预测提交或学习证据。',
     command: 'node tools/qa/qa016-critical-journeys.cjs --mode baseline --python python',
   }),
   'DEMO-01': Object.freeze({
@@ -630,27 +630,35 @@ async function probeTeacher(options = {}) {
 
 function probeMechanics() {
   const source = read('pages/physics/physics.js');
-  const elements = new Map([
-    ['mechanics-prediction-choice', new FakeElement({ value: 'higher-080' })],
-    ['mechanics-prediction-relation', new FakeElement({ value: 'four-times' })],
-    ['mechanics-prediction-reason', new FakeElement({ value: '比较固定落高的第一次峰值。' })],
-    ['mechanics-prediction-submit', new FakeElement()],
-    ['mechanics-trial-040', new FakeElement({ disabled: true })],
-    ['mechanics-trial-080', new FakeElement({ disabled: true })],
-    ['mechanics-correction-submit', new FakeElement({ disabled: true })],
-    ['mechanics-replay', new FakeElement({ disabled: true })],
-    ['mechanics-course-feedback', new FakeElement()],
-    ['mechanics-course-stage', new FakeElement()],
-  ]);
-  const evidenceEvents = [];
+  const indexHtml = read('index.html');
+  const mechanicsBlock = indexHtml.match(/<section id="page-physics"[\s\S]*?<section id="page-optics"/)?.[0] || '';
+  const directControlIds = [
+    'gravity-slider',
+    'restitution-slider',
+    'friction-slider',
+    'radius-slider',
+    'physics-clear',
+    'physics-pause',
+    'physics-canvas',
+  ];
+  const directControlsPresent = directControlIds.every((id) => mechanicsBlock.includes(`id="${id}"`));
+  const retiredCourseSymbols = [
+    'mechanics-course',
+    'mechanics-prediction',
+    'mechanics-trial-',
+    '_submitCoursePrediction',
+    '_startControlledTrial',
+    '_courseState',
+    'astra:learning-evidence',
+  ];
+  const courseSymbolsPresent = retiredCourseSymbols.some((symbol) => (
+    mechanicsBlock.includes(symbol) || source.includes(symbol)
+  ));
   const context = {
     console: { log() {}, warn() {}, error() {} },
     document: {
-      getElementById(id) { return elements.get(id) || null; },
+      getElementById() { return null; },
       querySelector() { return null; },
-    },
-    CustomEvent: class {
-      constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
     },
     ResizeObserver: class { observe() {} disconnect() {} },
     cancelAnimationFrame() {},
@@ -661,7 +669,8 @@ function probeMechanics() {
     clearTimeout() {},
   };
   context.window = {
-    dispatchEvent(event) { evidenceEvents.push(event.detail); return true; },
+    addEventListener() {},
+    removeEventListener() {},
     devicePixelRatio: 1,
     PhysicsZoom: { movedCanvas: null },
   };
@@ -673,41 +682,42 @@ function probeMechanics() {
   sim.H = 360;
   sim.updateStats = () => {};
   sim.render = () => {};
-  const predictionAccepted = sim._submitCoursePrediction();
-  const trial080Disabled = elements.get('mechanics-trial-080').disabled;
-  const started080First = sim._startControlledTrial(0.80);
-  const no040Measurement = !sim._courseState.measurements['0.40'];
+  const ballsBefore = sim.balls.length;
+  sim.launchBall({ x: 120, y: 100 }, { x: 80, y: 70 });
+  const ballsAfter = sim.balls.length;
+  const launchWorked = ballsAfter === ballsBefore + 1;
+  const defectObserved = !directControlsPresent || courseSymbolsPresent || !launchWorked;
   const capturedAt = new Date().toISOString();
 
   return {
-    defect_observed: predictionAccepted && trial080Disabled === false && started080First && no040Measurement,
-    actual: '预测后 e=0.40 与 e=0.80 同时启用，且 e=0.80 可在任何 e=0.40 观察前启动。',
+    defect_observed: defectObserved,
+    actual: defectObserved
+      ? '独立力学实验恢复不完整：原有控件、直接发射操作或课程化隔离至少有一项不符合要求。'
+      : '原有参数控件、按钮、画布和直接发射操作均可用，页面与实验脚本未重新引入课程化标记。',
     request_response: {
-      action: '_submitCoursePrediction() then _startControlledTrial(0.80)',
-      prediction_accepted: predictionAccepted,
-      start_080_returned: started080First,
+      action: 'inspect restored mechanics surface then launchBall()',
+      direct_controls_present: directControlsPresent,
+      launch_worked: launchWorked,
     },
     database_or_state_evidence: {
-      trial_080_disabled_after_prediction: trial080Disabled,
-      measurement_040_exists: !no040Measurement,
-      active_controlled_trial_restitution: sim._controlledTrial && sim._controlledTrial.restitution,
-      emitted_event_types: evidenceEvents.map((event) => event.event_type),
+      course_symbols_present: courseSymbolsPresent,
+      balls_before: ballsBefore,
+      balls_after: ballsAfter,
+      checked_control_ids: directControlIds,
     },
     raw_records: [
       rawRecord('MECH-01', 'controlled-sequence-request', 'request', {
-        action: '_submitCoursePrediction() then _startControlledTrial(0.80)',
+        action: 'inspect restored mechanics surface then launchBall()',
       }, capturedAt),
       rawRecord('MECH-01', 'controlled-sequence-response', 'response', {
-        prediction_accepted: predictionAccepted,
-        prediction_return_truthy: Boolean(predictionAccepted),
-        start_080_returned: started080First,
-        start_080_return_truthy: Boolean(started080First),
+        direct_controls_present: directControlsPresent,
+        launch_worked: launchWorked,
       }, capturedAt),
       rawRecord('MECH-01', 'controlled-sequence-state', 'state', {
-        trial_080_disabled_after_prediction: trial080Disabled,
-        measurement_040_exists: !no040Measurement,
-        active_controlled_trial_restitution: sim._controlledTrial && sim._controlledTrial.restitution,
-        emitted_event_types: evidenceEvents.map((event) => event.event_type),
+        course_symbols_present: courseSymbolsPresent,
+        balls_before: ballsBefore,
+        balls_after: ballsAfter,
+        checked_control_ids: directControlIds,
       }, capturedAt),
     ],
   };

@@ -356,6 +356,23 @@ function Invoke-ExplicitPythonDependencyValidation {
     }
 }
 
+function Get-AstraFileSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+
+    $stream = [IO.File]::OpenRead($PathValue)
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $hasher.ComputeHash($stream)
+        return ([BitConverter]::ToString($hashBytes)).Replace("-", "").ToLowerInvariant()
+    } finally {
+        $hasher.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Initialize-ManagedPythonRuntime {
     param(
         [string]$VirtualEnvironment,
@@ -402,7 +419,7 @@ function Initialize-ManagedPythonRuntime {
             -ExpectedVirtualEnvironment $VirtualEnvironment
     }
 
-    $lockHash = (Get-FileHash -LiteralPath $RequirementsLock -Algorithm SHA256).Hash.ToLowerInvariant()
+    $lockHash = Get-AstraFileSha256 -PathValue $RequirementsLock
     $installedHash = if (Test-Path -LiteralPath $RequirementsMarker -PathType Leaf) {
         (Get-Content -LiteralPath $RequirementsMarker -Raw).Trim()
     } else { "" }

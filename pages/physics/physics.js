@@ -1,130 +1,6 @@
 // ===== 力学模拟引擎 (v2) =====
 // ResizeObserver + DPR + 教育面板 + destroy
 
-const MECHANICS_STAGE = Object.freeze({
-    P0: 'P0_AWAIT_PREDICTION',
-    P1: 'P1_READY_040',
-    P2: 'P2_RUNNING_040',
-    P3: 'P3_SNAPSHOT_040',
-    P4: 'P4_RUNNING_080',
-    P5: 'P5_COMPARE',
-    P6: 'P6_CORRECT',
-    P7: 'P7_EXPLAIN',
-    P8: 'P8_AWAIT_COMPLETION'
-});
-
-const MECHANICS_AUTHORITY_ERRORS = new Set([
-    'pending_recovery_manual_intervention',
-    'identity_required',
-    'student_role_required',
-    'activity_hidden',
-    'activity_locked',
-    'course_scope_missing',
-    'course_scope_ambiguous',
-    'course_unit_missing',
-    'course_unit_ambiguous',
-    'publication_context_unavailable',
-    'cancelled'
-]);
-
-function validMechanicsMeasurement(value, restitution) {
-    return Boolean(
-        value
-        && value.restitution === restitution
-        && value.dropHeight === 200
-        && Number.isFinite(value.reboundHeight)
-        && value.reboundHeight >= 0
-        && value.reboundHeight <= 200
-        && Number.isFinite(value.ratio)
-        && Math.abs(value.ratio - Number((value.reboundHeight / 200).toFixed(2))) <= 0.001
-    );
-}
-
-// Pure presentation projection. Measurements remain owned by the real physics loop;
-// this helper only turns confirmed first-peak snapshots into teaching language.
-function buildMechanicsStory(stage, measurements) {
-    const actual = measurements || {};
-    const measure040 = validMechanicsMeasurement(actual['0.40'], 0.40) ? actual['0.40'] : null;
-    const measure080 = validMechanicsMeasurement(actual['0.80'], 0.80) ? actual['0.80'] : null;
-    const stories = {
-        [MECHANICS_STAGE.P0]: {
-            title: '先预测，再释放第一组小球',
-            cue: '只根据“唯一改变 e”写下方向与理由；预测提交前不展示峰值、比例或理论关系。',
-            checks: ['确认 H、g、r、vₓ 与阻尼全部锁定', '预测哪一组第一反弹峰值更高', '写下可由两次测量检验的理由']
-        },
-        [MECHANICS_STAGE.P1]: {
-            title: '运行 e=0.40，观察真实运动过程',
-            cue: '沿画布读出释放、第一次碰撞、回弹上升与第一峰值；页面以真实 loop 捕获峰值。',
-            checks: ['释放高度保持 200 px', '只记录第一次回弹峰值 h', '用实测 h 计算本行 h/H']
-        },
-        [MECHANICS_STAGE.P2]: {
-            title: '让真实 loop 完成第一峰值捕获',
-            cue: '不要重复操作；依次观察下降、碰撞、上升与峰值反馈，证据只取最终真实测量。',
-            checks: ['观察垂直运动方向', '等待第一峰值静止', '以等价测量表为记录出口']
-        },
-        [MECHANICS_STAGE.P3]: {
-            title: '保留第一行，只把 e 改为 0.80',
-            cue: '第二次实验仍使用相同 H、g、r、vₓ 与阻尼；比较对象仍是第一次回弹峰值。',
-            checks: ['确认第一行已经记录', '核对只有 e 改变', '按同一观察口径运行第二组']
-        },
-        [MECHANICS_STAGE.P4]: {
-            title: '用同一口径捕获第二个真实峰值',
-            cue: '等待真实 loop 完成，不用画面高度猜数；最终读数来自第二行测量。',
-            checks: ['观察同样四个运动阶段', '等待峰值捕获反馈', '将两行实测并排比较']
-        },
-        [MECHANICS_STAGE.P5]: {
-            title: '先读页面实测，再查看理想参照',
-            cue: '两行 h 与 h/H 来自本轮真实测量；理想关系只帮助解释量级，不能替换任何实测峰值。',
-            checks: ['比较两行真实 h', '比较两行真实 h/H', '把 h/H≈e² 标注为理想参照']
-        },
-        [MECHANICS_STAGE.P6]: {
-            title: '正在确认修正与模型边界',
-            cue: '保留两次页面实测，确认理想关系依赖固定落高、竖直碰撞与忽略空气阻力等条件。',
-            checks: ['不改写实测数值', '明确像素是页面模型单位', '确认理想化适用范围']
-        },
-        [MECHANICS_STAGE.P7]: {
-            title: '把真实测量、理想参照与边界写成解释',
-            cue: '结构化解释应先引用两行实测，再说明 h/H≈e² 的理想参照意义与本页模型限制。',
-            checks: ['引用本轮两次真实峰值', '区分实测与理想参照', '说明不能直接外推材料性能']
-        },
-        [MECHANICS_STAGE.P8]: {
-            title: '结课解释已提交，等待服务端投影',
-            cue: '可用下方收束卡复述结论；本页不新增证据，也不自行判定 completed。',
-            checks: ['复述唯一变量与固定量', '复述真实测量差异', '复述模型边界']
-        }
-    };
-    const active = stories[stage] || stories[MECHANICS_STAGE.P0];
-    const hasPair = Boolean(measure040 && measure080);
-    const comparison = hasPair ? Object.freeze({
-        actual: Object.freeze([
-            Object.freeze({ restitution: '0.40', height: measure040.reboundHeight, ratio: measure040.ratio }),
-            Object.freeze({ restitution: '0.80', height: measure080.reboundHeight, ratio: measure080.ratio })
-        ]),
-        ideal: Object.freeze([
-            Object.freeze({ restitution: '0.40', ratio: 0.16 }),
-            Object.freeze({ restitution: '0.80', ratio: 0.64 })
-        ]),
-        heightMultiple: measure040.reboundHeight > 0
-            ? Number((measure080.reboundHeight / measure040.reboundHeight).toFixed(2))
-            : null
-    }) : null;
-    const conclusion = comparison && [MECHANICS_STAGE.P7, MECHANICS_STAGE.P8].includes(stage)
-        ? Object.freeze({
-            title: '结课收束 · 真实测量优先',
-            facts: Object.freeze([
-                `页面实测：e=0.40 的第一峰值为 ${measure040.reboundHeight.toFixed(1)} px（h/H=${measure040.ratio.toFixed(2)}）。`,
-                `页面实测：e=0.80 的第一峰值为 ${measure080.reboundHeight.toFixed(1)} px（h/H=${measure080.ratio.toFixed(2)}）。`,
-                '理想参照 h/H≈e² 用于解释同一受控模型内的量级关系，不覆盖上述真实峰值。'
-            ]),
-            boundary: '模型边界：H=200 px、g=980 px/s²、r=16 px、vₓ=0、阻尼=0；像素不是 SI 单位，本页结果不能直接认证材料或真实碰撞性能。',
-            receipt: stage === MECHANICS_STAGE.P8
-                ? '结构化解释已获得同次记录回执；completed 仍只由服务端规则投影。'
-                : '课内修正已获得权威确认，结构化解释待提交；completed 仍只由服务端规则投影。'
-        })
-        : null;
-    return Object.freeze({ ...active, checks: Object.freeze(active.checks.slice()), comparison, conclusion });
-}
-
 const PhysicsSim = {
     canvas: null,
     ctx: null,
@@ -156,22 +32,6 @@ const PhysicsSim = {
     _resizeObs: null,
     _raf: null,
     _listeners: [],
-    _courseState: null,
-    _controlledTrial: null,
-    _comparisonOverlay: false,
-    _evidenceBinding: null,
-    _courseActionInFlight: false,
-    _courseRecordPermit: null,
-    _panelCommandPermit: null,
-    _courseRetryIds: new Map(),
-    _courseGeneration: 0,
-    _courseNextFocus: '',
-    _motionQuery: null,
-    _reducedMotion: false,
-    _lastReducedRender: 0,
-    _lastCourseHudUpdate: 0,
-    _courseVisualPhase: '',
-    _courseVisualDirty: true,
 
     init() {
         this.destroy();
@@ -179,19 +39,7 @@ const PhysicsSim = {
         if (!this.canvas) return;
 
         this.ctx = this.canvas.getContext('2d');
-        this._motionQuery = typeof window.matchMedia === 'function'
-            ? window.matchMedia('(prefers-reduced-motion: reduce)')
-            : null;
-        this._reducedMotion = Boolean(this._motionQuery && this._motionQuery.matches);
-        if (this._motionQuery && typeof this._motionQuery.addEventListener === 'function') {
-            this._on(this._motionQuery, 'change', event => {
-                this._reducedMotion = Boolean(event && event.matches);
-                this._courseVisualDirty = true;
-                this.render();
-            });
-        }
         this.resizeCanvas();
-        this.bindCourse();
         this.bindControls();
         this.bindCanvas();
 
@@ -214,7 +62,6 @@ const PhysicsSim = {
     },
 
     destroy() {
-        this._courseGeneration += 1;
         this.running = false;
         if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
         if (this._resizeObs) { this._resizeObs.disconnect(); this._resizeObs = null; }
@@ -225,29 +72,6 @@ const PhysicsSim = {
         this.isDragging = false;
         this.dragStart = null;
         this.dragEnd = null;
-        this.balls = [];
-        this.paused = false;
-        this.lastTime = 0;
-        this.fpsFrames = 0;
-        this.fpsTime = 0;
-        this.currentFps = 0;
-        this.W = 0;
-        this.H = 0;
-        this._courseState = null;
-        this._controlledTrial = null;
-        this._comparisonOverlay = false;
-        this._evidenceBinding = null;
-        this._courseActionInFlight = false;
-        this._courseRecordPermit = null;
-        this._panelCommandPermit = null;
-        this._courseRetryIds = new Map();
-        this._courseNextFocus = '';
-        this._motionQuery = null;
-        this._reducedMotion = false;
-        this._lastReducedRender = 0;
-        this._lastCourseHudUpdate = 0;
-        this._courseVisualPhase = '';
-        this._courseVisualDirty = true;
         this.canvas = null;
         this.ctx = null;
     },
@@ -256,1129 +80,6 @@ const PhysicsSim = {
         if (!el) return;
         el.addEventListener(event, handler, options);
         this._listeners.push({ el, event, handler, options });
-    },
-
-    _courseError(code, message) {
-        const error = new Error(message || code || 'learning_evidence_failed');
-        error.code = code || 'learning_evidence_failed';
-        return error;
-    },
-
-    _evidenceResultMatchesRequest(result, clientEventId, eventType) {
-        return Boolean(
-            result
-            && result.client_event_id === clientEventId
-            && result.event_type === eventType
-        );
-    },
-
-    _isAuthoritativeEvidenceResult(result, clientEventId, eventType) {
-        return Boolean(
-            this._evidenceResultMatchesRequest(result, clientEventId, eventType)
-            && ['confirmed', 'reconciled'].includes(result.outcome)
-            && result.state === 'confirmed'
-        );
-    },
-
-    _isManualEvidenceResult(result, clientEventId, eventType) {
-        return Boolean(
-            this._evidenceResultMatchesRequest(result, clientEventId, eventType)
-            && result.outcome === 'manual-intervention'
-            && result.state === 'manual-intervention'
-        );
-    },
-
-    _createCourseEventId(eventType) {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-            return window.crypto.randomUUID();
-        }
-        return `mechanics-${eventType}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    },
-
-    _setDisabled(node, disabled) {
-        if (!node) return;
-        node.disabled = Boolean(disabled);
-        if (typeof node.setAttribute === 'function') {
-            node.setAttribute('aria-disabled', disabled ? 'true' : 'false');
-        }
-    },
-
-    _refreshEvidenceCommands() {
-        const controller = this._evidenceBinding && this._evidenceBinding.controller;
-        if (controller && typeof controller.refreshCommands === 'function') {
-            controller.refreshCommands();
-        }
-    },
-
-    _bindingIsCurrent(binding = this._evidenceBinding, generation = this._courseGeneration) {
-        return Boolean(
-            binding
-            && binding === this._evidenceBinding
-            && binding.generation === generation
-            && generation === this._courseGeneration
-            && this.canvas
-            && (typeof binding.isActive !== 'function' || binding.isActive())
-        );
-    },
-
-    async _authorizeCourseBinding(binding, generation) {
-        if (!this._bindingIsCurrent(binding, generation)) {
-            throw this._courseError('cancelled');
-        }
-        const current = await binding.resolveAuthority(binding.context);
-        if (!this._bindingIsCurrent(binding, generation)) {
-            throw this._courseError('cancelled');
-        }
-        if (!binding.sameAuthority(binding.context, current)) {
-            throw this._courseError(current && current.error_code || 'identity_required');
-        }
-        return current;
-    },
-
-    bindCourseEvidence(controller, options = {}) {
-        const state = this._ensureCourseState();
-        const context = controller && typeof controller.context === 'function'
-            ? controller.context()
-            : null;
-        const validContext = context
-            && context.available === true
-            && Number.isInteger(Number(context.class_id))
-            && Number(context.class_id) > 0
-            && Number.isInteger(Number(context.course_id))
-            && Number(context.course_id) > 0
-            && Number.isInteger(Number(context.course_unit_id))
-            && Number(context.course_unit_id) > 0
-            && context.activity_key === 'physics.mechanics'
-            && String(context.identity_id || '').trim() !== ''
-            && Number.isInteger(Number(context.authority_generation))
-            && Number(context.authority_generation) >= 0
-            && context.access_state === 'open';
-        if (
-            !validContext
-            || !controller
-            || typeof controller.record !== 'function'
-            || typeof controller.consumeCommandReceipt !== 'function'
-            || typeof options.resolveAuthority !== 'function'
-            || typeof options.sameAuthority !== 'function'
-            || typeof options.isActive === 'function' && !options.isActive()
-        ) {
-            return this.blockCourseEvidence(this._courseError('publication_context_unavailable'));
-        }
-        this._evidenceBinding = {
-            controller,
-            context,
-            resolveAuthority: options.resolveAuthority,
-            sameAuthority: options.sameAuthority,
-            isActive: options.isActive,
-            generation: this._courseGeneration
-        };
-        state.evidenceReady = true;
-        state.blocked = false;
-        this._setCourseStage('证据范围已确认 · 等待预测');
-        this._setCourseFeedback(
-            '请从预测开始一组新的受控观察；刷新后不会把离散历史拼成“已恢复”的完整实验组。',
-            'ready'
-        );
-        this._syncCourseUi();
-        return true;
-    },
-
-    blockCourseEvidence(error) {
-        const state = this._ensureCourseState();
-        const code = error && error.code || 'publication_context_unavailable';
-        this._controlledTrial = null;
-        this.balls = this.balls.filter(ball => !ball || !ball.controlled);
-        state.evidenceReady = false;
-        state.blocked = true;
-        this._courseActionInFlight = false;
-        this._courseRecordPermit = null;
-        this._panelCommandPermit = null;
-        const manual = code === 'pending_recovery_manual_intervention';
-        this._setCourseStage(manual ? '证据冲突需处理 · 本活动只读' : '学习证据不可用 · 本活动只读');
-        this._setCourseFeedback(
-            manual
-                ? '当前作用域存在需人工处理的证据冲突；所有受控实验输入与动作已禁用。'
-                : '无法确认当前身份、路由与课程作用域；所有受控实验输入与动作已失败关闭。',
-            'blocked'
-        );
-        this._setCourseVisualPhase('blocked', null);
-        this._syncCourseUi();
-        return false;
-    },
-
-    _handleCourseActionError(error, retryMessage) {
-        const code = error && error.code || '';
-        if (MECHANICS_AUTHORITY_ERRORS.has(code)) return this.blockCourseEvidence(error);
-        this._setCourseFeedback(
-            retryMessage || '本次证据尚未获得权威确认；当前阶段保持锁定，系统会复用原事件编号等待同步或重试。',
-            'retry'
-        );
-        return false;
-    },
-
-    authorizeCourseRecord(eventType, evidence) {
-        const permit = this._courseRecordPermit;
-        return Boolean(
-            permit
-            && permit.eventType === eventType
-            && permit.evidence === evidence
-            && permit.generation === this._courseGeneration
-            && this._courseActionInFlight
-            && this._bindingIsCurrent(permit.binding, permit.generation)
-        );
-    },
-
-    canUseCourseEvidenceCommand(command) {
-        const state = this._ensureCourseState();
-        return command === 'explained'
-            && state.stage === MECHANICS_STAGE.P7
-            && state.evidenceReady
-            && !state.blocked
-            && !this._courseActionInFlight
-            && this._bindingIsCurrent();
-    },
-
-    beginCourseEvidenceCommand(detail) {
-        if (
-            !detail
-            || detail.event_type !== 'explained'
-            || !this.canUseCourseEvidenceCommand('explained')
-        ) return null;
-        const binding = this._evidenceBinding;
-        const clientEventId = this._courseRetryIds.get('explain')
-            || this._createCourseEventId('explained');
-        this._courseRetryIds.set('explain', clientEventId);
-        this._courseActionInFlight = true;
-        this._courseRecordPermit = {
-            binding,
-            generation: this._courseGeneration,
-            eventType: 'explained',
-            evidence: detail.evidence
-        };
-        this._panelCommandPermit = Object.freeze({
-            client_event_id: clientEventId,
-            event_type: 'explained',
-            evidence: detail.evidence,
-            owner_generation: this._courseGeneration,
-            binding_generation: binding.generation,
-            authority_generation: Number(binding.context.authority_generation)
-        });
-        this._syncCourseUi();
-        return this._panelCommandPermit;
-    },
-
-    completeCourseEvidenceCommand(detail) {
-        const permit = detail && detail.permit;
-        const state = this._ensureCourseState();
-        const binding = this._evidenceBinding;
-        const controller = binding && binding.controller;
-        const recordPermit = this._courseRecordPermit;
-        if (
-            !permit
-            || permit !== this._panelCommandPermit
-            || permit.owner_generation !== this._courseGeneration
-            || permit.binding_generation !== binding?.generation
-            || permit.authority_generation !== Number(binding?.context?.authority_generation)
-            || permit.event_type !== 'explained'
-            || detail.event_type !== 'explained'
-            || detail.evidence !== permit.evidence
-            || detail.client_event_id !== permit.client_event_id
-            || !recordPermit
-            || recordPermit.binding !== binding
-            || recordPermit.generation !== permit.binding_generation
-            || recordPermit.eventType !== detail.event_type
-            || recordPermit.evidence !== detail.evidence
-            || typeof controller?.consumeCommandReceipt !== 'function'
-            || !this._bindingIsCurrent(binding, permit.binding_generation)
-            || state.stage !== MECHANICS_STAGE.P7
-        ) return false;
-        const recorded = controller.consumeCommandReceipt(detail.receipt, {
-            permit,
-            result: detail.result,
-            evidence: detail.evidence,
-            event_type: detail.event_type,
-            client_event_id: detail.client_event_id,
-            owner_generation: permit.owner_generation,
-            binding_generation: permit.binding_generation,
-            authority_generation: permit.authority_generation
-        });
-        if (!recorded) return false;
-        const result = recorded.result;
-        this._courseRecordPermit = null;
-        this._panelCommandPermit = null;
-        this._courseActionInFlight = false;
-        if (this._isManualEvidenceResult(result, detail.client_event_id, detail.event_type)) {
-            return this.blockCourseEvidence(this._courseError('pending_recovery_manual_intervention'));
-        }
-        if (!this._isAuthoritativeEvidenceResult(result, detail.client_event_id, detail.event_type)) {
-            this._setCourseFeedback('解释尚未获得权威确认；当前阶段保持锁定，系统会复用本次解释的事件编号等待同步或重试。', 'retry');
-            this._syncCourseUi();
-            return false;
-        }
-        this._courseRetryIds.delete('explain');
-        state.stage = MECHANICS_STAGE.P8;
-        this._setCourseStage('解释已记录 · 等待服务端完成投影');
-        this._setCourseFeedback('客户端不会自行标记完成；最终状态只认下方服务端学习投影。', 'waiting');
-        this._courseNextFocus = 'mechanics-prediction-submit';
-        this._syncCourseUi();
-        const next = this._courseNode(this._courseNextFocus);
-        this._courseNextFocus = '';
-        if (next && !next.disabled) next.focus();
-        return true;
-    },
-
-    failCourseEvidenceCommand(error) {
-        if (!this._panelCommandPermit) return false;
-        this._courseRecordPermit = null;
-        this._panelCommandPermit = null;
-        this._courseActionInFlight = false;
-        const result = this._handleCourseActionError(error, '解释尚未获得权威确认；当前阶段保持锁定，系统会复用本次解释的事件编号等待同步或重试。');
-        this._syncCourseUi();
-        return result;
-    },
-
-    _ensureCourseState() {
-        if (!this._courseState) {
-            this._courseState = {
-                prediction: null,
-                measurements: Object.create(null),
-                stage: MECHANICS_STAGE.P0,
-                evidenceReady: false,
-                blocked: false
-            };
-        }
-        return this._courseState;
-    },
-
-    _courseNode(id) {
-        return document.getElementById(id);
-    },
-
-    async _runCourseAction(action) {
-        const state = this._ensureCourseState();
-        const binding = this._evidenceBinding;
-        const generation = this._courseGeneration;
-        if (
-            this._courseActionInFlight
-            || state.blocked
-            || !state.evidenceReady
-            || !this._bindingIsCurrent(binding, generation)
-        ) {
-            this._syncCourseUi();
-            return false;
-        }
-        this._courseActionInFlight = true;
-        this._courseNextFocus = '';
-        this._syncCourseUi();
-        try {
-            return await action({ binding, generation });
-        } catch (error) {
-            if (this._bindingIsCurrent(binding, generation)) this._handleCourseActionError(error);
-            return false;
-        } finally {
-            if (generation === this._courseGeneration) {
-                this._courseActionInFlight = false;
-                this._courseRecordPermit = null;
-                this._syncCourseUi();
-                const next = this._courseNextFocus === '@evidence-explained'
-                    ? document.querySelector('[data-evidence-command="explained"]')
-                    : this._courseNode(this._courseNextFocus);
-                this._courseNextFocus = '';
-                if (next && !next.disabled) next.focus();
-            }
-        }
-    },
-
-    async _recordCourseEvidence(actionKey, eventType, evidence, binding, generation, isStillValid) {
-        await this._authorizeCourseBinding(binding, generation);
-        if (!this._bindingIsCurrent(binding, generation)) throw this._courseError('cancelled');
-        if (typeof isStillValid === 'function' && !isStillValid()) {
-            throw this._courseError('cancelled');
-        }
-        const clientEventId = this._courseRetryIds.get(actionKey)
-            || this._createCourseEventId(eventType);
-        this._courseRetryIds.set(actionKey, clientEventId);
-        const permit = {
-            binding,
-            generation,
-            eventType,
-            evidence
-        };
-        this._courseRecordPermit = permit;
-        let result;
-        try {
-            result = await binding.controller.record(eventType, evidence, {
-                client_event_id: clientEventId
-            });
-            if (!this._bindingIsCurrent(binding, generation) || this._courseRecordPermit !== permit) {
-                throw this._courseError('cancelled');
-            }
-            if (typeof isStillValid === 'function' && !isStillValid()) {
-                throw this._courseError('cancelled');
-            }
-            if (this._isManualEvidenceResult(result, clientEventId, eventType)) {
-                throw this._courseError('pending_recovery_manual_intervention');
-            }
-            if (!this._isAuthoritativeEvidenceResult(result, clientEventId, eventType)) {
-                throw this._courseError('learning_evidence_failed');
-            }
-            await this._authorizeCourseBinding(binding, generation);
-            if (!this._bindingIsCurrent(binding, generation) || this._courseRecordPermit !== permit) {
-                throw this._courseError('cancelled');
-            }
-            this._courseRetryIds.delete(actionKey);
-            return result;
-        } finally {
-            if (this._courseRecordPermit === permit) this._courseRecordPermit = null;
-        }
-    },
-
-    bindCourse() {
-        this._mountCourseShowcase();
-        const prediction = this._courseNode('mechanics-prediction-submit');
-        const trial040 = this._courseNode('mechanics-trial-040');
-        const trial080 = this._courseNode('mechanics-trial-080');
-        const correction = this._courseNode('mechanics-correction-submit');
-        const replay = this._courseNode('mechanics-replay');
-        this._resetCourseOwnerState();
-        this._on(prediction, 'click', () => {
-            const stage = this._ensureCourseState().stage;
-            const action = stage === MECHANICS_STAGE.P0
-                ? this._submitCoursePrediction()
-                : this._redoCourseGroup();
-            Promise.resolve(action).catch(() => {});
-        });
-        this._on(trial040, 'click', () => {
-            Promise.resolve(this._startControlledTrial(0.40)).catch(() => {});
-        });
-        this._on(trial080, 'click', () => {
-            Promise.resolve(this._startControlledTrial(0.80)).catch(() => {});
-        });
-        this._on(correction, 'click', () => {
-            Promise.resolve(this._submitCourseCorrection()).catch(() => {});
-        });
-        this._on(replay, 'click', () => {
-            Promise.resolve(this._showCourseReplay()).catch(() => {});
-        });
-        this._syncCourseUi();
-    },
-
-    _mountCourseShowcase() {
-        if (typeof document.createElement !== 'function'
-            || typeof document.querySelector !== 'function') return;
-        const root = document.querySelector('[data-mechanics-course]');
-        if (root && typeof root.querySelector === 'function') {
-            if (!root.querySelector('[data-mechanics-progress]')
-                && typeof root.insertBefore === 'function') {
-                const progress = document.createElement('nav');
-                progress.className = 'mechanics-course__progress';
-                progress.dataset.mechanicsProgress = 'true';
-                progress.setAttribute('aria-label', '恢复系数实验学习步骤');
-                progress.innerHTML = `
-                    <ol>
-                        <li data-mechanics-progress-step="0"><span>01</span><strong>预测</strong></li>
-                        <li data-mechanics-progress-step="1"><span>02</span><strong>e=0.40</strong></li>
-                        <li data-mechanics-progress-step="2"><span>03</span><strong>e=0.80</strong></li>
-                        <li data-mechanics-progress-step="3"><span>04</span><strong>比较</strong></li>
-                        <li data-mechanics-progress-step="4"><span>05</span><strong>修正</strong></li>
-                        <li data-mechanics-progress-step="5"><span>06</span><strong>解释</strong></li>
-                    </ol>`;
-                const goal = root.querySelector('.mechanics-course__goal');
-                root.insertBefore(progress, goal && goal.nextSibling || root.firstChild || null);
-            }
-            const progress = root.querySelector('[data-mechanics-progress]');
-            if (!root.querySelector('[data-mechanics-brief]')
-                && typeof root.insertBefore === 'function') {
-                const brief = document.createElement('section');
-                brief.className = 'mechanics-course__brief';
-                brief.dataset.mechanicsBrief = 'true';
-                brief.setAttribute('aria-label', '课程目标、观察产出与模型范围');
-                brief.innerHTML = `
-                    <div><span>学习产出</span><strong>两次真实第一峰值 + 一段有边界的关系解释</strong></div>
-                    <dl>
-                        <div><dt>操作</dt><dd>只改变 e=0.40 → 0.80</dd></div>
-                        <div><dt>观察</dt><dd>第一次回弹峰值 h 与 h/H</dd></div>
-                        <div><dt>边界</dt><dd>页面像素模型，不作材料认证</dd></div>
-                    </dl>`;
-                root.insertBefore(brief, progress || root.firstChild || null);
-            }
-            if (!root.querySelector('[data-mechanics-locks]')
-                && typeof root.insertBefore === 'function') {
-                const locks = document.createElement('section');
-                locks.className = 'mechanics-course__locks';
-                locks.dataset.mechanicsLocks = 'true';
-                locks.setAttribute('aria-label', '受控实验固定变量');
-                locks.innerHTML = `
-                    <div class="mechanics-course__only-variable"><span>唯一改变</span><strong>e = 0.40 → 0.80</strong></div>
-                    <dl>
-                        <div><dt>落高 H</dt><dd>200 px · 锁定</dd></div>
-                        <div><dt>重力 g</dt><dd>980 px/s² · 锁定</dd></div>
-                        <div><dt>半径 r</dt><dd>16 px · 锁定</dd></div>
-                        <div><dt>水平速度 vₓ</dt><dd>0 · 锁定</dd></div>
-                        <div><dt>μ / 教学阻尼</dt><dd>0 · 锁定</dd></div>
-                    </dl>`;
-                const progress = root.querySelector('[data-mechanics-progress]');
-                root.insertBefore(locks, progress && progress.nextSibling || root.firstChild || null);
-            }
-            if (!root.querySelector('[data-mechanics-coach]')
-                && typeof root.insertBefore === 'function') {
-                const coach = document.createElement('aside');
-                coach.className = 'mechanics-course__coach';
-                coach.dataset.mechanicsCoach = 'true';
-                coach.setAttribute('aria-live', 'polite');
-                coach.innerHTML = `
-                    <span>当前讲解</span>
-                    <strong data-mechanics-coach-title></strong>
-                    <p data-mechanics-coach-cue></p>
-                    <ul data-mechanics-coach-checks></ul>`;
-                root.insertBefore(coach, root.querySelector('#mechanics-prediction') || null);
-            }
-            if (!root.querySelector('[data-mechanics-comparison]')) {
-                const comparison = document.createElement('section');
-                comparison.className = 'mechanics-course__comparison';
-                comparison.dataset.mechanicsComparison = 'true';
-                comparison.hidden = true;
-                comparison.setAttribute('aria-label', '两次真实测量与理想参照比较');
-                comparison.innerHTML = `<div data-mechanics-comparison-copy></div>`;
-                const table = root.querySelector('.mechanics-course__table-wrap');
-                if (table && table.parentNode && typeof table.parentNode.insertBefore === 'function') {
-                    table.parentNode.insertBefore(comparison, table.nextSibling || null);
-                }
-            }
-            if (!root.querySelector('[data-mechanics-conclusion]')) {
-                const conclusion = document.createElement('section');
-                conclusion.className = 'mechanics-course__conclusion';
-                conclusion.dataset.mechanicsConclusion = 'true';
-                conclusion.hidden = true;
-                conclusion.setAttribute('aria-label', '结课结论与模型边界');
-                conclusion.innerHTML = `<div data-mechanics-conclusion-copy></div>`;
-                const handoff = root.querySelector('.mechanics-course__handoff');
-                if (handoff && handoff.parentNode && typeof handoff.parentNode.insertBefore === 'function') {
-                    handoff.parentNode.insertBefore(conclusion, handoff);
-                }
-            }
-        }
-        const visual = this.canvas && this.canvas.parentElement;
-        if (!visual || typeof visual.querySelector !== 'function'
-            || typeof visual.insertBefore !== 'function'
-            || visual.querySelector('[data-mechanics-canvas-hud]')) return;
-        const hud = document.createElement('section');
-        hud.className = 'mechanics-canvas-hud';
-        hud.dataset.mechanicsCanvasHud = 'true';
-        hud.setAttribute('aria-label', '受控实验实时读数');
-        hud.innerHTML = `
-            <div class="mechanics-canvas-hud__phase"><span>真实循环阶段</span><strong data-mechanics-live-phase>等待受控实验</strong></div>
-            <div><span>当前恢复系数</span><strong data-mechanics-live-e>—</strong></div>
-            <div><span>实时高度</span><strong data-mechanics-live-height>—</strong></div>
-            <div><span>垂直运动</span><strong data-mechanics-live-velocity>—</strong></div>`;
-        visual.insertBefore(hud, this.canvas);
-    },
-
-    _updateCourseShowcase(state) {
-        if (!state || typeof document.querySelector !== 'function') return;
-        const root = document.querySelector('[data-mechanics-course]');
-        if (!root) return;
-        if (root.dataset) root.dataset.mechanicsStage = state.stage;
-        const stageIndex = {
-            [MECHANICS_STAGE.P0]: 0,
-            [MECHANICS_STAGE.P1]: 1,
-            [MECHANICS_STAGE.P2]: 1,
-            [MECHANICS_STAGE.P3]: 2,
-            [MECHANICS_STAGE.P4]: 2,
-            [MECHANICS_STAGE.P5]: 3,
-            [MECHANICS_STAGE.P6]: 4,
-            [MECHANICS_STAGE.P7]: 5,
-            [MECHANICS_STAGE.P8]: 6
-        }[state.stage] ?? 0;
-        if (typeof root.querySelectorAll === 'function') {
-            root.querySelectorAll('[data-mechanics-progress-step]').forEach(item => {
-                const index = Number(item.dataset && item.dataset.mechanicsProgressStep);
-                if (!Number.isFinite(index)) return;
-                item.dataset.state = index < stageIndex ? 'complete' : index === stageIndex ? 'active' : 'locked';
-                if (typeof item.setAttribute === 'function' && index === stageIndex && stageIndex < 6) {
-                    item.setAttribute('aria-current', 'step');
-                } else if (typeof item.removeAttribute === 'function') {
-                    item.removeAttribute('aria-current');
-                }
-            });
-        }
-        const story = buildMechanicsStory(state.stage, state.measurements);
-        const coachTitle = root.querySelector('[data-mechanics-coach-title]');
-        const coachCue = root.querySelector('[data-mechanics-coach-cue]');
-        const coachChecks = root.querySelector('[data-mechanics-coach-checks]');
-        if (coachTitle) coachTitle.textContent = story.title;
-        if (coachCue) coachCue.textContent = story.cue;
-        if (coachChecks) coachChecks.innerHTML = story.checks.map(item => `<li>${item}</li>`).join('');
-        const comparison = root.querySelector('[data-mechanics-comparison]');
-        const comparisonCopy = root.querySelector('[data-mechanics-comparison-copy]');
-        if (comparison) comparison.hidden = !story.comparison;
-        if (story.comparison && comparisonCopy) {
-            const actualRows = story.comparison.actual.map(item => `
-                <article><span>页面真实测量 · e=${item.restitution}</span><strong>${item.height.toFixed(1)} px</strong><small>h/H=${item.ratio.toFixed(2)}</small></article>`).join('');
-            const idealRows = story.comparison.ideal.map(item => `e=${item.restitution} → ${item.ratio.toFixed(2)}`).join(' · ');
-            comparisonCopy.innerHTML = `
-                <header><span>观察差异</span><strong>先读真实测量，再对照理想关系</strong></header>
-                <div class="mechanics-course__comparison-actual">${actualRows}</div>
-                <p><b>理想参照 h/H≈e²：</b>${idealRows}。参照值不覆盖真实峰值；数值偏差保留为页面积分与峰值采样的真实表现。</p>
-                ${story.comparison.heightMultiple === null ? '' : `<small>本轮页面实测峰值倍数：${story.comparison.heightMultiple.toFixed(2)}×</small>`}`;
-        }
-        const conclusion = root.querySelector('[data-mechanics-conclusion]');
-        const conclusionCopy = root.querySelector('[data-mechanics-conclusion-copy]');
-        if (conclusion) conclusion.hidden = !story.conclusion;
-        if (story.conclusion && conclusionCopy) {
-            conclusionCopy.innerHTML = `
-                <span>结课收束</span><strong>${story.conclusion.title}</strong>
-                <ul>${story.conclusion.facts.map(item => `<li>${item}</li>`).join('')}</ul>
-                <p>${story.conclusion.boundary}</p>
-                <small>${story.conclusion.receipt}</small>`;
-        }
-    },
-
-    _setCourseVisualPhase(phase, ball, label) {
-        const changed = phase !== this._courseVisualPhase;
-        this._courseVisualPhase = phase;
-        if (changed) this._courseVisualDirty = true;
-        const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
-            ? performance.now()
-            : Date.now();
-        const reducedControlledTrial = Boolean(
-            this._reducedMotion
-            && ball
-            && ball.controlled
-            && this._controlledTrial === ball.controlled
-        );
-        if (reducedControlledTrial && !changed) return;
-        const hudInterval = this._reducedMotion ? 250 : 100;
-        if (!changed && now - this._lastCourseHudUpdate < hudInterval) return;
-        this._lastCourseHudUpdate = now;
-        if (typeof document.querySelector !== 'function') return;
-        const phaseNode = document.querySelector('[data-mechanics-live-phase]');
-        const eNode = document.querySelector('[data-mechanics-live-e]');
-        const heightNode = document.querySelector('[data-mechanics-live-height]');
-        const velocityNode = document.querySelector('[data-mechanics-live-velocity]');
-        const phaseLabels = {
-            idle: '等待受控实验',
-            ready: '固定条件已锁定',
-            falling: '释放下降',
-            impact: '第一次碰撞',
-            rising: '第一次回弹上升',
-            peak: '第一峰值已捕获',
-            compare: '两次真实峰值对照',
-            cancelled: '本次观察已取消',
-            blocked: '实验保持只读'
-        };
-        if (phaseNode) phaseNode.textContent = label || phaseLabels[phase] || '等待受控实验';
-        const trial = ball && ball.controlled;
-        if (eNode) eNode.textContent = trial ? `e=${trial.restitution.toFixed(2)}` : '—';
-        if (!trial) {
-            if (heightNode) heightNode.textContent = '—';
-            if (velocityNode) velocityNode.textContent = '—';
-            if (this.canvas && typeof this.canvas.setAttribute === 'function') {
-                const stageLabel = label || phaseLabels[phase] || '等待受控实验';
-                this.canvas.setAttribute('aria-label', `恢复系数受控实验画布，当前阶段：${stageLabel}`);
-            }
-            return;
-        }
-        const height = Math.max(0, Math.min(trial.dropHeight, trial.floorCenterY - ball.y));
-        if (heightNode) heightNode.textContent = `${height.toFixed(1)} px`;
-        if (velocityNode) {
-            const direction = phase === 'peak' ? '峰值静止'
-                : ball.vy > 1 ? '向下'
-                : ball.vy < -1 ? '向上' : '释放';
-            velocityNode.textContent = `${direction} · vᵧ ${Number(ball.vy).toFixed(0)} px/s`;
-        }
-        if (this.canvas && typeof this.canvas.setAttribute === 'function') {
-            this.canvas.setAttribute(
-                'aria-label',
-                `恢复系数受控实验，${phaseNode ? phaseNode.textContent : phaseLabels[phase] || ''}，e=${trial.restitution.toFixed(2)}，实时高度 ${height.toFixed(1)} 像素`
-            );
-        }
-    },
-
-    _resetCourseOwnerState() {
-        this._evidenceBinding = null;
-        this._courseActionInFlight = false;
-        this._courseRecordPermit = null;
-        this._panelCommandPermit = null;
-        this._courseRetryIds = new Map();
-        this._courseNextFocus = '';
-        this._courseVisualPhase = '';
-        this._courseVisualDirty = true;
-        this._lastCourseHudUpdate = 0;
-        this._courseState = {
-            prediction: null,
-            measurements: Object.create(null),
-            stage: MECHANICS_STAGE.P0,
-            evidenceReady: false,
-            blocked: false
-        };
-        this._controlledTrial = null;
-        this._comparisonOverlay = false;
-        this.balls = [];
-        this.paused = false;
-        this.isDragging = false;
-        this.dragStart = null;
-        this.dragEnd = null;
-
-        this._clearCourseGroupDom();
-        this._setCourseStage('正在确认学习证据范围');
-        this._setCourseFeedback('范围确认完成前，受控实验输入与动作保持禁用。', 'checking');
-        this._resetFreeControls();
-        this._setCourseVisualPhase('idle', null);
-        const ballCount = this._courseNode('ball-count');
-        if (ballCount) ballCount.textContent = '0';
-        const fps = this._courseNode('physics-fps');
-        if (fps) fps.textContent = '0';
-        this.updateEdu();
-    },
-
-    _clearCourseGroupDom() {
-        const clearValue = id => {
-            const node = this._courseNode(id);
-            if (node) node.value = '';
-        };
-        [
-            'mechanics-prediction-choice',
-            'mechanics-prediction-relation',
-            'mechanics-prediction-reason',
-            'mechanics-correction-choice'
-        ].forEach(clearValue);
-        const modelLimit = this._courseNode('mechanics-model-limit');
-        if (modelLimit) modelLimit.checked = false;
-        [
-            'mechanics-measure-h-040',
-            'mechanics-measure-ratio-040',
-            'mechanics-measure-h-080',
-            'mechanics-measure-ratio-080'
-        ].forEach(id => {
-            const node = this._courseNode(id);
-            if (node) node.textContent = '待测';
-        });
-    },
-
-    _resetFreeControls() {
-        this.gravity = 980;
-        this.restitution = 0.75;
-        this.friction = 0.10;
-        this.ballRadius = 16;
-        this.paused = false;
-
-        const set = (id, value, outId, fmt) => {
-            const element = this._courseNode(id);
-            const output = this._courseNode(outId);
-            if (element) element.value = value;
-            if (output) output.textContent = fmt ? fmt(value) : String(value);
-        };
-        set('gravity-slider', 980, 'gravity-value');
-        set('restitution-slider', 75, 'restitution-value', value => (value / 100).toFixed(2));
-        set('friction-slider', 10, 'friction-value', value => (value / 100).toFixed(2));
-        set('radius-slider', 16, 'radius-value');
-
-        const pauseButton = this._courseNode('physics-pause');
-        if (pauseButton) pauseButton.textContent = '暂停';
-    },
-
-    _setCourseFeedback(message, state = '') {
-        const feedback = this._courseNode('mechanics-course-feedback');
-        if (!feedback) return;
-        feedback.textContent = message;
-        if (state) feedback.dataset.feedbackState = state;
-        else delete feedback.dataset.feedbackState;
-        if (typeof feedback.setAttribute === 'function') {
-            feedback.setAttribute('role', state === 'blocked' ? 'alert' : 'status');
-            feedback.setAttribute('aria-live', 'polite');
-        }
-    },
-
-    _setCourseStage(message) {
-        const node = this._courseNode('mechanics-course-stage');
-        if (node) node.textContent = message;
-    },
-
-    _syncCourseUi() {
-        const state = this._ensureCourseState();
-        const available = Boolean(
-            state.evidenceReady
-            && !state.blocked
-            && !this._courseActionInFlight
-            && this._bindingIsCurrent()
-        );
-        const redoAvailable = [
-            MECHANICS_STAGE.P3,
-            MECHANICS_STAGE.P5,
-            MECHANICS_STAGE.P7,
-            MECHANICS_STAGE.P8
-        ].includes(state.stage);
-        const predictionButton = this._courseNode('mechanics-prediction-submit');
-        const trial040 = this._courseNode('mechanics-trial-040');
-        const trial080 = this._courseNode('mechanics-trial-080');
-        const correction = this._courseNode('mechanics-correction-submit');
-        const replay = this._courseNode('mechanics-replay');
-        const predictionInputs = [
-            this._courseNode('mechanics-prediction-choice'),
-            this._courseNode('mechanics-prediction-relation'),
-            this._courseNode('mechanics-prediction-reason')
-        ];
-        const correctionInputs = [
-            this._courseNode('mechanics-correction-choice'),
-            this._courseNode('mechanics-model-limit')
-        ];
-        predictionInputs.forEach(node => this._setDisabled(
-            node,
-            !available || state.stage !== MECHANICS_STAGE.P0
-        ));
-        correctionInputs.forEach(node => this._setDisabled(
-            node,
-            !available || state.stage !== MECHANICS_STAGE.P5
-        ));
-        if (predictionButton) {
-            predictionButton.textContent = redoAvailable
-                ? '重新开始一组受控实验'
-                : '记录预测并解锁观察';
-        }
-        this._setDisabled(
-            predictionButton,
-            !available || !(state.stage === MECHANICS_STAGE.P0 || redoAvailable)
-        );
-        this._setDisabled(trial040, !available || state.stage !== MECHANICS_STAGE.P1);
-        this._setDisabled(trial080, !available || state.stage !== MECHANICS_STAGE.P3);
-        this._setDisabled(correction, !available || state.stage !== MECHANICS_STAGE.P5);
-        this._setDisabled(
-            replay,
-            !available || ![MECHANICS_STAGE.P5, MECHANICS_STAGE.P7, MECHANICS_STAGE.P8].includes(state.stage)
-        );
-        const controlledBusy = Boolean(this._controlledTrial);
-        [
-            'gravity-slider',
-            'restitution-slider',
-            'friction-slider',
-            'radius-slider',
-            'physics-clear',
-            'physics-pause'
-        ].forEach(id => this._setDisabled(this._courseNode(id), controlledBusy));
-        if (this.canvas && typeof this.canvas.setAttribute === 'function') {
-            this.canvas.setAttribute('aria-disabled', controlledBusy ? 'true' : 'false');
-        }
-        this._updateCourseShowcase(state);
-        this._refreshEvidenceCommands();
-    },
-
-    _submitCoursePrediction() {
-        return this._runCourseAction(async ({ binding, generation }) => {
-            const state = this._ensureCourseState();
-            if (state.stage !== MECHANICS_STAGE.P0) return false;
-            const choice = this._courseNode('mechanics-prediction-choice')?.value || '';
-            const relation = this._courseNode('mechanics-prediction-relation')?.value || '';
-            const reason = String(this._courseNode('mechanics-prediction-reason')?.value || '').trim();
-            if (
-                !['higher-080', 'higher-040', 'same-height'].includes(choice)
-                || !['two-times', 'four-times', 'cannot-tell'].includes(relation)
-                || reason.length < 4
-            ) {
-                this._setCourseFeedback('请先选择两项判断，并用一句话写出预测理由。', 'needs-input');
-                this._courseNextFocus = 'mechanics-prediction-reason';
-                return false;
-            }
-            const evidence = {
-                prediction: {
-                    expects_higher_080: choice === 'higher-080',
-                    expected_height_multiplier: relation === 'four-times'
-                        ? 4
-                        : (relation === 'two-times' ? 2 : 0),
-                    reason_size: Math.min(reason.length, 160)
-                },
-                cursor: { stage: 'prediction-recorded' }
-            };
-            await this._recordCourseEvidence('prediction', 'predicted', evidence, binding, generation);
-            if (!this._bindingIsCurrent(binding, generation)) return false;
-            state.prediction = { choice, relation };
-            state.stage = MECHANICS_STAGE.P1;
-            this._setCourseStage('预测已记录 · 仅开放 e=0.40');
-            this._setCourseFeedback('现在只改变恢复系数。完成 e=0.40 的完整快照和证据后，才会开放 e=0.80。', 'ready');
-            this._setCourseVisualPhase('ready', null, '等待释放 e=0.40');
-            this._courseNextFocus = 'mechanics-trial-040';
-            return true;
-        });
-    },
-
-    _startControlledTrial(restitution) {
-        return this._runCourseAction(async ({ binding, generation }) => {
-            const state = this._ensureCourseState();
-            const key = Number(restitution).toFixed(2);
-            const expectedStage = key === '0.40'
-                ? MECHANICS_STAGE.P1
-                : key === '0.80' ? MECHANICS_STAGE.P3 : '';
-            if (
-                !expectedStage
-                || state.stage !== expectedStage
-                || this._controlledTrial
-                || state.measurements[key]
-                || !this.canvas
-                || !Number.isFinite(this.W)
-                || !Number.isFinite(this.H)
-                || this.H < 232
-            ) return false;
-            await this._authorizeCourseBinding(binding, generation);
-            if (!this._bindingIsCurrent(binding, generation)) return false;
-
-            const radius = 16;
-            const dropHeight = 200;
-            const floorCenterY = this.H - radius;
-            const trial = {
-                restitution: Number(key),
-                dropHeight,
-                gravity: 980,
-                radius,
-                horizontalVelocity: 0,
-                damping: 0,
-                floorCenterY,
-                rebounded: false,
-                rising: false,
-                peakY: floorCenterY,
-                ownerGeneration: generation,
-                completed: false
-            };
-            this._comparisonOverlay = false;
-            this.balls = [{
-                x: this.W / 2,
-                y: floorCenterY - dropHeight,
-                vx: 0,
-                vy: 0,
-                r: radius,
-                color: restitution < 0.6 ? '#a78bfa' : '#38bdf8',
-                trail: [],
-                gravity: 980,
-                friction: 0,
-                restitution: Number(key),
-                controlled: trial
-            }];
-            this._controlledTrial = trial;
-            state.stage = key === '0.40' ? MECHANICS_STAGE.P2 : MECHANICS_STAGE.P4;
-            this.paused = false;
-            this._setCourseStage(`正在观察 e=${key} 的第一次反弹`);
-            this._setCourseFeedback('只看第一次峰值；改动滑块、拖拽、暂停、清除或 resize 都会取消本次快照且零写入。', 'observing');
-            this._setCourseVisualPhase('falling', this.balls[0]);
-            this.updateStats();
-            this.render();
-            if (this._reducedMotion) {
-                this._courseVisualDirty = false;
-                this._lastReducedRender = typeof performance !== 'undefined'
-                    && typeof performance.now === 'function'
-                    ? performance.now()
-                    : Date.now();
-            }
-            return true;
-        });
-    },
-
-    _recordControlledMeasurement(restitution, measurement, trial) {
-        return this._runCourseAction(async ({ binding, generation }) => {
-            const state = this._ensureCourseState();
-            const key = Number(restitution).toFixed(2);
-            const runningStage = key === '0.40'
-                ? MECHANICS_STAGE.P2
-                : key === '0.80' ? MECHANICS_STAGE.P4 : '';
-            const retryStage = key === '0.40' ? MECHANICS_STAGE.P1 : MECHANICS_STAGE.P3;
-            const dropHeight = Number(measurement && measurement.dropHeight);
-            const reboundHeight = Number(measurement && measurement.reboundHeight);
-            if (
-                !runningStage
-                || state.stage !== runningStage
-                || trial !== this._controlledTrial
-                || !trial
-                || state.measurements[key]
-            ) return false;
-            if (
-                trial.ownerGeneration !== generation
-                || Number(trial.restitution).toFixed(2) !== key
-                || trial.dropHeight !== 200
-                || trial.gravity !== 980
-                || trial.radius !== 16
-                || trial.horizontalVelocity !== 0
-                || trial.damping !== 0
-                || trial.completed !== true
-                || dropHeight !== 200
-                || !Number.isFinite(reboundHeight)
-                || reboundHeight < 0
-                || reboundHeight > 200
-            ) {
-                this._cancelControlledTrial(
-                    '第一峰值快照无效',
-                    '本次快照不满足固定工况或完整峰值门禁；未写入尝试证据，请重试同一档。'
-                );
-                return false;
-            }
-            const normalizedHeight = Number(reboundHeight.toFixed(1));
-            const ratio = Number((normalizedHeight / 200).toFixed(2));
-            const result = Object.freeze({
-                restitution: Number(key),
-                dropHeight: 200,
-                reboundHeight: normalizedHeight,
-                ratio
-            });
-            const evidence = {
-                operation: 'restitution_adjustment',
-                cursor: {
-                    stage: 'after-observation',
-                    trial: key === '0.40' ? 40 : 80,
-                    preset: {
-                        restitution: Number(key),
-                        drop_height_px: 200,
-                        gravity_px_s2: 980,
-                        radius_px: 16,
-                        horizontal_velocity_px_s: 0,
-                        damping: 0
-                    },
-                    observation: {
-                        first_rebound_height_px: normalizedHeight,
-                        height_ratio: ratio
-                    }
-                }
-            };
-            try {
-                await this._recordCourseEvidence(
-                    `attempt-${key}`,
-                    'attempted',
-                    evidence,
-                    binding,
-                    generation,
-                    () => this._controlledTrial === trial && state.stage === runningStage
-                );
-            } catch (error) {
-                if (generation === this._courseGeneration && !state.blocked) {
-                    if (this._controlledTrial === trial) this._controlledTrial = null;
-                    state.stage = retryStage;
-                    this.balls = this.balls.filter(ball => !ball || ball.controlled !== trial);
-                    this._setCourseStage(`e=${key} 证据未确认 · 请重试同一固定预设`);
-                }
-                throw error;
-            }
-            if (!this._bindingIsCurrent(binding, generation)) return false;
-            if (this._controlledTrial !== trial || state.stage !== runningStage) return false;
-            this._controlledTrial = null;
-            state.measurements[key] = result;
-            const suffix = key === '0.40' ? '040' : '080';
-            const heightNode = this._courseNode(`mechanics-measure-h-${suffix}`);
-            const ratioNode = this._courseNode(`mechanics-measure-ratio-${suffix}`);
-            if (heightNode) heightNode.textContent = `${normalizedHeight.toFixed(1)} px`;
-            if (ratioNode) ratioNode.textContent = ratio.toFixed(2);
-
-            if (key === '0.40') {
-                state.stage = MECHANICS_STAGE.P3;
-                this._setCourseStage('e=0.40 快照与证据已记录 · 仅开放 e=0.80');
-                this._setCourseFeedback('保持 H、g、半径、初速度和阻尼不变；现在运行 e=0.80。', 'continue');
-                this._courseNextFocus = 'mechanics-trial-080';
-            } else {
-                state.stage = MECHANICS_STAGE.P5;
-                const ratio040 = state.measurements['0.40'].ratio;
-                const ratio080 = result.ratio;
-                const predictionMatches = state.prediction
-                    && state.prediction.choice === 'higher-080'
-                    && state.prediction.relation === 'four-times';
-                this._setCourseStage('两组快照完成 · 比较后修正并确认模型边界');
-                this._setCourseFeedback(
-                    `${predictionMatches ? '预测与测量方向一致。' : '测量要求修订原预测。'} `
-                    + `h/H 从 ${ratio040.toFixed(2)} 变为 ${ratio080.toFixed(2)}；这只是本页理想受控模型内的比较。`,
-                    predictionMatches ? 'matched' : 'revise'
-                );
-                this._courseNextFocus = 'mechanics-correction-choice';
-            }
-            const completedBall = this.balls.find(ball => ball && ball.controlled === trial);
-            this._setCourseVisualPhase('peak', completedBall || null);
-            return true;
-        });
-    },
-
-    _submitCourseCorrection() {
-        return this._runCourseAction(async ({ binding, generation }) => {
-            const state = this._ensureCourseState();
-            if (
-                state.stage !== MECHANICS_STAGE.P5
-                || !state.measurements['0.40']
-                || !state.measurements['0.80']
-                || state.measurements['0.80'].ratio <= state.measurements['0.40'].ratio
-            ) return false;
-            const choice = this._courseNode('mechanics-correction-choice')?.value || '';
-            const modelLimit = Boolean(this._courseNode('mechanics-model-limit')?.checked);
-            if (choice !== 'height-follows-e-squared') {
-                this._setCourseFeedback('再比较两行 h/H：恢复系数先作用于碰撞后的速度，达到高度还要经过平方关系。', 'needs-revision');
-                this._courseNextFocus = 'mechanics-correction-choice';
-                return false;
-            }
-            if (!modelLimit) {
-                this._setCourseFeedback('请先确认这条关系只适用于本页列出的理想化受控条件。', 'needs-limit');
-                this._courseNextFocus = 'mechanics-model-limit';
-                return false;
-            }
-            state.stage = MECHANICS_STAGE.P6;
-            const evidence = {
-                correction: {
-                    height_follows_e_squared: true,
-                    model_limit_acknowledged: true,
-                    ratio_040: state.measurements['0.40'].ratio,
-                    ratio_080: state.measurements['0.80'].ratio
-                },
-                cursor: { stage: 'after-repair' }
-            };
-            try {
-                await this._recordCourseEvidence('correction', 'corrected', evidence, binding, generation);
-            } catch (error) {
-                if (generation === this._courseGeneration && !state.blocked) state.stage = MECHANICS_STAGE.P5;
-                throw error;
-            }
-            if (!this._bindingIsCurrent(binding, generation)) return false;
-            state.stage = MECHANICS_STAGE.P7;
-            this._setCourseStage('修正已记录 · 最后提交结构化解释');
-            this._setCourseFeedback('请在“学习证据”区提交结构化解释；自由文本入口已关闭，完成状态仍由服务端派生。', 'explain');
-            this._courseNextFocus = '@evidence-explained';
-            return true;
-        });
-    },
-
-    _showCourseReplay() {
-        return this._runCourseAction(async ({ binding, generation }) => {
-            const state = this._ensureCourseState();
-            if (
-                ![MECHANICS_STAGE.P5, MECHANICS_STAGE.P7, MECHANICS_STAGE.P8].includes(state.stage)
-                || !state.measurements['0.40']
-                || !state.measurements['0.80']
-                || this._controlledTrial
-            ) return false;
-            await this._authorizeCourseBinding(binding, generation);
-            if (!this._bindingIsCurrent(binding, generation)) return false;
-            this._comparisonOverlay = true;
-            this.balls = [];
-            this._setCourseStage('正在重看两次第一峰值（不新增证据）');
-            this._setCourseFeedback('Canvas 标出两组峰值；数值仍以等价测量表为准，本操作不改变课程阶段。', 'replay');
-            this._setCourseVisualPhase('compare', null);
-            this.render();
-            this._courseNextFocus = 'mechanics-measurements';
-            return true;
-        });
-    },
-
-    _redoCourseGroup() {
-        return this._runCourseAction(async ({ binding, generation }) => {
-            const state = this._ensureCourseState();
-            if (![MECHANICS_STAGE.P3, MECHANICS_STAGE.P5, MECHANICS_STAGE.P7, MECHANICS_STAGE.P8].includes(state.stage)) {
-                return false;
-            }
-            await this._authorizeCourseBinding(binding, generation);
-            if (!this._bindingIsCurrent(binding, generation)) return false;
-            this._controlledTrial = null;
-            this._comparisonOverlay = false;
-            this.balls = this.balls.filter(ball => !ball || !ball.controlled);
-            state.prediction = null;
-            state.measurements = Object.create(null);
-            state.stage = MECHANICS_STAGE.P0;
-            this._courseRetryIds = new Map();
-            this._clearCourseGroupDom();
-            this._setCourseStage('新受控组 · 等待新的预测');
-            this._setCourseFeedback('旧事件保持 append-only；本次显式重做会为新预测和新快照生成新的事件编号。', 'redo');
-            this._setCourseVisualPhase('idle', null, '等待新的预测');
-            this._courseNextFocus = 'mechanics-prediction-choice';
-            return true;
-        });
     },
 
     resizeCanvas() {
@@ -1403,17 +104,6 @@ const PhysicsSim = {
         if (!Number.isFinite(w) || w <= 0) return null;
         // 用宽度推算高度，防止 ResizeObserver 循环膨胀
         const h = Math.min(Math.max(w * 0.56, 320), 560);
-        const logicalSizeChanged = Number.isFinite(this.W)
-            && Number.isFinite(this.H)
-            && this.W > 0
-            && this.H > 0
-            && (
-                Math.abs(this.W - w) > 0.5
-                || Math.abs(this.H - h) > 0.5
-            );
-        if (logicalSizeChanged && this._controlledTrial) {
-            this._cancelControlledTrialForResize();
-        }
         const dpr = window.devicePixelRatio || 1;
         this.canvas.width = Math.max(1, Math.round(w * dpr));
         this.canvas.height = Math.max(1, Math.round(h * dpr));
@@ -1432,38 +122,6 @@ const PhysicsSim = {
         });
     },
 
-    _cancelControlledTrialForResize() {
-        return this._cancelControlledTrial(
-            '画布尺寸已变化',
-            '尺寸变化使本次轨迹失去同一几何基准；本次不记录尝试证据，请重新运行该固定预设。'
-        );
-    },
-
-    _cancelControlledTrial(reason, message) {
-        if (!this._controlledTrial) return false;
-        const key = Number(this._controlledTrial.restitution).toFixed(2);
-        const state = this._ensureCourseState();
-        this._controlledTrial = null;
-        this._comparisonOverlay = false;
-        this.balls = this.balls.filter(ball => !ball || !ball.controlled);
-        this.paused = false;
-        this.isDragging = false;
-        this.dragStart = null;
-        this.dragEnd = null;
-        const pauseButton = this._courseNode('physics-pause');
-        if (pauseButton) pauseButton.textContent = '暂停';
-        state.stage = key === '0.40' ? MECHANICS_STAGE.P1 : MECHANICS_STAGE.P3;
-        this._setCourseStage(`${reason || '本次观察已取消'} · e=${key} 可重新运行`);
-        this._setCourseFeedback(
-            message || '本次未形成完整第一峰值快照，也没有写入尝试证据；请重新运行同一固定预设。',
-            'retry'
-        );
-        this._setCourseVisualPhase('cancelled', null);
-        this.updateStats();
-        this._syncCourseUi();
-        return true;
-    },
-
     bindControls() {
         const gravSlider = document.getElementById('gravity-slider');
         const restSlider = document.getElementById('restitution-slider');
@@ -1471,41 +129,25 @@ const PhysicsSim = {
         const radSlider = document.getElementById('radius-slider');
         const clearBtn = document.getElementById('physics-clear');
         const pauseBtn = document.getElementById('physics-pause');
-        const interruptControlled = () => this._cancelControlledTrial(
-            '自由探索参数已改动',
-            '受控轮次要求 H=200、g=980、r=16、vx=0、阻尼=0；本次已取消且零写入。'
-        );
 
         this._on(gravSlider, 'input', () => {
-            interruptControlled();
             this.gravity = +gravSlider.value;
             document.getElementById('gravity-value').textContent = gravSlider.value;
         });
 
         this._on(restSlider, 'input', () => {
-            interruptControlled();
             this.restitution = +restSlider.value / 100;
             document.getElementById('restitution-value').textContent = this.restitution.toFixed(2);
         });
 
         this._on(fricSlider, 'input', () => {
-            interruptControlled();
             this.friction = +fricSlider.value / 100;
             document.getElementById('friction-value').textContent = this.friction.toFixed(2);
         });
 
         this._on(radSlider, 'input', () => {
-            interruptControlled();
             this.ballRadius = +radSlider.value;
             document.getElementById('radius-value').textContent = radSlider.value;
-        });
-
-        const settleFreeExplorationControl = () => {
-            this.updateEdu();
-            this.render();
-        };
-        [gravSlider, restSlider, fricSlider, radSlider].forEach(slider => {
-            this._on(slider, 'change', settleFreeExplorationControl);
         });
 
         this._on(clearBtn, 'click', () => {
@@ -1513,27 +155,35 @@ const PhysicsSim = {
         });
 
         this._on(pauseBtn, 'click', () => {
-            if (this._cancelControlledTrial(
-                '受控观察已被暂停动作中断',
-                '暂停只属于自由探索；本次受控观察已取消且零写入，请重新运行固定预设。'
-            )) return;
             this.paused = !this.paused;
             pauseBtn.textContent = this.paused ? '继续' : '暂停';
         });
     },
 
     resetScene() {
-        this._cancelControlledTrial(
-            '受控观察已清空',
-            '清空只影响当前画布；本次未形成测量，也没有写入尝试证据。请重新运行同一固定预设。'
-        );
-        this._comparisonOverlay = false;
         this.balls = [];
-        this._resetFreeControls();
+        this.gravity = 980;
+        this.restitution = 0.75;
+        this.friction = 0.10;
+        this.ballRadius = 16;
+        this.paused = false;
+
+        const set = (id, value, outId, fmt) => {
+            const el = document.getElementById(id);
+            const out = document.getElementById(outId);
+            if (el) el.value = value;
+            if (out) out.textContent = fmt ? fmt(value) : String(value);
+        };
+        set('gravity-slider', 980, 'gravity-value');
+        set('restitution-slider', 75, 'restitution-value', v => (v / 100).toFixed(2));
+        set('friction-slider', 10, 'friction-value', v => (v / 100).toFixed(2));
+        set('radius-slider', 16, 'radius-value');
+
+        const pauseBtn = document.getElementById('physics-pause');
+        if (pauseBtn) pauseBtn.textContent = '暂停';
 
         this.updateStats();
         this.render();
-        this._syncCourseUi();
     },
 
     bindCanvas() {
@@ -1546,10 +196,6 @@ const PhysicsSim = {
 
         // Mouse
         this._on(this.canvas, 'mousedown', (e) => {
-            if (this._cancelControlledTrial(
-                '受控观察已被拖拽中断',
-                '拖拽发射只属于自由探索；本次受控观察已取消且零写入。'
-            )) return;
             this.dragStart = getPos(e);
             this.isDragging = true;
         });
@@ -1571,10 +217,6 @@ const PhysicsSim = {
         // Touch
         this._on(this.canvas, 'touchstart', (e) => {
             e.preventDefault();
-            if (this._cancelControlledTrial(
-                '受控观察已被触控拖拽中断',
-                '触控发射只属于自由探索；本次受控观察已取消且零写入。'
-            )) return;
             this.dragStart = getPos(e);
             this.isDragging = true;
         }, { passive: false });
@@ -1596,11 +238,6 @@ const PhysicsSim = {
     },
 
     launchBall(start, end) {
-        if (this._cancelControlledTrial(
-            '受控观察已被自由发射中断',
-            '自由发射不会计入课程尝试；本次受控观察已取消且零写入。'
-        )) return false;
-        this._comparisonOverlay = false;
         const dx = start.x - end.x;
         const dy = start.y - end.y;
         const speed = Math.sqrt(dx * dx + dy * dy) * 3;
@@ -1622,7 +259,6 @@ const PhysicsSim = {
         });
 
         this.updateStats();
-        return true;
     },
 
     start() {
@@ -1657,24 +293,16 @@ const PhysicsSim = {
         }
 
         if (!this.paused) this.update(dt);
-        const reducedControlledTrial = Boolean(this._reducedMotion && this._controlledTrial);
-        const shouldRender = !this._reducedMotion
-            || this._courseVisualDirty
-            || (!reducedControlledTrial && now - this._lastReducedRender >= 250);
-        if (shouldRender) {
-            this.render();
-            this._lastReducedRender = now;
-            this._courseVisualDirty = false;
-        }
+        this.render();
     },
 
     update(dt) {
+        const g = this.gravity;
+        const rest = this.restitution;
+        const fric = this.friction;
+
         for (let i = 0; i < this.balls.length; i++) {
             const b = this.balls[i];
-            if (b.controlled?.completed) continue;
-            const g = Number.isFinite(b.gravity) ? b.gravity : this.gravity;
-            const rest = Number.isFinite(b.restitution) ? b.restitution : this.restitution;
-            const fric = Number.isFinite(b.friction) ? b.friction : this.friction;
 
             // Gravity
             b.vy += g * dt;
@@ -1703,13 +331,6 @@ const PhysicsSim = {
             if (b.y + b.r > this.H) {
                 b.y = this.H - b.r;
                 b.vy = -Math.abs(b.vy) * rest;
-                if (b.controlled && !b.controlled.rebounded) {
-                    b.controlled.rebounded = true;
-                    b.controlled.rising = true;
-                    b.controlled.peakY = b.y;
-                    b.controlled.visualImpactFrames = this._reducedMotion ? 1 : 4;
-                    this._setCourseVisualPhase('impact', b);
-                }
 
                 // Friction on ground
                 b.vx *= (1 - fric);
@@ -1723,41 +344,6 @@ const PhysicsSim = {
             if (b.y - b.r < 0) {
                 b.y = b.r;
                 b.vy = Math.abs(b.vy) * rest;
-            }
-
-            if (b.controlled?.rebounded && !b.controlled.completed) {
-                if (b.vy < 0) {
-                    b.controlled.rising = true;
-                    b.controlled.peakY = Math.min(b.controlled.peakY, b.y);
-                    if (b.controlled.visualImpactFrames > 0) {
-                        b.controlled.visualImpactFrames -= 1;
-                        this._setCourseVisualPhase('impact', b);
-                    } else {
-                        this._setCourseVisualPhase('rising', b);
-                    }
-                } else if (b.controlled.rising) {
-                    b.controlled.completed = true;
-                    b.y = b.controlled.peakY;
-                    b.vx = 0;
-                    b.vy = 0;
-                    this._setCourseVisualPhase('peak', b);
-                    const reboundHeight = Math.max(
-                        0,
-                        b.controlled.floorCenterY - b.controlled.peakY
-                    );
-                    if (this._controlledTrial === b.controlled) {
-                        Promise.resolve(this._recordControlledMeasurement(
-                            b.controlled.restitution,
-                            {
-                                dropHeight: b.controlled.dropHeight,
-                                reboundHeight
-                            },
-                            b.controlled
-                        )).catch(() => {});
-                    }
-                }
-            } else if (b.controlled && !b.controlled.rebounded) {
-                this._setCourseVisualPhase('falling', b);
             }
 
             // Ball-to-ball collisions
@@ -1803,7 +389,6 @@ const PhysicsSim = {
 
     render() {
         const ctx = this.ctx;
-        if (!ctx || !Number.isFinite(this.W) || !Number.isFinite(this.H)) return;
         ctx.clearRect(0, 0, this.W, this.H);
 
         // Subtle grid
@@ -1831,12 +416,10 @@ const PhysicsSim = {
         ctx.lineTo(this.W, this.H - 1);
         ctx.stroke();
 
-        this._renderCourseGuide(ctx);
-
         // Balls
         for (const b of this.balls) {
             // Trail
-            if (!this._reducedMotion && b.trail.length > 1) {
+            if (b.trail.length > 1) {
                 const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
                 if (speed > 30) {
                     ctx.beginPath();
@@ -1927,7 +510,7 @@ const PhysicsSim = {
         }
 
         // Empty state hint
-        if (this.balls.length === 0 && !this.isDragging && !this._comparisonOverlay) {
+        if (this.balls.length === 0 && !this.isDragging) {
             ctx.fillStyle = 'rgba(255,255,255,0.15)';
             ctx.font = '20px ' + CF.sans;
             ctx.textAlign = 'center';
@@ -1936,121 +519,6 @@ const PhysicsSim = {
             ctx.fillStyle = 'rgba(255,255,255,0.08)';
             ctx.fillText('拖拽方向和距离决定发射速度', this.W / 2, this.H / 2 + 15);
         }
-    },
-
-    _renderCourseGuide(ctx) {
-        const controlledBall = this.balls.find(ball => ball && ball.controlled);
-        const active = this._controlledTrial || controlledBall && controlledBall.controlled;
-        if (active) {
-            const startY = active.floorCenterY - active.dropHeight;
-            const rulerX = Math.max(26, this.W * 0.1);
-            ctx.save();
-            ctx.strokeStyle = 'rgba(125, 211, 252, 0.75)';
-            ctx.fillStyle = 'rgba(224, 242, 254, 0.92)';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([7, 5]);
-            ctx.beginPath();
-            ctx.moveTo(Math.max(16, this.W * 0.18), startY);
-            ctx.lineTo(Math.min(this.W - 16, this.W * 0.82), startY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.font = `600 14px ${CF.sans}`;
-            ctx.textAlign = 'left';
-            ctx.fillText(
-                `固定下落高度 200 px · e=${active.restitution.toFixed(2)}`,
-                Math.max(16, this.W * 0.18),
-                Math.max(22, startY - 10)
-            );
-            ctx.strokeStyle = 'rgba(125, 211, 252, 0.42)';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(rulerX, startY);
-            ctx.lineTo(rulerX, active.floorCenterY);
-            ctx.stroke();
-            ctx.font = `500 11px ${CF.sans}`;
-            ctx.textAlign = 'right';
-            [0, 50, 100, 150, 200].forEach(height => {
-                const y = active.floorCenterY - height;
-                ctx.beginPath();
-                ctx.moveTo(rulerX - 5, y);
-                ctx.lineTo(rulerX + 5, y);
-                ctx.stroke();
-                ctx.fillText(`${height}`, rulerX - 9, y + 4);
-            });
-            ctx.textAlign = 'left';
-            ctx.fillStyle = 'rgba(191, 219, 254, 0.78)';
-            ctx.fillText('h / px', rulerX - 8, Math.max(16, startY - 18));
-            if (controlledBall) {
-                const height = Math.max(0, Math.min(active.dropHeight, active.floorCenterY - controlledBall.y));
-                const markerY = active.floorCenterY - height;
-                ctx.strokeStyle = controlledBall.color;
-                ctx.setLineDash([]);
-                ctx.beginPath();
-                ctx.moveTo(rulerX + 8, markerY);
-                ctx.lineTo(Math.max(rulerX + 38, controlledBall.x - controlledBall.r - 12), markerY);
-                ctx.stroke();
-                ctx.fillStyle = 'rgba(248, 250, 252, 0.94)';
-                ctx.font = `600 12px ${CF.sans}`;
-                ctx.textAlign = 'left';
-                ctx.fillText(`实时 h=${height.toFixed(1)} px`, rulerX + 12, Math.max(20, markerY - 7));
-                if (Math.abs(controlledBall.vy) > 4) {
-                    const direction = controlledBall.vy > 0 ? 1 : -1;
-                    const arrowLength = Math.min(58, 22 + Math.abs(controlledBall.vy) * 0.035);
-                    const startArrowY = controlledBall.y - direction * (controlledBall.r + 7);
-                    const endArrowY = startArrowY + direction * arrowLength;
-                    ctx.strokeStyle = 'rgba(248, 250, 252, 0.78)';
-                    ctx.fillStyle = 'rgba(248, 250, 252, 0.78)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(controlledBall.x + controlledBall.r + 12, startArrowY);
-                    ctx.lineTo(controlledBall.x + controlledBall.r + 12, endArrowY);
-                    ctx.stroke();
-                    const arrowDirection = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
-                    const arrowX = controlledBall.x + controlledBall.r + 12;
-                    ctx.beginPath();
-                    ctx.moveTo(arrowX, endArrowY);
-                    ctx.lineTo(arrowX - Math.cos(arrowDirection - Math.PI / 6) * 8, endArrowY - Math.sin(arrowDirection - Math.PI / 6) * 8);
-                    ctx.lineTo(arrowX - Math.cos(arrowDirection + Math.PI / 6) * 8, endArrowY - Math.sin(arrowDirection + Math.PI / 6) * 8);
-                    ctx.closePath();
-                    ctx.fill();
-                }
-            }
-            ctx.fillStyle = 'rgba(167, 139, 250, 0.84)';
-            ctx.font = `600 11px ${CF.sans}`;
-            ctx.textAlign = 'right';
-            ctx.fillText('锁定：g=980 · r=16 · vₓ=0 · μ/阻尼=0', this.W - 18, 24);
-            ctx.restore();
-        }
-
-        if (!this._comparisonOverlay) return;
-        const state = this._ensureCourseState();
-        const entries = [
-            ['0.40', state.measurements['0.40'], '#a78bfa'],
-            ['0.80', state.measurements['0.80'], '#38bdf8']
-        ].filter(([, measurement]) => Boolean(measurement));
-        if (entries.length !== 2) return;
-
-        ctx.save();
-        ctx.font = `600 14px ${CF.sans}`;
-        ctx.textAlign = 'center';
-        entries.forEach(([key, measurement, color], index) => {
-            const x = this.W * (index === 0 ? 0.34 : 0.66);
-            const floorY = this.H - 1;
-            const height = Math.min(this.H - 72, Math.max(2, measurement.reboundHeight));
-            ctx.fillStyle = color + '33';
-            ctx.fillRect(x - 34, floorY - height, 68, height);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.strokeRect(x - 34, floorY - height, 68, height);
-            ctx.fillStyle = 'rgba(248, 250, 252, 0.94)';
-            ctx.fillText(`e=${key}`, x, Math.max(24, floorY - height - 28));
-            ctx.fillText(
-                `h/H=${measurement.ratio.toFixed(2)}`,
-                x,
-                Math.max(44, floorY - height - 8)
-            );
-        });
-        ctx.restore();
     },
 
     updateStats() {
@@ -2071,22 +539,18 @@ const PhysicsSim = {
             container.appendChild(eduEl);
         }
         if (this.balls.length === 0) {
-            eduEl.innerHTML = `<strong>自由探索</strong>：在画布上拖拽会给小球一个初速度；滑块中的“摩擦力”是教学耗散参数，不代表完整的接触摩擦模型。`;
+            eduEl.innerHTML = `<strong>牵引探索</strong>：在画布上拖拽发射小球，观察牵引力、弹性碰撞与摩擦力的作用。`;
         } else {
             const totalKE = this.balls.reduce((s, b) => s + 0.5 * (b.vx * b.vx + b.vy * b.vy), 0);
-            const totalPE = this.balls.reduce((s, b) => {
-                const gravity = Number.isFinite(b.gravity) ? b.gravity : this.gravity;
-                return s + gravity * (this.H - b.y);
-            }, 0);
-            const activePreset = this._controlledTrial
-                ? `受控预设 e=${this._controlledTrial.restitution.toFixed(2)}：固定落高 200 px、竖直释放、教学耗散为 0。`
-                : `自由探索参数：g=${this.gravity} px/s²，e=${this.restitution.toFixed(2)}，教学耗散=${this.friction.toFixed(2)}。`;
+            const totalPE = this.balls.reduce((s, b) => s + this.gravity * (this.H - b.y), 0);
             eduEl.innerHTML =
-                `<strong>运动状态</strong>：${activePreset}` +
+                `<strong>牛顿力学</strong>：` +
+                `F=ma，重力 g=${this.gravity} px/s²，恢复系数 e=${this.restitution.toFixed(2)}，摩擦 μ=${this.friction.toFixed(2)}` +
                 `<br>球数: ${this.balls.length}，` +
-                `动能代理值 ${totalKE.toFixed(0)}，` +
-                `重力势能代理值 ${totalPE.toFixed(0)}` +
-                `<br>ℹ️ 本页数值采用像素单位，只用于同一模型内比较，不能直接当作 SI 能量。`;
+                `总动能 ∝ ${totalKE.toFixed(0)}，` +
+                `总势能 ∝ ${totalPE.toFixed(0)}，` +
+                `E<sub>total</sub> ∝ ${(totalKE + totalPE).toFixed(0)}` +
+                `<br>ℹ️ 弹性碰撞守恒动量·非完全弹性碰撞损失动能`;
         }
     }
 };

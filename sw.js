@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astra-static-v20260813v834ShowcaseLayoutP0';
+const CACHE_NAME = 'astra-static-v20260824v816ExperimentRestoreP2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,11 +6,11 @@ const APP_SHELL = [
   './shared/js/config.js?v=20260716v7427RoleWorkflowGateP0',
   './shared/js/api-client.js?v=20260719v7437AstraWorkspaceP0',
   './shared/js/auth-ui.js?v=20260716v7427RoleWorkflowGateP0',
-  './shared/js/app-session.js?v=20260813v834ShowcaseLayoutP0',
-  './shared/js/experiment-registry.js?v=20260813v834ShowcaseLayoutP0',
-  './shared/js/page-registry.js?v=20260813v834ShowcaseLayoutP0',
-  './shared/js/router.js?v=20260813v834ShowcaseLayoutP0',
-  './shared/js/main.js?v=20260813v834ShowcaseLayoutP0',
+  './shared/js/app-session.js?v=20260824v816ExperimentRestoreP2',
+  './shared/js/experiment-registry.js?v=20260824v816ExperimentRestoreP2',
+  './shared/js/page-registry.js?v=20260824v816ExperimentRestoreP2',
+  './shared/js/router.js?v=20260824v816ExperimentRestoreP2',
+  './shared/js/main.js?v=20260824v816ExperimentRestoreP2',
   './shared/js/backend-content.js?v=20260716v7427RoleWorkflowGateP0',
   './shared/css/tokens.css?v=20260424ss',
   './shared/css/base.css?v=20260719v758ReleaseAuditP0',
@@ -19,10 +19,10 @@ const APP_SHELL = [
   './shared/css/page-layout.css?v=20260731v7969StudentUiP0',
   './shared/css/backend-content.css?v=20260716v7427RoleWorkflowGateP0',
   './shared/css/auth-ui.css?v=20260716v7427RoleWorkflowGateP0',
-  './shared/css/app-session.css?v=20260719v759A11yP0',
+  './shared/css/app-session.css?v=20260824v816ExperimentRestoreP2',
   './shared/css/responsive.css?v=20260716v7427RoleWorkflowGateP0',
-  './pages/planets/planets.css?v=20260731v7969StudentUiP0',
-  './pages/planets/planets.js?v=20260731v7969StudentUiP0',
+  './pages/planets/planets.css?v=20260824v816ExperimentRestoreP2',
+  './pages/planets/planets.js?v=20260824v816ExperimentRestoreP2',
 ];
 
 self.addEventListener('install', (event) => {

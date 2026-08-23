@@ -18,7 +18,9 @@
     let stylePromise = null;
     const FUTURE_REPRESENTATIVE = 'engineering.load-path';
 
-    const MANAGED_PAGES = new Set(['frontier', 'cosmos', 'engineering', 'datascience', 'infotech', 'materials', 'humanities']);
+    // Completed engineering experiments keep their own page owner.  The Future
+    // course runtime may link to that page, but must never replace its DOM.
+    const MANAGED_PAGES = new Set(['frontier', 'cosmos', 'datascience', 'infotech', 'materials', 'humanities']);
     const $ = (root, selector) => root.querySelector(selector);
     const esc = (value) => String(value || '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
     const getManifest = () => global.FrontierCourseManifest || null;
@@ -81,7 +83,7 @@
         stylePromise = new Promise((resolve, reject) => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'pages/frontier/frontier.css?v=20260813v833LoadPathSameFrameP0';
+            link.href = 'pages/frontier/frontier.css?v=20260824v816ExperimentRestoreP2';
             link.dataset.frontierCourseStyle = 'true';
             link.addEventListener('load', resolve, { once: true });
             link.addEventListener('error', () => reject(new Error('Future course style failed to load')), { once: true });
@@ -333,7 +335,7 @@
 
     const OWNER_CONFIG = Object.freeze({
         'earth-space': { script: 'pages/cosmos/earth-sun.js?v=20260719re7', init: 'initCosmosSeasons', destroy: 'destroyCosmosSeasons' },
-        'engineering-systems': { script: 'pages/engineering/bridge-truss.js?v=20260812v829FlagshipStoryP0', init: 'initBridgeTruss', destroy: 'destroyBridgeTruss' },
+        'engineering-systems': { script: 'pages/engineering/bridge-truss.js?v=20260824v816ExperimentRestoreP2', init: 'initBridgeTruss', destroy: 'destroyBridgeTruss' },
         'data-ai': { script: 'pages/datascience/linear-regression.js?v=20260719v755Game001', init: 'initLinearRegressionLab', destroy: 'destroyLinearRegressionLab' },
         'information-technology': { script: 'pages/infotech/network-layers.js?v=20260719re7', init: 'initNetworkLayersLab', destroy: 'destroyNetworkLayersLab' },
         'materials-science': { script: 'pages/materials/materials-lab.js?v=20260719re7', init: 'initMaterialsLab', destroy: 'destroyMaterialsLab' },
