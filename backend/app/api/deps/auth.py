@@ -10,6 +10,7 @@ from app.core.security import hash_token
 from app.db.session import get_db
 from app.models import AuthSession, User
 from app.services.request_metadata import request_client_ip_hash
+from app.services.teacher_applications import has_pending_teacher_application
 
 
 @dataclass(frozen=True)
@@ -40,11 +41,27 @@ def get_current_auth_context(request: Request, db: Session = Depends(get_db)) ->
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user")
     _touch_auth_session(db, auth_session, request, now)
     db.refresh(user)
+    if has_pending_teacher_application(db, user.id) and not _pending_teacher_request_allowed(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Teacher application is pending; account is read-only",
+        )
     return AuthContext(user=user, session=auth_session)
 
 
 def get_current_user(context: AuthContext = Depends(get_current_auth_context)) -> User:
     return context.user
+
+
+def _pending_teacher_request_allowed(request: Request) -> bool:
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return True
+    path = request.url.path.rstrip("/")
+    if request.method == "POST" and path.endswith("/v1/teacher-applications"):
+        return True
+    if request.method == "POST" and path.endswith("/auth/logout"):
+        return True
+    return request.method == "DELETE" and "/auth/sessions/" in path
 
 
 def _read_token(request: Request) -> str | None:

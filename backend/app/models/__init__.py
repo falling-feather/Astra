@@ -46,6 +46,7 @@ from app.models.course import (
     UserKnowledgeSnapshot,
 )
 from app.models.school import ClassGroup, ClassJoinRequest, ClassMembership, School, SchoolMembership
+from app.models.teacher_application import TeacherApplication
 from app.models.user import AuthSession, LoginAttempt, PasswordResetToken, User
 
 __all__ = [
@@ -98,6 +99,7 @@ __all__ = [
     "School",
     "SchoolMembership",
     "Submission",
+    "TeacherApplication",
     "User",
     "UserKnowledgeSnapshot",
 ]
