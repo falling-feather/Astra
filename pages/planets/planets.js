@@ -41,7 +41,7 @@
             galaxyKey: 'code-space',
             overviewHref: 'codevis/index.html#catalog',
             indexLabel: '代码空间',
-            indexCopy: '多语言课程目录与交互挑战',
+            indexCopy: '多语言学习方向与交互挑战',
             indexCode: 'CODE / 02',
             courses: Object.freeze([
                 Object.freeze({ key: 'program-start', label: '程序起步', href: 'codevis/index.html#catalog' }),
@@ -56,7 +56,7 @@
             galaxyKey: 'future-galaxy',
             overviewHref: '#frontier',
             indexLabel: '跨学科路线',
-            indexCopy: '从星图进入六条未来课程航线',
+            indexCopy: '从星图进入六条未来学科方向',
             indexCode: 'FRONTIER / 03',
             courses: Object.freeze([
                 Object.freeze({ key: 'earth-space', label: '地球与宇宙', page: 'cosmos', href: '#cosmos' }),
@@ -138,7 +138,9 @@
     });
 
     function courseIdentity(course) {
-        return `${String(course && course.galaxy_key || '')}:${String(course && course.course_key || '')}`;
+        const learningSpaceKey = String(course && (course.learning_space_key || course.galaxy_key) || '');
+        const subjectKey = String(course && (course.subject_key || course.course_key) || '');
+        return `${learningSpaceKey}:${subjectKey}`;
     }
 
     function catalogueEntryByIdentity(identity) {
@@ -339,6 +341,8 @@
                 class_ids: Object.freeze(Array.from(catalogueState.classIds)),
                 pages: Object.freeze(Array.from(catalogueState.pages)),
                 records: Object.freeze(catalogueState.records.map((record) => Object.freeze({
+                    learning_space_key: record.group.galaxyKey,
+                    subject_key: record.entry.key,
                     galaxy_key: record.group.galaxyKey,
                     course_key: record.entry.key,
                     page: record.entry.page || '',
@@ -482,7 +486,7 @@
                     direct.toggleAttribute('inert', !first);
                     direct.setAttribute('aria-label', first
                         ? `进入${first.entry.label}`
-                        : `当前身份没有可用的${group.indexLabel}课程`);
+                        : `当前身份没有可用的${group.indexLabel}内容`);
                 }
             });
             const index = this.root.querySelector('[data-planets-resource-index]');

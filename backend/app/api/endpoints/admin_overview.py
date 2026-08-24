@@ -47,7 +47,7 @@ def read_admin_stats(
         active_users=count_rows(db, User, User.status == "active"),
         users_by_role=users_by_role,
         total_schools=count_rows(db, School),
-        total_classes=count_rows(db, ClassGroup),
+        total_classes=count_rows(db, ClassGroup, ClassGroup.kind == "homeroom"),
         pending_class_join_requests=count_rows(db, ClassJoinRequest, ClassJoinRequest.status == "pending"),
         total_content_pages=count_rows(db, ContentPageRecord),
         total_content_drafts=count_rows(db, ContentDraft),

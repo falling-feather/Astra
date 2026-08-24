@@ -190,7 +190,8 @@ async function runFrontendProbe() {
     catalogContext, manifestContext, bridgeContext, sameAuthority,
   } = loadCurrentProduct();
   const futureEntries = plain(catalogContext.AstraLearningActivityCatalog.entries('future-galaxy'));
-  const representatives = futureEntries.filter((entry) => entry.representative);
+  const showcase = catalogContext.AstraShowcaseActivitySelection;
+  const showcaseActivities = futureEntries.filter((entry) => showcase.matches(entry));
   const manifestCourse = manifestContext.FrontierCourseManifest.getCourse('engineering-systems');
   const manifestActivity = manifestContext.FrontierCourseManifest
     .getActivity('engineering-systems', ACTIVITY_KEY);
@@ -342,7 +343,7 @@ async function runFrontendProbe() {
       course_key: 'engineering-systems',
       activity_key: ACTIVITY_KEY,
       future_activity_count: futureEntries.length,
-      representative_activity_keys: representatives.map((entry) => entry.activity_key),
+      showcase_activity_keys: showcaseActivities.map((entry) => entry.activity_key),
       route: manifestCourse && manifestActivity
         ? `#${manifestCourse.page}/${manifestActivity.route_slug}`
         : null,
@@ -880,12 +881,12 @@ function buildChecks(frontend, backend, selfTest, browser) {
     : (['SKIP', 'NOT-RUN'].includes(backend.status) ? backend.status : 'FAIL');
   const backendEvidence = { evaluation: backendEvaluation, result: backend };
   return {
-    current_representative: check(
-      frontend.target.future_activity_count === 18
-        && JSON.stringify(frontend.target.representative_activity_keys) === JSON.stringify([ACTIVITY_KEY])
+    current_showcase: check(
+      frontend.target.future_activity_count === 19
+        && JSON.stringify(frontend.target.showcase_activity_keys) === JSON.stringify([ACTIVITY_KEY])
         && frontend.target.activity_key === ACTIVITY_KEY
         && frontend.target.route === '#engineering/load-path' ? 'PASS' : 'FAIL',
-      '18 Future activities and engineering.load-path at #engineering/load-path as the sole representative',
+      '19 Future activities and engineering.load-path at #engineering/load-path as the dedicated showcase sample',
       frontend.target,
       frontend.runtime,
     ),

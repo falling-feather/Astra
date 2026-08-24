@@ -261,11 +261,18 @@ function testCatalog() {
   assert.equal(verification.englab.valid, true);
   assert.equal(verification['code-space'].valid, true);
   assert.equal(verification['future-galaxy'].valid, true);
-  assert.deepEqual(Object.keys(catalog.representatives).sort(), ['code-space', 'englab', 'future-galaxy']);
-  assert.equal(catalog.resolve('future-galaxy', 'engineering.load-path').representative, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(catalog, 'representatives'), false);
+  const showcase = context.AstraShowcaseActivitySelection;
+  assert.deepEqual(Object.keys(showcase.activityKeys).sort(), ['code-space', 'englab', 'future-galaxy']);
+  assert.equal(showcase.matches(catalog.resolve('future-galaxy', 'engineering.load-path')), true);
+  assert.equal(showcase.matches(catalog.resolve('future-galaxy', 'engineering.robot-arm-ik')), false);
   assert.equal(catalog.entries('future-galaxy').length, 19);
   assert.equal(new Set(catalog.futureKeys).size, 19);
-  assert.equal(catalog.resolve('future-galaxy', 'engineering.robot-arm-ik').course_key, 'engineering-systems');
+  const robotArm = catalog.resolve('future-galaxy', 'engineering.robot-arm-ik');
+  assert.equal(robotArm.learning_space_key, 'future-galaxy');
+  assert.equal(robotArm.subject_key, 'engineering-systems');
+  assert.equal(robotArm.course_key, 'engineering-systems');
+  assert.equal(Object.prototype.hasOwnProperty.call(robotArm, 'representative'), false);
 
   const englab = catalog.resolve('englab', 'physics.mechanics');
   assert.equal(
@@ -393,7 +400,7 @@ function testStaticOwnershipAndSemantics() {
   await testBatchFailClosedAndRecoverySubject();
   testCatalog();
   testStaticOwnershipAndSemantics();
-  process.stdout.write('learning-evidence-contract: core, authority, DTO, recovery, routes, and representative events ok\n');
+  process.stdout.write('learning-evidence-contract: core, authority, DTO, recovery, routes, and showcase selection ok\n');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -1063,6 +1063,7 @@ const ModuleSelector = {
             const provider = window.AstraEngineeringLabPublicationContext;
             const evidenceClient = window.AstraLearningEvidenceClient;
             const catalog = window.AstraLearningActivityCatalog;
+            const showcase = window.AstraShowcaseActivitySelection;
             const owner = window.PhysicsSim;
             if (
                 !host
@@ -1071,6 +1072,7 @@ const ModuleSelector = {
                 || !provider
                 || !evidenceClient
                 || !catalog
+                || !showcase
                 || !owner
                 || typeof activity.mount !== 'function'
                 || typeof provider.resolve !== 'function'
@@ -1078,7 +1080,7 @@ const ModuleSelector = {
                 || typeof evidenceClient.pendingFor !== 'function'
             ) throw evidenceError('publication_context_unavailable');
             const mapping = catalog.resolve('englab', 'physics.mechanics');
-            if (!mapping || mapping.representative !== true) throw evidenceError('activity_mapping_missing');
+            if (!mapping || showcase.matches(mapping) !== true) throw evidenceError('activity_mapping_missing');
             const resolveAuthority = async (expected, signal) => {
                 const assertActive = () => {
                     if (

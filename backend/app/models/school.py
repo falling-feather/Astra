@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -34,11 +34,14 @@ class ClassGroup(TimestampMixin, Base):
     __tablename__ = "class_groups"
     __table_args__ = (
         UniqueConstraint("school_id", "name", name="uq_class_group_school_name"),
+        CheckConstraint("kind IN ('homeroom', 'course_cohort')", name="ck_class_groups_kind"),
+        Index("ix_class_groups_school_kind_status", "school_id", "kind", "status", "id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     school_id: Mapped[int] = mapped_column(ForeignKey("schools.id"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), default="homeroom", nullable=False)
     grade: Mapped[str | None] = mapped_column(String(64), nullable=True)
     term: Mapped[str | None] = mapped_column(String(64), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

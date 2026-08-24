@@ -152,7 +152,7 @@ def create_course(
     course = Course(
         school_id=payload.school_id,
         creator_user_id=current_user.id,
-        galaxy_key=galaxy_key,
+        galaxy_key=galaxy_key, subject_key=payload.subject_key or payload.course_key or "general",
         course_key=course_key,
         title=title,
         summary=(payload.summary or "").strip() or None,
@@ -173,7 +173,7 @@ def create_course(
             "after": {
                 "school_id": course.school_id,
                 "creator_user_id": course.creator_user_id,
-                "galaxy_key": course.galaxy_key,
+                "galaxy_key": course.galaxy_key, "subject_key": course.subject_key,
                 "course_key": course.course_key,
                 "title": course.title,
                 "summary": course.summary,

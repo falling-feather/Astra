@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.school import ClassRead
 
-
 CourseStatus = Literal["draft", "published", "archived"]
 UnitStatus = Literal["draft", "published", "archived"]
 AssignmentStatus = Literal["active", "closed", "archived"]
@@ -20,7 +19,6 @@ CourseCollaboratorStatus = Literal["active", "inactive"]
 StudentAssignmentFilter = Literal["all", "active", "feedback", "history"]
 ReleaseMode = Literal["hidden", "locked", "open"]
 EffectiveReleaseState = Literal["hidden", "locked", "open"]
-
 
 def _normalize_stable_key(
     value: str,
@@ -46,6 +44,7 @@ def _normalize_stable_key(
 class CourseCreate(BaseModel):
     school_id: int
     galaxy_key: str | None = Field(default=None, min_length=1, max_length=32)
+    subject_key: str | None = Field(default=None, min_length=1, max_length=96)
     course_key: str | None = Field(default=None, min_length=1, max_length=96)
     title: str = Field(min_length=1, max_length=180)
     summary: str | None = Field(default=None, max_length=2000)
@@ -58,12 +57,12 @@ class CourseCreate(BaseModel):
             return None
         return _normalize_stable_key(value, field_name="galaxy_key", max_length=32)
 
-    @field_validator("course_key")
+    @field_validator("subject_key", "course_key")
     @classmethod
-    def normalize_course_key(cls, value: str | None) -> str | None:
+    def normalize_subject_or_course_key(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        return _normalize_stable_key(value, field_name="course_key", max_length=96)
+        return _normalize_stable_key(value, field_name="subject_key/course_key", max_length=96)
 
 
 class CourseRead(BaseModel):
@@ -73,6 +72,7 @@ class CourseRead(BaseModel):
     school_id: int
     creator_user_id: int
     galaxy_key: str
+    subject_key: str
     course_key: str
     title: str
     summary: str | None = None

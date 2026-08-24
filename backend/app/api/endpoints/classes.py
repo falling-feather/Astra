@@ -99,7 +99,7 @@ def list_classes(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ClassGroup]:
-    statement = select(ClassGroup).order_by(ClassGroup.id)
+    statement = select(ClassGroup).where(ClassGroup.kind == "homeroom").order_by(ClassGroup.id)
     if school_id is not None:
         require_school_member(db, current_user, school_id)
         statement = statement.where(ClassGroup.school_id == school_id)
@@ -152,6 +152,7 @@ def create_class(
     class_group = ClassGroup(
         school_id=payload.school_id,
         name=name,
+        kind="homeroom",
         grade=(payload.grade or "").strip() or None,
         term=(payload.term or "").strip() or None,
     )
@@ -173,6 +174,7 @@ def create_class(
             "after": {
                 "school_id": class_group.school_id,
                 "name": class_group.name,
+                "kind": class_group.kind,
                 "grade": class_group.grade,
                 "term": class_group.term,
                 "status": class_group.status,

@@ -89,7 +89,7 @@ node tools/tests/qa019-future-probe-contract.cjs
 
 机器报告的核心检查如下：
 
-- `current_representative`：Future 数量、key 和唯一 representative；
+- `current_showcase`：Future 数量、key 和独立演示样例选择；
 - `no_action_zero_sensitive_facts`：未操作、乱序早期动作均零写，客户端零 completed；
 - `ordered_observation_and_correction`：当前求解器的 B→C→D、错误判断、纠正、解释和等待投影；
 - `refresh_semantics`：只声明安全回退；

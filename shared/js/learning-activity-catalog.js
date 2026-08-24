@@ -1,10 +1,10 @@
 (function (global) {
     'use strict';
 
-    if (global.AstraLearningActivityCatalog) return;
+    if (global.AstraLearningActivityCatalog && global.AstraShowcaseActivitySelection) return;
 
     const ALLOWED_EVENTS = Object.freeze(['started', 'predicted', 'attempted', 'corrected', 'explained']);
-    const REPRESENTATIVES = Object.freeze({
+    const SHOWCASE_ACTIVITY_KEYS = Object.freeze({
         englab: 'physics.mechanics',
         'code-space': 'control-flow.loop-boundary',
         'future-galaxy': 'engineering.load-path'
@@ -86,12 +86,15 @@
         return Object.freeze(registry.entries().map(definition => {
             const activityKey = `${definition.subject}.${definition.id}`;
             return freezeEntry({
+                learning_space_key: 'englab',
+                subject_key: definition.subject,
                 galaxy_key: 'englab',
                 course_key: definition.subject,
                 activity_key: activityKey,
                 source_key: `${definition.subject}:${definition.id}`,
-                representative: activityKey === REPRESENTATIVES.englab,
                 publication_context: {
+                    learning_space_key: 'englab',
+                    subject_key: definition.subject,
                     galaxy_key: 'englab',
                     course_key: definition.subject,
                     activity_key: activityKey
@@ -103,12 +106,15 @@
     function codeSpaceEntries() {
         return Object.freeze(Object.entries(CODE_SPACE_KEYS).flatMap(([courseKey, activityKeys]) => (
             activityKeys.map(activityKey => freezeEntry({
+                learning_space_key: 'code-space',
+                subject_key: courseKey,
                 galaxy_key: 'code-space',
                 course_key: courseKey,
                 activity_key: activityKey,
                 source_key: activityKey,
-                representative: activityKey === REPRESENTATIVES['code-space'],
                 publication_context: {
+                    learning_space_key: 'code-space',
+                    subject_key: courseKey,
                     galaxy_key: 'code-space',
                     course_key: courseKey,
                     activity_key: activityKey
@@ -120,51 +126,55 @@
     function futureGalaxyEntries() {
         return Object.freeze(FUTURE_KEYS.map(activityKey => {
             const direction = activityKey.split('.')[0];
+            const subjectKey = FUTURE_COURSE_KEYS[direction];
             return freezeEntry({
+                learning_space_key: 'future-galaxy',
+                subject_key: subjectKey,
                 galaxy_key: 'future-galaxy',
-                course_key: FUTURE_COURSE_KEYS[direction],
+                course_key: subjectKey,
                 activity_key: activityKey,
                 source_key: activityKey,
-                representative: activityKey === REPRESENTATIVES['future-galaxy'],
                 publication_context: {
+                    learning_space_key: 'future-galaxy',
+                    subject_key: subjectKey,
                     galaxy_key: 'future-galaxy',
-                    course_key: FUTURE_COURSE_KEYS[direction],
+                    course_key: subjectKey,
                     activity_key: activityKey
                 }
             });
         }));
     }
 
-    function entries(galaxyKey) {
+    function entries(learningSpaceKey) {
         const catalogs = {
             englab: engineeringLabEntries(),
             'code-space': codeSpaceEntries(),
             'future-galaxy': futureGalaxyEntries()
         };
-        if (galaxyKey) return catalogs[galaxyKey] || Object.freeze([]);
+        if (learningSpaceKey) return catalogs[learningSpaceKey] || Object.freeze([]);
         return Object.freeze(Object.values(catalogs).flat());
     }
 
-    function resolve(galaxyKey, activityKey) {
-        return entries(galaxyKey).find(entry => entry.activity_key === activityKey) || null;
+    function resolve(learningSpaceKey, activityKey) {
+        return entries(learningSpaceKey).find(entry => entry.activity_key === activityKey) || null;
     }
 
     function recoveryHref(entry, unit) {
         if (!entry || !unit || unit.activity_key !== entry.activity_key) return '';
         const contentSlug = String(unit.content_slug || '').trim().toLowerCase();
-        if (entry.galaxy_key === 'englab') {
+        if (entry.learning_space_key === 'englab') {
             if (!CONTENT_SLUG_PATTERN.test(contentSlug)) return '';
             const [subject, moduleId] = contentSlug.split('/');
-            return subject === entry.course_key && `${subject}.${moduleId}` === entry.activity_key
+            return subject === entry.subject_key && `${subject}.${moduleId}` === entry.activity_key
                 ? `#${contentSlug}`
                 : '';
         }
-        if (entry.galaxy_key === 'code-space') {
+        if (entry.learning_space_key === 'code-space') {
             return ACTIVITY_KEY_PATTERN.test(entry.activity_key)
                 ? `codevis/#challenge?activity=${encodeURIComponent(entry.activity_key)}`
                 : '';
         }
-        if (entry.galaxy_key === 'future-galaxy') {
+        if (entry.learning_space_key === 'future-galaxy') {
             const [direction, activitySlug] = entry.activity_key.split('.');
             return FUTURE_KEYS.includes(entry.activity_key)
                 ? `#${direction}/${activitySlug}`
@@ -180,25 +190,30 @@
             const catalog = entries(key);
             const keys = catalog.map(item => item.activity_key);
             const uniqueKeys = new Set(keys);
-            const representatives = catalog.filter(item => item.representative);
             const missing = key === 'future-galaxy'
                 ? FUTURE_KEYS.filter(activityKey => !uniqueKeys.has(activityKey))
                 : [];
             const unknown = key === 'future-galaxy'
                 ? keys.filter(activityKey => !FUTURE_KEYS.includes(activityKey))
                 : [];
-            const representativeValid = representatives.length === 1
-                && representatives[0].activity_key === REPRESENTATIVES[key];
+            const taxonomyValid = catalog.every(item => (
+                item.learning_space_key === key
+                && typeof item.subject_key === 'string'
+                && item.subject_key.length > 0
+                && !Object.prototype.hasOwnProperty.call(item, 'representative')
+                && !Object.prototype.hasOwnProperty.call(item, 'tier')
+                && !Object.prototype.hasOwnProperty.call(item, 'quality')
+            ));
             result[key] = Object.freeze({
                 expected: expected[key],
                 actual: catalog.length,
                 unique: uniqueKeys.size === catalog.length,
-                representative: representativeValid,
+                taxonomy: taxonomyValid,
                 missing: Object.freeze(missing),
                 unknown: Object.freeze(unknown),
                 valid: catalog.length === expected[key]
                     && uniqueKeys.size === catalog.length
-                    && representativeValid
+                    && taxonomyValid
                     && missing.length === 0
                     && unknown.length === 0
             });
@@ -208,11 +223,26 @@
 
     global.AstraLearningActivityCatalog = Object.freeze({
         allowedEvents: ALLOWED_EVENTS,
-        representatives: REPRESENTATIVES,
         futureKeys: FUTURE_KEYS,
         entries,
         resolve,
         recoveryHref,
         verify
+    });
+
+    global.AstraShowcaseActivitySelection = Object.freeze({
+        activityKeys: SHOWCASE_ACTIVITY_KEYS,
+        forSpace(learningSpaceKey) {
+            return SHOWCASE_ACTIVITY_KEYS[String(learningSpaceKey || '')] || '';
+        },
+        resolve(learningSpaceKey) {
+            const activityKey = SHOWCASE_ACTIVITY_KEYS[String(learningSpaceKey || '')] || '';
+            return activityKey ? resolve(learningSpaceKey, activityKey) : null;
+        },
+        matches(entry) {
+            if (!entry) return false;
+            const learningSpaceKey = String(entry.learning_space_key || entry.galaxy_key || '');
+            return SHOWCASE_ACTIVITY_KEYS[learningSpaceKey] === entry.activity_key;
+        }
     });
 })(window);

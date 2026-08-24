@@ -112,7 +112,7 @@ def list_admin_classes(
     db: Session = Depends(get_db),
 ) -> AdminClassPage:
     require_admin(current_user)
-    statement = select(ClassGroup).order_by(ClassGroup.id)
+    statement = select(ClassGroup).where(ClassGroup.kind == "homeroom").order_by(ClassGroup.id)
     if school_id is not None:
         statement = statement.where(ClassGroup.school_id == school_id)
     if status_filter is not None:
@@ -145,7 +145,7 @@ def read_admin_class(
 ) -> ClassGroup:
     require_admin(current_user)
     class_group = db.get(ClassGroup, class_id)
-    if class_group is None:
+    if class_group is None or class_group.kind != "homeroom":
         raise HTTPException(status_code=404, detail="Class not found")
     return class_group
 

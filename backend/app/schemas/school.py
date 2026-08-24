@@ -35,6 +35,7 @@ class ClassRead(BaseModel):
     id: int
     school_id: int
     name: str
+    kind: Literal["homeroom", "course_cohort"]
     grade: str | None = None
     term: str | None = None
     description: str | None = None

@@ -760,12 +760,16 @@ function createActivityHarness(recordHandler, options = {}) {
     AstraLearningActivityCatalog: {
       resolve() {
         return {
+          learning_space_key: 'englab',
+          subject_key: 'physics',
           galaxy_key: 'englab',
           activity_key: 'physics.mechanics',
           publication_context: {},
-          representative: true,
         };
       },
+    },
+    AstraShowcaseActivitySelection: {
+      matches: (entry) => entry && entry.activity_key === 'physics.mechanics',
     },
     AstraLearningEvidenceStatus: {
       render(node, value, options = {}) {
@@ -981,12 +985,16 @@ async function createPeerActivityHarness(receiverQueue, predictedGate) {
     AstraLearningActivityCatalog: {
       resolve() {
         return {
+          learning_space_key: 'englab',
+          subject_key: 'physics',
           galaxy_key: 'englab',
           activity_key: 'physics.mechanics',
           publication_context: {},
-          representative: true,
         };
       },
+    },
+    AstraShowcaseActivitySelection: {
+      matches: (entry) => entry && entry.activity_key === 'physics.mechanics',
     },
     AstraLearningEvidenceStatus: {
       render(node, value, options = {}) {

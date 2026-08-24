@@ -1673,7 +1673,8 @@
         const parent = settings.host instanceof Element ? settings.host : null;
         if (!parent) return null;
         const mapping = catalog().resolve(settings.galaxy_key, settings.activity_key);
-        if (!mapping || !mapping.representative) return null;
+        const showcase = global.AstraShowcaseActivitySelection;
+        if (!mapping || !showcase || showcase.matches(mapping) !== true) return null;
         const existing = parent.querySelector(':scope > [data-learning-evidence-activity]');
         if (existing) {
             const controller = mounted.get(existing);

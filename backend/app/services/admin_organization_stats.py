@@ -31,8 +31,19 @@ def build_school_stats(db: Session, school: School) -> AdminSchoolStats:
         school_name=school.name,
         region=school.region,
         status=school.status,
-        total_classes=count_rows(db, ClassGroup, ClassGroup.school_id == school.id),
-        active_classes=count_rows(db, ClassGroup, ClassGroup.school_id == school.id, ClassGroup.status == "active"),
+        total_classes=count_rows(
+            db,
+            ClassGroup,
+            ClassGroup.school_id == school.id,
+            ClassGroup.kind == "homeroom",
+        ),
+        active_classes=count_rows(
+            db,
+            ClassGroup,
+            ClassGroup.school_id == school.id,
+            ClassGroup.kind == "homeroom",
+            ClassGroup.status == "active",
+        ),
         active_students=_distinct_count(
             db,
             SchoolMembership.user_id,

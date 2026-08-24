@@ -22,23 +22,23 @@ from app.models.base import Base, TimestampMixin, utc_now
 def _knowledge_window_datetime_type():
     return DateTime(timezone=True).with_variant(mysql.DATETIME(fsp=6), "mysql")
 
-
 class Course(TimestampMixin, Base):
     __tablename__ = "courses"
     __table_args__ = (
         UniqueConstraint("school_id", "title", name="uq_courses_school_title"),
         UniqueConstraint("school_id", "galaxy_key", "course_key", name="uq_courses_school_galaxy_course_key"),
+        Index("ix_courses_galaxy_subject", "galaxy_key", "subject_key"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     school_id: Mapped[int] = mapped_column(ForeignKey("schools.id"), index=True, nullable=False)
     creator_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     galaxy_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    subject_key: Mapped[str] = mapped_column(String(96), default="general", nullable=False)
     course_key: Mapped[str] = mapped_column(String(96), nullable=False)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
-
 
 class CourseClass(TimestampMixin, Base):
     __tablename__ = "course_classes"
