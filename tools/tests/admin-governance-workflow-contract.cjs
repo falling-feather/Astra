@@ -1827,8 +1827,8 @@ assert.equal(
 );
 assert.equal(
   canonicalSha256(sharedAuthStyles),
-  '3aa283900a40068a6c3e788890c7a22f9f925897f1fba72a9f9c6539aebcbf3f',
-  'the shared auth-ui stylesheet must keep its V7.9.55 canonical content SHA-256',
+  '17d959562c5123eac765d3143d0a23933df10a40d6869b41f1b1ca24d9ca99c7',
+  'the shared auth-ui stylesheet must keep its V8.4.0 teacher-application canonical content SHA-256',
 );
 assert.equal(
   canonicalSha256(sharedAuthRuntime),

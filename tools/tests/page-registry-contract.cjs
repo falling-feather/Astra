@@ -50,8 +50,8 @@ assert.equal(registry.galaxyFor('unknown-page'), 'englab');
 assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?v=20260824v816ExperimentRestoreP2');
 assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260813v832RoleMobileReceiptP0');
 assert.equal(registry.scriptFor('engineering'), 'pages/engineering/engineering-page.js?v=20260825v834Show04P0');
-assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260824v816ExperimentRestoreP2');
-assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260729v794AdminGovernanceP0');
+assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260825v840TeacherApplicationP0');
+assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260825v840TeacherApplicationP0');
 assert.equal(registry.isReady('teacher'), false);
 
 let entered = 0;
@@ -70,7 +70,7 @@ assert.match(
   html,
   /app-session\.js[\s\S]*experiment-registry\.js[\s\S]*frontier-manifest\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/,
 );
-assert.match(serviceWorker, /page-registry\.js\?v=20260825v834Show04P0/);
+assert.match(serviceWorker, /page-registry\.js\?v=20260825v840TeacherApplicationP0/);
 assert.match(router, /AstraPageRegistry\.pagesByTag\('course'\)/);
 assert.match(router, /AstraPageRegistry\.galaxyFor\(page\)/);
 assert.match(router, /AstraPageRegistry\.scriptFor\(page\)/);

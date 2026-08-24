@@ -4,6 +4,18 @@
     if (global.AdminSecondaryGovernance) return;
 
     const GROUPS = Object.freeze({
+        identity: Object.freeze({
+            label: '教师身份审核',
+            description: '审核普通学生提交的教师身份申请；批准后账号才获得教师权限。',
+            resources: Object.freeze([
+                Object.freeze({
+                    id: 'teacher-applications',
+                    label: '待审教师申请',
+                    path: '/api/v1/admin/teacher-applications',
+                    params: Object.freeze({ status: 'pending' })
+                })
+            ])
+        }),
         more: Object.freeze({
             label: '更多治理',
             description: '内容草稿等非首要治理能力，仅在进入后读取。',
@@ -25,6 +37,7 @@
         })
     });
     const OVERVIEW_RESOURCES = Object.freeze([
+        Object.freeze({ id: 'pending-teacher-applications', path: '/api/v1/admin/teacher-applications', params: Object.freeze({ status: 'pending', limit: 1, offset: 0 }), type: 'page' }),
         Object.freeze({ id: 'pending-relationships', path: '/api/admin/class-join-requests', params: Object.freeze({ status: 'pending', limit: 1, offset: 0 }), type: 'page' }),
         Object.freeze({ id: 'disabled-accounts', path: '/api/admin/users', params: Object.freeze({ status: 'disabled', limit: 1, offset: 0 }), type: 'page' }),
         Object.freeze({ id: 'active-schools', path: '/api/admin/schools', params: Object.freeze({ status: 'active', limit: 1, offset: 0 }), type: 'page' }),
@@ -38,6 +51,9 @@
     const OVERVIEW_AUDIT_PAGE_CAP = 4;
     const OVERVIEW_AUDIT_RECORD_CAP = OVERVIEW_AUDIT_PAGE_LIMIT * OVERVIEW_AUDIT_PAGE_CAP;
     const BUSINESS_AUDITS = new Set([
+        'teacher.application.create:teacher_application',
+        'teacher.application.approve:teacher_application',
+        'teacher.application.reject:teacher_application',
         'admin.user.update:user',
         'admin.user.password_reset:user',
         'school.create:school',
@@ -92,7 +108,10 @@
         overviewGeneration: 0,
         overviewLoaded: false,
         overviewData: Object.create(null),
-        overviewErrors: Object.create(null)
+        overviewErrors: Object.create(null),
+        pendingTeacherReview: null,
+        teacherReviewBusy: false,
+        teacherReviewMessage: null
     };
 
     function escapeHtml(value) {
@@ -255,6 +274,22 @@
         `, 'ready');
     }
 
+    function renderTeacherApplicationsOverview() {
+        const record = overviewRecord('pending-teacher-applications');
+        if (record.state !== 'ready') {
+            return overviewUnavailable('pending-teacher-applications', '教师身份申请', 'badge-check', [record]);
+        }
+        const total = authoritativeTotal(record.value);
+        if (total === null) {
+            return overviewCard('pending-teacher-applications', '教师身份申请', 'badge-check', '<p class="admin-business-summary__state" role="status">响应缺少权威 total，未展示推测值</p>', 'error');
+        }
+        return overviewCard('pending-teacher-applications', '教师身份申请', 'badge-check', `
+            <strong class="admin-business-summary__total" data-admin-overview-total>${total.toLocaleString('zh-CN')}</strong>
+            <p>${total ? '等待管理员核验教师身份' : '当前没有待审教师申请。'}</p>
+            <button type="button" class="admin-text-button" data-admin-secondary-open="identity">进入教师审核</button>
+        `, 'ready');
+    }
+
     function renderOrganizationOverview(kind, label, activeId, archivedId) {
         const active = overviewRecord(activeId);
         const archived = overviewRecord(archivedId);
@@ -350,6 +385,7 @@
                     <p>仅展示正式业务 API 的当前权威数据；失败或空态会如实标注。</p>
                 </header>
                 <div class="admin-summary-grid admin-business-overview__grid">
+                    ${renderTeacherApplicationsOverview()}
                     ${renderTotalOverview('pending-relationships', '待审关系', 'user-plus', 'pending-relationships', '当前没有待审关系。')}
                     ${renderTotalOverview('disabled-accounts', '停用账号', 'user-x', 'disabled-accounts', '当前没有停用账号。')}
                     ${renderOrganizationOverview('schools', '学校', 'active-schools', 'archived-schools')}
@@ -433,6 +469,34 @@
             .map((key) => [key, typeof item[key] === 'object' ? '[结构化摘要]' : String(item[key])]);
     }
 
+    function teacherApplicationCards(payload) {
+        const items = list(payload);
+        const pending = state.pendingTeacherReview;
+        const disabled = state.teacherReviewBusy ? ' disabled' : '';
+        return `<article class="admin-secondary-resource admin-teacher-applications" data-admin-secondary-resource="teacher-applications">
+            <header><h3>待审教师申请</h3><span>${Number(payload && payload.total == null ? items.length : payload.total || 0).toLocaleString('zh-CN')} 条</span></header>
+            ${state.teacherReviewMessage ? `<div class="admin-teacher-review-message admin-teacher-review-message--${escapeHtml(state.teacherReviewMessage.type || 'info')}" role="status">${escapeHtml(state.teacherReviewMessage.text)}</div>` : ''}
+            ${items.length ? `<div class="admin-teacher-application-list">${items.map((item) => {
+                const applicationId = Number(item.id);
+                const confirmation = pending && pending.id === applicationId ? pending.decision : '';
+                const note = pending && pending.id === applicationId ? pending.note : '';
+                return `<article class="admin-teacher-application-card" data-admin-teacher-application="${applicationId}">
+                    <header>
+                        <div><strong>${escapeHtml(item.applicant_display_name || item.applicant_username || '未命名申请者')}</strong><span>@${escapeHtml(item.applicant_username || '--')} · #${applicationId}</span></div>
+                        <span class="admin-status-pill admin-status-pill--warn">${escapeHtml(item.status || 'pending')}</span>
+                    </header>
+                    <p>${escapeHtml(item.message || '申请者未填写补充说明。')}</p>
+                    <small>提交于 ${escapeHtml(new Date(item.created_at).toLocaleString('zh-CN'))}</small>
+                    <label>审核说明<input type="text" maxlength="1000" data-admin-teacher-review-note="${applicationId}" value="${escapeHtml(note)}" placeholder="拒绝时建议说明原因"${disabled}></label>
+                    <div class="admin-teacher-application-card__actions">
+                        <button type="button" class="admin-icon-button${confirmation === 'approved' ? ' admin-icon-button--confirming' : ''}" data-admin-teacher-review="${applicationId}" data-decision="approved"${disabled}><i data-lucide="badge-check"></i><span>${confirmation === 'approved' ? '再次确认批准' : '批准'}</span></button>
+                        <button type="button" class="admin-icon-button admin-icon-button--danger${confirmation === 'rejected' ? ' admin-icon-button--confirming' : ''}" data-admin-teacher-review="${applicationId}" data-decision="rejected"${disabled}><i data-lucide="badge-x"></i><span>${confirmation === 'rejected' ? '再次确认拒绝' : '拒绝'}</span></button>
+                    </div>
+                </article>`;
+            }).join('')}</div>` : '<p class="admin-empty">当前没有待审教师申请</p>'}
+        </article>`;
+    }
+
     function renderResource(resource) {
         const error = state.errors[resource.id];
         const payload = state.data[resource.id];
@@ -448,6 +512,7 @@
                 <div class="admin-loading"><i data-lucide="loader-circle"></i><span>按需读取中</span></div>
             </article>`;
         }
+        if (resource.id === 'teacher-applications') return teacherApplicationCards(payload);
         const items = list(payload);
         return `<article class="admin-secondary-resource" data-admin-secondary-resource="${resource.id}">
             <header><h3>${escapeHtml(resource.label)}</h3><span>${Number(payload.total == null ? items.length : payload.total).toLocaleString('zh-CN')} 条</span></header>
@@ -464,7 +529,7 @@
             <dialog class="admin-secondary-dialog" data-admin-secondary-dialog aria-labelledby="admin-secondary-title">
                 <header class="admin-secondary-dialog__header">
                     <div><span>SECONDARY GOVERNANCE</span><h2 id="admin-secondary-title">${escapeHtml(group.label)}</h2></div>
-                    <button type="button" class="admin-icon-button admin-icon-button--compact" data-admin-secondary-close aria-label="关闭${escapeHtml(group.label)}"><i data-lucide="x"></i></button>
+                    <button type="button" class="admin-icon-button admin-icon-button--compact" data-admin-secondary-close aria-label="关闭${escapeHtml(group.label)}"${state.teacherReviewBusy ? ' disabled' : ''}><i data-lucide="x"></i></button>
                 </header>
                 <p>${escapeHtml(group.description)}</p>
                 <div class="admin-secondary-tabs" role="tablist" aria-label="次级治理类别">
@@ -498,7 +563,7 @@
         openDialog(false);
         const settled = await Promise.allSettled(group.resources.map((resource) => (
             request(resourcePath(resource), {
-                params: { limit: 10, offset: 0 },
+                params: Object.assign({ limit: 10, offset: 0 }, resource.params || {}),
                 signal: scope.signal
             })
         )));
@@ -542,14 +607,74 @@
     }
 
     function close() {
+        if (state.teacherReviewBusy) return false;
         if (state.controller && !state.controller.signal.aborted) state.controller.abort();
         state.controller = null;
         state.generation += 1;
+        state.pendingTeacherReview = null;
+        state.teacherReviewMessage = null;
         if (state.dialog && state.dialog.open) state.dialog.close();
         else if (state.dialog) state.dialog.removeAttribute('open');
         const trigger = state.trigger;
         state.trigger = null;
         if (trigger && trigger.isConnected) schedule(() => trigger.focus());
+        return true;
+    }
+
+    async function reviewTeacherApplication(button) {
+        if (state.teacherReviewBusy) return false;
+        const applicationId = Number(button && button.dataset.adminTeacherReview);
+        const decision = String(button && button.dataset.decision || '');
+        if (!Number.isInteger(applicationId) || applicationId <= 0 || !['approved', 'rejected'].includes(decision)) {
+            state.teacherReviewMessage = { type: 'error', text: '教师申请审核参数无效。' };
+            render();
+            openDialog(false);
+            return false;
+        }
+        const card = button.closest('[data-admin-teacher-application]');
+        const noteInput = card && card.querySelector(`[data-admin-teacher-review-note="${applicationId}"]`);
+        const note = String(noteInput && noteInput.value || '').trim();
+        const pending = state.pendingTeacherReview;
+        if (!pending || pending.id !== applicationId || pending.decision !== decision) {
+            state.pendingTeacherReview = { id: applicationId, decision, note };
+            state.teacherReviewMessage = {
+                type: 'warning',
+                text: decision === 'approved'
+                    ? '请再次点击“批准”，确认将该账号升级为教师。'
+                    : '请再次点击“拒绝”，确认退回本次申请。'
+            };
+            render();
+            openDialog(false);
+            return false;
+        }
+
+        state.teacherReviewBusy = true;
+        state.teacherReviewMessage = { type: 'info', text: '正在提交审核结果…' };
+        render();
+        openDialog(false);
+        try {
+            await request(`/api/v1/admin/teacher-applications/${applicationId}`, {
+                method: 'PATCH',
+                body: { status: decision, note: note || null }
+            });
+            state.pendingTeacherReview = null;
+            state.teacherReviewMessage = {
+                type: 'success',
+                text: decision === 'approved' ? '教师身份已批准。' : '教师申请已退回。'
+            };
+            state.loaded.delete('identity');
+            await loadGroup('identity', true);
+            invalidateOverview(true);
+            await loadOverview({ force: true });
+            return true;
+        } catch (error) {
+            state.teacherReviewMessage = { type: 'error', text: global.AstraApiClient.message(error) };
+            return false;
+        } finally {
+            state.teacherReviewBusy = false;
+            render();
+            openDialog(false);
+        }
     }
 
     function onClick(event) {
@@ -557,11 +682,18 @@
             close();
             return;
         }
+        const teacherReview = event.target.closest('[data-admin-teacher-review]');
+        if (teacherReview) {
+            reviewTeacherApplication(teacherReview);
+            return;
+        }
         const tab = event.target.closest('[data-admin-secondary-tab]');
         if (tab) {
             const groupId = tab.dataset.adminSecondaryTab;
             if (GROUPS[groupId]) {
                 state.activeGroup = groupId;
+                state.pendingTeacherReview = null;
+                state.teacherReviewMessage = null;
                 loadGroup(groupId, false);
             }
         }
@@ -588,6 +720,9 @@
         state.data = Object.create(null);
         state.errors = Object.create(null);
         state.trigger = null;
+        state.pendingTeacherReview = null;
+        state.teacherReviewBusy = false;
+        state.teacherReviewMessage = null;
         if (renderAfter && state.host) render();
         return true;
     }

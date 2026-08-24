@@ -59,6 +59,6 @@ for (const source of [html, registry, main, serviceWorker]) {
     assert.match(source, /20260824v816ExperimentRestoreP2/);
 }
 assert.match(planets, /20260731v7969StudentUiP0/);
-assert.match(registry, /20260729v794AdminGovernanceP0/, 'admin keeps its independently reviewed resource version');
+assert.match(registry, /20260825v840TeacherApplicationP0/, 'admin keeps its independently reviewed resource version');
 
 console.log('unified-atlas-layout-contract: ok');

@@ -11,6 +11,11 @@
             code: 'STUDENT ORBIT',
             copy: '学习资源保持在同一张星图中；作业、提交与班级进度集中在“我的学习”。'
         }),
+        'teacher-applicant': Object.freeze({
+            label: '教师申请者',
+            code: 'READ-ONLY PREVIEW',
+            copy: '审核期间可预览三星系正式内容；班级、课程加入和学习进度写入均已暂停。'
+        }),
         teacher: Object.freeze({
             label: '教师',
             code: 'TEACHER ORBIT',
@@ -96,6 +101,15 @@
     function positiveId(value) {
         const parsed = Number(value);
         return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    function isPendingTeacherApplicant(user) {
+        return Boolean(
+            user
+            && user.role === 'student'
+            && user.teacher_application
+            && user.teacher_application.status === 'pending'
+        );
     }
 
     let rememberedStudentScope = Object.freeze({ user_id: 0, class_id: 0, course_id: 0 });
@@ -286,6 +300,11 @@
             setCatalogueSnapshot('', 'closed', [], []);
             return catalogueState.records.slice();
         }
+        if (isPendingTeacherApplicant(currentUser)) {
+            const records = allCatalogueRecords();
+            setCatalogueSnapshot('teacher-applicant', 'ready', records, []);
+            return records;
+        }
         if (currentUser.role !== 'student') {
             const records = allCatalogueRecords();
             setCatalogueSnapshot(currentUser.role, 'ready', records, []);
@@ -441,7 +460,9 @@
             if (!this.root) return;
             const session = global.AstraApplicationSession;
             const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
-            const role = user && ROLE_VIEW[user.role] ? user.role : 'student';
+            const role = isPendingTeacherApplicant(user)
+                ? 'teacher-applicant'
+                : user && ROLE_VIEW[user.role] ? user.role : 'student';
             const roleView = ROLE_VIEW[role];
             this.root.dataset.sessionRole = role;
 
@@ -517,6 +538,12 @@
         async syncRoleHome(user) {
             if (!user || !this.root || !global.AstraLearningEvidenceLoader) return;
             const generation = ++this.roleHomeGeneration;
+            if (isPendingTeacherApplicant(user)) {
+                if (global.AstraRoleHomeClient && typeof global.AstraRoleHomeClient.destroy === 'function') {
+                    global.AstraRoleHomeClient.destroy();
+                }
+                return;
+            }
             try {
                 await global.AstraLearningEvidenceLoader.ensure({ roleHome: true });
                 if (!this.active || generation !== this.roleHomeGeneration || !this.root) return;

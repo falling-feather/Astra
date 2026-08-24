@@ -219,10 +219,10 @@ function updateFooterVisibility() {
 window.updateFooterVisibility = updateFooterVisibility;
 
 const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0';
-const ROLE_LANDING_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
+const ROLE_LANDING_ASSET_VERSION = '20260825v840TeacherApplicationP0';
 const SESSION_STYLE_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
-const SHELL_RUNTIME_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
-const PAGE_REGISTRY_ASSET_VERSION = '20260825v834Show04P0';
+const SHELL_RUNTIME_ASSET_VERSION = '20260825v840TeacherApplicationP0';
+const PAGE_REGISTRY_ASSET_VERSION = '20260825v840TeacherApplicationP0';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',
@@ -243,7 +243,7 @@ const CORE_HTTP_FALLBACK_ASSETS = [
     './shared/js/main.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
     './shared/js/backend-content.js?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/backend-content.css?v=' + ENGLAB_ASSET_VERSION,
-    './shared/css/auth-ui.css?v=' + ENGLAB_ASSET_VERSION,
+    './shared/css/auth-ui.css?v=' + PAGE_REGISTRY_ASSET_VERSION,
     './shared/css/app-session.css?v=' + SESSION_STYLE_ASSET_VERSION
 ];
 

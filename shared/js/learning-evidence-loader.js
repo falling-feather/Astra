@@ -723,7 +723,9 @@
 
     function sessionUser() {
         const session = global.AstraApplicationSession;
-        return session && typeof session.getUser === 'function' ? session.getUser() : null;
+        if (!session || typeof session.getUser !== 'function') return null;
+        if (typeof session.isTeacherApplicantPending === 'function' && session.isTeacherApplicantPending()) return null;
+        return session.getUser();
     }
 
     function handleAuthorityMarkerStorage(event) {
@@ -752,6 +754,10 @@
         const detail = event && event.detail || {};
         const user = detail.user;
         const session = global.AstraApplicationSession;
+        if (detail.learning_evidence_disabled === true) {
+            clearAuthority('teacher-application-pending').catch(() => {});
+            return;
+        }
         const trustedFreshSession = Boolean(
             session
             && typeof session.consumeLearningEvidenceFreshProof === 'function'

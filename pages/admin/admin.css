@@ -2643,6 +2643,106 @@
     font-size: .74rem;
 }
 
+.admin-teacher-application-list {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-teacher-application-card {
+    display: grid;
+    gap: 12px;
+    border: 1px solid rgba(142,174,204,.18);
+    border-radius: 12px;
+    padding: 15px;
+    background: rgba(255,255,255,.025);
+}
+
+.admin-teacher-application-card > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.admin-teacher-application-card > header > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.admin-teacher-application-card > header span,
+.admin-teacher-application-card > small,
+.admin-teacher-application-card > p {
+    overflow-wrap: anywhere;
+}
+
+.admin-teacher-application-card > header > div span,
+.admin-teacher-application-card > small {
+    color: #8294a8;
+    font-size: .72rem;
+}
+
+.admin-teacher-application-card > p {
+    margin: 0;
+    color: #c9d6e3;
+    line-height: 1.65;
+}
+
+.admin-teacher-application-card > label {
+    display: grid;
+    gap: 7px;
+    color: #98aabd;
+    font-size: .74rem;
+}
+
+.admin-teacher-application-card input {
+    min-height: 42px;
+    border: 1px solid rgba(142,174,204,.24);
+    border-radius: 8px;
+    padding: 9px 11px;
+    color: #edf6ff;
+    background: #0a111d;
+    font: inherit;
+}
+
+.admin-teacher-application-card input:focus-visible {
+    outline: 2px solid rgba(110,219,255,.66);
+    outline-offset: 2px;
+}
+
+.admin-teacher-application-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-teacher-review-message {
+    border: 1px solid rgba(110,219,255,.28);
+    border-radius: 9px;
+    padding: 10px 12px;
+    color: #ccefff;
+    background: rgba(38,124,163,.12);
+    line-height: 1.55;
+}
+
+.admin-teacher-review-message--success {
+    border-color: rgba(83,211,149,.34);
+    color: #bdf7d8;
+    background: rgba(28,117,75,.16);
+}
+
+.admin-teacher-review-message--warning {
+    border-color: rgba(226,178,80,.38);
+    color: #ffe7a6;
+    background: rgba(96,67,18,.22);
+}
+
+.admin-teacher-review-message--error {
+    border-color: rgba(240,102,110,.38);
+    color: #ffc6ca;
+    background: rgba(131,35,43,.2);
+}
+
 @media (max-width: 1180px) {
     .admin-course-grid {
         grid-template-columns: minmax(0, 1fr) minmax(280px, .8fr);
@@ -2735,6 +2835,17 @@
 
     .admin-course-row {
         grid-template-columns: minmax(0, 1fr) auto 18px;
+    }
+
+    .admin-teacher-application-card > header,
+    .admin-teacher-application-card__actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-teacher-application-card__actions .admin-icon-button {
+        justify-content: center;
+        width: 100%;
     }
 }
 

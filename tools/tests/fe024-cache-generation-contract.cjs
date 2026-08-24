@@ -5,15 +5,16 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260824v816ExperimentRestoreP2';
+const generation = '20260825v840TeacherApplicationP0';
+const legacyShellGeneration = '20260824v816ExperimentRestoreP2';
 const showcaseGeneration = '20260824v832Show03P0';
 const show04Generation = '20260825v834Show04P0';
 const v834Generation = '20260813v834ShowcaseLayoutP0';
 const moduleGeneration = showcaseGeneration;
-const studentGeneration = '20260824v816ExperimentRestoreP2';
+const studentGeneration = legacyShellGeneration;
 const teacherGeneration = '20260813v832RoleMobileReceiptP0';
-const physicsGeneration = '20260824v816ExperimentRestoreP2';
-const frontierGeneration = '20260824v816ExperimentRestoreP2';
+const physicsGeneration = legacyShellGeneration;
+const frontierGeneration = legacyShellGeneration;
 
 const html = read('index.html');
 const router = read('shared/js/router.js');
@@ -62,18 +63,19 @@ function testStaticGenerationChain() {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`),
-      `index direct boot must request ${asset}.js from the V834 generation`,
+      `index direct boot must request ${asset}.js from the V840 generation`,
     );
   }
-  for (const asset of ['experiment-registry', 'router']) {
+  for (const asset of ['experiment-registry']) {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${showcaseGeneration}`),
       `index direct boot must request ${asset}.js from the SHOW-03 generation`,
     );
   }
+  assert.match(html, new RegExp(`shared/js/router\\.js\\?v=${generation}`));
   for (const asset of ['config', 'page-registry', 'main']) {
-    assert.match(html, new RegExp(`shared/js/${asset}\\.js\\?v=${show04Generation}`));
+    assert.match(html, new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`));
   }
   assert.match(router, new RegExp(`shared/js/module-selector\\.js\\?v=${moduleGeneration}`));
   assert.match(router, new RegExp(`shared/js/frontier-learning\\.js\\?v=${frontierGeneration}`));
@@ -91,20 +93,25 @@ function testStaticGenerationChain() {
   assert.doesNotMatch(studentLearningEvidence, /0051 RECOVERY|权威学习投影|SERVER PROJECTION ONLY/);
   assert.match(studentLearningEvidence, /学习进度[\s\S]*进度同步[\s\S]*学习活动记录[\s\S]*课程记录/);
   assert.match(main, new RegExp(`const SHELL_RUNTIME_ASSET_VERSION = '${generation}'`));
-  assert.match(main, new RegExp(`const PAGE_REGISTRY_ASSET_VERSION = '${show04Generation}'`));
+  assert.match(main, new RegExp(`const PAGE_REGISTRY_ASSET_VERSION = '${generation}'`));
   assert.match(main, /'\.\/shared\/js\/app-session\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
   assert.match(main, /'\.\/shared\/js\/config\.js\?v=' \+ PAGE_REGISTRY_ASSET_VERSION/);
   assert.match(main, new RegExp(`'\\./shared/js/experiment-registry\\.js\\?v=${showcaseGeneration}'`));
   assert.match(main, new RegExp(`'\\./shared/js/module-selector\\.js\\?v=${showcaseGeneration}'`));
   assert.match(main, /serviceWorker\.register\('\.\/sw\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION\)/);
-  assert.match(serviceWorker, new RegExp(`const CACHE_NAME = 'astra-static-v${show04Generation}'`));
-  for (const asset of ['app-session', 'experiment-registry', 'router']) {
+  assert.match(serviceWorker, new RegExp(`const CACHE_NAME = 'astra-static-v${generation}'`));
+  for (const asset of ['app-session', 'router']) {
     assert.match(
       serviceWorker,
       new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`),
-      `service-worker app shell must precache ${asset}.js from the V834 generation`,
+      `service-worker app shell must precache ${asset}.js from the V840 generation`,
     );
   }
+  const experimentRegistryShellVersion = serviceWorker.match(/'\.\/shared\/js\/experiment-registry\.js\?v=([^']+)'/)?.[1];
+  assert.ok(
+    [legacyShellGeneration, showcaseGeneration].includes(experimentRegistryShellVersion),
+    'service-worker experiment registry must stay on an explicitly reviewed generation',
+  );
   for (const document of [developerDoc, frontendDoc]) {
     assert.match(document, new RegExp(v834Generation));
     assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
@@ -118,7 +125,7 @@ function testStaticGenerationChain() {
     assert.match(v834EvidenceLine, /待同 revision 复验/);
   }
   for (const asset of ['page-registry', 'main']) {
-    assert.match(serviceWorker, new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${show04Generation}'`));
+    assert.match(serviceWorker, new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`));
   }
 }
 
@@ -165,7 +172,7 @@ async function testAppSessionCreatesVersionedLoader() {
   await context.__fe024EnsureLearningEvidenceLoader();
   assert.deepEqual(createdScripts, [
     `https://astra.test/shared/js/learning-evidence-loader.js?v=${generation}`,
-  ], 'app-session must propagate its exact V834 query to the loader it actually creates');
+  ], 'app-session must propagate its exact V840 query to the loader it actually creates');
 }
 
 async function testLoaderCreatesVersionedChildren() {
@@ -231,7 +238,7 @@ async function testLoaderCreatesVersionedChildren() {
   await context.AstraLearningEvidenceLoader.ensure({ activity: true, engineeringContext: true });
   assert.deepEqual(childScripts, Object.keys(ownerByFile).map((file) => (
     `https://astra.test/shared/js/${file}?v=${generation}`
-  )), 'loader must propagate V834 to every queue/client/status/catalog/engineering-context/activity script it creates');
+  )), 'loader must propagate V840 to every queue/client/status/catalog/engineering-context/activity script it creates');
 }
 
 async function run() {

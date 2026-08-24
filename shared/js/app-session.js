@@ -32,7 +32,10 @@
         appStarted: false,
         explicitSignedOut: false,
         reloadPending: false,
-        authorityClearRetry: null
+        authorityClearRetry: null,
+        applicationDialog: null,
+        applicationBusy: false,
+        applicationFeedback: null
     };
 
     function escapeHtml(value) {
@@ -219,12 +222,32 @@
     }
 
     function roleWorkspace(role) {
+        if (String(role || '') === 'student' && isPendingTeacherApplicant(state.user)) return 'planets';
         return ROLE_WORKSPACE[String(role || '')] || 'planets';
+    }
+
+    function teacherApplication(user) {
+        const application = user && user.teacher_application;
+        return application && typeof application === 'object' ? application : null;
+    }
+
+    function isPendingTeacherApplicant(user) {
+        const application = teacherApplication(user);
+        return Boolean(user && user.role === 'student' && application && application.status === 'pending');
+    }
+
+    async function hydrateTeacherApplication(user) {
+        if (!user || user.role !== 'student') return Object.freeze(Object.assign({}, user));
+        const application = await request('/api/v1/teacher-applications/me', { method: 'GET' });
+        return Object.freeze(Object.assign({}, user, {
+            teacher_application: application ? Object.freeze(Object.assign({}, application)) : null
+        }));
     }
 
     function canAccessPage(page, role) {
         const target = String(page || 'planets');
         if (!PROTECTED_PAGES.has(target)) return true;
+        if (target === 'student' && isPendingTeacherApplicant(state.user)) return false;
         const access = ROLE_PAGE_ACCESS[String(role || (state.user && state.user.role) || '')];
         return Boolean(access && access.has(target));
     }
@@ -264,12 +287,15 @@
 
     function applyRoleUI() {
         const role = state.user && state.user.role;
+        const pendingApplicant = isPendingTeacherApplicant(state.user);
         document.documentElement.dataset.sessionRole = role || 'anonymous';
+        document.documentElement.dataset.teacherApplication = teacherApplication(state.user)?.status || 'none';
+        document.body.classList.toggle('teacher-application-pending', pendingApplicant);
         document.querySelectorAll('[data-app-roles]').forEach(function (node) {
             const roles = String(node.dataset.appRoles || '').split(',').map(function (item) {
                 return item.trim();
             }).filter(Boolean);
-            const visible = Boolean(role && roles.includes(role));
+            const visible = Boolean(role && roles.includes(role) && !(pendingApplicant && roles.includes('student')));
             node.hidden = !visible;
             node.setAttribute('aria-hidden', visible ? 'false' : 'true');
             if ('inert' in node) node.inert = !visible;
@@ -283,6 +309,205 @@
             if ('inert' in section) section.inert = !allowed;
             if (!allowed) section.classList.remove('active');
         });
+        renderTeacherApplicationBanner();
+    }
+
+    function teacherApplicationActionMarkup() {
+        if (!state.user || state.user.role !== 'student') return '';
+        const application = teacherApplication(state.user);
+        const label = !application
+            ? '申请教师身份'
+            : application.status === 'pending'
+                ? '查看教师申请状态'
+                : application.status === 'rejected'
+                    ? '重新申请教师身份'
+                    : '查看教师申请';
+        return `<button type="button" data-session-action="teacher-application">${escapeHtml(label)}</button>`;
+    }
+
+    function renderTeacherApplicationBanner() {
+        const existing = document.querySelector('[data-teacher-application-banner]');
+        if (existing) existing.remove();
+        if (!isPendingTeacherApplicant(state.user)) return;
+        const banner = document.createElement('aside');
+        banner.className = 'teacher-application-banner';
+        banner.dataset.teacherApplicationBanner = 'true';
+        banner.setAttribute('role', 'status');
+        banner.innerHTML = `
+            <div>
+                <strong>教师身份审核中</strong>
+                <span>当前为正式内容只读预览；不能加入班级、加入课程或记录学习进度。</span>
+            </div>
+            <button type="button" data-teacher-application-open>查看状态</button>`;
+        banner.addEventListener('click', function (event) {
+            if (event.target instanceof Element && event.target.closest('[data-teacher-application-open]')) {
+                openTeacherApplicationDialog();
+            }
+        });
+        const navbar = document.getElementById('navbar') || document.querySelector('.navbar');
+        if (navbar && navbar.parentNode) navbar.insertAdjacentElement('afterend', banner);
+        else document.body.appendChild(banner);
+    }
+
+    function teacherApplicationStatusLabel(statusValue) {
+        return ({ pending: '待管理员审核', approved: '已批准', rejected: '已退回' })[statusValue] || '尚未申请';
+    }
+
+    function teacherApplicationDialogMarkup() {
+        const application = teacherApplication(state.user);
+        const statusValue = application && application.status || 'none';
+        const mayApply = !application || statusValue === 'rejected';
+        const reviewNote = application && application.review_note
+            ? `<div class="teacher-application-dialog__note"><span>审核说明</span><p>${escapeHtml(application.review_note)}</p></div>`
+            : '';
+        const submitted = application
+            ? `<dl class="teacher-application-dialog__facts">
+                    <div><dt>当前状态</dt><dd data-teacher-application-status="${escapeHtml(statusValue)}">${escapeHtml(teacherApplicationStatusLabel(statusValue))}</dd></div>
+                    <div><dt>申请编号</dt><dd>#${escapeHtml(application.id)}</dd></div>
+                    <div><dt>提交时间</dt><dd>${escapeHtml(new Date(application.created_at).toLocaleString('zh-CN'))}</dd></div>
+                </dl>${application.message ? `<div class="teacher-application-dialog__note"><span>申请说明</span><p>${escapeHtml(application.message)}</p></div>` : ''}${reviewNote}`
+            : '<p class="teacher-application-dialog__empty">当前账号仍是普通学生。提交后，在管理员审核完成前只能预览正式发布内容。</p>';
+        const form = mayApply
+            ? `<form class="teacher-application-dialog__form" data-teacher-application-form>
+                    <label><span>${statusValue === 'rejected' ? '补充说明' : '申请说明'}</span><textarea name="message" maxlength="1000" rows="4" placeholder="简要说明任教学科或申请原因（可选）" ${state.applicationBusy ? 'disabled' : ''}></textarea></label>
+                    <button type="submit" ${state.applicationBusy ? 'disabled' : ''}>${state.applicationBusy ? '正在提交…' : statusValue === 'rejected' ? '重新提交申请' : '提交教师申请'}</button>
+                </form>`
+            : `<div class="teacher-application-dialog__actions">
+                    <button type="button" data-teacher-application-refresh ${state.applicationBusy ? 'disabled' : ''}>${state.applicationBusy ? '正在刷新…' : '刷新审核状态'}</button>
+                </div>`;
+        const feedback = state.applicationFeedback
+            ? `<p class="teacher-application-dialog__feedback teacher-application-dialog__feedback--${escapeHtml(state.applicationFeedback.type || 'info')}" data-teacher-application-feedback role="status">${escapeHtml(state.applicationFeedback.message)}</p>`
+            : '<p class="teacher-application-dialog__feedback" data-teacher-application-feedback role="status"></p>';
+        return `
+            <header>
+                <div><span>IDENTITY REVIEW</span><h2 id="teacher-application-title">教师身份申请</h2></div>
+                <button type="button" data-teacher-application-close aria-label="关闭教师身份申请">×</button>
+            </header>
+            <p class="teacher-application-dialog__lead">正式教师身份由管理员审核；课程与实验内容不会因为申请状态而被改写。</p>
+            ${submitted}
+            ${form}
+            ${feedback}`;
+    }
+
+    function ensureTeacherApplicationDialog() {
+        if (state.applicationDialog && state.applicationDialog.isConnected) return state.applicationDialog;
+        const dialog = document.createElement('dialog');
+        dialog.className = 'teacher-application-dialog';
+        dialog.dataset.teacherApplicationDialog = 'true';
+        dialog.setAttribute('aria-labelledby', 'teacher-application-title');
+        dialog.addEventListener('click', handleTeacherApplicationDialogClick);
+        dialog.addEventListener('submit', handleTeacherApplicationSubmit);
+        dialog.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            if (!state.applicationBusy) closeTeacherApplicationDialog();
+        });
+        document.body.appendChild(dialog);
+        state.applicationDialog = dialog;
+        return dialog;
+    }
+
+    function renderTeacherApplicationDialog() {
+        const dialog = ensureTeacherApplicationDialog();
+        dialog.innerHTML = teacherApplicationDialogMarkup();
+        return dialog;
+    }
+
+    function openTeacherApplicationDialog() {
+        if (!state.user || state.user.role !== 'student') return false;
+        state.applicationFeedback = null;
+        const dialog = renderTeacherApplicationDialog();
+        if (!dialog.open) {
+            if (typeof dialog.showModal === 'function') dialog.showModal();
+            else dialog.setAttribute('open', '');
+        }
+        const title = dialog.querySelector('#teacher-application-title');
+        if (title) {
+            title.tabIndex = -1;
+            title.focus();
+        }
+        return true;
+    }
+
+    function closeTeacherApplicationDialog() {
+        const dialog = state.applicationDialog;
+        if (!dialog) return;
+        if (dialog.open && typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+    }
+
+    async function handleTeacherApplicationDialogClick(event) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target || state.applicationBusy) return;
+        if (target.closest('[data-teacher-application-close]')) {
+            closeTeacherApplicationDialog();
+            return;
+        }
+        if (!target.closest('[data-teacher-application-refresh]')) return;
+        await refreshTeacherApplicationIdentity();
+    }
+
+    async function handleTeacherApplicationSubmit(event) {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.matches('[data-teacher-application-form]')) return;
+        event.preventDefault();
+        if (state.applicationBusy || !form.reportValidity()) return;
+        const message = formValue(form, 'message') || null;
+        state.applicationBusy = true;
+        state.applicationFeedback = null;
+        renderTeacherApplicationDialog();
+        try {
+            await clearLearningAuthority('teacher-application-before-submit');
+            const application = await request('/api/v1/teacher-applications', {
+                method: 'POST',
+                body: { message: message }
+            });
+            state.user = Object.freeze(Object.assign({}, state.user, {
+                teacher_application: Object.freeze(Object.assign({}, application))
+            }));
+            applyRoleUI();
+            renderSessionControl();
+            state.applicationFeedback = { type: 'success', message: '申请已提交；审核期间已切换为只读预览。' };
+            global.dispatchEvent(new CustomEvent('astra:teacher-application-changed', {
+                detail: { application: state.user.teacher_application, user: state.user }
+            }));
+            if (global.Router && typeof global.Router.navigateTo === 'function') global.Router.navigateTo('planets', true);
+        } catch (error) {
+            state.applicationFeedback = { type: 'error', message: api().message(error) };
+        } finally {
+            state.applicationBusy = false;
+            renderTeacherApplicationDialog();
+        }
+    }
+
+    async function refreshTeacherApplicationIdentity() {
+        if (state.applicationBusy) return false;
+        state.applicationBusy = true;
+        state.applicationFeedback = null;
+        renderTeacherApplicationDialog();
+        try {
+            const previousRole = state.user && state.user.role;
+            const current = await request('/api/users/me', { method: 'GET' });
+            const hydrated = await hydrateTeacherApplication(current);
+            if (previousRole && hydrated.role !== previousRole) {
+                closeTeacherApplicationDialog();
+                await reloadAfterRoleResourceCleanup();
+                return true;
+            }
+            state.user = hydrated;
+            applyRoleUI();
+            renderSessionControl();
+            state.applicationFeedback = { type: 'success', message: '审核状态已刷新。' };
+            global.dispatchEvent(new CustomEvent('astra:teacher-application-changed', {
+                detail: { application: teacherApplication(state.user), user: state.user }
+            }));
+            return true;
+        } catch (error) {
+            state.applicationFeedback = { type: 'error', message: api().message(error) };
+            return false;
+        } finally {
+            state.applicationBusy = false;
+            if (!state.reloadPending) renderTeacherApplicationDialog();
+        }
     }
 
     function renderSessionControl() {
@@ -305,6 +530,7 @@
             <div class="app-session-control__menu" data-session-menu hidden>
                 <button type="button" data-session-action="overview">返回星序总览</button>
                 <button type="button" data-session-action="workspace">进入${escapeHtml(ROLE_LABEL[state.user.role] || '')}工作台</button>
+                ${teacherApplicationActionMarkup()}
                 <button type="button" data-session-action="logout">安全退出</button>
             </div>`;
         node.addEventListener('click', handleSessionControlClick);
@@ -341,6 +567,11 @@
             }
             return;
         }
+        if (action === 'teacher-application') {
+            if (menu) menu.hidden = true;
+            openTeacherApplicationDialog();
+            return;
+        }
         if (action === 'logout') logout();
     }
 
@@ -367,7 +598,8 @@
             <form class="app-auth-form" data-app-auth-form="register">
                 <label>账号<input name="username" autocomplete="username" minlength="3" maxlength="64" required></label>
                 <label>显示名称<input name="display_name" autocomplete="name" minlength="1" maxlength="80" required></label>
-                <label>账号性质<select name="role" required><option value="student">学生</option><option value="teacher">教师</option></select></label>
+                <label>账号用途<select name="account_intent" required><option value="student">学生账号</option><option value="teacher">申请教师身份（需管理员审核）</option></select></label>
+                <label data-teacher-application-message hidden>申请说明<textarea name="teacher_message" maxlength="1000" rows="3" placeholder="简要说明任教学科或申请原因（可选）"></textarea></label>
                 <label>密码<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
                 <label>确认密码<input name="password_confirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
                 <button class="app-auth-primary" type="submit" ${state.busy ? 'disabled' : ''}>${state.busy ? '正在创建…' : '创建账号并进入'}</button>
@@ -424,6 +656,7 @@
             state.overlay.className = 'app-auth-overlay';
             state.overlay.dataset.appAuthOverlay = 'true';
             state.overlay.addEventListener('click', handlePortalClick);
+            state.overlay.addEventListener('change', handlePortalChange);
             state.overlay.addEventListener('submit', handlePortalSubmit);
             document.body.appendChild(state.overlay);
         }
@@ -453,6 +686,14 @@
 
     function formValue(form, name) {
         return String(new FormData(form).get(name) || '').trim();
+    }
+
+    function handlePortalChange(event) {
+        const select = event.target instanceof Element ? event.target.closest('select[name="account_intent"]') : null;
+        if (!select) return;
+        const form = select.closest('[data-app-auth-form="register"]');
+        const message = form && form.querySelector('[data-teacher-application-message]');
+        if (message) message.hidden = select.value !== 'teacher';
     }
 
     async function handlePortalSubmit(event) {
@@ -495,6 +736,7 @@
             throw Object.assign(new Error('两次输入的密码不一致'), { code: 'invalid_request' });
         }
         const username = formValue(form, 'username');
+        const wantsTeacherApplication = formValue(form, 'account_intent') === 'teacher';
         if (!await prepareExplicitAuthentication()) return false;
         await request('/api/auth/register', {
             method: 'POST',
@@ -502,10 +744,16 @@
                 username: username,
                 display_name: formValue(form, 'display_name'),
                 password: password,
-                role: formValue(form, 'role')
+                role: 'student'
             }
         });
         await request('/api/auth/login', { method: 'POST', body: { username: username, password: password } });
+        if (wantsTeacherApplication) {
+            await request('/api/v1/teacher-applications', {
+                method: 'POST',
+                body: { message: formValue(form, 'teacher_message') || null }
+            });
+        }
         return reconcileSession(true, true);
     }
 
@@ -646,6 +894,19 @@
                 return false;
             }
         }
+        user = await hydrateTeacherApplication(user);
+        if (isPendingTeacherApplicant(user)) {
+            try {
+                await clearLearningAuthority('teacher-application-pending');
+            } catch (error) {
+                showLearningAuthorityClearFailure(error, {
+                    reason: 'teacher-application-pending',
+                    user: Object.freeze(Object.assign({}, user)),
+                    explicitAuthentication: Boolean(explicitAuthentication)
+                });
+                return false;
+            }
+        }
         state.authorityClearRetry = null;
         if (state.appStarted) {
             await reloadAfterRoleResourceCleanup();
@@ -658,8 +919,9 @@
         applyRoleUI();
         renderSessionControl();
         hidePortal();
-        const detail = { user: state.user };
-        if (explicitAuthentication || authorityPrepared || recoveredPersistentAuthority) {
+        const pendingApplicant = isPendingTeacherApplicant(state.user);
+        const detail = { user: state.user, learning_evidence_disabled: pendingApplicant };
+        if (!pendingApplicant && (explicitAuthentication || authorityPrepared || recoveredPersistentAuthority)) {
             detail.learning_evidence_fresh_proof = issueLearningEvidenceFreshProof();
         }
         global.dispatchEvent(new CustomEvent('astra:session-ready', { detail }));
@@ -673,6 +935,7 @@
     async function requireAuthentication() {
         state.appStarted = Boolean(global.Router && global.Router._initialEnterFired);
         state.user = null;
+        closeTeacherApplicationDialog();
         try {
             await clearLearningAuthority('unauthorized');
         } catch (error) {
@@ -778,6 +1041,10 @@
         bootstrap: bootstrap,
         getUser: function () { return state.user; },
         getRole: function () { return state.user && state.user.role; },
+        getTeacherApplication: function () { return teacherApplication(state.user); },
+        isTeacherApplicantPending: function () { return isPendingTeacherApplicant(state.user); },
+        openTeacherApplication: openTeacherApplicationDialog,
+        refreshTeacherApplication: refreshTeacherApplicationIdentity,
         resolveApiBase: resolveApiBase,
         roleLanding: roleLanding,
         roleWorkspace: roleWorkspace,

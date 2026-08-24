@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const ADMIN_ASSET_VERSION = '20260729v794AdminGovernanceP0';
+    const ADMIN_ASSET_VERSION = '20260825v840TeacherApplicationP0';
     const API_BASE_STORAGE_KEY = 'astra-admin-api-base';
 
     const state = {
@@ -508,7 +508,7 @@
                             `).join('')}
                         </nav>
                         <section class="admin-secondary-entry" aria-label="次级治理入口">
-                            <button type="button" class="admin-text-button" data-admin-secondary-open="more"><i data-lucide="library"></i>更多治理</button>
+                            <button type="button" class="admin-text-button" data-admin-secondary-open="identity"><i data-lucide="badge-check"></i>教师身份审核</button><button type="button" class="admin-text-button" data-admin-secondary-open="more"><i data-lucide="library"></i>更多治理</button>
                             <button type="button" class="admin-text-button" data-admin-secondary-open="advanced"><i data-lucide="wrench"></i>高级诊断</button>
                         </section>
                     </aside>
