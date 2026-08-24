@@ -229,7 +229,7 @@ const CONFIG = {
             id: 'englab',
             label: '工科试验室',
             tagline: 'ENGINEERING · LAB',
-            desc: '数学 · 物理 · 化学 · 算法 · 生物 五大学科 88 个可视化实验',
+            desc: '数学 · 物理 · 化学 · 算法 · 生物 五大学科 90 个可视化实验',
             color: '#3aa9ff',
             subjects: ['mathematics', 'physics', 'chemistry', 'algorithms', 'biology']
         },

@@ -25,8 +25,16 @@ const beforeHashes = protectedFiles.map(sha256);
 const baseline = loadProductionBaseline(root);
 assert.equal(baseline.count, 90);
 assert.deepEqual([...baseline.subjects].sort(), ['algorithms', 'biology', 'chemistry', 'mathematics', 'physics']);
-assert.equal(baseline.keys.size, 90);
-assert.equal(baseline.routes.size, 90);
+assert.deepEqual(
+    [...baseline.candidateSubjects].sort(),
+    ['algorithms', 'biology', 'chemistry', 'cosmos', 'datascience', 'engineering', 'humanities', 'infotech', 'materials', 'mathematics', 'physics']
+);
+assert.equal(baseline.keys.size, 109);
+assert.equal(baseline.routes.size, 109);
+assert.ok(baseline.activityKeys.has('engineering.load-path'));
+assert.ok(baseline.routes.has('#engineering/load-path'));
+assert.ok(baseline.activityKeys.has('engineering.robot-arm-ik'));
+assert.ok(baseline.routes.has('#engineering/robot-arm-ik'));
 assert.ok(baseline.owners.has('PhysicsSim'));
 assert.ok(baseline.scripts.has('pages/physics/physics.js'));
 
@@ -145,6 +153,24 @@ try {
 
     const duplicateTitle = { ...validManifest, title: '恢复系数与反弹高度' };
     assert.ok(codes(validate(duplicateTitle)).has('title_conflict'));
+
+    const futureSubjectCandidate = {
+        ...validManifest,
+        subject: 'engineering',
+        activity_key: 'engineering.registration-probe',
+        route: '#engineering/registration-probe'
+    };
+    assert.equal(codes(validate(futureSubjectCandidate)).has('subject_unknown'), false);
+    const duplicateFutureIdentity = {
+        ...futureSubjectCandidate,
+        id: 'load-path',
+        activity_key: 'engineering.load-path',
+        route: '#engineering/load-path'
+    };
+    const duplicateFutureCodes = codes(validate(duplicateFutureIdentity));
+    assert.ok(duplicateFutureCodes.has('key_conflict'));
+    assert.ok(duplicateFutureCodes.has('activity_key_conflict'));
+    assert.ok(duplicateFutureCodes.has('route_conflict'));
 
     const missingOwner = {
         ...validManifest,

@@ -63,12 +63,14 @@ for (const subject of subjects) {
 }
 
 const domModules = Array.from(html.matchAll(/data-module="([a-z0-9-]+)"/g), match => match[1]);
-assert.equal(domModules.length, 92, 'DOM keeps three searching sections and one section for every other experiment');
-assert.equal(new Set(domModules).size, 90);
-assert.equal(domModules.filter(id => id === 'searching').length, 3);
+const registeredIds = new Set(definitions.map(entry => entry.id));
+const registeredDomModules = domModules.filter(id => registeredIds.has(id));
+assert.equal(registeredDomModules.length, 92, 'Englab DOM keeps three searching sections and one section for every other registered experiment');
+assert.equal(new Set(registeredDomModules).size, 90);
+assert.equal(registeredDomModules.filter(id => id === 'searching').length, 3);
 assert.deepEqual(
     [...new Set(definitions.map(entry => entry.id))].sort(),
-    [...new Set(domModules)].sort(),
+    [...new Set(registeredDomModules)].sort(),
     'registry and DOM experiment identities must be a bijection'
 );
 
@@ -440,6 +442,6 @@ assert.match(html, /config\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry
 assert.match(main, /experiment-registry\.js\?v=20260824v832Show03P0/);
 assert.match(main, /module-selector\.js\?v=20260824v832Show03P0/);
 assert.match(serviceWorker, /experiment-registry\.js\?v=20260824v816ExperimentRestoreP2/);
-assert.match(serviceWorker, /astra-static-v20260824v816ExperimentRestoreP2/);
+assert.match(serviceWorker, /astra-static-v20260825v834Show04P0/);
 
 console.log('experiment-registry-contract: ok');

@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..', '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('index.html');
 const bridgeSource = read('pages/engineering/bridge-truss.js');
+const engineeringPageSource = read('pages/engineering/engineering-page.js');
 const registrySource = read('shared/js/page-registry.js');
 
 assert.match(html, /id="page-engineering"[\s\S]*id="truss-load"[\s\S]*id="bridge-truss-canvas"/);
@@ -17,6 +18,10 @@ assert.doesNotMatch(
 );
 assert.match(bridgeSource, /window\.initBridgeTruss = initBridgeTruss/);
 assert.match(bridgeSource, /window\.destroyBridgeTruss = destroyBridgeTruss/);
+assert.match(engineeringPageSource, /ROBOT_ROUTE = 'engineering\/robot-arm-ik'/);
+assert.match(engineeringPageSource, /pages\/engineering\/bridge-truss\.js/);
+assert.match(engineeringPageSource, /destroyBridgeTruss/);
+assert.doesNotMatch(engineeringPageSource, /frontier-learning|initFrontierCourse|learning evidence/i);
 
 const context = {
   window: {
@@ -52,7 +57,7 @@ const registryContext = { window: {} };
 vm.runInNewContext(registrySource, registryContext, { filename: 'page-registry.js' });
 assert.equal(
   registryContext.window.AstraPageRegistry.scriptFor('engineering'),
-  'pages/engineering/bridge-truss.js?v=20260824v816ExperimentRestoreP2',
+  'pages/engineering/engineering-page.js?v=20260825v834Show04P0',
 );
 
 console.log('future-engineering-evidence-contract: rejected evidence flow stays detached PASS');

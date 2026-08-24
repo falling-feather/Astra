@@ -8,6 +8,7 @@ const html = read('index.html');
 const registry = read('shared/js/page-registry.js');
 const engineering = read('pages/engineering/engineering.css');
 const bridge = read('pages/engineering/bridge-truss.js');
+const pageOwner = read('pages/engineering/engineering-page.js');
 
 const engineeringPage = html.slice(
   html.indexOf('<section id="page-engineering"'),
@@ -23,9 +24,13 @@ assert.doesNotMatch(engineeringPage, /data-frontier-runtime-mount="engineering"|
 
 const engineeringDefinition = registry.match(/engineering: definePage\([\s\S]*?\n\s*\}\),/);
 assert.ok(engineeringDefinition);
-assert.match(engineeringDefinition[0], /pages\/engineering\/bridge-truss\.js/);
-assert.match(engineeringDefinition[0], /ready: 'initBridgeTruss'[\s\S]*leave: 'destroyBridgeTruss'/);
+assert.match(engineeringDefinition[0], /pages\/engineering\/engineering-page\.js/);
+assert.match(engineeringDefinition[0], /ready: 'initEngineeringPage'[\s\S]*leave: 'destroyEngineeringPage'/);
 assert.doesNotMatch(engineeringDefinition[0], /frontier-learning|initFrontierCourse/);
+assert.match(pageOwner, /pages\/engineering\/bridge-truss\.js/);
+assert.match(pageOwner, /ROBOT_ROUTE = 'engineering\/robot-arm-ik'/);
+assert.match(pageOwner, /VIEW_BRIDGE = 'bridge-truss'/);
+assert.doesNotMatch(pageOwner, /frontier-learning|initFrontierCourse/);
 
 assert.match(bridge, /loadInput\.addEventListener\('input'/);
 assert.match(bridge, /data-truss-joint/);

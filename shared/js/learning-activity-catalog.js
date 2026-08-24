@@ -16,6 +16,7 @@
         'engineering.load-path',
         'engineering.member-choice',
         'engineering.safety-check',
+        'engineering.robot-arm-ik',
         'datascience.model-fit',
         'datascience.outlier-test',
         'datascience.evidence-claim',
@@ -173,7 +174,7 @@
     }
 
     function verify() {
-        const expected = Object.freeze({ englab: 88, 'code-space': 18, 'future-galaxy': 18 });
+        const expected = Object.freeze({ englab: 90, 'code-space': 18, 'future-galaxy': 19 });
         const result = {};
         Object.keys(expected).forEach(key => {
             const catalog = entries(key);

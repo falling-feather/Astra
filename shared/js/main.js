@@ -222,7 +222,7 @@ const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0';
 const ROLE_LANDING_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
 const SESSION_STYLE_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
 const SHELL_RUNTIME_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
-const PAGE_REGISTRY_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
+const PAGE_REGISTRY_ASSET_VERSION = '20260825v834Show04P0';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',
@@ -234,13 +234,13 @@ const CORE_HTTP_FALLBACK_ASSETS = [
     './shared/css/page-layout.css?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/responsive.css?v=' + ENGLAB_ASSET_VERSION,
     './shared/js/lucide.min.js?v=20260417d',
-    './shared/js/config.js?v=20260824v832Show03P0',
+    './shared/js/config.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
     './shared/js/api-client.js?v=' + ROLE_LANDING_ASSET_VERSION,
     './shared/js/app-session.js?v=' + SHELL_RUNTIME_ASSET_VERSION,
     './shared/js/experiment-registry.js?v=20260824v832Show03P0',
     './shared/js/page-registry.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
     './shared/js/router.js?v=' + SHELL_RUNTIME_ASSET_VERSION,
-    './shared/js/main.js?v=' + SHELL_RUNTIME_ASSET_VERSION,
+    './shared/js/main.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
     './shared/js/backend-content.js?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/backend-content.css?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/auth-ui.css?v=' + ENGLAB_ASSET_VERSION,
@@ -277,13 +277,14 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './shared/js/global-search.js?v=20260731v7969StudentUiP0',
         './shared/js/keyboard-shortcuts.js?v=20260424v45b',
         './shared/js/related-experiments.js?v=20260424v45c',
-        './pages/home/home.js?v=20260704qianduanV70'
+        './pages/home/home.js?v=' + PAGE_REGISTRY_ASSET_VERSION
     ],
     frontier: [
         './pages/frontier/frontier.css?v=20260824v816ExperimentRestoreP2',
-        './pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0',
+        './pages/frontier/frontier-manifest.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
         './shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2',
-        './shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2'
+        './shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2',
+        './pages/engineering/engineering.css?v=20260824v816ExperimentRestoreP2', './pages/engineering/engineering-page.js?v=' + PAGE_REGISTRY_ASSET_VERSION, './pages/engineering/bridge-truss.js?v=20260824v816ExperimentRestoreP2', './pages/engineering/robot-arm-ik/styles.css?v=' + PAGE_REGISTRY_ASSET_VERSION, './pages/engineering/robot-arm-ik/index.js?v=' + PAGE_REGISTRY_ASSET_VERSION
     ]
 };
 

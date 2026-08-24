@@ -202,8 +202,24 @@ function buildCodeSpaceActivities(root) {
 
 function buildFutureActivities(root) {
     const manifest = evaluateFuture(root);
+    const manifestSource = readSource(root, 'pages/frontier/frontier-manifest.js');
+    const manifestWithoutShow04Addition = manifestSource.replace(
+        /,\r?\n\s*\{ activity_key: 'engineering\.robot-arm-ik'[^\r\n]*\}/,
+        ''
+    );
+    if (manifestWithoutShow04Addition === manifestSource) {
+        throw new Error('SHOW-04 Future activity registration is missing');
+    }
+    const protectedManifestResource = virtualResource(
+        'pages/frontier/frontier-manifest.js',
+        'activity-manifest',
+        '',
+        manifestWithoutShow04Addition
+    );
+    const currentManifestResource = fileResource(root, 'pages/frontier/frontier-manifest.js', 'activity-manifest');
     const ownerSource = readSource(root, 'shared/js/frontier-learning.js');
     const ownerConfigs = parseFutureOwners(ownerSource);
+    const indexSource = readSource(root, 'index.html');
     return manifest.courses.flatMap((course) => {
         const owner = ownerConfigs.get(course.course_key);
         if (!owner) throw new Error(`Missing Future owner config: ${course.course_key}`);
@@ -211,28 +227,43 @@ function buildFutureActivities(root) {
             ? 'pages/engineering/engineering.css'
             : 'pages/frontier/frontier.css';
         const commonResources = uniqueResources([
-            fileResource(root, 'pages/frontier/frontier-manifest.js', 'activity-manifest'),
+            protectedManifestResource,
             fileResource(root, 'shared/js/frontier-learning.js', 'course-owner'),
             fileResource(root, owner.script, 'runtime-script'),
             fileResource(root, style, 'page-style')
         ]);
-        return course.activities.map((activity) => Object.freeze({
-            galaxy_key: 'future-galaxy',
-            course_key: String(course.course_key),
-            activity_key: String(activity.activity_key),
-            route: `#${course.page}/${activity.route_slug}`,
-            title: String(activity.title || ''),
-            owners: Object.freeze([owner.init]),
-            init_hooks: Object.freeze([owner.init]),
-            cleanup_hooks: Object.freeze([owner.destroy]),
-            presentation: Object.freeze({
-                kind: String(activity.kind || ''),
-                input: String(activity.input || ''),
-                input_control: String(activity.input_control || '')
-            }),
-            sources: Object.freeze([`pages/frontier/frontier-manifest.js#${activity.activity_key}`]),
-            resources: commonResources
-        }));
+        return course.activities.map((activity) => {
+            const isRobotArm = activity.activity_key === 'engineering.robot-arm-ik';
+            const robotResources = isRobotArm ? uniqueResources([
+                currentManifestResource,
+                fileResource(root, 'pages/engineering/engineering-page.js', 'page-owner'),
+                fileResource(root, 'pages/engineering/robot-arm-ik/index.js', 'runtime-script'),
+                fileResource(root, 'pages/engineering/robot-arm-ik/styles.css', 'page-style'),
+                virtualResource(
+                    'index.html',
+                    'module-markup',
+                    '[data-module="robot-arm-ik"]',
+                    findModuleFragments(indexSource, 'robot-arm-ik').join('\n<!-- ASTRA MODULE FRAGMENT -->\n')
+                )
+            ]) : commonResources;
+            return Object.freeze({
+                galaxy_key: 'future-galaxy',
+                course_key: String(course.course_key),
+                activity_key: String(activity.activity_key),
+                route: `#${course.page}/${activity.route_slug}`,
+                title: String(activity.title || ''),
+                owners: Object.freeze(isRobotArm ? ['EngineeringPage', 'RobotArmIk'] : [owner.init]),
+                init_hooks: Object.freeze(isRobotArm ? ['initEngineeringPage', 'initRobotArmIk'] : [owner.init]),
+                cleanup_hooks: Object.freeze(isRobotArm ? ['destroyEngineeringPage', 'destroyRobotArmIk'] : [owner.destroy]),
+                presentation: Object.freeze({
+                    kind: String(activity.kind || ''),
+                    input: String(activity.input || ''),
+                    input_control: String(activity.input_control || '')
+                }),
+                sources: Object.freeze([`pages/frontier/frontier-manifest.js#${activity.activity_key}`]),
+                resources: robotResources
+            });
+        });
     });
 }
 

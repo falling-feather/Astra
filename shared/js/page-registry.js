@@ -32,7 +32,7 @@
         }),
         home: definePage({
             galaxy: 'englab',
-            script: 'pages/home/home.js?v=20260704qianduanV70',
+            script: 'pages/home/home.js?v=20260825v834Show04P0',
             ready: 'initHome',
             enter: 'initHome'
         }),
@@ -93,11 +93,11 @@
         engineering: definePage({
             galaxy: 'frontier',
             tags: ['frontier'],
-            styles: [`pages/engineering/engineering.css?v=${FUTURE_RESOURCE_VERSION}`],
-            script: `pages/engineering/bridge-truss.js?v=${FUTURE_RESOURCE_VERSION}`,
-            ready: 'initBridgeTruss',
-            enter: 'initBridgeTruss',
-            leave: 'destroyBridgeTruss'
+            styles: [`pages/engineering/engineering.css?v=${FUTURE_RESOURCE_VERSION}`, 'pages/engineering/robot-arm-ik/styles.css?v=20260825v834Show04P0'],
+            script: 'pages/engineering/engineering-page.js?v=20260825v834Show04P0',
+            ready: 'initEngineeringPage',
+            enter: 'initEngineeringPage',
+            leave: 'destroyEngineeringPage'
         }),
         datascience: definePage({
             galaxy: 'frontier',

@@ -57,6 +57,7 @@ function run() {
   const html = read('index.html');
   const page = engineeringPage(html);
   const bridgeSource = read('pages/engineering/bridge-truss.js');
+  const engineeringOwner = read('pages/engineering/engineering-page.js');
   const registry = registryEntry(read('shared/js/page-registry.js'));
   const frontierRuntime = read('shared/js/frontier-learning.js');
   const frontierContext = read('shared/js/frontier-publication-context.js');
@@ -84,10 +85,13 @@ function run() {
     assert.doesNotMatch(bridgeSource, new RegExp(retiredMarker), `retired course wrapper leaked into bridge runtime: ${retiredMarker}`);
   }
 
-  assert.match(registry, /pages\/engineering\/bridge-truss\.js/);
-  assert.match(registry, /ready:\s*'initBridgeTruss'/);
-  assert.match(registry, /leave:\s*'destroyBridgeTruss'/);
+  assert.match(registry, /pages\/engineering\/engineering-page\.js/);
+  assert.match(registry, /ready:\s*'initEngineeringPage'/);
+  assert.match(registry, /leave:\s*'destroyEngineeringPage'/);
   assert.doesNotMatch(registry, /frontier-learning\.js|initFrontierCourse|destroyFrontierCourse/);
+  assert.match(engineeringOwner, /pages\/engineering\/bridge-truss\.js/);
+  assert.match(engineeringOwner, /ROBOT_ROUTE = 'engineering\/robot-arm-ik'/);
+  assert.doesNotMatch(engineeringOwner, /frontier-learning\.js|initFrontierCourse|destroyFrontierCourse/);
   const runtimeManagedPages = frontierRuntime.match(/const MANAGED_PAGES = new Set\(\[([^\]]*)\]\)/)?.[1] || '';
   const contextManagedPages = frontierContext.match(/const MANAGED_PAGES = new Set\(\[([^\]]*)\]\)/)?.[1] || '';
   assert.doesNotMatch(runtimeManagedPages, /engineering/, 'Future runtime must not own the restored engineering page');

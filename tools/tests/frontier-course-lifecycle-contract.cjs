@@ -27,7 +27,8 @@ assert.equal(localManifest.galaxy_key, 'future-galaxy');
 assert.equal(localManifest.courses.length, 6, 'six future directions are required');
 localManifest.courses.forEach((course) => {
   assert.equal(course.galaxy_key, 'future-galaxy');
-  assert.equal(course.activities.length, 3, `${course.course_key} needs three independent child lessons`);
+  const expectedCount = course.course_key === 'engineering-systems' ? 4 : 3;
+  assert.equal(course.activities.length, expectedCount, `${course.course_key} has an unexpected activity count`);
   course.activities.forEach((activity) => {
     assert.equal(activity.galaxy_key, 'future-galaxy');
     assert.equal(activity.course_key, course.course_key);
@@ -70,6 +71,7 @@ const ownerEvidence = {
   'engineering.load-path': ['pages/engineering/bridge-truss.js', 'truss-joint', 'memberForces'],
   'engineering.member-choice': ['pages/engineering/bridge-truss.js', 'truss-member', 'structuralStatus'],
   'engineering.safety-check': ['pages/engineering/bridge-truss.js', 'truss-safety', 'utilization'],
+  'engineering.robot-arm-ik': ['pages/engineering/robot-arm-ik/index.js', 'robot-arm-ik-parameter', 'solveCcd'],
   'datascience.model-fit': ['pages/datascience/linear-regression.js', 'regression-slope', 'state.slope'],
   'datascience.outlier-test': ['pages/datascience/linear-regression.js', 'regression-dataset', 'datasetId'],
   'datascience.evidence-claim': ['pages/datascience/linear-regression.js', 'regression-dataset', 'datasetId'],
@@ -92,6 +94,12 @@ localManifest.courses.forEach((course) => course.activities.forEach((activity) =
   assert.ok(expected, `${activity.activity_key} needs an explicit owner evidence contract`);
   const [ownerPath, control, observable] = expected;
   assert.equal(activity.input_control, control, `${activity.activity_key} must declare its real learning input`);
+  if (activity.activity_key === 'engineering.robot-arm-ik') {
+    assert.ok(read(ownerPath).includes(observable), 'robot-arm route must own its IK solver');
+    assert.ok(index.includes(control), 'robot-arm route must ship its independent control markup');
+    assert.match(read('pages/engineering/engineering-page.js'), /ROBOT_ROUTE = 'engineering\/robot-arm-ik'/);
+    return;
+  }
   if (retiredEngineeringWrappers.has(activity.activity_key)) {
     assert.doesNotMatch(
       read(ownerPath),
@@ -200,7 +208,7 @@ assert.equal((index.match(/class="frontier-footer__bottom"/g) || []).length, 1, 
 assert.doesNotMatch(index, /<script src="shared\/js\/frontier-learning\.js/, 'Future runtime must be loaded by the route registry, not parsed for every role');
 
 const main = read('shared/js/main.js');
-assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0'"));
+assert.ok(main.includes("'./pages/frontier/frontier-manifest.js?v=' + PAGE_REGISTRY_ASSET_VERSION"));
 assert.ok(main.includes("'./pages/frontier/frontier.css?v=20260824v816ExperimentRestoreP2'"));
 assert.ok(main.includes("'./shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2'"));
 assert.ok(main.includes("'./shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2'"));

@@ -29,7 +29,8 @@
         course('engineering-systems', 'engineering', '工程应用', 'SYSTEMS STUDIO', '结构受力如何沿着构件传递？', '调节载荷位置，观察受力路径，判断哪个设计更能稳定传力。', 'bridge', [
             { activity_key: 'engineering.load-path', title: '受力路径', kind: 'canvas', input: '载荷位置', input_control: 'truss-joint', prompt: '先预测：把载荷移到跨中，哪几根杆会先变红？', observation: '观察桁架节点与受力强度。', decision: '选择更合理的加固位置。' },
             { activity_key: 'engineering.member-choice', title: '构件选择', kind: 'canvas', input: '杆件数量', input_control: 'truss-member', prompt: '先预测：删去 FB 斜杆后，原静力模型还能继续校核吗？', observation: '观察虚线 FB 斜杆与“模型不可校核”状态。', decision: '解释三角单元为何常用于稳定结构。' },
-            { activity_key: 'engineering.safety-check', title: '安全校核', kind: 'canvas', input: '安全系数', input_control: 'truss-safety', prompt: '先预测：提高安全系数后，允许载荷会怎样变化？', observation: '观察利用率读数与阈值颜色。', decision: '判断方案是否满足约束。' }
+            { activity_key: 'engineering.safety-check', title: '安全校核', kind: 'canvas', input: '安全系数', input_control: 'truss-safety', prompt: '先预测：提高安全系数后，允许载荷会怎样变化？', observation: '观察利用率读数与阈值颜色。', decision: '判断方案是否满足约束。' },
+            { activity_key: 'engineering.robot-arm-ik', title: '机械臂逆运动学', kind: 'canvas', input: '目标点与关节限位', input_control: 'robot-arm-ik-parameter', prompt: '拖动目标点，观察机械臂能否在限位内到达。', observation: '观察末端误差、迭代次数和目标状态。', decision: '判断目标是可达、受限还是超出臂长。' }
         ]),
         course('data-ai', 'datascience', '数据科学', 'MODEL BENCH', '一条拟合线何时能帮助解释数据？', '改变模型参数并查看误差，区分“贴近样本”和“可解释”的判断。', 'data', [
             { activity_key: 'datascience.model-fit', title: '模型拟合', kind: 'canvas', input: '斜率', input_control: 'regression-slope', prompt: '先预测：斜率变大时哪些点的误差会增加？', observation: '观察样本、拟合线与残差。', decision: '选择误差更小且方向合理的模型。' },

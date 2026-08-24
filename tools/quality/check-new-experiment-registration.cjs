@@ -52,22 +52,47 @@ function loadProductionBaseline(root = DEFAULT_ROOT) {
         owners: Object.freeze(Array.from(entry.cleanup?.owners || [], String)),
         cleanupVerified: entry.cleanup?.verified === true
     }));
+    const futureContext = { window: {} };
+    vm.createContext(futureContext);
+    vm.runInContext(
+        readUtf8(path.join(repositoryRoot, 'pages/frontier/frontier-manifest.js')),
+        futureContext,
+        { filename: 'pages/frontier/frontier-manifest.js' }
+    );
+    const futureManifest = futureContext.window.FrontierCourseManifest;
+    if (!futureManifest || !Array.isArray(futureManifest.courses)) {
+        throw new Error('Future Galaxy production manifest is unavailable');
+    }
+    const futureCatalogue = futureManifest.courses.flatMap((course) => (
+        Array.from(course.activities || [], (activity) => Object.freeze({
+            subject: String(course.page || ''),
+            id: String(activity.route_slug || ''),
+            title: String(activity.title || ''),
+            activityKey: String(activity.activity_key || ''),
+            route: `#${String(course.page || '')}/${String(activity.route_slug || '')}`
+        }))
+    ));
     const catalogueKeys = new Set(catalogue.map((entry) => canonicalKey(entry.subject, entry.id)));
     const runtimeKeys = new Set(runtimes.map((entry) => canonicalKey(entry.subject, entry.id)));
     if (catalogueKeys.size !== runtimeKeys.size || [...catalogueKeys].some((key) => !runtimeKeys.has(key))) {
         throw new Error('Production catalogue and runtime registry identities are not a bijection');
     }
 
+    const allCatalogue = catalogue.concat(futureCatalogue);
     return Object.freeze({
         count: catalogue.length,
         subjects: Object.freeze(new Set(catalogue.map((entry) => entry.subject))),
-        keys: Object.freeze(catalogueKeys),
-        activityKeys: Object.freeze(new Set(catalogue.map((entry) => canonicalActivityKey(entry.subject, entry.id)))),
-        routes: Object.freeze(new Set(catalogue.map((entry) => canonicalRoute(entry.subject, entry.id)))),
-        titles: Object.freeze(new Set(catalogue.map((entry) => `${entry.subject}:${normalizeTitle(entry.title)}`))),
+        candidateSubjects: Object.freeze(new Set(allCatalogue.map((entry) => entry.subject))),
+        keys: Object.freeze(new Set(allCatalogue.map((entry) => canonicalKey(entry.subject, entry.id)))),
+        activityKeys: Object.freeze(new Set(allCatalogue.map((entry) => (
+            entry.activityKey || canonicalActivityKey(entry.subject, entry.id)
+        )))),
+        routes: Object.freeze(new Set(allCatalogue.map((entry) => entry.route || canonicalRoute(entry.subject, entry.id)))),
+        titles: Object.freeze(new Set(allCatalogue.map((entry) => `${entry.subject}:${normalizeTitle(entry.title)}`))),
         owners: Object.freeze(new Set(runtimes.flatMap((entry) => entry.owners))),
         scripts: Object.freeze(new Set(runtimes.map((entry) => stripQuery(entry.script)))),
         catalogue: Object.freeze(catalogue),
+        futureCatalogue: Object.freeze(futureCatalogue),
         runtimes: Object.freeze(runtimes)
     });
 }
@@ -178,8 +203,9 @@ function validateCandidateManifests({ manifests, root = DEFAULT_ROOT, baseline =
         const owner = String(manifest.owner || '').trim();
         const namespace = String(manifest.namespace || '').trim();
         const initHook = String(manifest.init_hook || '').trim();
+        const candidateSubjects = baseline.candidateSubjects || baseline.subjects;
         if (!ID_PATTERN.test(subject)) addError(source, 'subject_invalid', 'subject must use lowercase kebab-case');
-        else if (!baseline.subjects.has(subject)) addError(source, 'subject_unknown', `subject is not a protected production subject: ${subject}`);
+        else if (!candidateSubjects.has(subject)) addError(source, 'subject_unknown', `subject is not a registered production subject: ${subject}`);
         if (!ID_PATTERN.test(id)) addError(source, 'id_invalid', 'id must use lowercase kebab-case');
         if (!title) addError(source, 'title_required', 'title is required');
         if (!OWNER_PATTERN.test(owner)) addError(source, 'owner_required', 'owner must be a non-empty PascalCase identifier');

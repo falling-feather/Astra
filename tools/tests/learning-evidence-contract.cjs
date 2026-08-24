@@ -244,7 +244,7 @@ async function testBatchFailClosedAndRecoverySubject() {
 }
 
 function testCatalog() {
-  const experimentEntries = Array.from({ length: 88 }, (_, index) => (
+  const experimentEntries = Array.from({ length: 90 }, (_, index) => (
     index === 0
       ? { subject: 'physics', id: 'mechanics' }
       : { subject: `subject-${Math.floor(index / 10)}`, id: `activity-${index}` }
@@ -263,8 +263,9 @@ function testCatalog() {
   assert.equal(verification['future-galaxy'].valid, true);
   assert.deepEqual(Object.keys(catalog.representatives).sort(), ['code-space', 'englab', 'future-galaxy']);
   assert.equal(catalog.resolve('future-galaxy', 'engineering.load-path').representative, true);
-  assert.equal(catalog.entries('future-galaxy').length, 18);
-  assert.equal(new Set(catalog.futureKeys).size, 18);
+  assert.equal(catalog.entries('future-galaxy').length, 19);
+  assert.equal(new Set(catalog.futureKeys).size, 19);
+  assert.equal(catalog.resolve('future-galaxy', 'engineering.robot-arm-ik').course_key, 'engineering-systems');
 
   const englab = catalog.resolve('englab', 'physics.mechanics');
   assert.equal(
