@@ -130,6 +130,7 @@ const CONFIG = {
         ],
         physics: [
             { id: 'mechanics', title: '恢复系数与反弹高度', description: '固定落高，对照 e² 与第一次反弹峰值', icon: 'gauge', variant: 'featured' },
+            { id: 'double-pendulum-chaos', title: '双摆混沌：初值差的放大', description: '近初值双摆轨迹与相空间对照', icon: 'orbit', variant: 'featured', guide: false },
             { id: 'gas-laws', title: '气体实验定律', description: 'Boyle/Charles/理想气体状态方程', icon: 'thermometer', variant: 'featured' },
             { id: 'thermodynamics', title: '热力学基础', description: '第一定律·热机效率·熵增方向', icon: 'flame', variant: 'featured' },
             { id: 'electromagnetism', title: '电磁场', description: '电场和磁场分布', icon: 'zap', variant: 'featured' },

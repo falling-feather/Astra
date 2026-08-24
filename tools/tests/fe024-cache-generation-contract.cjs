@@ -6,8 +6,9 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const generation = '20260824v816ExperimentRestoreP2';
+const showcaseGeneration = '20260824v831Show02P0';
 const v834Generation = '20260813v834ShowcaseLayoutP0';
-const moduleGeneration = '20260824v816ExperimentRestoreP2';
+const moduleGeneration = showcaseGeneration;
 const studentGeneration = '20260824v816ExperimentRestoreP2';
 const teacherGeneration = '20260813v832RoleMobileReceiptP0';
 const physicsGeneration = '20260824v816ExperimentRestoreP2';
@@ -56,13 +57,21 @@ class FakeResource {
 }
 
 function testStaticGenerationChain() {
-  for (const asset of ['app-session', 'experiment-registry', 'page-registry', 'router', 'main']) {
+  for (const asset of ['app-session', 'page-registry']) {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`),
       `index direct boot must request ${asset}.js from the V834 generation`,
     );
   }
+  for (const asset of ['experiment-registry', 'router', 'main']) {
+    assert.match(
+      html,
+      new RegExp(`shared/js/${asset}\\.js\\?v=${showcaseGeneration}`),
+      `index direct boot must request ${asset}.js from the SHOW-02 generation`,
+    );
+  }
+  assert.match(html, new RegExp(`shared/js/config\\.js\\?v=${showcaseGeneration}`));
   assert.match(router, new RegExp(`shared/js/module-selector\\.js\\?v=${moduleGeneration}`));
   assert.match(router, new RegExp(`shared/js/frontier-learning\\.js\\?v=${frontierGeneration}`));
   assert.match(experimentRegistry, new RegExp(`pages/physics/physics\\.js\\?v=${physicsGeneration}`));
@@ -81,8 +90,9 @@ function testStaticGenerationChain() {
   assert.match(main, new RegExp(`const SHELL_RUNTIME_ASSET_VERSION = '${generation}'`));
   assert.match(main, new RegExp(`const PAGE_REGISTRY_ASSET_VERSION = '${generation}'`));
   assert.match(main, /'\.\/shared\/js\/app-session\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
-  assert.match(main, /'\.\/shared\/js\/experiment-registry\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
-  assert.match(main, new RegExp(`'\\./shared/js/module-selector\\.js\\?v=${moduleGeneration}'`));
+  assert.match(main, new RegExp(`'\\./shared/js/config\\.js\\?v=${showcaseGeneration}'`));
+  assert.match(main, new RegExp(`'\\./shared/js/experiment-registry\\.js\\?v=${showcaseGeneration}'`));
+  assert.match(main, new RegExp(`'\\./shared/js/module-selector\\.js\\?v=${showcaseGeneration}'`));
   assert.match(main, /serviceWorker\.register\('\.\/sw\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION\)/);
   assert.match(serviceWorker, new RegExp(`const CACHE_NAME = 'astra-static-v${generation}'`));
   for (const asset of ['app-session', 'experiment-registry', 'page-registry', 'router', 'main']) {

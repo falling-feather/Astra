@@ -15,21 +15,25 @@ const {
 const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
 const exceptions = JSON.parse(fs.readFileSync(exceptionFile, 'utf8'));
 const current = buildCurrentProjection(root);
-assert.equal(current.length, 124);
+assert.equal(current.length, 125);
 assert.deepEqual(
     current.reduce((counts, activity) => {
         counts[activity.galaxy_key] = (counts[activity.galaxy_key] || 0) + 1;
         return counts;
     }, {}),
-    { englab: 88, 'code-space': 18, 'future-galaxy': 18 }
+    { englab: 89, 'code-space': 18, 'future-galaxy': 18 }
 );
-assert.equal(new Set(current.map((activity) => `${activity.galaxy_key}:${activity.activity_key}`)).size, 124);
-assert.deepEqual(createBaseline(current, baseline.source_revision), baseline, 'baseline JSON must be deterministic');
+assert.equal(new Set(current.map((activity) => `${activity.galaxy_key}:${activity.activity_key}`)).size, 125);
+assert.deepEqual(
+    createBaseline(current.filter((activity) => activity.activity_key !== 'physics.double-pendulum-chaos'), baseline.source_revision),
+    baseline,
+    'baseline JSON must remain deterministic when the approved new activity is excluded'
+);
 
 const clean = compareWithBaseline(current, baseline, exceptions);
 assert.equal(clean.ok, true, JSON.stringify(clean.issues));
 assert.equal(clean.protectedCount, 124);
-assert.deepEqual(clean.additions, []);
+assert.deepEqual(Array.from(clean.additions), ['englab:physics.double-pendulum-chaos']);
 
 const newActivity = {
     galaxy_key: 'englab',
@@ -46,7 +50,10 @@ const newActivity = {
 };
 const withAddition = compareWithBaseline([...current, newActivity], baseline, exceptions);
 assert.equal(withAddition.ok, true);
-assert.deepEqual(Array.from(withAddition.additions), ['englab:physics.future-new-probe']);
+assert.deepEqual(Array.from(withAddition.additions), [
+    'englab:physics.double-pendulum-chaos',
+    'englab:physics.future-new-probe'
+]);
 
 const changedResourceProjection = JSON.parse(JSON.stringify(current));
 const mechanics = changedResourceProjection.find((activity) => activity.activity_key === 'physics.mechanics');
@@ -97,6 +104,6 @@ const cli = spawnSync(process.execPath, ['tools/quality/check-protected-activity
     windowsHide: true
 });
 assert.equal(cli.status, 0, cli.stderr);
-assert.match(cli.stdout, /124 protected activities PASS; 0 unprotected addition\(s\) ignored/);
+assert.match(cli.stdout, /124 protected activities PASS; 1 unprotected addition\(s\) ignored/);
 
-console.log('protected-activity-change-alert-contract: 124 identities, additions, alerts and exact exceptions PASS');
+console.log('protected-activity-change-alert-contract: 124 protected identities plus 1 approved addition, alerts and exact exceptions PASS');

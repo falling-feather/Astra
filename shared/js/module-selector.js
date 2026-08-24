@@ -1434,11 +1434,17 @@ const ModuleSelector = {
     },
 
     _showModuleTools(page, moduleId) {
-        // Show experiment guide on first visit
+        const experiment = (CONFIG.experiments[page] || []).find(item => item.id === moduleId);
+        const guideEnabled = experiment?.guide !== false;
+
+        // Existing experiments keep their first-visit guide. New showcase modules
+        // may opt out when their stage already carries sufficient inline affordance.
         const guide = this._getExperimentGuide();
-        if (guide) {
+        if (guide && guideEnabled) {
             guide.showIfFirstTime(page, moduleId);
             guide.showHelpButton(page, moduleId);
+        } else if (guide) {
+            guide.hideHelpButton();
         }
         // Show export button (E-03)
         if (window.ExperimentExport) {

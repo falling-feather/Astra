@@ -106,6 +106,7 @@
 
         // Physics — CONFIG order
         define('physics', 'mechanics', 'pages/physics/physics.js?v=20260824v816ExperimentRestoreP2', 'initPhysics', validatedMethod('PhysicsSim', () => PhysicsSim)),
+        define('physics', 'double-pendulum-chaos', 'pages/physics/double-pendulum-chaos/index.js?v=20260824v831Show02P0', 'initDoublePendulumChaos', validatedMethod('DoublePendulumChaos', () => DoublePendulumChaos)),
         define('physics', 'gas-laws', 'pages/physics/gas-laws.js?v=20260618publicClean1', 'initGasLaws', validatedMethod('GasLaws', () => GasLaws)),
         define('physics', 'thermodynamics', 'pages/physics/thermodynamics.js?v=20260618thermoP1', 'initThermodynamics', validatedMethod('Thermodynamics', () => Thermodynamics)),
         define('physics', 'electromagnetism', 'pages/physics/electromagnetic.js', 'initElectromagnetic', legacyMethod('EMField', () => EMField)),

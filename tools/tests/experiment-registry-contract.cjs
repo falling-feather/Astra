@@ -33,15 +33,20 @@ const configIds = vm.runInContext(
 const subjects = ['mathematics', 'physics', 'chemistry', 'algorithms', 'biology'];
 const expectedCounts = {
     mathematics: 20,
-    physics: 20,
+    physics: 21,
     chemistry: 17,
     algorithms: 12,
     biology: 19
 };
 const definitions = Array.from(registry.entries());
+const doublePendulumConfig = vm.runInContext(
+    "CONFIG.experiments.physics.find(entry => entry.id === 'double-pendulum-chaos')",
+    context
+);
 
-assert.equal(definitions.length, 88);
-assert.equal(new Set(definitions.map(entry => `${entry.subject}:${entry.id}`)).size, 88);
+assert.equal(definitions.length, 89);
+assert.equal(new Set(definitions.map(entry => `${entry.subject}:${entry.id}`)).size, 89);
+assert.equal(doublePendulumConfig.guide, false, 'the showcase module must bypass the legacy first-visit course guide');
 for (const subject of subjects) {
     const entries = Array.from(registry.entries(subject));
     assert.equal(entries.length, expectedCounts[subject], `${subject} count must remain stable`);
@@ -53,8 +58,8 @@ for (const subject of subjects) {
 }
 
 const domModules = Array.from(html.matchAll(/data-module="([a-z0-9-]+)"/g), match => match[1]);
-assert.equal(domModules.length, 90, 'DOM keeps three searching sections and one section for every other experiment');
-assert.equal(new Set(domModules).size, 88);
+assert.equal(domModules.length, 91, 'DOM keeps three searching sections and one section for every other experiment');
+assert.equal(new Set(domModules).size, 89);
 assert.equal(domModules.filter(id => id === 'searching').length, 3);
 assert.deepEqual(
     [...new Set(definitions.map(entry => entry.id))].sort(),
@@ -80,7 +85,7 @@ const initModeCounts = definitions.reduce((counts, entry) => {
     counts[entry.init.mode] = (counts[entry.init.mode] || 0) + 1;
     return counts;
 }, {});
-assert.deepEqual(initModeCounts, { 'global-hook': 88 });
+assert.deepEqual(initModeCounts, { 'global-hook': 89 });
 const sorting = registry.get('algorithms', 'sorting');
 assert.equal(sorting.init.hook, 'initAlgorithms');
 assert.equal(sorting.init.invoke, true);
@@ -99,7 +104,7 @@ const cleanupStateCounts = definitions.reduce((counts, entry) => {
 }, {});
 assert.deepEqual(cleanupStateCounts, {
     'legacy-callback': 65,
-    'validated-callback': 23
+    'validated-callback': 24
 });
 
 const expectedValidated = {
@@ -112,6 +117,11 @@ const expectedValidated = {
         script: 'pages/physics/physics.js?v=20260824v816ExperimentRestoreP2',
         initHook: 'initPhysics',
         owner: 'PhysicsSim'
+    },
+    'physics:double-pendulum-chaos': {
+        script: 'pages/physics/double-pendulum-chaos/index.js?v=20260824v831Show02P0',
+        initHook: 'initDoublePendulumChaos',
+        owner: 'DoublePendulumChaos'
     },
     'physics:gas-laws': {
         script: 'pages/physics/gas-laws.js?v=20260618publicClean1',
@@ -329,7 +339,7 @@ assert.equal(cleanupReport.executed, 3);
 assert.equal(cleanupReport.failed, 0);
 assert.equal(context.destroyCalls, 1);
 assert.equal(context.calculusDestroyCalls, 1, 'cleanup closure must resolve a later global lexical binding');
-const expectedAttempts = { mathematics: 20, physics: 20, chemistry: 17, algorithms: 12, biology: 19 };
+const expectedAttempts = { mathematics: 20, physics: 21, chemistry: 17, algorithms: 12, biology: 19 };
 for (const subject of subjects.slice(1)) {
     const report = registry.cleanupPage(subject);
     assert.equal(report.attempted, expectedAttempts[subject], `${subject} executable cleanup count must remain exact`);
@@ -344,6 +354,9 @@ assert.doesNotMatch(moduleSelector, /\b_moduleScripts\s*:|\bconst initMap\s*=/);
 assert.match(moduleSelector, /AstraExperimentRegistry\?\.scriptFor\(page, moduleId\)/);
 assert.match(moduleSelector, /AstraExperimentRegistry\?\.init\(page, moduleId\)/);
 assert.match(moduleSelector, /registry\.cleanupModule\(page, moduleId\)/);
+assert.match(moduleSelector, /const guideEnabled = experiment\?\.guide !== false/);
+assert.match(moduleSelector, /guide && guideEnabled/);
+assert.match(moduleSelector, /guide\.hideHelpButton\(\)/);
 assert.match(moduleSelector, /leavePage\(page, options = \{\}\)/);
 assert.match(moduleSelector, /AstraExperimentRegistry\?\.cleanupPage\(page\)/);
 const leavePageStart = moduleSelector.indexOf('leavePage(page, options = {})');
@@ -414,8 +427,8 @@ assert.ok(
 assert.doesNotMatch(router, /\bconst destroyMap\s*=/);
 assert.match(router, /ModuleSelector\.leavePage\(page, \{ preserveHash: true \}\)/);
 assert.match(html, /config\.js[\s\S]*experiment-registry\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/);
-assert.match(main, /experiment-registry\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
-assert.match(main, /module-selector\.js\?v=20260824v816ExperimentRestoreP2/);
+assert.match(main, /experiment-registry\.js\?v=20260824v831Show02P0/);
+assert.match(main, /module-selector\.js\?v=20260824v831Show02P0/);
 assert.match(serviceWorker, /experiment-registry\.js\?v=20260824v816ExperimentRestoreP2/);
 assert.match(serviceWorker, /astra-static-v20260824v816ExperimentRestoreP2/);
 
