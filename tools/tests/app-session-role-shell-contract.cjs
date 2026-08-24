@@ -44,7 +44,7 @@ assert.match(
     /await window\.AstraApplicationSession\.bootstrap\(\);[\s\S]*AstraStudentCourseCatalogue\.refresh[\s\S]*initApp\(\)/
 );
 assert.match(main, /serviceWorker\.register\('\.\/sw\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION\)/);
-assert.match(html, /page-registry\.js\?v=20260824v816ExperimentRestoreP2[\s\S]*main\.js\?v=20260824v831Show02P0/);
+assert.match(html, /page-registry\.js\?v=20260824v816ExperimentRestoreP2[\s\S]*main\.js\?v=20260824v832Show03P0/);
 assert.match(main, /page-registry\.js\?v=' \+ PAGE_REGISTRY_ASSET_VERSION/);
 assert.match(main, /main\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
 assert.doesNotMatch(main, /\ninitApp\(\);\s*$/);

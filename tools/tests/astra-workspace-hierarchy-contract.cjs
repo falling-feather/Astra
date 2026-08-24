@@ -49,7 +49,7 @@ assert.match(html, /data-astra-workspace="student"[\s\S]*星序[\s\S]*我的学�
 assert.match(router, /navbar--hidden', this\._galaxyForPage\(initialPage\) === 'astra'/);
 assert.match(router, /navbar--hidden', this\._galaxyForPage\(page\) === 'astra'/);
 assert.match(router, /return this\._galaxyForPage\(page\) === 'englab' && page !== 'home'/);
-assert.match(html, /shared\/js\/router\.js\?v=20260824v831Show02P0/);
+assert.match(html, /shared\/js\/router\.js\?v=20260824v832Show03P0/);
 assert.match(main, /const galaxy = window\.AstraPageRegistry[\s\S]*const showEnglab = galaxy === 'englab' && page !== 'home'/);
 assert.match(main, /shared\/js\/router\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION/);
 assert.match(serviceWorker, /shared\/js\/router\.js\?v=20260824v816ExperimentRestoreP2/);

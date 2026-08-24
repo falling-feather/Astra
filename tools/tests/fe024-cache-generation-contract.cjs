@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const generation = '20260824v816ExperimentRestoreP2';
-const showcaseGeneration = '20260824v831Show02P0';
+const showcaseGeneration = '20260824v832Show03P0';
 const v834Generation = '20260813v834ShowcaseLayoutP0';
 const moduleGeneration = showcaseGeneration;
 const studentGeneration = '20260824v816ExperimentRestoreP2';
@@ -68,7 +68,7 @@ function testStaticGenerationChain() {
     assert.match(
       html,
       new RegExp(`shared/js/${asset}\\.js\\?v=${showcaseGeneration}`),
-      `index direct boot must request ${asset}.js from the SHOW-02 generation`,
+      `index direct boot must request ${asset}.js from the SHOW-03 generation`,
     );
   }
   assert.match(html, new RegExp(`shared/js/config\\.js\\?v=${showcaseGeneration}`));

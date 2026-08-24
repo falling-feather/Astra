@@ -128,6 +128,7 @@
         define('physics', 'atomic-physics', 'pages/physics/atomic-physics.js?v=20260618publicClean1', 'initAtomicPhysics', validatedMethod('AtomicPhysics', () => AtomicPhysics)),
 
         // Chemistry — CONFIG order
+        define('chemistry', 'chromatography-separation', 'pages/chemistry/chromatography-separation/index.js?v=20260824v832Show03P0', 'initChromatographySeparation', validatedMethod('ChromatographySeparation', () => ChromatographySeparation)),
         define('chemistry', 'periodic-table', 'pages/chemistry/periodic-table.js?v=20260618ptNames1', 'initPeriodicTable', legacyMethod('PeriodicTable', () => PeriodicTable)),
         define('chemistry', 'molecular-structure', 'pages/chemistry/molecular-structure.js?v=20260424v45e', 'initMoleculeVis', legacyMethod('MoleculeVis', () => MoleculeVis)),
         define('chemistry', 'hybrid-orbitals', 'pages/chemistry/hybrid-orbitals.js?v=20260618hybFix1', 'initHybridOrbitals', validatedMethod('HybridOrbitals', () => HybridOrbitals)),

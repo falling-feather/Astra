@@ -23,10 +23,10 @@ const protectedFiles = [
 ];
 const beforeHashes = protectedFiles.map(sha256);
 const baseline = loadProductionBaseline(root);
-assert.equal(baseline.count, 89);
+assert.equal(baseline.count, 90);
 assert.deepEqual([...baseline.subjects].sort(), ['algorithms', 'biology', 'chemistry', 'mathematics', 'physics']);
-assert.equal(baseline.keys.size, 89);
-assert.equal(baseline.routes.size, 89);
+assert.equal(baseline.keys.size, 90);
+assert.equal(baseline.routes.size, 90);
 assert.ok(baseline.owners.has('PhysicsSim'));
 assert.ok(baseline.scripts.has('pages/physics/physics.js'));
 
@@ -117,7 +117,7 @@ try {
     const valid = validate(validManifest);
     assert.equal(valid.ok, true, JSON.stringify(valid.errors));
     assert.equal(valid.checked, 1);
-    assert.equal(valid.protectedExperiments, 89);
+    assert.equal(valid.protectedExperiments, 90);
 
     const missingModelDocument = {
         ...validManifest,

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "subject": "chemistry",
+  "id": "chromatography-separation",
+  "alt": "三条彩色色带沿色谱柱分离，右侧同步形成三个不同保留时间的检测峰",
+  "poster": {
+    "path": "pages/chemistry/chromatography-separation/preview.webp",
+    "width": 1600,
+    "height": 900,
+    "bytes": 35790,
+    "sha256": "2eca2a7a8781b8857da54ded000ba73fa566e3dcc4cab6aed845875cddc9aa03"
+  },
+  "motion": null,
+  "reduced_motion": "poster",
+  "source": {
+    "method": "browser-capture",
+    "route": "#chemistry/chromatography-separation",
+    "selector": "[data-module=\"chromatography-separation\"] [data-role=\"stage\"]",
+    "viewport": { "width": 1600, "height": 900 },
+    "captured_by": "主开发与化学内容复核角色",
+    "captured_on": "2026-08-24",
+    "rights": "project-original",
+    "source_files": [
+      "pages/chemistry/chromatography-separation/module.html",
+      "pages/chemistry/chromatography-separation/index.js",
+      "pages/chemistry/chromatography-separation/styles.css"
+    ]
+  },
+  "content": {
+    "shows_interaction_result": true,
+    "decorative_only": false,
+    "old_activity_source": false,
+    "embedded_title": false
+  }
+}

@@ -41,6 +41,7 @@
     <link rel="stylesheet" href="pages/physics/physics.css?v=20260824v816ExperimentRestoreP2">
     <link rel="stylesheet" href="pages/physics/double-pendulum-chaos/styles.css?v=20260824v831Show02P0">
     <link rel="stylesheet" href="pages/chemistry/chemistry.css?v=20260618ionP1">
+    <link rel="stylesheet" href="pages/chemistry/chromatography-separation/styles.css?v=20260824v832Show03P0">
     <link rel="stylesheet" href="pages/algorithms/algorithms.css?v=20260618algoTextP1">
     <link rel="stylesheet" href="pages/biology/biology.css?v=20260618neuralP1">
     <link rel="stylesheet" href="shared/css/auth-ui.css?v=20260716v7427RoleWorkflowGateP0">
@@ -1952,6 +1953,9 @@
                 </div>
             </div>
 
+            <!-- Generated mirror of pages/chemistry/chromatography-separation/module.html; keep the readable source authoritative. -->
+            <section class="content-section" data-module="chromatography-separation" aria-labelledby="chromatography-separation-title"> <div class="astra-exp astra-exp--chromatography-separation" data-state="running" data-preset="balanced"> <header class="astra-exp--chromatography-separation__header"> <div> <p class="astra-exp--chromatography-separation__eyebrow">Chemistry · Separation Lab</p> <h2 id="chromatography-separation-title">色谱分离：色带与峰同步</h2> <p class="astra-exp--chromatography-separation__subtitle">看见色带在柱中拉开，并与检测峰逐一对应。</p> </div> <output class="astra-exp--chromatography-separation__state" data-role="state" aria-live="polite">运行中</output> </header> <div class="astra-exp--chromatography-separation__workspace"> <div class="astra-exp--chromatography-separation__stage" data-role="stage"> <canvas class="astra-exp--chromatography-separation__canvas" data-role="canvas" role="img" aria-label="三组分在色谱柱中的色带位置与右侧检测峰同步变化"></canvas> <div class="astra-exp--chromatography-separation__telemetry" aria-label="色谱实时读数"> <span>RETENTION MAP / 保留映射</span> <output class="astra-exp--chromatography-separation__readout" data-role="readout" aria-live="polite">主参数 50 · Δk 0.625 · t 0.0 min</output> </div> <div class="astra-exp--chromatography-separation__metrics" aria-label="关键模型读数"> <div><span>死时间 tM</span><output data-role="hold-up-time">7.14 min</output></div> <div><span>最小分离度</span><output data-role="resolution">1.85</output></div> <div><span>下一检测峰</span><output data-role="next-peak">A · 11.43 min</output></div> </div> <p class="astra-exp--chromatography-separation__stage-hint" data-role="stage-hint">拖动右侧扫描线，可定位检测时刻</p> <ul class="astra-exp--chromatography-separation__legend" data-role="legend" aria-label="组分图例"> <li><span class="astra-exp--chromatography-separation__swatch" data-tone="a" aria-hidden="true"></span><span>组分 A</span></li> <li><span class="astra-exp--chromatography-separation__swatch" data-tone="b" aria-hidden="true"></span><span>组分 B</span></li> <li><span class="astra-exp--chromatography-separation__swatch" data-tone="c" aria-hidden="true"></span><span>组分 C</span></li> </ul> </div> <details class="astra-exp--chromatography-separation__drawer" data-role="control-drawer" open> <summary><span>参数与控制</span><span aria-hidden="true">展开 / 收起</span></summary> <div class="astra-exp--chromatography-separation__drawer-body"> <div class="astra-exp--chromatography-separation__control-group"> <div class="astra-exp--chromatography-separation__label-row"> <label for="chromatography-separation-parameter">保留差</label> <output for="chromatography-separation-parameter" data-role="parameter-value">50 · Δk 0.625</output> </div> <input id="chromatography-separation-parameter" data-control="parameter" type="range" min="0" max="100" value="50" aria-describedby="chromatography-separation-parameter-hint"> <p id="chromatography-separation-parameter-hint">向右增大三组分的保留因子间隔。</p> </div> <div class="astra-exp--chromatography-separation__control-group"> <div class="astra-exp--chromatography-separation__label-row"> <label for="chromatography-separation-flow">流量</label> <output for="chromatography-separation-flow" data-role="flow-value">1.40 mL/min</output> </div> <input id="chromatography-separation-flow" data-control="flow" type="range" min="0.8" max="2" step="0.1" value="1.4" aria-describedby="chromatography-separation-flow-hint"> <p id="chromatography-separation-flow-hint">流量改变出峰时间，不改变保留因子。</p> </div> <div class="astra-exp--chromatography-separation__preset-group" aria-label="分离状态"> <span>快速对比</span> <div> <button type="button" data-preset="overlap">峰重叠</button> <button type="button" data-preset="balanced" aria-pressed="true">均衡</button> <button type="button" data-preset="resolved">高分离</button> </div> </div> <div class="astra-exp--chromatography-separation__actions" role="group" aria-label="播放控制"> <button class="astra-exp--chromatography-separation__action astra-exp--chromatography-separation__action--primary" type="button" data-action="toggle" aria-pressed="false">暂停扫描</button> <button class="astra-exp--chromatography-separation__action" type="button" data-action="reset">重新进样</button> </div> <p class="astra-exp--chromatography-separation__notice" data-role="notice" data-tone="info" role="status" aria-live="polite">三组分已进样，色带与检测曲线同步推进。</p> </div> </details> </div> </div> </section>
+
             <!-- ── 元素周期表 ── -->
             <div class="content-section" data-module="periodic-table">
                 <div class="demo-section">
@@ -3702,18 +3706,18 @@
     </div>
 
     <!-- Application Scripts: minimal boot path -->
-    <script src="shared/js/config.js?v=20260824v831Show02P0"></script>
+    <script src="shared/js/config.js?v=20260824v832Show03P0"></script>
     <script src="shared/js/api-client.js?v=20260719v7437AstraWorkspaceP0"></script>
     <script src="shared/js/auth-ui.js?v=20260716v7427RoleWorkflowGateP0"></script>
     <script src="shared/js/app-session.js?v=20260824v816ExperimentRestoreP2"></script>
     <script src="shared/js/backend-content.js?v=20260716v7427RoleWorkflowGateP0"></script>
-    <script src="shared/js/experiment-registry.js?v=20260824v831Show02P0"></script>
+    <script src="shared/js/experiment-registry.js?v=20260824v832Show03P0"></script>
     <script src="pages/frontier/frontier-manifest.js?v=20260809v804FutureEvidenceP0"></script>
     <script src="shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2"></script>
     <script src="pages/planets/planets.js?v=20260824v816ExperimentRestoreP2"></script>
     <script src="shared/js/page-registry.js?v=20260824v816ExperimentRestoreP2"></script>
-    <script src="shared/js/router.js?v=20260824v831Show02P0"></script>
-    <script src="shared/js/main.js?v=20260824v831Show02P0"></script>
+    <script src="shared/js/router.js?v=20260824v832Show03P0"></script>
+    <script src="shared/js/main.js?v=20260824v832Show03P0"></script>
     <script>
         (function () {
             try {

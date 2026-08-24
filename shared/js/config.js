@@ -152,6 +152,7 @@ const CONFIG = {
             { id: 'atomic-physics', title: '原子物理', description: '玻尔能级·光谱跃迁·光电效应', icon: 'orbit', variant: 'featured' }
         ],
         chemistry: [
+            { id: 'chromatography-separation', title: '色谱分离：色带与峰同步', description: '柱中色带与检测峰的保留时间对照', icon: 'activity', variant: 'featured', guide: false },
             { id: 'periodic-table', title: '元素周期表', description: '交互式元素周期表', icon: 'table', variant: 'featured' },
             { id: 'molecular-structure', title: '分子结构', description: '3D可视化分子', icon: 'atom', variant: 'featured' },
             { id: 'hybrid-orbitals', title: '杂化轨道理论', description: 'sp/sp²/sp³ 与 VSEPR 构型联动', icon: 'orbit', variant: 'featured' },
