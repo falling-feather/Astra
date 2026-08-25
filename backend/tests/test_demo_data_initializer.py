@@ -36,6 +36,13 @@ from scripts.demo_data_manifest import (
     DEMO_CODE_PROBLEM,
     DEMO_COURSES,
     DEMO_EVIDENCE_EVENT_TYPES,
+    DEMO_OPEN_STUDENT_USERNAME,
+    DEMO_PEER_TEACHER_USERNAME,
+    DEMO_PENDING_TEACHER_USERNAME,
+    DEMO_V84_ASSIGNMENTS,
+    DEMO_V84_OPEN_COURSE,
+    DEMO_V84_RESTRICTED_COURSE,
+    DEMO_V84_USERS,
     COURSE_BY_KEY,
     REPRESENTATIVE_BY_COURSE,
     REPRESENTATIVE_COURSES,
@@ -46,7 +53,14 @@ import scripts.initialize_demo_data as initializer_module
 
 DEMO_PASSWORDS = {
     username: f"Astra-{secrets.token_urlsafe(32)}"
-    for username in ("astra_demo_admin", "astra_demo_teacher", "astra_demo_student")
+    for username in (
+        "astra_demo_admin",
+        "astra_demo_teacher",
+        "astra_demo_student",
+        DEMO_PEER_TEACHER_USERNAME,
+        DEMO_PENDING_TEACHER_USERNAME,
+        DEMO_OPEN_STUDENT_USERNAME,
+    )
 }
 
 
@@ -70,6 +84,14 @@ def test_manifest_is_complete_and_contains_no_credential_material():
     assert sum(len(course.units) for course in DEMO_COURSES) == 42
     assert len(REPRESENTATIVE_COURSES) == 6
     assert DEMO_EVIDENCE_EVENT_TYPES == ("started", "predicted", "attempted", "corrected", "explained")
+    assert DEMO_V84_USERS == (
+        (DEMO_PEER_TEACHER_USERNAME, "演示共同教师", "teacher"),
+        (DEMO_PENDING_TEACHER_USERNAME, "演示待审教师", "student"),
+        (DEMO_OPEN_STUDENT_USERNAME, "演示无行政班学生", "student"),
+    )
+    assert DEMO_V84_OPEN_COURSE["admission_mode"] == "open"
+    assert DEMO_V84_RESTRICTED_COURSE["admission_mode"] == "class_restricted"
+    assert [item["desired_status"] for item in DEMO_V84_ASSIGNMENTS] == ["graded", "pending"]
     assert {
         (item["course_key"], item["activity_key"]): (
             item["title"],
@@ -487,6 +509,38 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
             "course_unit_count": 3,
             "assignment_count": 0,
         }
+        assert report["course_loop"]["teacher_applications"]["peer"]["status"] == "approved"
+        assert report["course_loop"]["teacher_applications"]["peer"]["applicant_role"] == "teacher"
+        assert report["course_loop"]["teacher_applications"]["pending"]["status"] == "pending"
+        assert report["course_loop"]["teacher_applications"]["pending"]["applicant_role"] == "student"
+        assert report["course_loop"]["courses"]["open"]["admission_mode"] == "open"
+        assert report["course_loop"]["courses"]["class_restricted"]["admission_mode"] == "class_restricted"
+        assert report["course_loop"]["courses"]["open"]["teacher_count"] == 2
+        assert report["course_loop"]["courses"]["class_restricted"]["teacher_count"] == 2
+        assert len(report["course_loop"]["courses"]["open"]["course_code"]) == 8
+        assert len(report["course_loop"]["courses"]["class_restricted"]["course_code"]) == 8
+        assert report["course_loop"]["enrollments"]["open"]["source"] == "request"
+        assert report["course_loop"]["enrollments"]["open"]["source_class_name"] == "未关联班级"
+        assert report["course_loop"]["enrollments"]["class_restricted"]["source"] == "class_batch"
+        assert report["course_loop"]["releases"]["release_numbers"] == [2, 1]
+        assert report["course_loop"]["releases"]["presets"] == {
+            "physics.mechanics": "experiment_operation",
+            "physics.energy-checkpoint": "checkpoint_passed",
+            "physics.evidence-report": "assignment_reviewed",
+        }
+        assert report["course_loop"]["submissions"]["机械能证据报告"]["status"] == "graded"
+        assert report["course_loop"]["submissions"]["机械能证据报告"]["score"] == 92
+        assert report["course_loop"]["submissions"]["机械能证据报告"]["feedback"]
+        assert report["course_loop"]["submissions"]["机械能拓展思考"] == {
+            "id": report["course_loop"]["submissions"]["机械能拓展思考"]["id"],
+            "status": "submitted",
+            "score": None,
+            "feedback": None,
+        }
+        assert report["course_loop"]["learning"]["runtime_recorded"] is True
+        assert report["course_loop"]["learning"]["checkpoint_completed"] is True
+        assert report["course_loop"]["learning"]["current_release_number"] == 2
+        assert set(report["course_loop"]["learning"]["activity_statuses"].values()) == {"completed"}
         assert report["synthetic_data_notice"] == "本数据为合成演示证据，用于复验产品闭环，不代表真实学生学习时长、掌握程度或课堂试点。"
 
     assert first["users"] == second["users"] == third["users"]
@@ -508,6 +562,7 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
         third["assignments"]["control-flow"]["submission_id"],
     )
     assert first["code_runner"] == second["code_runner"] == third["code_runner"]
+    assert first["course_loop"] == second["course_loop"] == third["course_loop"]
     assert first_scope == second_scope == third_scope
     assert (
         first_payloads
@@ -561,11 +616,11 @@ def test_credentials_are_announced_before_later_failure_and_recover(local_demo_e
         if ": " in line and line.split(": ", 1)[0] in DEMO_PASSWORDS:
             username, password = line.split(": ", 1)
             announced[username] = password
-    assert set(announced) == set(DEMO_PASSWORDS)
+    assert set(announced) == {"astra_demo_admin", "astra_demo_teacher", "astra_demo_student"}
     assert all(announced.values())
     assert all(secret not in str(failure.value) for secret in announced.values())
 
-    report = asyncio.run(initialize_demo_data(credentials=announced))
+    report = asyncio.run(initialize_demo_data(credentials={**DEMO_PASSWORDS, **announced}))
     assert all(secret not in json.dumps(report, ensure_ascii=False) for secret in announced.values())
 
 

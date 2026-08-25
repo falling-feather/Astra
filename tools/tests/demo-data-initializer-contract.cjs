@@ -38,6 +38,15 @@ for (const endpoint of [
   '/api/assignments/',
   '/api/code-submissions',
   '/api/admin/audit-logs',
+  '/api/v1/teacher-applications',
+  '/api/v1/courses',
+  '/information-revisions',
+  '/join-requests',
+  '/enrollments',
+  '/draft',
+  '/releases',
+  '/api/learning-evidence/activity-runtime/events',
+  '/api/learning-evidence/me/recovery',
 ]) {
   assert.match(initializer, new RegExp(endpoint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
@@ -69,6 +78,18 @@ assert.match(manifest, /DEMO_CODE_PROBLEM = \{/);
 assert.match(manifest, /astra_demo_admin/);
 assert.match(manifest, /astra_demo_teacher/);
 assert.match(manifest, /astra_demo_student/);
+assert.match(manifest, /astra_demo_peer_teacher/);
+assert.match(manifest, /astra_demo_pending_teacher/);
+assert.match(manifest, /astra_demo_open_student/);
+assert.match(manifest, /DEMO_V84_OPEN_COURSE = \{/);
+assert.match(manifest, /DEMO_V84_RESTRICTED_COURSE = \{/);
+assert.match(manifest, /DEMO_V84_ASSIGNMENTS = \(/);
+assert.match(manifest, /"admission_mode": "open"/);
+assert.match(manifest, /"admission_mode": "class_restricted"/);
+assert.match(initializer, /"preset": "experiment_operation"/);
+assert.match(initializer, /"preset": "checkpoint_passed"/);
+assert.match(initializer, /"preset": "assignment_reviewed"/);
+assert.match(initializer, /v84-demo-checkpoint-correct-1/);
 assert.doesNotMatch(manifest, /password|token/i);
 assert.doesNotMatch(evidenceProfiles, /password|token/i);
 

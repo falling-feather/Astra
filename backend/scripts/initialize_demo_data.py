@@ -37,10 +37,16 @@ from scripts.demo_data_manifest import (
     DEMO_COURSES,
     DEMO_CODE_PROBLEM,
     DEMO_EVIDENCE_EVENT_TYPES,
+    DEMO_OPEN_STUDENT_USERNAME,
+    DEMO_PEER_TEACHER_USERNAME,
+    DEMO_PENDING_TEACHER_USERNAME,
     DEMO_SCHOOL_NAME,
     DEMO_SCHOOL_REGION,
     DEMO_STUDENT_USERNAME,
     DEMO_TEACHER_USERNAME,
+    DEMO_V84_ASSIGNMENTS,
+    DEMO_V84_OPEN_COURSE,
+    DEMO_V84_RESTRICTED_COURSE,
     COURSE_BY_KEY,
     REPRESENTATIVE_BY_COURSE,
     UNIT_BY_ACTIVITY_KEY,
@@ -297,6 +303,24 @@ class DemoApi:
         return await self.request("PATCH", path, actor=actor, json_payload=payload)
 
     async def login(self, username: str, password: str, expected_role: str, expected_display_name: str) -> Actor:
+        actor = await self.login_any_role(
+            username,
+            password,
+            allowed_roles={expected_role},
+            expected_display_name=expected_display_name,
+        )
+        if actor.role != expected_role:
+            raise DemoInitializationError(f"login {username} returned an unexpected role or token")
+        return actor
+
+    async def login_any_role(
+        self,
+        username: str,
+        password: str,
+        *,
+        allowed_roles: set[str],
+        expected_display_name: str,
+    ) -> Actor:
         response = await self.post("/api/auth/login", None, {"username": username, "password": password})
         payload = _require_status(response, 200, f"login {username}")
         # Do not let the HttpOnly response cookie leak into later Bearer calls.
@@ -304,17 +328,19 @@ class DemoApi:
             self.client.cookies.clear()
         token = payload.get("access_token")
         user = payload.get("user") or {}
-        if not isinstance(token, str) or not token or user.get("role") != expected_role:
+        role = user.get("role")
+        if not isinstance(token, str) or not token or role not in allowed_roles:
             raise DemoInitializationError(f"login {username} returned an unexpected role or token")
-        me_response = await self.get("/api/users/me", Actor(username, int(user["id"]), expected_role, token))
+        actor = Actor(username, int(user["id"]), str(role), token)
+        me_response = await self.get("/api/users/me", actor)
         me = _require_status(me_response, 200, f"verify identity {username}")
         if (
             me.get("username") != username
-            or me.get("role") != expected_role
+            or me.get("role") != role
             or me.get("display_name") != expected_display_name
         ):
             raise DemoInitializationError(f"verified identity drifted for {username}")
-        return Actor(username, int(me["id"]), expected_role, token)
+        return Actor(username, int(me["id"]), str(role), token)
 
 
 async def _ensure_actor(
@@ -362,6 +388,135 @@ async def _ensure_actor(
         else:
             raise DemoInitializationError(f"register {username} failed with HTTP {response.status_code}: {_response_detail(response)}")
     return await api.login(username, candidate, role, display_name)
+
+
+async def _ensure_student_origin_actor(
+    api: DemoApi,
+    *,
+    username: str,
+    display_name: str,
+    credentials: Mapping[str, str],
+    prompt_password: Callable[[str], str] | None,
+    display_new_credentials: bool,
+    credential_banner: list[bool],
+) -> tuple[Actor, str]:
+    """Create an application-based identity without bypassing teacher review."""
+
+    candidate = credentials.get(username) or _password_strength()
+    response = await api.post(
+        "/api/auth/register",
+        None,
+        {
+            "username": username,
+            "password": candidate,
+            "display_name": display_name,
+            "role": "student",
+        },
+    )
+    if response.status_code == 201:
+        if display_new_credentials:
+            if not credential_banner[0]:
+                print("Astra local demo credentials (shown once; synthetic only):", flush=True)
+                credential_banner[0] = True
+            print(f"{username}: {candidate}", flush=True)
+    elif response.status_code == 409 and _has_exact_detail(response, "Username already exists"):
+        candidate = _existing_password(username, credentials, prompt_password)
+    else:
+        raise DemoInitializationError(
+            f"register {username} failed with HTTP {response.status_code}: {_response_detail(response)}"
+        )
+    actor = await api.login_any_role(
+        username,
+        candidate,
+        allowed_roles={"student", "teacher"},
+        expected_display_name=display_name,
+    )
+    return actor, candidate
+
+
+async def _ensure_pending_teacher_application(api: DemoApi, applicant: Actor) -> dict[str, Any]:
+    if applicant.role != "student":
+        raise DemoInitializationError("pending demo teacher applicant role drifted")
+    current = _require_status(
+        await api.get("/api/v1/teacher-applications/me", applicant),
+        200,
+        "read pending demo teacher application",
+    )
+    expected_message = "申请演示教师身份，用于管理员待办队列展示。"
+    if current is None:
+        current = _require_status(
+            await api.post(
+                "/api/v1/teacher-applications",
+                applicant,
+                {"message": expected_message},
+            ),
+            201,
+            "create pending demo teacher application",
+        )
+    if (
+        current.get("status") != "pending"
+        or current.get("user_id") != applicant.user_id
+        or current.get("message") != expected_message
+        or current.get("applicant_role") != "student"
+    ):
+        raise DemoInitializationError("pending demo teacher application drifted")
+    return current
+
+
+async def _ensure_peer_teacher_application(
+    api: DemoApi,
+    *,
+    actor: Actor,
+    password: str,
+    admin: Actor,
+    display_name: str,
+) -> tuple[Actor, dict[str, Any]]:
+    current = _require_status(
+        await api.get("/api/v1/teacher-applications/me", actor),
+        200,
+        "read peer demo teacher application",
+    )
+    expected_message = "申请成为共同授课教师。"
+    if actor.role == "teacher":
+        if (
+            current is None
+            or current.get("status") != "approved"
+            or current.get("applicant_role") != "teacher"
+            or current.get("message") != expected_message
+        ):
+            raise DemoInitializationError("peer demo teacher approval history drifted")
+        return actor, current
+    if actor.role != "student":
+        raise DemoInitializationError("peer demo teacher role drifted")
+    if current is None:
+        current = _require_status(
+            await api.post(
+                "/api/v1/teacher-applications",
+                actor,
+                {"message": expected_message},
+            ),
+            201,
+            "create peer demo teacher application",
+        )
+    if current.get("status") == "pending":
+        current = _require_status(
+            await api.patch(
+                f"/api/v1/admin/teacher-applications/{current['id']}",
+                admin,
+                {"status": "approved", "note": "演示身份核验通过。"},
+            ),
+            200,
+            "approve peer demo teacher application",
+        )
+    if current.get("status") != "approved" or current.get("applicant_role") != "teacher":
+        raise DemoInitializationError("peer demo teacher application was not approved")
+    promoted = await api.login(
+        actor.username,
+        password,
+        "teacher",
+        display_name,
+    )
+    return promoted, current
 
 
 def _existing_password(
@@ -439,6 +594,60 @@ async def _ensure_student_membership(api: DemoApi, teacher: Actor, student: Acto
         return
     joined = await api.post(f"/api/classes/{class_id}/join", student, {"role": "student"})
     _require_status(joined, 201, "join demo student to class")
+
+
+async def _ensure_peer_teacher_membership(
+    api: DemoApi,
+    *,
+    class_teacher: Actor,
+    peer_teacher: Actor,
+    class_id: int,
+) -> dict[str, Any]:
+    members = _require_status(
+        await api.get(f"/api/classes/{class_id}/members", class_teacher),
+        200,
+        "list demo class teachers",
+    )
+    existing = next((item for item in members if item.get("user_id") == peer_teacher.user_id), None)
+    if existing is None:
+        requested = _require_status(
+            await api.post(
+                f"/api/classes/{class_id}/join-requests",
+                peer_teacher,
+                {"role": "teacher", "message": "申请加入演示班级共同授课。"},
+            ),
+            201,
+            "request first demo school teacher membership",
+        )
+        if requested.get("status") == "pending":
+            _require_status(
+                await api.patch(
+                    f"/api/classes/{class_id}/join-requests/{requested['id']}",
+                    class_teacher,
+                    {"status": "approved", "note": "加入共同授课团队。"},
+                ),
+                200,
+                "approve first demo school teacher membership",
+            )
+        members = _require_status(
+            await api.get(f"/api/classes/{class_id}/members", class_teacher),
+            200,
+            "verify demo class teachers",
+        )
+        existing = next((item for item in members if item.get("user_id") == peer_teacher.user_id), None)
+    if existing is None or existing.get("role") != "teacher" or existing.get("status") != "active":
+        raise DemoInitializationError("peer demo teacher membership drifted")
+    return existing
+
+
+async def _verify_no_homeroom(api: DemoApi, student: Actor) -> None:
+    classes = _require_status(
+        await api.get("/api/classes?mine=true", student),
+        200,
+        "verify no-homeroom demo student",
+    )
+    if classes:
+        raise DemoInitializationError("no-homeroom demo student unexpectedly belongs to an administrative class")
 
 
 def _expected_release_mode(course_key: str, activity_key: str) -> str:
@@ -1301,6 +1510,1064 @@ async def _verify_status_conflict_and_audit(
     return {"stale_status": stale.status_code, "status_patch_audits": audit["total"], "audit_snapshot": expected_snapshot}
 
 
+def _v84_course_payload(
+    *,
+    school_id: int,
+    peer_teacher_id: int,
+    class_id: int,
+    restricted_initial: bool = False,
+    restricted_final: bool = False,
+) -> dict[str, Any]:
+    if restricted_initial or restricted_final:
+        spec = DEMO_V84_RESTRICTED_COURSE
+        return {
+            "school_id": school_id,
+            "title": spec["initial_title"] if restricted_initial else spec["title"],
+            "summary": spec["initial_summary"] if restricted_initial else spec["summary"],
+            "academic_year": spec["academic_year"],
+            "schedule_text": spec["initial_schedule_text"] if restricted_initial else spec["schedule_text"],
+            "total_hours": spec["total_hours"],
+            "galaxy_key": spec["galaxy_key"],
+            "subject_key": spec["subject_key"],
+            "admission_mode": spec["admission_mode"],
+            "collaborator_user_ids": [peer_teacher_id],
+            "admission_class_ids": [class_id],
+        }
+    spec = DEMO_V84_OPEN_COURSE
+    return {
+        "school_id": school_id,
+        "title": spec["title"],
+        "summary": spec["summary"],
+        "academic_year": spec["academic_year"],
+        "schedule_text": spec["schedule_text"],
+        "total_hours": spec["total_hours"],
+        "galaxy_key": spec["galaxy_key"],
+        "subject_key": spec["subject_key"],
+        "admission_mode": spec["admission_mode"],
+        "collaborator_user_ids": [peer_teacher_id],
+        "admission_class_ids": [],
+    }
+
+
+async def _admin_information_revisions(
+    api: DemoApi,
+    *,
+    admin: Actor,
+    school_id: int,
+    status_value: str,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        page = _require_status(
+            await api.get(
+                f"/api/v1/admin/course-information-revisions?status={status_value}"
+                f"&school_id={school_id}&limit=200&offset={offset}",
+                admin,
+            ),
+            200,
+            f"list {status_value} demo course revisions",
+        )
+        items.extend(page["items"])
+        if page.get("next_offset") is None:
+            return items
+        offset = int(page["next_offset"])
+
+
+def _validate_v84_course(
+    course: dict[str, Any],
+    *,
+    payload: dict[str, Any],
+    owner_id: int,
+    peer_teacher_id: int,
+    class_id: int | None,
+) -> None:
+    expected_fields = {
+        "school_id": payload["school_id"],
+        "title": payload["title"],
+        "summary": payload["summary"],
+        "academic_year": payload["academic_year"],
+        "schedule_text": payload["schedule_text"],
+        "total_hours": payload["total_hours"],
+        "galaxy_key": payload["galaxy_key"],
+        "subject_key": payload["subject_key"],
+        "admission_mode": payload["admission_mode"],
+        "status": "published",
+    }
+    if any(course.get(field) != expected for field, expected in expected_fields.items()):
+        raise DemoInitializationError(f"V8.4 demo course fields drifted for {payload['title']}")
+    teacher_ids = {item.get("user_id") for item in course.get("teachers", [])}
+    if teacher_ids != {owner_id, peer_teacher_id}:
+        raise DemoInitializationError(f"V8.4 demo course teachers drifted for {payload['title']}")
+    admission_ids = {item.get("class_id") for item in course.get("admission_classes", [])}
+    expected_admission_ids = {class_id} if class_id is not None else set()
+    if admission_ids != expected_admission_ids:
+        raise DemoInitializationError(f"V8.4 demo course admission classes drifted for {payload['title']}")
+    if not isinstance(course.get("course_code"), str) or re.fullmatch(r"[A-HJ-NP-Z2-9]{8}", course["course_code"]) is None:
+        raise DemoInitializationError(f"V8.4 demo course code drifted for {payload['title']}")
+
+
+async def _ensure_open_v84_course(
+    api: DemoApi,
+    *,
+    admin: Actor,
+    owner: Actor,
+    peer_teacher: Actor,
+    school_id: int,
+) -> dict[str, Any]:
+    payload = _v84_course_payload(
+        school_id=school_id,
+        peer_teacher_id=peer_teacher.user_id,
+        class_id=0,
+    )
+    visible = _require_status(
+        await api.get(f"/api/v1/courses?school_id={school_id}", owner),
+        200,
+        "list V8.4 demo courses",
+    )
+    matching = [item for item in visible if item.get("title") == payload["title"]]
+    if len(matching) > 1:
+        raise DemoInitializationError("open V8.4 demo course natural key is duplicated")
+    course = matching[0] if matching else None
+    if course is None:
+        course = _require_status(
+            await api.post("/api/v1/courses", owner, payload),
+            201,
+            "create open V8.4 demo course",
+        )
+    revision = course["information_revision"]
+    if revision["revision_number"] != 1:
+        raise DemoInitializationError("open V8.4 demo course revision count drifted")
+    if revision["status"] == "draft":
+        course = _require_status(
+            await api.post(
+                f"/api/v1/courses/{course['id']}/information-revisions/{revision['id']}/submit",
+                owner,
+                {},
+            ),
+            200,
+            "submit open V8.4 demo course",
+        )
+        revision = course["information_revision"]
+    if revision["status"] == "submitted":
+        _require_status(
+            await api.patch(
+                f"/api/v1/admin/course-information-revisions/{revision['id']}",
+                admin,
+                {"status": "approved", "note": "公开课程信息完整。"},
+            ),
+            200,
+            "approve open V8.4 demo course",
+        )
+        course = _require_status(
+            await api.get(f"/api/v1/courses/{course['id']}", owner),
+            200,
+            "reread open V8.4 demo course",
+        )
+        revision = course["information_revision"]
+    if revision["status"] != "approved":
+        raise DemoInitializationError("open V8.4 demo course approval drifted")
+    _validate_v84_course(
+        course,
+        payload=payload,
+        owner_id=owner.user_id,
+        peer_teacher_id=peer_teacher.user_id,
+        class_id=None,
+    )
+    approved_items = await _admin_information_revisions(
+        api,
+        admin=admin,
+        school_id=school_id,
+        status_value="approved",
+    )
+    approved = [
+        item for item in approved_items
+        if item.get("course_id") == course["id"] and item.get("revision", {}).get("id") == revision["id"]
+    ]
+    if len(approved) != 1 or approved[0].get("internal_class_id") is None:
+        raise DemoInitializationError("open V8.4 demo course internal group drifted")
+    return {**course, "_internal_class_id": int(approved[0]["internal_class_id"])}
+
+
+async def _ensure_restricted_v84_course(
+    api: DemoApi,
+    *,
+    admin: Actor,
+    owner: Actor,
+    peer_teacher: Actor,
+    school_id: int,
+    class_id: int,
+) -> dict[str, Any]:
+    initial_payload = _v84_course_payload(
+        school_id=school_id,
+        peer_teacher_id=peer_teacher.user_id,
+        class_id=class_id,
+        restricted_initial=True,
+    )
+    final_payload = _v84_course_payload(
+        school_id=school_id,
+        peer_teacher_id=peer_teacher.user_id,
+        class_id=class_id,
+        restricted_final=True,
+    )
+    visible = _require_status(
+        await api.get(f"/api/v1/courses?school_id={school_id}", owner),
+        200,
+        "list restricted V8.4 demo course",
+    )
+    titles = {initial_payload["title"], final_payload["title"]}
+    matching = [item for item in visible if item.get("title") in titles]
+    if len(matching) > 1:
+        raise DemoInitializationError("restricted V8.4 demo course natural key is duplicated")
+    course = matching[0] if matching else None
+    if course is None:
+        course = _require_status(
+            await api.post("/api/v1/courses", owner, initial_payload),
+            201,
+            "create restricted V8.4 demo course",
+        )
+
+    while True:
+        revision = course["information_revision"]
+        number = int(revision["revision_number"])
+        status_value = revision["status"]
+        if number == 1:
+            if status_value == "draft":
+                course = _require_status(
+                    await api.post(
+                        f"/api/v1/courses/{course['id']}/information-revisions/{revision['id']}/submit",
+                        owner,
+                        {},
+                    ),
+                    200,
+                    "submit initial restricted V8.4 demo course",
+                )
+                continue
+            if status_value == "submitted":
+                _require_status(
+                    await api.patch(
+                        f"/api/v1/admin/course-information-revisions/{revision['id']}",
+                        admin,
+                        {"status": "rejected", "note": "请明确课程时间后重新提交。"},
+                    ),
+                    200,
+                    "reject initial restricted V8.4 demo course",
+                )
+                course = _require_status(
+                    await api.get(f"/api/v1/courses/{course['id']}", owner),
+                    200,
+                    "reread rejected restricted V8.4 demo course",
+                )
+                continue
+            if status_value == "rejected":
+                course = _require_status(
+                    await api.post(
+                        f"/api/v1/courses/{course['id']}/information-revisions",
+                        owner,
+                        final_payload,
+                    ),
+                    201,
+                    "revise restricted V8.4 demo course",
+                )
+                continue
+            raise DemoInitializationError("restricted V8.4 initial revision was unexpectedly approved")
+        if number == 2:
+            if status_value == "draft":
+                course = _require_status(
+                    await api.post(
+                        f"/api/v1/courses/{course['id']}/information-revisions/{revision['id']}/submit",
+                        peer_teacher,
+                        {},
+                    ),
+                    200,
+                    "resubmit restricted V8.4 demo course",
+                )
+                continue
+            if status_value == "submitted":
+                _require_status(
+                    await api.patch(
+                        f"/api/v1/admin/course-information-revisions/{revision['id']}",
+                        admin,
+                        {"status": "approved", "note": "课程时间已经补充。"},
+                    ),
+                    200,
+                    "approve revised restricted V8.4 demo course",
+                )
+                course = _require_status(
+                    await api.get(f"/api/v1/courses/{course['id']}", owner),
+                    200,
+                    "reread approved restricted V8.4 demo course",
+                )
+                continue
+            if status_value == "approved":
+                break
+            raise DemoInitializationError("restricted V8.4 revised information was rejected")
+        raise DemoInitializationError("restricted V8.4 demo course revision count drifted")
+
+    _validate_v84_course(
+        course,
+        payload=final_payload,
+        owner_id=owner.user_id,
+        peer_teacher_id=peer_teacher.user_id,
+        class_id=class_id,
+    )
+    rejected_items = await _admin_information_revisions(
+        api,
+        admin=admin,
+        school_id=school_id,
+        status_value="rejected",
+    )
+    approved_items = await _admin_information_revisions(
+        api,
+        admin=admin,
+        school_id=school_id,
+        status_value="approved",
+    )
+    rejected = [item for item in rejected_items if item.get("course_id") == course["id"]]
+    approved = [item for item in approved_items if item.get("course_id") == course["id"]]
+    if (
+        len(rejected) != 1
+        or rejected[0].get("revision", {}).get("revision_number") != 1
+        or len(approved) != 1
+        or approved[0].get("revision", {}).get("revision_number") != 2
+        or approved[0].get("internal_class_id") is None
+    ):
+        raise DemoInitializationError("restricted V8.4 demo course review history drifted")
+    return {
+        **course,
+        "_internal_class_id": int(approved[0]["internal_class_id"]),
+        "_rejected_revision_id": int(rejected[0]["revision"]["id"]),
+    }
+
+
+async def _ensure_open_course_enrollment(
+    api: DemoApi,
+    *,
+    course: dict[str, Any],
+    teacher: Actor,
+    student: Actor,
+) -> dict[str, Any]:
+    page = _require_status(
+        await api.get(f"/api/v1/courses/{course['id']}/enrollments?status=all&limit=200&offset=0", teacher),
+        200,
+        "list open demo course enrollments",
+    )
+    matching = [item for item in page["items"] if item.get("student_id") == student.user_id]
+    if len(matching) > 1:
+        raise DemoInitializationError("open demo course enrollment is duplicated")
+    enrollment = matching[0] if matching else None
+    if enrollment is None:
+        requests = _require_status(
+            await api.get(f"/api/v1/courses/{course['id']}/join-requests?status=all&limit=200&offset=0", teacher),
+            200,
+            "list open demo course join requests",
+        )
+        matches = [item for item in requests["items"] if item.get("student_id") == student.user_id]
+        if len(matches) > 1:
+            raise DemoInitializationError("open demo course join request is duplicated")
+        join_request = matches[0] if matches else None
+        if join_request is None or join_request.get("status") == "rejected":
+            join_request = _require_status(
+                await api.post(
+                    f"/api/v1/courses/{course['id']}/join-requests",
+                    student,
+                    {"message": "申请加入公开演示课程。"},
+                ),
+                201,
+                "request open demo course",
+            )
+        if join_request.get("status") == "pending":
+            _require_status(
+                await api.patch(
+                    f"/api/v1/courses/{course['id']}/join-requests/{join_request['id']}",
+                    teacher,
+                    {"status": "approved", "note": "公开课程申请通过。"},
+                ),
+                200,
+                "approve open demo course request",
+            )
+        page = _require_status(
+            await api.get(f"/api/v1/courses/{course['id']}/enrollments?status=active&limit=200&offset=0", teacher),
+            200,
+            "verify open demo course enrollment",
+        )
+        enrollment = next((item for item in page["items"] if item.get("student_id") == student.user_id), None)
+    if (
+        enrollment is None
+        or enrollment.get("status") != "active"
+        or enrollment.get("source") != "request"
+        or enrollment.get("source_class_id") is not None
+        or enrollment.get("source_class_name") != "未关联班级"
+    ):
+        raise DemoInitializationError("open demo course enrollment drifted")
+    return enrollment
+
+
+async def _ensure_restricted_course_enrollment(
+    api: DemoApi,
+    *,
+    course: dict[str, Any],
+    teacher: Actor,
+    student: Actor,
+    class_id: int,
+) -> dict[str, Any]:
+    page = _require_status(
+        await api.get(f"/api/v1/courses/{course['id']}/enrollments?status=all&limit=200&offset=0", teacher),
+        200,
+        "list restricted demo course enrollments",
+    )
+    matching = [item for item in page["items"] if item.get("student_id") == student.user_id]
+    if len(matching) > 1:
+        raise DemoInitializationError("restricted demo course enrollment is duplicated")
+    enrollment = matching[0] if matching else None
+    if enrollment is None:
+        result = _require_status(
+            await api.post(
+                f"/api/v1/courses/{course['id']}/enrollments/batch",
+                teacher,
+                {"class_id": class_id},
+            ),
+            200,
+            "batch enroll restricted demo course",
+        )
+        matching_results = [item for item in result["items"] if item.get("student_id") == student.user_id]
+        if len(matching_results) != 1 or matching_results[0].get("outcome") != "created":
+            raise DemoInitializationError("restricted demo course batch enrollment did not create the student")
+        enrollment = matching_results[0].get("enrollment")
+    if (
+        enrollment is None
+        or enrollment.get("status") != "active"
+        or enrollment.get("source") != "class_batch"
+        or enrollment.get("source_class_id") != class_id
+    ):
+        raise DemoInitializationError("restricted demo course enrollment drifted")
+    return enrollment
+
+
+_V84_ACTIVITY_KEYS = (
+    "physics.mechanics",
+    "physics.energy-checkpoint",
+    "physics.evidence-report",
+)
+
+
+def _v84_content_page(
+    *,
+    activity_key: str,
+    title: str,
+    position: int,
+    version_marker: str,
+    assignment_id: int | None,
+) -> dict[str, Any]:
+    completion: dict[str, Any] | None
+    if activity_key == "physics.mechanics":
+        completion = {"preset": "experiment_operation"}
+        blocks = [
+            {
+                "blockId": "mechanics-hero",
+                "type": "hero",
+                "title": title,
+                "summary": "操作正式实验并留下可回读的学习证据。",
+                "badges": ["正式实验", "操作完成"],
+            },
+            {
+                "blockId": "mechanics-reading",
+                "type": "rich-text",
+                "title": "本次发布说明",
+                "markdown": f"{version_marker}：保持原实验交互，通过课程引用完成学习记录。",
+            },
+            {
+                "blockId": "mechanics-simulation",
+                "type": "official-simulation",
+                "title": "机械运动实验",
+                "simulationKey": "physics.mechanics",
+                "instructions": "进入实验后完成一次有效操作，再返回课程查看进度。",
+                "fallbackMarkdown": "若设备暂时无法运行实验，可稍后在桌面端继续。",
+            },
+        ]
+    elif activity_key == "physics.energy-checkpoint":
+        completion = {
+            "preset": "checkpoint_passed",
+            "checkpointKey": "energy-conservation-check",
+        }
+        blocks = [
+            {
+                "blockId": "energy-hero",
+                "type": "hero",
+                "title": title,
+                "summary": "用一道即时检查确认机械能守恒条件。",
+                "badges": ["即时检查", "自动判定"],
+            },
+            {
+                "blockId": "energy-reading",
+                "type": "rich-text",
+                "title": "观察提示",
+                "markdown": f"{version_marker}：忽略阻力时，比较动能、势能与机械能的变化。",
+            },
+            {
+                "blockId": "energy-checkpoint",
+                "type": "checkpoint",
+                "checkpointKey": "energy-conservation-check",
+                "title": "守恒判断",
+                "prompt": "忽略阻力时，小球下落过程中保持不变的是？",
+                "mode": "inline",
+                "responseType": "single-choice",
+                "choices": [
+                    {"choiceId": "kinetic", "label": "动能"},
+                    {"choiceId": "potential", "label": "重力势能"},
+                    {"choiceId": "mechanical", "label": "机械能"},
+                ],
+                "correctChoiceIds": ["mechanical"],
+                "maxAttempts": 3,
+            },
+        ]
+    else:
+        completion = (
+            {"preset": "assignment_reviewed", "assignmentId": assignment_id}
+            if assignment_id is not None
+            else None
+        )
+        blocks = [
+            {
+                "blockId": "evidence-hero",
+                "type": "hero",
+                "title": title,
+                "summary": "提交观察报告，由教师批改后形成学习结果。",
+                "badges": ["作业提交", "教师反馈"],
+            },
+            {
+                "blockId": "evidence-reading",
+                "type": "rich-text",
+                "title": "报告要求",
+                "markdown": f"{version_marker}：说明能量转化现象，并给出支持结论的观察依据。",
+            },
+            {
+                "blockId": "evidence-task",
+                "type": "learning-task",
+                "title": "完成证据报告",
+                "prompt": "把实验观察整理为简短报告并提交。",
+                "outcomes": ["描述能量转化", "引用观察证据"],
+                "steps": ["回顾实验", "整理结论", "提交报告"],
+                "concepts": ["机械能", "证据表达"],
+            },
+        ]
+    course_unit: dict[str, Any] = {
+        "courseId": "astra-demo-course",
+        "unitId": activity_key,
+        "order": position,
+        "title": title,
+    }
+    if completion is not None:
+        course_unit["completion"] = completion
+    return {
+        "schemaVersion": "astra-content-page-v2",
+        "slug": f"demo/{activity_key.replace('.', '-')}",
+        "galaxy": "englab",
+        "subject": "physics",
+        "title": title,
+        "summary": "星序课程闭环本地演示内容。",
+        "layout": "course-page",
+        "status": "draft",
+        "version": version_marker,
+        "courseUnit": course_unit,
+        "blocks": blocks,
+    }
+
+
+def _v84_draft_units(
+    *,
+    existing_units: list[dict[str, Any]],
+    version_marker: str,
+    assignment_id: int | None,
+) -> list[dict[str, Any]]:
+    existing_by_key = {item.get("activity_key"): item for item in existing_units}
+    titles = ("机械运动实验", "机械能守恒检查", "机械能证据报告")
+    result: list[dict[str, Any]] = []
+    for position, (activity_key, title) in enumerate(zip(_V84_ACTIVITY_KEYS, titles), start=1):
+        payload: dict[str, Any] = {
+            "activity_key": activity_key,
+            "title": title,
+            "position": position,
+            "content": _v84_content_page(
+                activity_key=activity_key,
+                title=title,
+                position=position,
+                version_marker=version_marker,
+                assignment_id=assignment_id,
+            ),
+        }
+        existing = existing_by_key.get(activity_key)
+        if existing is not None:
+            payload["id"] = existing["id"]
+        result.append(payload)
+    return result
+
+
+def _v84_content_marker(content: dict[str, Any]) -> str:
+    for block in content.get("blocks", []):
+        if block.get("type") == "rich-text" and isinstance(block.get("markdown"), str):
+            if "版本一" in block["markdown"]:
+                return "版本一"
+            if "版本二" in block["markdown"]:
+                return "版本二"
+    return ""
+
+
+def _v84_completion(content: dict[str, Any]) -> dict[str, Any]:
+    raw = (content.get("courseUnit") or {}).get("completion") or {}
+    return {key: value for key, value in raw.items() if value is not None}
+
+
+def _validate_v84_draft(
+    draft: dict[str, Any],
+    *,
+    version_marker: str,
+    assignment_id: int,
+) -> bool:
+    units = draft.get("units", [])
+    if [item.get("activity_key") for item in units] != list(_V84_ACTIVITY_KEYS):
+        return False
+    if [item.get("position") for item in units] != [1, 2, 3]:
+        return False
+    expected = (
+        {"preset": "experiment_operation"},
+        {"preset": "checkpoint_passed", "checkpointKey": "energy-conservation-check"},
+        {"preset": "assignment_reviewed", "assignmentId": assignment_id},
+    )
+    for unit, completion in zip(units, expected):
+        content = unit.get("content") or {}
+        if _v84_content_marker(content) != version_marker:
+            return False
+        if _v84_completion(content) != completion:
+            return False
+    return True
+
+
+async def _replace_v84_draft(
+    api: DemoApi,
+    *,
+    actor: Actor,
+    course_id: int,
+    draft: dict[str, Any],
+    version_marker: str,
+    assignment_id: int | None,
+) -> dict[str, Any]:
+    return _require_status(
+        await api.patch(
+            f"/api/v1/courses/{course_id}/draft",
+            actor,
+            {
+                "expected_revision": draft["revision"],
+                "units": _v84_draft_units(
+                    existing_units=draft.get("units", []),
+                    version_marker=version_marker,
+                    assignment_id=assignment_id,
+                ),
+            },
+        ),
+        200,
+        f"write {version_marker} V8.4 shared course draft",
+    )
+
+
+async def _ensure_v84_assignments(
+    api: DemoApi,
+    *,
+    course_id: int,
+    assignment_unit_id: int,
+    teacher: Actor,
+) -> dict[str, dict[str, Any]]:
+    existing = _require_status(
+        await api.get(f"/api/courses/{course_id}/assignments", teacher),
+        200,
+        "list V8.4 demo assignments",
+    )
+    by_title: dict[str, dict[str, Any]] = {}
+    for spec in DEMO_V84_ASSIGNMENTS:
+        matches = [item for item in existing if item.get("title") == spec["title"]]
+        if len(matches) > 1:
+            raise DemoInitializationError(f"V8.4 demo assignment duplicated: {spec['title']}")
+        assignment = matches[0] if matches else None
+        if assignment is None:
+            assignment = _require_status(
+                await api.post(
+                    f"/api/courses/{course_id}/units/{assignment_unit_id}/assignments",
+                    teacher,
+                    {
+                        "title": spec["title"],
+                        "description": spec["description"],
+                        "max_score": spec["max_score"],
+                    },
+                ),
+                201,
+                f"create V8.4 demo assignment {spec['title']}",
+            )
+            existing.append(assignment)
+        if (
+            assignment.get("unit_id") != assignment_unit_id
+            or assignment.get("description") != spec["description"]
+            or assignment.get("max_score") != spec["max_score"]
+            or assignment.get("status") != "active"
+            or assignment.get("audience_mode") != "all_attached_classes"
+        ):
+            raise DemoInitializationError(f"V8.4 demo assignment drifted: {spec['title']}")
+        by_title[spec["title"]] = assignment
+    return by_title
+
+
+def _validate_v84_release(
+    release: dict[str, Any],
+    *,
+    release_number: int,
+    version_marker: str,
+    assignment_id: int,
+) -> None:
+    if release.get("release_number") != release_number:
+        raise DemoInitializationError("V8.4 release sequence drifted")
+    units = release.get("units", [])
+    if [item.get("activity_key") for item in units] != list(_V84_ACTIVITY_KEYS):
+        raise DemoInitializationError("V8.4 release unit identity drifted")
+    expected = (
+        {"preset": "experiment_operation"},
+        {"preset": "checkpoint_passed", "checkpointKey": "energy-conservation-check"},
+        {"preset": "assignment_reviewed", "assignmentId": assignment_id},
+    )
+    for unit, completion in zip(units, expected):
+        content = unit.get("content") or {}
+        if _v84_content_marker(content) != version_marker:
+            raise DemoInitializationError(f"V8.4 {version_marker} release content drifted")
+        if _v84_completion(content) != completion:
+            raise DemoInitializationError(f"V8.4 {version_marker} completion preset drifted")
+
+
+async def _ensure_v84_course_content(
+    api: DemoApi,
+    *,
+    course: dict[str, Any],
+    owner: Actor,
+    peer_teacher: Actor,
+) -> dict[str, Any]:
+    course_id = int(course["id"])
+    draft = _require_status(
+        await api.get(f"/api/v1/courses/{course_id}/draft", owner),
+        200,
+        "read V8.4 shared course draft",
+    )
+    if not draft.get("units"):
+        draft = await _replace_v84_draft(
+            api,
+            actor=owner,
+            course_id=course_id,
+            draft=draft,
+            version_marker="版本一",
+            assignment_id=None,
+        )
+    unit_by_key = {item.get("activity_key"): item for item in draft.get("units", [])}
+    if set(unit_by_key) != set(_V84_ACTIVITY_KEYS):
+        raise DemoInitializationError("V8.4 shared draft unit set drifted")
+    assignments = await _ensure_v84_assignments(
+        api,
+        course_id=course_id,
+        assignment_unit_id=int(unit_by_key["physics.evidence-report"]["id"]),
+        teacher=owner,
+    )
+    graded_assignment = assignments[DEMO_V84_ASSIGNMENTS[0]["title"]]
+
+    releases = _require_status(
+        await api.get(f"/api/v1/courses/{course_id}/releases", owner),
+        200,
+        "list V8.4 demo releases",
+    )
+    if len(releases) > 2:
+        raise DemoInitializationError("V8.4 demo course has more than two releases")
+    if not releases:
+        if not _validate_v84_draft(
+            draft,
+            version_marker="版本一",
+            assignment_id=int(graded_assignment["id"]),
+        ):
+            draft = await _replace_v84_draft(
+                api,
+                actor=peer_teacher,
+                course_id=course_id,
+                draft=draft,
+                version_marker="版本一",
+                assignment_id=int(graded_assignment["id"]),
+            )
+        _require_status(
+            await api.post(
+                f"/api/v1/courses/{course_id}/releases",
+                owner,
+                {"expected_revision": draft["revision"], "note": "课程闭环演示版本一"},
+            ),
+            201,
+            "publish V8.4 demo release one",
+        )
+        releases = _require_status(
+            await api.get(f"/api/v1/courses/{course_id}/releases", owner),
+            200,
+            "reread V8.4 release one",
+        )
+    if len(releases) == 1:
+        _validate_v84_release(
+            releases[0],
+            release_number=1,
+            version_marker="版本一",
+            assignment_id=int(graded_assignment["id"]),
+        )
+        draft = _require_status(
+            await api.get(f"/api/v1/courses/{course_id}/draft", peer_teacher),
+            200,
+            "read V8.4 version two draft",
+        )
+        if not _validate_v84_draft(
+            draft,
+            version_marker="版本二",
+            assignment_id=int(graded_assignment["id"]),
+        ):
+            draft = await _replace_v84_draft(
+                api,
+                actor=peer_teacher,
+                course_id=course_id,
+                draft=draft,
+                version_marker="版本二",
+                assignment_id=int(graded_assignment["id"]),
+            )
+        _require_status(
+            await api.post(
+                f"/api/v1/courses/{course_id}/releases",
+                peer_teacher,
+                {"expected_revision": draft["revision"], "note": "课程闭环演示版本二"},
+            ),
+            201,
+            "publish V8.4 demo release two",
+        )
+        releases = _require_status(
+            await api.get(f"/api/v1/courses/{course_id}/releases", owner),
+            200,
+            "reread V8.4 release two",
+        )
+    if [item.get("release_number") for item in releases] != [2, 1]:
+        raise DemoInitializationError("V8.4 demo release history drifted")
+    _validate_v84_release(
+        releases[0],
+        release_number=2,
+        version_marker="版本二",
+        assignment_id=int(graded_assignment["id"]),
+    )
+    _validate_v84_release(
+        releases[1],
+        release_number=1,
+        version_marker="版本一",
+        assignment_id=int(graded_assignment["id"]),
+    )
+    if releases[0].get("completion_rule_id") != releases[1].get("completion_rule_id"):
+        raise DemoInitializationError("unchanged V8.4 completion rules were not reused")
+    return {
+        "assignments": assignments,
+        "releases": releases,
+        "units": {item["activity_key"]: item for item in releases[0]["units"]},
+    }
+
+
+async def _ensure_v84_submissions(
+    api: DemoApi,
+    *,
+    assignments: dict[str, dict[str, Any]],
+    internal_class_id: int,
+    student: Actor,
+    peer_teacher: Actor,
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for spec in DEMO_V84_ASSIGNMENTS:
+        assignment = assignments[spec["title"]]
+        review = _require_status(
+            await api.get(
+                f"/api/assignments/{assignment['id']}/review?class_id={internal_class_id}",
+                student,
+            ),
+            200,
+            f"read V8.4 assignment review {spec['title']}",
+        )
+        submission = review.get("submission")
+        if submission is None:
+            submission = _require_status(
+                await api.post(
+                    f"/api/assignments/{assignment['id']}/submissions",
+                    student,
+                    {
+                        "class_id": internal_class_id,
+                        "content": {
+                            "report": "实验观察显示动能与势能相互转化，总机械能保持稳定。",
+                            "fixture": "synthetic-local-demo",
+                        },
+                    },
+                ),
+                201,
+                f"submit V8.4 demo assignment {spec['title']}",
+            )
+        if spec["desired_status"] == "graded" and submission.get("status") == "submitted":
+            submission = _require_status(
+                await api.patch(
+                    f"/api/submissions/{submission['id']}/grade",
+                    peer_teacher,
+                    {
+                        "score": 92,
+                        "feedback": "证据完整，守恒关系表达清楚。",
+                        "status": "graded",
+                    },
+                ),
+                200,
+                "grade V8.4 demo assignment",
+            )
+        if spec["desired_status"] == "graded":
+            if (
+                submission.get("status") != "graded"
+                or submission.get("score") != 92
+                or submission.get("feedback") != "证据完整，守恒关系表达清楚。"
+                or submission.get("graded_by_user_id") != peer_teacher.user_id
+            ):
+                raise DemoInitializationError("graded V8.4 demo submission drifted")
+        elif (
+            submission.get("status") != "submitted"
+            or submission.get("score") is not None
+            or submission.get("feedback") is not None
+        ):
+            raise DemoInitializationError("pending V8.4 demo submission drifted")
+        result[spec["title"]] = submission
+    return result
+
+
+async def _ensure_v84_learning_completion(
+    api: DemoApi,
+    *,
+    course: dict[str, Any],
+    content_state: dict[str, Any],
+    internal_class_id: int,
+    student: Actor,
+    owner: Actor,
+) -> dict[str, Any]:
+    releases = content_state["releases"]
+    current_release = releases[0]
+    release_id = int(current_release["id"])
+    units = content_state["units"]
+    rules = _require_status(
+        await api.get(f"/api/learning-evidence/rules?course_id={course['id']}", owner),
+        200,
+        "read V8.4 completion rule",
+    )
+    matching_rules = [item for item in rules if item.get("id") == current_release.get("completion_rule_id")]
+    if len(matching_rules) != 1 or matching_rules[0].get("status") != "active":
+        raise DemoInitializationError("V8.4 active completion rule drifted")
+    rule = matching_rules[0]
+    mechanics_unit = units["physics.mechanics"]
+    runtime_payload = {
+        "schema_version": "astra-learning-activity-evidence-sidecar-v1",
+        "command": {
+            "schema_version": "astra-learning-activity-event-v1",
+            "scope": {
+                "class_id": internal_class_id,
+                "course_id": course["id"],
+                "course_unit_id": mechanics_unit["source_course_unit_id"],
+                "activity_key": mechanics_unit["activity_key"],
+            },
+            "run": {
+                "run_id": "v84-demo-run-0001",
+                "group_id": "v84-demo-group-0001",
+                "sequence": 1,
+            },
+            "versions": {
+                "manifest_version": "v84-demo-manifest",
+                "content_version": "v84-demo-release-2",
+                "event_schema_version": 1,
+                "rule_version": rule["version_number"],
+                "generation": "v84-demo-generation",
+            },
+            "client_event_id": "v84-demo:physics.mechanics:attempted:1",
+            "event_type": "attempted",
+            "evidence": {"operation": "mechanics-controlled-run"},
+            "occurred_at": "2026-08-01T08:00:00.000Z",
+        },
+        "snapshot": {
+            "state_schema_version": "v84-demo-state-v1",
+            "applied_through_learner_sequence": 1,
+            "data": {"stage": "attempted"},
+        },
+    }
+    runtime_response = await api.post(
+        "/api/learning-evidence/activity-runtime/events",
+        student,
+        runtime_payload,
+    )
+    if runtime_response.status_code not in {200, 201}:
+        raise DemoInitializationError(
+            f"append V8.4 experiment evidence failed with HTTP {runtime_response.status_code}: "
+            f"{_response_detail(runtime_response)}"
+        )
+    runtime_receipt = runtime_response.json()
+    if runtime_receipt.get("status") not in {"confirmed", "reconciled"}:
+        raise DemoInitializationError("V8.4 experiment evidence receipt drifted")
+
+    checkpoint_unit = units["physics.energy-checkpoint"]
+    checkpoint = _require_status(
+        await api.post(
+            f"/api/v1/courses/{course['id']}/units/{checkpoint_unit['source_course_unit_id']}"
+            "/checkpoints/energy-conservation-check/attempts",
+            student,
+            {
+                "client_attempt_id": "v84-demo-checkpoint-correct-1",
+                "course_release_id": release_id,
+                "selected_choice_ids": ["mechanical"],
+            },
+        ),
+        201,
+        "complete V8.4 checkpoint",
+    )
+    if checkpoint.get("is_correct") is not True or checkpoint.get("completed") is not True:
+        raise DemoInitializationError("V8.4 checkpoint completion drifted")
+
+    recovery = _require_status(
+        await api.get(
+            f"/api/learning-evidence/me/recovery?class_id={internal_class_id}&course_id={course['id']}",
+            student,
+        ),
+        200,
+        "read V8.4 learning recovery",
+    )
+    status_by_key = {item["activity_key"]: item["status"] for item in recovery.get("activities", [])}
+    if {key: status_by_key.get(key) for key in _V84_ACTIVITY_KEYS} != {
+        key: "completed" for key in _V84_ACTIVITY_KEYS
+    }:
+        raise DemoInitializationError("V8.4 course completion recovery drifted")
+
+    student_current = _require_status(
+        await api.get(f"/api/v1/courses/{course['id']}/releases/current", student),
+        200,
+        "read current V8.4 student release",
+    )
+    if student_current.get("release", {}).get("id") != release_id:
+        raise DemoInitializationError("student did not read the latest V8.4 release")
+    student_checkpoint_unit = next(
+        item
+        for item in student_current["release"]["units"]
+        if item.get("activity_key") == "physics.energy-checkpoint"
+    )
+    student_checkpoint = next(
+        block
+        for block in student_checkpoint_unit["content"]["blocks"]
+        if block.get("type") == "checkpoint"
+    )
+    if "correctChoiceIds" in student_checkpoint:
+        raise DemoInitializationError("student release exposed checkpoint answers")
+    return {
+        "rule_version": rule["version_number"],
+        "runtime_recorded": True,
+        "checkpoint_completed": True,
+        "activity_statuses": {key: status_by_key[key] for key in _V84_ACTIVITY_KEYS},
+        "current_release_number": student_current["release"]["release_number"],
+    }
+
+
 async def initialize_demo_data(
     *,
     credentials: Mapping[str, str] | None = None,
@@ -1372,6 +2639,99 @@ async def initialize_demo_data(
             courses["engineering-systems"],
             engineering_status_audit,
         )
+        peer_origin, peer_password = await _ensure_student_origin_actor(
+            api,
+            username=DEMO_PEER_TEACHER_USERNAME,
+            display_name="演示共同教师",
+            credentials=credentials,
+            prompt_password=prompt_password,
+            display_new_credentials=display_new_credentials,
+            credential_banner=credential_banner,
+        )
+        peer_teacher, peer_teacher_application = await _ensure_peer_teacher_application(
+            api,
+            actor=peer_origin,
+            password=peer_password,
+            admin=admin,
+            display_name="演示共同教师",
+        )
+        pending_teacher, _pending_password = await _ensure_student_origin_actor(
+            api,
+            username=DEMO_PENDING_TEACHER_USERNAME,
+            display_name="演示待审教师",
+            credentials=credentials,
+            prompt_password=prompt_password,
+            display_new_credentials=display_new_credentials,
+            credential_banner=credential_banner,
+        )
+        pending_teacher_application = await _ensure_pending_teacher_application(api, pending_teacher)
+        open_student = await _ensure_actor(
+            api,
+            username=DEMO_OPEN_STUDENT_USERNAME,
+            display_name="演示无行政班学生",
+            role="student",
+            credentials=credentials,
+            prompt_password=prompt_password,
+            display_new_credentials=display_new_credentials,
+            credential_banner=credential_banner,
+        )
+        await _ensure_peer_teacher_membership(
+            api,
+            class_teacher=teacher,
+            peer_teacher=peer_teacher,
+            class_id=class_id,
+        )
+        await _verify_no_homeroom(api, open_student)
+        open_course = await _ensure_open_v84_course(
+            api,
+            admin=admin,
+            owner=teacher,
+            peer_teacher=peer_teacher,
+            school_id=school_id,
+        )
+        restricted_course = await _ensure_restricted_v84_course(
+            api,
+            admin=admin,
+            owner=teacher,
+            peer_teacher=peer_teacher,
+            school_id=school_id,
+            class_id=class_id,
+        )
+        open_enrollment = await _ensure_open_course_enrollment(
+            api,
+            course=open_course,
+            teacher=teacher,
+            student=open_student,
+        )
+        restricted_enrollment = await _ensure_restricted_course_enrollment(
+            api,
+            course=restricted_course,
+            teacher=peer_teacher,
+            student=student,
+            class_id=class_id,
+        )
+        await _verify_no_homeroom(api, open_student)
+        v84_content = await _ensure_v84_course_content(
+            api,
+            course=open_course,
+            owner=teacher,
+            peer_teacher=peer_teacher,
+        )
+        v84_submissions = await _ensure_v84_submissions(
+            api,
+            assignments=v84_content["assignments"],
+            internal_class_id=int(open_course["_internal_class_id"]),
+            student=open_student,
+            peer_teacher=peer_teacher,
+        )
+        v84_learning = await _ensure_v84_learning_completion(
+            api,
+            course=open_course,
+            content_state=v84_content,
+            internal_class_id=int(open_course["_internal_class_id"]),
+            student=open_student,
+            owner=teacher,
+        )
 
     return {
         "status": "initialized",
@@ -1379,6 +2739,9 @@ async def initialize_demo_data(
             "admin": {"username": admin.username, "id": admin.user_id},
             "teacher": {"username": teacher.username, "id": teacher.user_id},
             "student": {"username": student.username, "id": student.user_id},
+            "peer_teacher": {"username": peer_teacher.username, "id": peer_teacher.user_id},
+            "pending_teacher": {"username": pending_teacher.username, "id": pending_teacher.user_id},
+            "open_student": {"username": open_student.username, "id": open_student.user_id},
         },
         "school_id": school_id,
         "class_id": class_id,
@@ -1408,6 +2771,69 @@ async def initialize_demo_data(
         "assignments": assignments,
         "code_runner": code_runner,
         "course_status": status_audit,
+        "course_loop": {
+            "teacher_applications": {
+                "peer": {
+                    "id": peer_teacher_application["id"],
+                    "status": peer_teacher_application["status"],
+                    "applicant_role": peer_teacher_application["applicant_role"],
+                },
+                "pending": {
+                    "id": pending_teacher_application["id"],
+                    "status": pending_teacher_application["status"],
+                    "applicant_role": pending_teacher_application["applicant_role"],
+                },
+            },
+            "courses": {
+                "open": {
+                    "id": open_course["id"],
+                    "course_code": open_course["course_code"],
+                    "internal_class_id": open_course["_internal_class_id"],
+                    "admission_mode": open_course["admission_mode"],
+                    "teacher_count": len(open_course["teachers"]),
+                },
+                "class_restricted": {
+                    "id": restricted_course["id"],
+                    "course_code": restricted_course["course_code"],
+                    "internal_class_id": restricted_course["_internal_class_id"],
+                    "admission_mode": restricted_course["admission_mode"],
+                    "teacher_count": len(restricted_course["teachers"]),
+                    "rejected_revision_id": restricted_course["_rejected_revision_id"],
+                },
+            },
+            "enrollments": {
+                "open": {
+                    "id": open_enrollment["id"],
+                    "source": open_enrollment["source"],
+                    "source_class_name": open_enrollment["source_class_name"],
+                },
+                "class_restricted": {
+                    "id": restricted_enrollment["id"],
+                    "source": restricted_enrollment["source"],
+                    "source_class_id": restricted_enrollment["source_class_id"],
+                },
+            },
+            "releases": {
+                "release_numbers": [item["release_number"] for item in v84_content["releases"]],
+                "current_release_id": v84_content["releases"][0]["id"],
+                "completion_rule_id": v84_content["releases"][0]["completion_rule_id"],
+                "presets": {
+                    "physics.mechanics": "experiment_operation",
+                    "physics.energy-checkpoint": "checkpoint_passed",
+                    "physics.evidence-report": "assignment_reviewed",
+                },
+            },
+            "submissions": {
+                title: {
+                    "id": submission["id"],
+                    "status": submission["status"],
+                    "score": submission.get("score"),
+                    "feedback": submission.get("feedback"),
+                }
+                for title, submission in v84_submissions.items()
+            },
+            "learning": v84_learning,
+        },
         "synthetic_data_notice": "本数据为合成演示证据，用于复验产品闭环，不代表真实学生学习时长、掌握程度或课堂试点。",
     }
 

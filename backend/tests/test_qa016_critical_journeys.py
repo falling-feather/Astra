@@ -171,7 +171,14 @@ def qa016_demo_environment(tmp_path: Path, monkeypatch):
 def test_qa016_fresh_demo_student_starts_without_completed_learning_evidence(qa016_demo_environment):
     credentials = {
         username: f"Astra-QA016-{secrets.token_urlsafe(32)}"
-        for username in ("astra_demo_admin", "astra_demo_teacher", "astra_demo_student")
+        for username in (
+            "astra_demo_admin",
+            "astra_demo_teacher",
+            "astra_demo_student",
+            "astra_demo_peer_teacher",
+            "astra_demo_pending_teacher",
+            "astra_demo_open_student",
+        )
     }
     report = asyncio.run(initialize_demo_data(credentials=credentials))
     student_id = int(report["users"]["student"]["id"])

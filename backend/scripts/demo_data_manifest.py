@@ -48,6 +48,9 @@ class RepresentativeCourseSpec:
 DEMO_ADMIN_USERNAME = "astra_demo_admin"
 DEMO_TEACHER_USERNAME = "astra_demo_teacher"
 DEMO_STUDENT_USERNAME = "astra_demo_student"
+DEMO_PEER_TEACHER_USERNAME = "astra_demo_peer_teacher"
+DEMO_PENDING_TEACHER_USERNAME = "astra_demo_pending_teacher"
+DEMO_OPEN_STUDENT_USERNAME = "astra_demo_open_student"
 
 DEMO_USERS = (
     (DEMO_ADMIN_USERNAME, "演示管理员", "admin"),
@@ -55,11 +58,57 @@ DEMO_USERS = (
     (DEMO_STUDENT_USERNAME, "演示学生", "student"),
 )
 
+DEMO_V84_USERS = (
+    (DEMO_PEER_TEACHER_USERNAME, "演示共同教师", "teacher"),
+    (DEMO_PENDING_TEACHER_USERNAME, "演示待审教师", "student"),
+    (DEMO_OPEN_STUDENT_USERNAME, "演示无行政班学生", "student"),
+)
+
 DEMO_SCHOOL_NAME = "星序本地演示学校"
 DEMO_SCHOOL_REGION = "本地演示"
 DEMO_CLASS_NAME = "星序 V8 综合演示班"
 DEMO_CLASS_GRADE = "10"
 DEMO_CLASS_TERM = "V8-local"
+
+DEMO_V84_OPEN_COURSE = {
+    "title": "星序机械能探究课",
+    "summary": "面向公开申请学生的实验、检查点与作业闭环演示课程。",
+    "academic_year": "2026—2027",
+    "schedule_text": "每周三 14:00—15:40",
+    "total_hours": 32,
+    "galaxy_key": "englab",
+    "subject_key": "physics",
+    "admission_mode": "open",
+}
+
+DEMO_V84_RESTRICTED_COURSE = {
+    "initial_title": "星序班级协作课（待修订）",
+    "title": "星序班级协作探究课",
+    "initial_summary": "等待管理员核对课程安排的班级课程。",
+    "summary": "只面向指定行政班的共同授课与批量选课演示课程。",
+    "academic_year": "2026—2027",
+    "initial_schedule_text": "课程时间待确认",
+    "schedule_text": "每周五 10:00—11:40",
+    "total_hours": 24,
+    "galaxy_key": "code-space",
+    "subject_key": "control-flow",
+    "admission_mode": "class_restricted",
+}
+
+DEMO_V84_ASSIGNMENTS = (
+    {
+        "title": "机械能证据报告",
+        "description": "提交观察结果，教师批改后完成本单元。",
+        "max_score": 100,
+        "desired_status": "graded",
+    },
+    {
+        "title": "机械能拓展思考",
+        "description": "保留一份待批改提交，用于教师工作台演示。",
+        "max_score": 100,
+        "desired_status": "pending",
+    },
+)
 
 
 def _course(galaxy_key: str, course_key: str, title: str, summary: str, *activity_keys: str) -> DemoCourseSpec:
