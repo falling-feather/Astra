@@ -2,6 +2,7 @@
     'use strict';
 
     const studentRuntimeVersion = '20260813v832RoleMobileReceiptP0';
+    const STUDENT_COURSE_ENROLLMENT_VERSION = '20260825v843CourseEnrollmentP0';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
     const ASSIGNMENT_PAGE_LIMIT = 8;
@@ -39,6 +40,8 @@
         };
     }
 
+    let courseEnrollmentOwner = null;
+    let courseEnrollmentLoadGeneration = 0;
     const state = {
         root: null,
         initialized: false,
@@ -96,6 +99,7 @@
         abortController(state.lifecycleController);
         state.lifecycleController = new AbortController();
         renderShell();
+        mountStudentCourseEnrollment();
         mountStudentLearningEvidence();
 
         if (!state.initialized) {
@@ -109,6 +113,9 @@
 
     function destroyStudent() {
         state.active = false;
+        courseEnrollmentLoadGeneration += 1;
+        if (courseEnrollmentOwner) courseEnrollmentOwner.destroy();
+        courseEnrollmentOwner = null;
         state.learningEvidenceLoadGeneration += 1;
         if (window.AstraStudentLearningEvidence) window.AstraStudentLearningEvidence.destroy();
         state.scopeGeneration += 1;
@@ -211,6 +218,37 @@
         }
     }
 
+    function studentCourseEnrollmentHost() {
+        return Object.freeze({
+            request: (path, options) => requestJson(path, options),
+            refreshWorkspace: () => {
+                if (state.active && !state.busy) void refreshAll();
+            },
+            refreshIcons
+        });
+    }
+
+    async function mountStudentCourseEnrollment() {
+        const generation = ++courseEnrollmentLoadGeneration;
+        const hostElement = state.root && state.root.querySelector('#student-course-enrollment-host');
+        if (!hostElement) return false;
+        try {
+            await import(`./student-course-enrollment.js?v=${STUDENT_COURSE_ENROLLMENT_VERSION}`);
+            if (!state.active || generation !== courseEnrollmentLoadGeneration) return false;
+            courseEnrollmentOwner = window.AstraStudentCourseEnrollment;
+            if (!courseEnrollmentOwner || typeof courseEnrollmentOwner.mount !== 'function') throw new Error('课程加入模块入口不可用');
+            courseEnrollmentOwner.mount(hostElement, studentCourseEnrollmentHost());
+            return true;
+        } catch (error) {
+            if (!state.active || generation !== courseEnrollmentLoadGeneration) return false;
+            hostElement.hidden = false;
+            hostElement.innerHTML = '<div class="student-course-enrollment__error" role="alert"><i data-lucide="circle-alert"></i><div><strong>课程加入入口加载失败</strong><p>请刷新页面后重试。</p></div></div>';
+            refreshIcons();
+            console.warn('[StudentWorkbench] course enrollment resource unavailable');
+            return false;
+        }
+    }
+
     function renderShell() {
         state.root.innerHTML = `
             <header class="student-workbench__header">
@@ -241,6 +279,7 @@
             </header>
             <div class="student-network" data-student-network hidden></div>
             <div class="student-auth-state" data-student-auth-state></div>
+            <div id="student-course-enrollment-host" hidden></div>
             <div class="student-flash" data-student-flash hidden role="status" aria-live="polite"></div>
             <div class="student-dashboard" data-student-dashboard hidden>
                 <section class="student-join-state" data-student-join-state hidden></section>

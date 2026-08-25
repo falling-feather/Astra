@@ -701,6 +701,507 @@
     font-size: 0.68rem;
 }
 
+/* V8.4.3 · FE-040 课程申请与名单管理 */
+[data-teacher-course-membership] {
+    margin-top: 8px;
+}
+
+.teacher-course-membership {
+    --member-cyan: #6ac7eb;
+    --member-green: #68d8a4;
+    --member-amber: #e8b55d;
+    display: grid;
+    gap: 16px;
+    padding-top: 22px;
+    border-top: 1px solid rgba(139, 180, 224, 0.17);
+    color: #dceaf6;
+}
+
+.teacher-course-membership__header,
+.teacher-course-membership__header > div,
+.teacher-course-membership__scope,
+.teacher-course-membership__scope > div,
+.teacher-course-membership__notice,
+.teacher-course-membership__error,
+.teacher-course-membership__loading,
+.teacher-course-membership__empty,
+.teacher-course-membership__panel > header,
+.teacher-course-request > header,
+.teacher-course-request__actions,
+.teacher-course-request__receipt,
+.teacher-course-roster,
+.teacher-course-membership__batch-receipt {
+    display: flex;
+    align-items: center;
+}
+
+.teacher-course-membership__header {
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.teacher-course-membership__header > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.teacher-course-membership__header span,
+.teacher-course-membership__panel > header > div > span {
+    color: #6e8ba6;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+}
+
+.teacher-course-membership__header h3,
+.teacher-course-membership__panel h4 {
+    margin: 0;
+    color: #f4f9fd;
+}
+
+.teacher-course-membership__header h3 {
+    font-size: 1rem;
+}
+
+.teacher-course-membership__header p,
+.teacher-course-membership__error p,
+.teacher-course-membership__empty p {
+    margin: 0;
+    color: #8fa3b7;
+    font-size: 0.74rem;
+    line-height: 1.55;
+}
+
+.teacher-course-membership button,
+.teacher-course-membership select,
+.teacher-course-membership textarea {
+    font: inherit;
+}
+
+.teacher-course-membership button,
+.teacher-course-membership select,
+.teacher-course-membership textarea {
+    border: 1px solid rgba(106, 199, 235, 0.25);
+    border-radius: 6px;
+    color: #dff7ff;
+    background: rgba(5, 22, 34, 0.88);
+}
+
+.teacher-course-membership button {
+    min-height: 44px;
+    padding: 8px 13px;
+    cursor: pointer;
+}
+
+.teacher-course-membership button:hover:not(:disabled),
+.teacher-course-membership button:focus-visible {
+    border-color: rgba(106, 199, 235, 0.68);
+    background: rgba(12, 48, 65, 0.86);
+}
+
+.teacher-course-membership button:focus-visible,
+.teacher-course-membership select:focus-visible,
+.teacher-course-membership textarea:focus-visible {
+    outline: 2px solid rgba(106, 199, 235, 0.58);
+    outline-offset: 2px;
+}
+
+.teacher-course-membership button:disabled,
+.teacher-course-membership select:disabled,
+.teacher-course-membership textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.teacher-course-membership__header > button,
+.teacher-course-membership__batch > button,
+.teacher-course-membership__retry {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.73rem;
+    font-weight: 750;
+}
+
+.teacher-course-membership button svg,
+.teacher-course-membership__notice svg,
+.teacher-course-membership__error svg,
+.teacher-course-membership__loading svg,
+.teacher-course-membership__empty svg {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+}
+
+.teacher-course-membership__scope {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(210px, auto);
+    gap: 12px;
+    padding: 13px;
+    border: 1px solid rgba(139, 180, 224, 0.14);
+    border-radius: 7px;
+    background: rgba(4, 13, 23, 0.58);
+}
+
+.teacher-course-membership__scope > label,
+.teacher-course-membership__batch > label,
+.teacher-course-request > label {
+    display: grid;
+    gap: 7px;
+    color: #8097aa;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.teacher-course-membership__scope select,
+.teacher-course-membership__batch select {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 11px;
+}
+
+.teacher-course-membership__scope > div {
+    justify-content: flex-end;
+    gap: 10px;
+    min-width: 0;
+    padding: 0 5px;
+}
+
+.teacher-course-membership__scope > div > span,
+.teacher-course-membership__scope > div > small {
+    color: #73899c;
+    font-size: 0.66rem;
+}
+
+.teacher-course-membership__scope > div > strong {
+    color: var(--member-cyan);
+    font: 800 0.88rem/1 ui-monospace, "Cascadia Code", monospace;
+    letter-spacing: 0.12em;
+}
+
+.teacher-course-membership__notice,
+.teacher-course-membership__error,
+.teacher-course-membership__loading {
+    gap: 10px;
+    min-height: 46px;
+    border: 1px solid rgba(139, 180, 224, 0.17);
+    border-radius: 6px;
+    padding: 10px 13px;
+    color: #b8cddd;
+    background: rgba(5, 19, 31, 0.74);
+    font-size: 0.72rem;
+}
+
+.teacher-course-membership__notice[data-type='success'] {
+    border-color: rgba(104, 216, 164, 0.28);
+    color: #b5e9d2;
+}
+
+.teacher-course-membership__notice[data-type='warning'],
+.teacher-course-membership__error {
+    border-color: rgba(232, 181, 93, 0.3);
+    color: #e8cf9f;
+}
+
+.teacher-course-membership__loading svg {
+    animation: teacher-course-authoring-spin 900ms linear infinite;
+}
+
+.teacher-course-membership__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid rgba(139, 180, 224, 0.13);
+    border-radius: 7px;
+    overflow: hidden;
+    background: rgba(4, 13, 23, 0.5);
+}
+
+.teacher-course-membership__metrics > div {
+    display: grid;
+    gap: 5px;
+    min-height: 76px;
+    padding: 14px 16px;
+    border-right: 1px solid rgba(139, 180, 224, 0.11);
+}
+
+.teacher-course-membership__metrics > div:last-child {
+    border-right: 0;
+}
+
+.teacher-course-membership__metrics span {
+    color: #70869a;
+    font-size: 0.66rem;
+}
+
+.teacher-course-membership__metrics strong {
+    color: #eff8fc;
+    font-size: 1.15rem;
+}
+
+.teacher-course-membership__batch {
+    display: grid;
+    grid-template-columns: minmax(230px, 1fr) auto minmax(220px, 0.8fr);
+    align-items: end;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(139, 180, 224, 0.14);
+    border-radius: 7px;
+    background: rgba(5, 18, 29, 0.62);
+}
+
+.teacher-course-membership__batch > small {
+    align-self: center;
+    color: #71869a;
+    font-size: 0.65rem;
+    line-height: 1.5;
+}
+
+.teacher-course-membership__batch > button.is-confirming,
+.teacher-course-request__actions button.is-confirming,
+.teacher-course-roster > button.is-confirming {
+    border-color: rgba(232, 181, 93, 0.72);
+    color: #ffe1a9;
+    background: rgba(92, 58, 15, 0.58);
+}
+
+.teacher-course-membership__batch-receipt {
+    flex-wrap: wrap;
+    gap: 8px;
+    border-left: 2px solid var(--member-green);
+    padding: 10px 13px;
+    color: #9eb5c5;
+    background: rgba(18, 65, 48, 0.16);
+    font-size: 0.68rem;
+}
+
+.teacher-course-membership__batch-receipt strong {
+    margin-right: 5px;
+    color: #c7eddd;
+}
+
+.teacher-course-membership__batch-receipt span {
+    border: 1px solid rgba(104, 216, 164, 0.17);
+    border-radius: 999px;
+    padding: 3px 7px;
+}
+
+.teacher-course-membership__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.teacher-course-membership__panel {
+    min-width: 0;
+    border: 1px solid rgba(139, 180, 224, 0.14);
+    border-radius: 7px;
+    background: rgba(4, 13, 23, 0.52);
+}
+
+.teacher-course-membership__panel > header {
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 62px;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(139, 180, 224, 0.12);
+}
+
+.teacher-course-membership__panel > header > div {
+    display: grid;
+    gap: 3px;
+}
+
+.teacher-course-membership__panel h4 {
+    font-size: 0.84rem;
+}
+
+.teacher-course-membership__panel > header select {
+    min-height: 44px;
+    padding: 6px 9px;
+    color: #a9bfce;
+    font-size: 0.68rem;
+}
+
+.teacher-course-membership__list {
+    display: grid;
+    gap: 8px;
+    max-height: 650px;
+    overflow-y: auto;
+    padding: 10px;
+    scrollbar-color: rgba(106, 199, 235, 0.28) transparent;
+}
+
+.teacher-course-request,
+.teacher-course-roster {
+    border: 1px solid rgba(139, 180, 224, 0.12);
+    border-radius: 6px;
+    background: rgba(5, 18, 30, 0.78);
+}
+
+.teacher-course-request {
+    display: grid;
+    gap: 10px;
+    padding: 13px;
+}
+
+.teacher-course-request[data-state='pending'] {
+    border-left: 2px solid var(--member-amber);
+}
+
+.teacher-course-request[data-state='approved'] {
+    border-left: 2px solid var(--member-green);
+}
+
+.teacher-course-request > header {
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.teacher-course-request > header > div,
+.teacher-course-roster > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.teacher-course-request > header strong,
+.teacher-course-roster strong {
+    overflow: hidden;
+    color: #edf6fc;
+    font-size: 0.76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-course-request > header span,
+.teacher-course-roster span,
+.teacher-course-roster small {
+    overflow: hidden;
+    color: #8298aa;
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-course-request > header em,
+.teacher-course-roster > em {
+    color: var(--member-amber);
+    font-size: 0.65rem;
+    font-style: normal;
+    white-space: nowrap;
+}
+
+.teacher-course-request[data-state='approved'] > header em,
+.teacher-course-roster[data-state='active'] > em {
+    color: var(--member-green);
+}
+
+.teacher-course-request > p {
+    margin: 0;
+    color: #a4b7c6;
+    font-size: 0.7rem;
+    line-height: 1.55;
+}
+
+.teacher-course-request > p.is-muted,
+.teacher-course-request > small {
+    color: #6e8395;
+    font-size: 0.64rem;
+}
+
+.teacher-course-request textarea {
+    min-height: 58px;
+    padding: 9px 10px;
+    resize: vertical;
+}
+
+.teacher-course-request__actions {
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.teacher-course-request__actions button {
+    min-width: 82px;
+    font-size: 0.68rem;
+}
+
+.teacher-course-request__actions button.is-primary {
+    border-color: rgba(104, 216, 164, 0.38);
+    color: #c9f2df;
+    background: rgba(20, 75, 54, 0.46);
+}
+
+.teacher-course-request__receipt {
+    justify-content: space-between;
+    gap: 10px;
+    color: #8ea5b6;
+    font-size: 0.66rem;
+}
+
+.teacher-course-request__receipt span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.teacher-course-roster {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 66px;
+    padding: 10px 11px;
+}
+
+.teacher-course-roster__avatar {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(106, 199, 235, 0.28);
+    border-radius: 50%;
+    color: var(--member-cyan) !important;
+    background: rgba(15, 55, 72, 0.46);
+    font-size: 0.75rem !important;
+    font-weight: 800;
+}
+
+.teacher-course-roster > button {
+    min-height: 44px;
+    padding: 6px 10px;
+    color: #d6b8ae;
+    font-size: 0.66rem;
+}
+
+.teacher-course-membership__empty {
+    justify-content: center;
+    gap: 12px;
+    min-height: 112px;
+    border: 1px dashed rgba(139, 180, 224, 0.17);
+    color: #71869a;
+}
+
+.teacher-course-membership__empty > div {
+    display: grid;
+    gap: 3px;
+}
+
+.teacher-course-membership__empty strong {
+    color: #b9c9d5;
+    font-size: 0.76rem;
+}
+
+.teacher-course-membership__empty--compact {
+    min-height: 160px;
+    margin: 10px;
+}
+
+.teacher-course-membership__retry {
+    width: 100%;
+}
+
 @keyframes teacher-course-authoring-spin {
     to { transform: rotate(360deg); }
 }
@@ -722,6 +1223,14 @@
     .teacher-course-draft__people {
         display: none;
     }
+
+    .teacher-course-membership__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .teacher-course-membership__list {
+        max-height: 520px;
+    }
 }
 
 @media (max-width: 760px) {
@@ -735,6 +1244,32 @@
     .teacher-course-authoring__refresh,
     .teacher-course-authoring__launch button,
     .teacher-course-authoring__error button {
+        width: 100%;
+    }
+
+    .teacher-course-membership__header,
+    .teacher-course-membership__error {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .teacher-course-membership__header > button,
+    .teacher-course-membership__retry {
+        width: 100%;
+    }
+
+    .teacher-course-membership__scope,
+    .teacher-course-membership__batch {
+        grid-template-columns: 1fr;
+    }
+
+    .teacher-course-membership__scope > div {
+        justify-content: flex-start;
+        min-height: 44px;
+        padding: 0;
+    }
+
+    .teacher-course-membership__batch > button {
         width: 100%;
     }
 
@@ -799,10 +1334,58 @@
     .teacher-course-draft__receipt {
         justify-content: flex-start;
     }
+
+    .teacher-course-membership__metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .teacher-course-membership__metrics > div {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        min-height: 58px;
+        border-right: 0;
+        border-bottom: 1px solid rgba(139, 180, 224, 0.11);
+    }
+
+    .teacher-course-membership__metrics > div:last-child {
+        border-bottom: 0;
+    }
+
+    .teacher-course-membership__panel > header,
+    .teacher-course-request > header,
+    .teacher-course-request__receipt {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .teacher-course-membership__panel > header select,
+    .teacher-course-request__actions button {
+        width: 100%;
+    }
+
+    .teacher-course-request__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .teacher-course-roster {
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+    }
+
+    .teacher-course-roster > em {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .teacher-course-roster > button {
+        grid-column: 2 / -1;
+        width: 100%;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .teacher-course-authoring__loading > svg {
+    .teacher-course-authoring__loading > svg,
+    .teacher-course-membership__loading > svg {
         animation: none;
     }
 }

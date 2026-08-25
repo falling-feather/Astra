@@ -2085,6 +2085,418 @@
     }
 }
 
+/* V8.4.3 · FE-040 课程码加入与申请状态 */
+#student-course-enrollment-host {
+    margin: 0 clamp(16px, 2.8vw, 32px) 20px;
+}
+
+.student-course-enrollment {
+    --course-cyan: #67d9ee;
+    --course-green: #6fe3ae;
+    --course-amber: #e6b96d;
+    display: grid;
+    gap: 16px;
+    overflow: hidden;
+    padding: clamp(18px, 2.4vw, 26px);
+    border: 1px solid rgba(102, 180, 210, 0.2);
+    border-radius: 10px;
+    background:
+        linear-gradient(135deg, rgba(17, 45, 64, 0.75), rgba(7, 19, 32, 0.92)),
+        #07131f;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+}
+
+.student-course-enrollment__header,
+.student-course-result__teachers,
+.student-course-receipt,
+.student-course-receipt > div,
+.student-course-enrollment__notice,
+.student-course-enrollment__error,
+.student-course-enrollment__loading {
+    display: flex;
+    align-items: center;
+}
+
+.student-course-enrollment__header {
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.student-course-enrollment__header > div {
+    display: grid;
+    gap: 4px;
+}
+
+.student-course-enrollment__header > div > span,
+.student-course-result__identity > span {
+    color: #6f94ad;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+
+.student-course-enrollment__header h2,
+.student-course-result__identity h3 {
+    margin: 0;
+    color: #f3f8fc;
+}
+
+.student-course-enrollment__header h2 {
+    font-size: 1.05rem;
+}
+
+.student-course-enrollment__header p,
+.student-course-result__identity p,
+.student-course-enrollment__error p {
+    margin: 0;
+    color: #8fa7ba;
+    font-size: 0.76rem;
+    line-height: 1.65;
+}
+
+.student-course-enrollment button,
+.student-course-code input,
+.student-course-join-form select,
+.student-course-join-form textarea {
+    font: inherit;
+}
+
+.student-course-enrollment button {
+    min-height: 44px;
+    border: 1px solid rgba(103, 217, 238, 0.28);
+    border-radius: 7px;
+    color: #e5f8fc;
+    background: rgba(13, 52, 69, 0.68);
+    cursor: pointer;
+}
+
+.student-course-enrollment button:hover:not(:disabled),
+.student-course-enrollment button:focus-visible {
+    border-color: rgba(103, 217, 238, 0.7);
+    background: rgba(20, 72, 91, 0.78);
+}
+
+.student-course-enrollment button:focus-visible,
+.student-course-code input:focus-visible,
+.student-course-join-form select:focus-visible,
+.student-course-join-form textarea:focus-visible {
+    outline: 2px solid rgba(103, 217, 238, 0.62);
+    outline-offset: 2px;
+}
+
+.student-course-enrollment button:disabled {
+    opacity: 0.52;
+    cursor: wait;
+}
+
+.student-course-enrollment__header > button,
+.student-course-code > button,
+.student-course-join-form > button,
+.student-course-receipt > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 15px;
+    font-size: 0.75rem;
+    font-weight: 750;
+}
+
+.student-course-enrollment button svg,
+.student-course-enrollment button i,
+.student-course-enrollment__notice svg,
+.student-course-enrollment__error svg,
+.student-course-enrollment__loading svg,
+.student-course-receipt svg,
+.student-course-result__teachers svg {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+}
+
+.student-course-code {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(124, 168, 198, 0.14);
+    border-radius: 8px;
+    background: rgba(3, 12, 21, 0.54);
+}
+
+.student-course-code label,
+.student-course-join-form label {
+    display: grid;
+    gap: 7px;
+    color: #91a9bb;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.student-course-code input,
+.student-course-join-form select,
+.student-course-join-form textarea {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid rgba(125, 169, 198, 0.24);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #edf8fc;
+    background: rgba(4, 15, 25, 0.92);
+}
+
+.student-course-code input {
+    color: var(--course-cyan);
+    font: 750 0.92rem/1 ui-monospace, "Cascadia Code", monospace;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.student-course-enrollment__notice,
+.student-course-enrollment__error,
+.student-course-enrollment__loading {
+    gap: 10px;
+    min-height: 46px;
+    border: 1px solid rgba(127, 172, 200, 0.16);
+    border-radius: 7px;
+    padding: 10px 13px;
+    color: #b8cddd;
+    background: rgba(8, 23, 35, 0.74);
+    font-size: 0.75rem;
+}
+
+.student-course-enrollment__notice[data-type='success'] {
+    border-color: rgba(111, 227, 174, 0.3);
+    color: #b8f0d6;
+}
+
+.student-course-enrollment__notice[data-type='warning'],
+.student-course-enrollment__error {
+    border-color: rgba(230, 185, 109, 0.32);
+    color: #efd8ad;
+}
+
+.student-course-enrollment__loading svg {
+    animation: student-course-spin 900ms linear infinite;
+}
+
+@keyframes student-course-spin {
+    to { transform: rotate(360deg); }
+}
+
+.student-course-result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px 22px;
+    padding: clamp(16px, 2.2vw, 23px);
+    border: 1px solid rgba(107, 174, 205, 0.2);
+    border-radius: 9px;
+    background: rgba(5, 16, 27, 0.78);
+}
+
+.student-course-result[data-state='already_enrolled'] {
+    border-color: rgba(111, 227, 174, 0.34);
+}
+
+.student-course-result[data-state='request_pending'] {
+    border-color: rgba(230, 185, 109, 0.32);
+}
+
+.student-course-result__identity {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.student-course-result__identity h3 {
+    font-size: clamp(1.06rem, 2vw, 1.35rem);
+}
+
+.student-course-result__identity > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.student-course-result__identity small {
+    border: 1px solid rgba(115, 158, 187, 0.16);
+    border-radius: 999px;
+    padding: 4px 8px;
+    color: #9db4c5;
+    background: rgba(15, 38, 53, 0.42);
+    font-size: 0.65rem;
+}
+
+.student-course-result__status {
+    display: grid;
+    align-content: start;
+    justify-items: end;
+    gap: 5px;
+    min-width: 150px;
+}
+
+.student-course-result__status > span {
+    color: var(--course-cyan);
+    font: 800 0.88rem/1 ui-monospace, "Cascadia Code", monospace;
+    letter-spacing: 0.13em;
+}
+
+.student-course-result__status strong {
+    color: #e8f4fa;
+    font-size: 0.76rem;
+}
+
+.student-course-result__status small {
+    color: #788fa2;
+    font-size: 0.66rem;
+}
+
+.student-course-result__teachers {
+    grid-column: 1 / -1;
+    gap: 9px;
+    color: #9fb6c8;
+    font-size: 0.72rem;
+}
+
+.student-course-result__teachers svg {
+    color: var(--course-cyan);
+}
+
+.student-course-join-form {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.3fr) auto;
+    align-items: end;
+    gap: 12px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(120, 165, 194, 0.15);
+}
+
+.student-course-join-form .is-wide {
+    min-width: 0;
+}
+
+.student-course-join-form textarea {
+    min-height: 66px;
+    resize: vertical;
+}
+
+.student-course-receipt {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 13px 14px;
+    border: 1px solid rgba(230, 185, 109, 0.22);
+    border-radius: 7px;
+    color: #e9d5ad;
+    background: rgba(68, 45, 17, 0.18);
+}
+
+.student-course-receipt--active {
+    border-color: rgba(111, 227, 174, 0.25);
+    color: #bdebd6;
+    background: rgba(17, 67, 49, 0.18);
+}
+
+.student-course-receipt--blocked {
+    border-color: rgba(197, 121, 112, 0.3);
+    color: #e8c0bb;
+    background: rgba(73, 29, 29, 0.2);
+}
+
+.student-course-receipt > div {
+    gap: 10px;
+    min-width: 0;
+}
+
+.student-course-receipt p {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    margin: 0;
+}
+
+.student-course-receipt strong {
+    color: currentColor;
+    font-size: 0.78rem;
+}
+
+.student-course-receipt span {
+    color: #94a9ba;
+    font-size: 0.7rem;
+    line-height: 1.5;
+}
+
+.student-course-receipt > button.is-confirming {
+    border-color: rgba(231, 148, 106, 0.7);
+    color: #ffe0c5;
+    background: rgba(118, 54, 25, 0.5);
+}
+
+.student-course-rejected {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 4px;
+    padding: 11px 13px;
+    border-left: 2px solid #d69363;
+    color: #e8c9b4;
+    background: rgba(83, 44, 26, 0.18);
+    font-size: 0.72rem;
+}
+
+.student-course-rejected span {
+    color: #a99183;
+}
+
+@media (max-width: 760px) {
+    #student-course-enrollment-host {
+        margin: 0 12px 14px;
+    }
+
+    .student-course-enrollment {
+        gap: 13px;
+        padding: 16px;
+    }
+
+    .student-course-enrollment__header,
+    .student-course-receipt {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .student-course-code,
+    .student-course-result,
+    .student-course-join-form {
+        grid-template-columns: 1fr;
+    }
+
+    .student-course-result__status {
+        grid-row: 1;
+        justify-items: start;
+        min-width: 0;
+        padding-bottom: 11px;
+        border-bottom: 1px solid rgba(120, 165, 194, 0.14);
+    }
+
+    .student-course-result__identity {
+        grid-row: 2;
+    }
+
+    .student-course-result__teachers,
+    .student-course-join-form,
+    .student-course-receipt,
+    .student-course-rejected {
+        grid-column: 1;
+    }
+
+    .student-course-enrollment__header > button,
+    .student-course-code > button,
+    .student-course-join-form > button,
+    .student-course-receipt > button {
+        width: 100%;
+    }
+}
+
 @media (hover: none) and (pointer: coarse) {
     .student-button,
     .student-assignment-tabs button,

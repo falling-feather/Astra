@@ -4,6 +4,7 @@
     if (global.AstraTeacherCourseAuthoring) return;
 
     const VERSION = '20260825v841CourseAuthoringP0';
+    const COURSE_MEMBERSHIP_VERSION = '20260825v843CourseEnrollmentP0';
     const STEPS = Object.freeze([
         Object.freeze({ id: 1, label: '基本信息' }),
         Object.freeze({ id: 2, label: '共同教师' }),
@@ -41,6 +42,9 @@
         ])
     });
     let session = null;
+    let courseMembershipOwner = null;
+    let courseMembershipLoadGeneration = 0;
+    let courseMembershipResourceError = null;
 
     function academicYearDefault(now = new Date()) {
         const year = now.getFullYear();
@@ -119,11 +123,16 @@
         root.addEventListener('change', session.onChange);
         root.addEventListener('submit', session.onSubmit);
         render();
+        void mountCourseMembership();
         return true;
     }
 
     function destroy() {
         if (!session) return;
+        courseMembershipLoadGeneration += 1;
+        if (courseMembershipOwner) courseMembershipOwner.destroy();
+        courseMembershipOwner = null;
+        courseMembershipResourceError = null;
         session.generation += 1;
         session.root.removeEventListener('click', session.onClick);
         session.root.removeEventListener('input', session.onInput);
@@ -149,6 +158,7 @@
         }
         if (session.schoolId !== schoolId) resetScope(schoolId);
         container.innerHTML = authoringMarkup(context);
+        if (courseMembershipOwner) courseMembershipOwner.render();
         if (!session.loaded && !session.loading) void refreshScope();
         return true;
     }
@@ -156,6 +166,47 @@
     function safeSnapshot() {
         const value = session && session.host.snapshot();
         return value && typeof value === 'object' ? value : {};
+    }
+
+    function courseMembershipSnapshot() {
+        const context = safeSnapshot();
+        return Object.freeze(Object.assign({}, context, {
+            courses: session ? session.courses.slice() : [],
+            homerooms: session && session.options && Array.isArray(session.options.homerooms)
+                ? session.options.homerooms.slice()
+                : []
+        }));
+    }
+
+    function courseMembershipHost() {
+        return Object.freeze({
+            snapshot: courseMembershipSnapshot,
+            request: (path, options) => session.host.request(path, options),
+            beginMutation,
+            endMutation,
+            failMutation,
+            notify
+        });
+    }
+
+    async function mountCourseMembership() {
+        const generation = ++courseMembershipLoadGeneration;
+        courseMembershipResourceError = null;
+        try {
+            await import(`./teacher-course-membership.js?v=${COURSE_MEMBERSHIP_VERSION}`);
+            if (!session || generation !== courseMembershipLoadGeneration) return false;
+            courseMembershipOwner = global.AstraTeacherCourseMembership;
+            if (!courseMembershipOwner || typeof courseMembershipOwner.mount !== 'function') throw new Error('课程成员中心入口不可用');
+            courseMembershipOwner.mount(session.root, courseMembershipHost());
+            render();
+            return true;
+        } catch (error) {
+            if (!session || generation !== courseMembershipLoadGeneration) return false;
+            courseMembershipResourceError = error;
+            render();
+            console.warn('[TeacherCourseAuthoring] course membership resource unavailable');
+            return false;
+        }
     }
 
     function resetScope(schoolId) {
@@ -244,8 +295,15 @@
                 ${noticeMarkup()}
                 ${session.loading && !session.loaded ? loadingMarkup() : ''}
                 ${session.error ? errorMarkup(session.error) : ''}
-                ${session.loaded && !session.error ? `${session.open ? wizardMarkup(context) : launchMarkup(blocked)}${courseListMarkup(blocked)}` : ''}
+                ${session.loaded && !session.error ? `${session.open ? wizardMarkup(context) : launchMarkup(blocked)}${courseListMarkup(blocked)}${courseMembershipHostMarkup()}` : ''}
             </section>`;
+    }
+
+    function courseMembershipHostMarkup() {
+        const status = courseMembershipResourceError
+            ? '<div class="teacher-course-membership__error" role="alert"><i data-lucide="circle-alert"></i><div><strong>课程成员中心加载失败</strong><p>请刷新教师工作台后重试。</p></div></div>'
+            : '<div class="teacher-course-membership__loading" role="status"><i data-lucide="loader-circle"></i><span>正在准备课程成员中心…</span></div>';
+        return `<div data-teacher-course-membership>${courseMembershipOwner ? '' : status}</div>`;
     }
 
     function noticeMarkup() {
