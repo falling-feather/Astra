@@ -75,6 +75,9 @@ assert.match(
   'the create shortcut must activate the nested V8.4 course wizard control',
 );
 assert.match(bridgeSource, /focusTeacherLegacyCourse\(record, action\.course_id\)/, 'legacy teaching courses must retain a visible management fallback');
+assert.match(bridgeSource, /AstraTeacherWorkbenchScope\.openGrading\(action\)/, 'course-cohort grading must enter the existing teacher grading owner');
+assert.match(teacher, /AstraTeacherWorkbenchScope = Object\.freeze\(\{ openGrading: openDirectCourseGrading \}\)/);
+assert.match(teacher, /课程直属名单（不关联行政班）/);
 assert.match(bridgeSource, /if \(String\(select\.value\) === normalized\) return false;/, 'a navigation shortcut must not emit duplicate scope changes');
 assert.match(bridgeSource, /AdminSecondaryGovernance\.open/);
 assert.match(bridgeSource, /data-admin-section-button=\"courses\"/);
@@ -133,11 +136,11 @@ assert.throws(() => contract.validatePayload({ ...adminPayload, catalog_totals: 
 
 const action = contract.actionFromControl({ dataset: {
   roleWorkbenchAction: 'grade_submission', section: 'pending_grading', courseId: '7',
-  courseUnitId: '8', assignmentId: '9', requestId: '', revisionId: '', resourceId: '', activityKey: ''
+  courseUnitId: '8', assignmentId: '9', classId: '10', submissionId: '11', requestId: '', revisionId: '', resourceId: '', activityKey: ''
 } });
 assert.deepEqual(JSON.parse(JSON.stringify(action)), {
   kind: 'grade_submission', section: 'pending_grading', course_id: 7, course_unit_id: 8,
-  assignment_id: 9, request_id: 0, revision_id: 0, resource_id: 0, activity_key: '',
+  assignment_id: 9, class_id: 10, submission_id: 11, request_id: 0, revision_id: 0, resource_id: 0, activity_key: '',
 });
 
 console.log('role-workbench-fe042-contract: ok');

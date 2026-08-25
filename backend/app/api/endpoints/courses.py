@@ -49,6 +49,7 @@ from app.services.access_control import (
     require_class_teacher_or_admin,
     require_course_author_or_admin,
     require_course_collaborator_or_admin,
+    require_course_editor_or_admin,
     require_course_visible,
     require_school_member,
     require_school_role,
@@ -983,6 +984,13 @@ def list_course_assignments(
             raise HTTPException(status_code=403, detail="Course is not attached to this class")
         if current_user.role == "student":
             require_class_member(db, current_user, class_group.id)
+        elif class_group.kind == "course_cohort":
+            require_course_editor_or_admin(
+                db,
+                current_user,
+                course,
+                detail="Course assignment scope requires an active course teacher",
+            )
         else:
             require_class_teacher_or_admin(
                 db,

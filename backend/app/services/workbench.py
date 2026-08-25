@@ -642,7 +642,7 @@ def _teacher_pending_grading(
     db: Session, teacher_id: int, limit: int, offset: int
 ) -> dict:
     base = (
-        select(Submission, Assignment, CourseUnit, Course, User)
+        select(Submission, Assignment, CourseUnit, Course, User, ClassGroup)
         .join(Assignment, Assignment.id == Submission.assignment_id)
         .join(CourseUnit, CourseUnit.id == Assignment.unit_id)
         .join(Course, Course.id == CourseUnit.course_id)
@@ -663,6 +663,7 @@ def _teacher_pending_grading(
     items = [
         {
             "submission_id": submission.id,
+            "class_id": class_group.id,
             "assignment_id": assignment.id,
             "assignment_title": assignment.title,
             "course_id": course.id,
@@ -673,7 +674,7 @@ def _teacher_pending_grading(
             "student_display_name": student.display_name,
             "submitted_at": submission.submitted_at,
         }
-        for submission, assignment, unit, course, student in rows
+        for submission, assignment, unit, course, student, class_group in rows
     ]
     return _page(items, total, limit, offset)
 
@@ -862,6 +863,8 @@ def _teacher_primary_action(
             "course_id": item["course_id"],
             "course_unit_id": item["course_unit_id"],
             "assignment_id": item["assignment_id"],
+            "class_id": item["class_id"],
+            "submission_id": item["submission_id"],
         }
     if courses["items"]:
         item = courses["items"][0]

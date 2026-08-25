@@ -27,6 +27,8 @@ class WorkbenchPrimaryAction(BaseModel):
     course_id: int | None = None
     course_unit_id: int | None = None
     assignment_id: int | None = None
+    class_id: int | None = None
+    submission_id: int | None = None
     request_id: int | None = None
     revision_id: int | None = None
 
@@ -127,6 +129,7 @@ class TeacherDraftSummary(BaseModel):
 
 class TeacherSubmissionSummary(BaseModel):
     submission_id: int
+    class_id: int
     assignment_id: int
     assignment_title: str
     course_id: int

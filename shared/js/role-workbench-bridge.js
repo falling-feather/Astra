@@ -211,6 +211,15 @@
             return true;
         }
         if (kind === 'grade_submission' || kind === 'open_grading') {
+            if (
+                kind === 'grade_submission'
+                && global.AstraTeacherWorkbenchScope
+                && typeof global.AstraTeacherWorkbenchScope.openGrading === 'function'
+                && positiveNumber(action.class_id)
+            ) {
+                void global.AstraTeacherWorkbenchScope.openGrading(action);
+                return true;
+            }
             clickLater(record, '[data-teacher-view="grading"]');
             selectLater(record, '[data-teacher-scope="courseId"]', action.course_id, () => {
                 if (action.assignment_id) selectLater(record, '[data-teacher-scope="assignmentId"]', action.assignment_id);

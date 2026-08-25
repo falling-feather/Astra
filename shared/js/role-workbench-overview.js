@@ -381,7 +381,8 @@
 
     function teacherGradingMarkup(item) {
         return compactQueueItem('clipboard-check', item.assignment_title, `${item.student_display_name} · ${item.course_title}`, formatDate(item.submitted_at), {
-            kind: 'grade_submission', section: 'pending_grading', course_id: item.course_id, course_unit_id: item.course_unit_id, assignment_id: item.assignment_id
+            kind: 'grade_submission', section: 'pending_grading', course_id: item.course_id, course_unit_id: item.course_unit_id,
+            assignment_id: item.assignment_id, class_id: item.class_id, submission_id: item.submission_id
         }, '批改');
     }
 
@@ -426,6 +427,8 @@
             'data-course-id': source.course_id,
             'data-course-unit-id': source.course_unit_id,
             'data-assignment-id': source.assignment_id,
+            'data-class-id': source.class_id,
+            'data-submission-id': source.submission_id,
             'data-request-id': source.request_id,
             'data-revision-id': source.revision_id,
             'data-resource-id': source.resource_id,
@@ -443,6 +446,8 @@
             course_id: positiveNumber(control.dataset.courseId),
             course_unit_id: positiveNumber(control.dataset.courseUnitId),
             assignment_id: positiveNumber(control.dataset.assignmentId),
+            class_id: positiveNumber(control.dataset.classId),
+            submission_id: positiveNumber(control.dataset.submissionId),
             request_id: positiveNumber(control.dataset.requestId),
             revision_id: positiveNumber(control.dataset.revisionId),
             resource_id: positiveNumber(control.dataset.resourceId),

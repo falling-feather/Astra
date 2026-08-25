@@ -90,6 +90,8 @@ def test_student_workbench_empty_state_auth_and_pagination_bounds(client) -> Non
         "course_id": None,
         "course_unit_id": None,
         "assignment_id": None,
+        "class_id": None,
+        "submission_id": None,
         "request_id": None,
         "revision_id": None,
     }
@@ -365,7 +367,9 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
         )
         db.add(cohort)
         db.flush()
-        db.add(CourseClass(course_id=course.id, class_id=cohort.id, status="active"))
+        course_class = CourseClass(course_id=course.id, class_id=cohort.id, status="active")
+        db.add(course_class)
+        db.flush()
         unit = CourseUnit(
             course_id=course.id,
             activity_key="workbench.teacher.activity",
@@ -376,6 +380,14 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
         )
         db.add(unit)
         db.flush()
+        db.add(
+            CourseUnitClassPlan(
+                course_class_id=course_class.id,
+                course_unit_id=unit.id,
+                position=1,
+                release_mode="open",
+            )
+        )
         assignment = Assignment(
             unit_id=unit.id,
             title="Workbench Teacher Assignment",
@@ -402,6 +414,8 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
         )
         db.commit()
         school_id = school.id
+        course_id = course.id
+        cohort_id = cohort.id
         request_id = join_request.id
 
     response = client.get("/api/v1/workbench", headers=_auth(teacher["token"]))
@@ -417,6 +431,15 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
     assert body["pending_students"]["items"][0]["source_class_name"] == "未关联班级"
     assert body["unpublished_drafts"]["total"] == 1
     assert body["pending_grading"]["total"] == 1
+    assert body["pending_grading"]["items"][0]["class_id"] == cohort_id
+    assert body["pending_grading"]["items"][0]["submission_id"] > 0
+    assignments = client.get(
+        f"/api/courses/{course_id}/assignments",
+        headers=_auth(teacher["token"]),
+        params={"class_id": cohort_id},
+    )
+    assert assignments.status_code == 200, assignments.json()
+    assert assignments.json()[0]["title"] == "Workbench Teacher Assignment"
     assert body["primary_action"]["kind"] == "review_course_join_request"
     assert body["primary_action"]["request_id"] == request_id
 
