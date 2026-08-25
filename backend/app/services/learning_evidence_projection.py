@@ -74,7 +74,13 @@ def completion_decision(
     if witness_events is None:
         return None
     outcome = str(activity_rule["outcome"])
-    valid_derived = _valid_derived_events(events, learner_events, invalidated_ids, outcome)
+    valid_derived = _valid_derived_events(
+        events,
+        learner_events,
+        invalidated_ids,
+        outcome,
+        activity_rule=activity_rule,
+    )
     return CompletionDecision(
         outcome=outcome,
         source_event_ids=tuple(event.id for event in witness_events),
@@ -101,6 +107,7 @@ def rebuild_activity_projection(
         learner_events,
         invalidated_ids,
         "completed",
+        activity_rule=activity_rule,
         rule_criteria_satisfied=criteria_satisfied,
     )
     transferred_events = _valid_derived_events(
@@ -108,6 +115,7 @@ def rebuild_activity_projection(
         learner_events,
         invalidated_ids,
         "transferred",
+        activity_rule=activity_rule,
         rule_criteria_satisfied=criteria_satisfied,
     )
     if transferred_events:
@@ -428,6 +436,7 @@ def _valid_derived_events(
     invalidated_ids: set[int],
     outcome: str,
     *,
+    activity_rule: dict | None = None,
     rule_criteria_satisfied: bool = True,
 ) -> list[LearningEvidenceEvent]:
     active_learner_ids = {event.id for event in learner_events}
@@ -436,7 +445,10 @@ def _valid_derived_events(
         if event.id in invalidated_ids or event.event_type != outcome:
             continue
         source_ids = {int(source_id) for source_id in (event.source_event_ids_json or [])}
-        if event.producer_type == "trusted_assessment" or (
+        if (
+            event.producer_type == "trusted_assessment"
+            and _trusted_event_matches_rule(event, activity_rule)
+        ) or (
             event.producer_type == "rule"
             and rule_criteria_satisfied
             and source_ids
@@ -464,6 +476,19 @@ def _criterion_witness(
     activity_rule: dict,
     learner_events: list[LearningEvidenceEvent],
 ) -> list[LearningEvidenceEvent] | None:
+    preset = activity_rule.get("preset")
+    if preset == "experiment_operation":
+        return next(
+            (
+                [event]
+                for event in learner_events
+                if event.event_type == "attempted"
+                and event.activity_runtime_id is not None
+            ),
+            None,
+        )
+    if preset in {"checkpoint_passed", "assignment_reviewed"}:
+        return None
     observed_types = {event.event_type for event in learner_events}
     required_types = set(activity_rule.get("required_event_types") or [])
     attempts = [event for event in learner_events if event.event_type == "attempted"]
@@ -496,6 +521,34 @@ def _criterion_witness(
     if not witness or len(witness) > MAX_RULE_WITNESS_EVENTS:
         return None
     return witness
+
+
+def _trusted_event_matches_rule(
+    event: LearningEvidenceEvent,
+    activity_rule: dict | None,
+) -> bool:
+    if activity_rule is None:
+        return False
+    preset = activity_rule.get("preset")
+    if preset is None:
+        return True
+    evidence = dict(event.evidence_json or {})
+    if preset == "checkpoint_passed":
+        return (
+            evidence.get("preset") == preset
+            and evidence.get("checkpoint_key") == activity_rule.get("checkpoint_key")
+            and evidence.get("is_correct") is True
+            and isinstance(evidence.get("checkpoint_attempt_id"), int)
+            and isinstance(evidence.get("course_release_id"), int)
+        )
+    if preset == "assignment_reviewed":
+        return (
+            evidence.get("preset") == preset
+            and evidence.get("assignment_id") == activity_rule.get("assignment_id")
+            and isinstance(evidence.get("submission_id"), int)
+            and evidence.get("review_status") in {"graded", "returned"}
+        )
+    return False
 
 
 def _event_cursor(event: LearningEvidenceEvent | None) -> dict[str, Any]:

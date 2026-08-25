@@ -4,16 +4,26 @@ from copy import deepcopy
 
 from app.core.config import get_settings
 from app.db.session import get_session_factory
+from app.api.endpoints import submissions as submission_endpoints
 from app.models import (
+    Assignment,
+    CheckpointAttempt,
     ContentDraft,
     ContentPageVersion,
     Course,
     CourseClassReleaseBinding,
     CourseRelease,
     CourseReleaseUnit,
+    CourseUnit,
+    LearningActivityProjection,
+    LearningCompletionRule,
+    LearningEvidenceEvent,
+    LearningRuleClassBinding,
     SchoolMembership,
+    Submission,
 )
 from sqlalchemy import func, select
+from app.services.course_completion import CourseCompletionError
 
 PASSWORD = "Course-content-release-123"
 
@@ -143,6 +153,16 @@ def _content(markdown: str) -> dict:
         "layout": "course-page",
         "status": "draft",
         "version": "draft",
+        "courseUnit": {
+            "courseId": "draft-course",
+            "unitId": "draft-unit",
+            "order": 1,
+            "title": "能量守恒探究",
+            "completion": {
+                "preset": "checkpoint_passed",
+                "checkpointKey": "energy-conservation-check",
+            },
+        },
         "blocks": [
             {
                 "blockId": "energy-hero",
@@ -558,3 +578,500 @@ def test_second_release_retains_old_history_and_becomes_current_for_students(cli
         assert len(versions) == 2
         assert "版本一" in versions[0].schema_json["blocks"][1]["markdown"]
         assert "版本二" in versions[1].schema_json["blocks"][1]["markdown"]
+
+
+def test_checkpoint_completion_is_server_graded_idempotent_and_release_bound(client):
+    scope = _approved_course_scope(client, "checkpoint_completion")
+    course_id = scope["course_id"]
+    saved = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        course_id,
+        0,
+        _unit_payload(_content("检查点完成规则。")),
+    )
+    assert saved.status_code == 200, saved.json()
+    unit_id = saved.json()["units"][0]["id"]
+    _enroll_student(
+        client,
+        student=scope["student"],
+        teacher=scope["owner"],
+        course_id=course_id,
+    )
+    published = client.post(
+        f"/api/v1/courses/{course_id}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": 1, "note": "checkpoint completion"},
+    )
+    assert published.status_code == 201, published.json()
+    receipt = published.json()
+    release_id = receipt["release"]["id"]
+    attempt_url = (
+        f"/api/v1/courses/{course_id}/units/{unit_id}/checkpoints/"
+        "energy-conservation-check/attempts"
+    )
+
+    wrong = client.post(
+        attempt_url,
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "client_attempt_id": "checkpoint-attempt-wrong-1",
+            "course_release_id": release_id,
+            "selected_choice_ids": ["kinetic"],
+        },
+    )
+    assert wrong.status_code == 201, wrong.json()
+    assert wrong.json()["is_correct"] is False
+    assert wrong.json()["completed"] is False
+    assert wrong.json()["remaining_attempts"] == 2
+    assert "correctChoiceIds" not in wrong.json()
+
+    correct_payload = {
+        "client_attempt_id": "checkpoint-attempt-correct-2",
+        "course_release_id": release_id,
+        "selected_choice_ids": ["mechanical"],
+    }
+    correct = client.post(
+        attempt_url,
+        headers=_auth(scope["student"]["token"]),
+        json=correct_payload,
+    )
+    assert correct.status_code == 201, correct.json()
+    assert correct.json()["is_correct"] is True
+    assert correct.json()["completed"] is True
+    assert correct.json()["remaining_attempts"] == 1
+    assert correct.json()["replayed"] is False
+
+    replay = client.post(
+        attempt_url,
+        headers=_auth(scope["student"]["token"]),
+        json=correct_payload,
+    )
+    assert replay.status_code == 201, replay.json()
+    assert replay.json()["id"] == correct.json()["id"]
+    assert replay.json()["replayed"] is True
+    collision = client.post(
+        attempt_url,
+        headers=_auth(scope["student"]["token"]),
+        json={**correct_payload, "selected_choice_ids": ["potential"]},
+    )
+    assert collision.status_code == 409, collision.json()
+    assert collision.json()["detail"]["code"] == "checkpoint_attempt_id_conflict"
+
+    session_factory = get_session_factory(get_settings().database_url)
+    with session_factory() as db:
+        attempts = list(
+            db.scalars(
+                select(CheckpointAttempt).order_by(CheckpointAttempt.attempt_number)
+            ).all()
+        )
+        assert [item.is_correct for item in attempts] == [False, True]
+        events = list(
+            db.scalars(
+                select(LearningEvidenceEvent).where(
+                    LearningEvidenceEvent.producer_type == "trusted_assessment"
+                )
+            ).all()
+        )
+        assert len(events) == 1
+        assert events[0].evidence_json["checkpoint_attempt_id"] == attempts[1].id
+        projection = db.scalar(
+            select(LearningActivityProjection).where(
+                LearningActivityProjection.subject_user_id == scope["student"]["id"],
+                LearningActivityProjection.course_unit_id == unit_id,
+            )
+        )
+        assert projection is not None
+        assert projection.status == "completed"
+        projection.status = "not_started"
+        db.commit()
+
+    rebuilt = client.post(
+        f"/api/learning-evidence/classes/{scope['internal_class_id']}/courses/{course_id}/rebuild"
+        f"?subject_user_id={scope['student']['id']}",
+        headers=_auth(scope["admin"]["token"]),
+    )
+    assert rebuilt.status_code == 200, rebuilt.json()
+    with session_factory() as db:
+        repaired = db.scalar(
+            select(LearningActivityProjection).where(
+                LearningActivityProjection.subject_user_id == scope["student"]["id"],
+                LearningActivityProjection.course_unit_id == unit_id,
+            )
+        )
+        assert repaired is not None
+        assert repaired.status == "completed"
+
+    second_saved = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        course_id,
+        receipt["next_draft_revision"],
+        _unit_payload(_content("同一规则下的新内容版本。"), unit_id),
+    )
+    assert second_saved.status_code == 200, second_saved.json()
+    second_publish = client.post(
+        f"/api/v1/courses/{course_id}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": second_saved.json()["revision"]},
+    )
+    assert second_publish.status_code == 201, second_publish.json()
+    assert (
+        second_publish.json()["release"]["completion_rule_id"]
+        == receipt["release"]["completion_rule_id"]
+    )
+    stale = client.post(
+        attempt_url,
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "client_attempt_id": "checkpoint-attempt-stale-release",
+            "course_release_id": release_id,
+            "selected_choice_ids": ["mechanical"],
+        },
+    )
+    assert stale.status_code == 409, stale.json()
+    assert stale.json()["detail"]["code"] == "course_release_stale"
+
+
+def test_checkpoint_attempt_limit_and_target_mismatch_fail_closed(client):
+    scope = _approved_course_scope(client, "checkpoint_limit")
+    content = _content("限制次数并拒绝非目标检查点。")
+    content["blocks"][3]["maxAttempts"] = 1
+    content["blocks"].append(
+        {
+            "blockId": "secondary-checkpoint",
+            "type": "checkpoint",
+            "checkpointKey": "secondary-check",
+            "title": "非完成目标",
+            "prompt": "选择 A",
+            "mode": "inline",
+            "responseType": "single-choice",
+            "choices": [
+                {"choiceId": "a", "label": "A"},
+                {"choiceId": "b", "label": "B"},
+            ],
+            "correctChoiceIds": ["a"],
+        }
+    )
+    saved = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        scope["course_id"],
+        0,
+        _unit_payload(content),
+    )
+    assert saved.status_code == 200, saved.json()
+    unit_id = saved.json()["units"][0]["id"]
+    _enroll_student(
+        client,
+        student=scope["student"],
+        teacher=scope["owner"],
+        course_id=scope["course_id"],
+    )
+    published = client.post(
+        f"/api/v1/courses/{scope['course_id']}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": 1},
+    )
+    assert published.status_code == 201, published.json()
+    release_id = published.json()["release"]["id"]
+    base = f"/api/v1/courses/{scope['course_id']}/units/{unit_id}/checkpoints"
+    mismatch = client.post(
+        f"{base}/secondary-check/attempts",
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "client_attempt_id": "checkpoint-nontarget",
+            "course_release_id": release_id,
+            "selected_choice_ids": ["a"],
+        },
+    )
+    assert mismatch.status_code == 422, mismatch.json()
+    assert mismatch.json()["detail"]["code"] == "checkpoint_completion_target_mismatch"
+    first = client.post(
+        f"{base}/energy-conservation-check/attempts",
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "client_attempt_id": "checkpoint-limit-1",
+            "course_release_id": release_id,
+            "selected_choice_ids": ["kinetic"],
+        },
+    )
+    assert first.status_code == 201, first.json()
+    limited = client.post(
+        f"{base}/energy-conservation-check/attempts",
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "client_attempt_id": "checkpoint-limit-2",
+            "course_release_id": release_id,
+            "selected_choice_ids": ["mechanical"],
+        },
+    )
+    assert limited.status_code == 409, limited.json()
+    assert limited.json()["detail"]["code"] == "checkpoint_attempt_limit_reached"
+
+
+def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempotent(client, monkeypatch):
+    scope = _approved_course_scope(client, "assignment_completion")
+    course_id = scope["course_id"]
+    initial_content = _content("先建立单元，再选择作业。")
+    initial_content["courseUnit"].pop("completion")
+    initial = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        course_id,
+        0,
+        _unit_payload(initial_content),
+    )
+    assert initial.status_code == 200, initial.json()
+    unit_id = initial.json()["units"][0]["id"]
+    assignment = client.post(
+        f"/api/courses/{course_id}/units/{unit_id}/assignments",
+        headers=_auth(scope["owner"]["token"]),
+        json={"title": "完成报告", "max_score": 20},
+    )
+    assert assignment.status_code == 201, assignment.json()
+    assignment_id = assignment.json()["id"]
+    final_content = _content("提交报告并由教师批改后完成。")
+    final_content["courseUnit"]["completion"] = {
+        "preset": "assignment_reviewed",
+        "assignmentId": assignment_id,
+    }
+    final_saved = _replace_draft(
+        client,
+        scope["peer"]["token"],
+        course_id,
+        initial.json()["revision"],
+        _unit_payload(final_content, unit_id),
+    )
+    assert final_saved.status_code == 200, final_saved.json()
+    _enroll_student(
+        client,
+        student=scope["student"],
+        teacher=scope["owner"],
+        course_id=course_id,
+    )
+    published = client.post(
+        f"/api/v1/courses/{course_id}/releases",
+        headers=_auth(scope["peer"]["token"]),
+        json={"expected_revision": final_saved.json()["revision"]},
+    )
+    assert published.status_code == 201, published.json()
+    submission = client.post(
+        f"/api/assignments/{assignment_id}/submissions",
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "class_id": scope["internal_class_id"],
+            "content": {"report": "energy remains conserved"},
+        },
+    )
+    assert submission.status_code == 201, submission.json()
+    submission_id = submission.json()["id"]
+    peer_scoped_submissions = client.get(
+        f"/api/assignments/{assignment_id}/submissions"
+        f"?class_id={scope['internal_class_id']}",
+        headers=_auth(scope["peer"]["token"]),
+    )
+    assert peer_scoped_submissions.status_code == 200, peer_scoped_submissions.json()
+    assert [item["id"] for item in peer_scoped_submissions.json()] == [submission_id]
+    peer_course_submissions = client.get(
+        f"/api/assignments/{assignment_id}/submissions",
+        headers=_auth(scope["peer"]["token"]),
+    )
+    assert peer_course_submissions.status_code == 200, peer_course_submissions.json()
+    assert [item["id"] for item in peer_course_submissions.json()] == [submission_id]
+    original_completion = submission_endpoints.append_assignment_review_completion
+
+    def fail_completion(*_args, **_kwargs):
+        raise CourseCompletionError(
+            409,
+            "forced_completion_failure",
+            "forced rollback",
+        )
+
+    monkeypatch.setattr(
+        submission_endpoints,
+        "append_assignment_review_completion",
+        fail_completion,
+    )
+    failed_grade = client.patch(
+        f"/api/submissions/{submission_id}/grade",
+        headers=_auth(scope["peer"]["token"]),
+        json={"score": 17, "feedback": "must roll back", "status": "graded"},
+    )
+    assert failed_grade.status_code == 409, failed_grade.json()
+    assert failed_grade.json()["detail"]["code"] == "forced_completion_failure"
+    session_factory = get_session_factory(get_settings().database_url)
+    with session_factory() as db:
+        rolled_back = db.get(Submission, submission_id)
+        assert rolled_back is not None
+        assert rolled_back.status == "submitted"
+        assert rolled_back.score is None
+        assert db.scalar(
+            select(func.count()).select_from(LearningEvidenceEvent).where(
+                LearningEvidenceEvent.assignment_id == assignment_id
+            )
+        ) == 0
+    monkeypatch.setattr(
+        submission_endpoints,
+        "append_assignment_review_completion",
+        original_completion,
+    )
+    grade = client.patch(
+        f"/api/submissions/{submission_id}/grade",
+        headers=_auth(scope["peer"]["token"]),
+        json={"score": 18, "feedback": "已完成", "status": "graded"},
+    )
+    assert grade.status_code == 200, grade.json()
+    regrade = client.patch(
+        f"/api/submissions/{submission_id}/grade",
+        headers=_auth(scope["owner"]["token"]),
+        json={"score": 19, "feedback": "复核完成", "status": "returned"},
+    )
+    assert regrade.status_code == 200, regrade.json()
+
+    with session_factory() as db:
+        trusted = list(
+            db.scalars(
+                select(LearningEvidenceEvent).where(
+                    LearningEvidenceEvent.assignment_id == assignment_id,
+                    LearningEvidenceEvent.producer_type == "trusted_assessment",
+                )
+            ).all()
+        )
+        assert len(trusted) == 1
+        assert trusted[0].evidence_json["submission_id"] == submission_id
+        projection = db.scalar(
+            select(LearningActivityProjection).where(
+                LearningActivityProjection.subject_user_id == scope["student"]["id"],
+                LearningActivityProjection.course_unit_id == unit_id,
+            )
+        )
+        assert projection is not None
+        assert projection.status == "completed"
+        assert db.scalar(select(func.count()).select_from(Submission)) == 1
+        assert db.scalar(select(func.count()).select_from(Assignment)) == 1
+
+
+def test_publication_reuses_rule_and_changes_binding_only_when_completion_changes(client):
+    scope = _approved_course_scope(client, "rule_reuse")
+    course_id = scope["course_id"]
+    first = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        course_id,
+        0,
+        _unit_payload(_content("规则版本一。")),
+    )
+    assert first.status_code == 200, first.json()
+    unit_id = first.json()["units"][0]["id"]
+    first_release = client.post(
+        f"/api/v1/courses/{course_id}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": 1},
+    )
+    assert first_release.status_code == 201, first_release.json()
+    first_receipt = first_release.json()
+    unchanged = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        course_id,
+        first_receipt["next_draft_revision"],
+        _unit_payload(_content("只改正文，不改完成规则。"), unit_id),
+    )
+    assert unchanged.status_code == 200, unchanged.json()
+    second_release = client.post(
+        f"/api/v1/courses/{course_id}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": unchanged.json()["revision"]},
+    )
+    assert second_release.status_code == 201, second_release.json()
+    assert (
+        second_release.json()["release"]["completion_rule_id"]
+        == first_receipt["release"]["completion_rule_id"]
+    )
+
+    changed_content = _content("改用第二个检查点作为完成目标。")
+    changed_content["blocks"].append(
+        {
+            "blockId": "changed-target",
+            "type": "checkpoint",
+            "checkpointKey": "changed-target-check",
+            "title": "新目标",
+            "prompt": "选择 B",
+            "mode": "inline",
+            "responseType": "single-choice",
+            "choices": [
+                {"choiceId": "a", "label": "A"},
+                {"choiceId": "b", "label": "B"},
+            ],
+            "correctChoiceIds": ["b"],
+        }
+    )
+    changed_content["courseUnit"]["completion"]["checkpointKey"] = "changed-target-check"
+    changed = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        course_id,
+        second_release.json()["next_draft_revision"],
+        _unit_payload(changed_content, unit_id),
+    )
+    assert changed.status_code == 200, changed.json()
+    third_release = client.post(
+        f"/api/v1/courses/{course_id}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": changed.json()["revision"]},
+    )
+    assert third_release.status_code == 201, third_release.json()
+    assert (
+        third_release.json()["release"]["completion_rule_id"]
+        != first_receipt["release"]["completion_rule_id"]
+    )
+    session_factory = get_session_factory(get_settings().database_url)
+    with session_factory() as db:
+        rules = list(
+            db.scalars(
+                select(LearningCompletionRule).where(
+                    LearningCompletionRule.course_id == course_id
+                )
+            ).all()
+        )
+        bindings = list(
+            db.scalars(
+                select(LearningRuleClassBinding).order_by(
+                    LearningRuleClassBinding.plan_version
+                )
+            ).all()
+        )
+        assert len(rules) == 2
+        assert len(bindings) == 2
+        assert [item.plan_version for item in bindings] == [1, 2]
+
+
+def test_publication_without_completion_config_rolls_back_all_new_facts(client):
+    scope = _approved_course_scope(client, "completion_rollback")
+    content = _content("未配置完成方式的草稿仍可保存。")
+    content["courseUnit"].pop("completion")
+    saved = _replace_draft(
+        client,
+        scope["owner"]["token"],
+        scope["course_id"],
+        0,
+        _unit_payload(content),
+    )
+    assert saved.status_code == 200, saved.json()
+    unit_id = saved.json()["units"][0]["id"]
+    rejected = client.post(
+        f"/api/v1/courses/{scope['course_id']}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": saved.json()["revision"]},
+    )
+    assert rejected.status_code == 409, rejected.json()
+    assert rejected.json()["detail"]["code"] == "course_completion_missing"
+    session_factory = get_session_factory(get_settings().database_url)
+    with session_factory() as db:
+        assert db.scalar(select(func.count()).select_from(CourseRelease)) == 0
+        assert db.scalar(select(func.count()).select_from(LearningCompletionRule)) == 0
+        assert db.scalar(select(func.count()).select_from(LearningRuleClassBinding)) == 0
+        unit = db.get(CourseUnit, unit_id)
+        assert unit is not None
+        assert unit.status == "draft"

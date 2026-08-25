@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     JSON,
     CheckConstraint,
     DateTime,
@@ -112,6 +113,72 @@ class LearningRuleClassBinding(Base):
     rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(_evidence_datetime_type(), default=utc_now, nullable=False)
+
+
+class CheckpointAttempt(Base):
+    """Immutable server-graded answer fact for one released inline checkpoint."""
+
+    __tablename__ = "checkpoint_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "client_attempt_id", name="uq_checkpoint_attempts_client_attempt"
+        ),
+        UniqueConstraint(
+            "course_release_id",
+            "course_unit_id",
+            "checkpoint_key",
+            "student_id",
+            "attempt_number",
+            name="uq_checkpoint_attempts_scope_number",
+        ),
+        CheckConstraint(
+            "attempt_number > 0", name="ck_checkpoint_attempts_number_positive"
+        ),
+        Index(
+            "ix_checkpoint_attempts_student_scope",
+            "student_id",
+            "course_id",
+            "course_unit_id",
+            "submitted_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_attempt_id: Mapped[str] = mapped_column(
+        _client_event_id_type(), nullable=False
+    )
+    request_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), index=True, nullable=False
+    )
+    class_id: Mapped[int] = mapped_column(
+        ForeignKey("class_groups.id"), index=True, nullable=False
+    )
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id"), index=True, nullable=False
+    )
+    course_unit_id: Mapped[int] = mapped_column(
+        ForeignKey("course_units.id"), index=True, nullable=False
+    )
+    course_release_id: Mapped[int] = mapped_column(
+        ForeignKey("course_releases.id"), index=True, nullable=False
+    )
+    content_page_version_id: Mapped[int] = mapped_column(
+        ForeignKey("content_page_versions.id"), index=True, nullable=False
+    )
+    checkpoint_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey("learning_completion_rules.id"), index=True, nullable=False
+    )
+    rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    response_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(
+        _evidence_datetime_type(), default=utc_now, nullable=False
+    )
 
 
 class LearningActivityRuntime(TimestampMixin, Base):
@@ -607,6 +674,7 @@ event.listen(LearningEvidenceEvent, "before_insert", _validate_evidence_event_in
 
 
 for _append_only_model in (
+    CheckpointAttempt,
     LearningRuleClassBinding,
     LearningEvidenceEvent,
     LegacyAccessEntitlement,

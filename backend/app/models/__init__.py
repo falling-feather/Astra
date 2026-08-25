@@ -52,6 +52,7 @@ from app.models.course_relationship import (
     CourseJoinRequest,
 )
 from app.models.learning_evidence import (
+    CheckpointAttempt,
     LearningActivityProjection,
     LearningActivityRuntime,
     LearningCompletionRule,
@@ -89,6 +90,7 @@ __all__ = [
     "ClassJoinRequest",
     "ClassKnowledgeSnapshot",
     "ClassMembership",
+    "CheckpointAttempt",
     "CodeJudgeAttempt",
     "CodeProblem",
     "CodeProblemVersion",

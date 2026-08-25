@@ -119,3 +119,45 @@ class CoursePublicationReceipt(PlatformDto):
 class CourseCurrentReleaseRead(PlatformDto):
     binding: CourseClassReleaseBindingRead
     release: CourseReleaseRead
+
+
+class CheckpointAttemptCreate(PlatformDto):
+    client_attempt_id: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+    )
+    course_release_id: int = Field(ge=1)
+    selected_choice_ids: list[str] = Field(default_factory=list, max_length=12)
+    numeric_answer: float | None = Field(default=None, allow_inf_nan=False)
+    text_answer: str | None = Field(default=None, min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_response_shape(self) -> "CheckpointAttemptCreate":
+        if len(self.selected_choice_ids) != len(set(self.selected_choice_ids)):
+            raise ValueError("selected_choice_ids must be unique")
+        self.selected_choice_ids = sorted(self.selected_choice_ids)
+        provided = sum(
+            (
+                bool(self.selected_choice_ids),
+                self.numeric_answer is not None,
+                self.text_answer is not None,
+            )
+        )
+        if provided != 1:
+            raise ValueError("Checkpoint attempt must contain exactly one response")
+        return self
+
+
+class CheckpointAttemptRead(PlatformDto):
+    id: int
+    client_attempt_id: str
+    course_release_id: int
+    course_unit_id: int
+    checkpoint_key: str
+    attempt_number: int
+    is_correct: bool
+    completed: bool
+    remaining_attempts: int | None = None
+    replayed: bool = False
+    submitted_at: datetime

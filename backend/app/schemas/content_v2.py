@@ -216,6 +216,39 @@ class CheckpointBlock(StrictContentModel):
         return self
 
 
+class CourseUnitCompletionV1(StrictContentModel):
+    """Teacher-facing completion preset stored with one course-unit draft."""
+
+    preset: Literal[
+        "experiment_operation",
+        "checkpoint_passed",
+        "assignment_reviewed",
+    ]
+    checkpointKey: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        pattern=STABLE_ID_PATTERN,
+    )
+    assignmentId: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_preset_target(self) -> "CourseUnitCompletionV1":
+        if self.preset == "experiment_operation":
+            if self.checkpointKey is not None or self.assignmentId is not None:
+                raise ValueError("Experiment completion cannot carry a target")
+            return self
+        if self.preset == "checkpoint_passed":
+            if self.checkpointKey is None or self.assignmentId is not None:
+                raise ValueError(
+                    "Checkpoint completion requires only checkpointKey"
+                )
+            return self
+        if self.assignmentId is None or self.checkpointKey is not None:
+            raise ValueError("Assignment completion requires only assignmentId")
+        return self
+
+
 class SourceItem(StrictContentModel):
     sourceId: str = Field(min_length=1, max_length=120, pattern=STABLE_ID_PATTERN)
     label: str = Field(min_length=1, max_length=240)
@@ -264,6 +297,7 @@ class CourseUnitRefV2(StrictContentModel):
     unitId: str = Field(min_length=1, max_length=120, pattern=STABLE_ID_PATTERN)
     order: int = Field(ge=0, le=10_000)
     title: str = Field(min_length=1, max_length=240)
+    completion: CourseUnitCompletionV1 | None = None
 
 
 class ContentPageV2(StrictContentModel):
@@ -302,6 +336,25 @@ class ContentPageV2(StrictContentModel):
             ],
         )
         _validate_content_v2_budget(self.model_dump(mode="json"))
+        completion = self.courseUnit.completion if self.courseUnit else None
+        if completion and completion.preset == "checkpoint_passed":
+            checkpoint = next(
+                (
+                    block
+                    for block in self.blocks
+                    if isinstance(block, CheckpointBlock)
+                    and block.checkpointKey == completion.checkpointKey
+                ),
+                None,
+            )
+            if checkpoint is None:
+                raise ValueError(
+                    "Checkpoint completion target must exist in the course unit"
+                )
+            if checkpoint.mode != "inline":
+                raise ValueError(
+                    "Question-set checkpoints cannot be completion targets"
+                )
         return self
 
 

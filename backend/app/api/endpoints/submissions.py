@@ -46,11 +46,16 @@ from app.services.access_control import (
     get_class,
     lock_active_class_for_write,
     require_class_teacher_or_admin,
+    require_course_editor_or_admin,
     require_course_scope,
     require_course_visible,
     require_school_role,
     require_student_unit_published,
     teacher_class_ids,
+)
+from app.services.course_completion import (
+    CourseCompletionError,
+    append_assignment_review_completion,
 )
 from app.services.points import (
     assignment_grade_point_total,
@@ -552,15 +557,45 @@ def _assignment_submission_history_statement(
             raise HTTPException(status_code=422, detail="Class does not belong to assignment school")
         if not course_attached_to_class(db, course.id, class_group.id):
             raise HTTPException(status_code=403, detail="Course is not attached to this class")
-        require_class_teacher_or_admin(
-            db,
-            current_user,
-            class_group,
-            detail="Assignment submissions require class teacher scope",
-        )
+        if class_group.kind == "course_cohort":
+            require_course_editor_or_admin(
+                db,
+                current_user,
+                course,
+                detail="Course submissions require an active course teacher",
+            )
+        else:
+            require_class_teacher_or_admin(
+                db,
+                current_user,
+                class_group,
+                detail="Assignment submissions require class teacher scope",
+            )
         statement = statement.where(Submission.class_id == class_id)
     elif current_user.role != "admin":
-        class_ids = teacher_class_ids(db, current_user.id)
+        class_ids = set(teacher_class_ids(db, current_user.id))
+        try:
+            require_course_editor_or_admin(
+                db,
+                current_user,
+                course,
+                detail="Course submissions require an active course teacher",
+            )
+        except HTTPException:
+            pass
+        else:
+            class_ids.update(
+                db.scalars(
+                    select(ClassGroup.id)
+                    .join(CourseClass, CourseClass.class_id == ClassGroup.id)
+                    .where(
+                        CourseClass.course_id == course.id,
+                        CourseClass.status == "active",
+                        ClassGroup.kind == "course_cohort",
+                        ClassGroup.status == "active",
+                    )
+                ).all()
+            )
         if not class_ids:
             return statement.where(Submission.id.is_(None))
         statement = statement.where(Submission.class_id.in_(class_ids))
@@ -580,15 +615,23 @@ def grade_submission(
         raise HTTPException(status_code=404, detail="Submission not found")
     assignment_id = submission_scope.assignment_id
     class_id = submission_scope.class_id
-    assignment, _, course = _resolve_assignment(db, assignment_id)
+    assignment, unit, course = _resolve_assignment(db, assignment_id)
     require_school_role(db, current_user, course.school_id, {"admin", "teacher"})
     class_group = get_class(db, class_id)
-    require_class_teacher_or_admin(
-        db,
-        current_user,
-        class_group,
-        detail="Submission grading requires class teacher scope",
-    )
+    if class_group.kind == "course_cohort":
+        require_course_editor_or_admin(
+            db,
+            current_user,
+            course,
+            detail="Course submission grading requires an active course teacher",
+        )
+    else:
+        require_class_teacher_or_admin(
+            db,
+            current_user,
+            class_group,
+            detail="Submission grading requires class teacher scope",
+        )
     class_group = lock_active_class_for_write(db, class_group.id)
     submission = db.scalar(
         select(Submission)
@@ -636,6 +679,22 @@ def grade_submission(
                 created_by_user_id=current_user.id,
             )
         )
+    try:
+        append_assignment_review_completion(
+            db,
+            actor=current_user,
+            course=course,
+            unit=unit,
+            assignment=assignment,
+            submission=submission,
+            class_group=class_group,
+        )
+    except CourseCompletionError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
     next_snapshot = {
         "status": submission.status,
         "score": submission.score,

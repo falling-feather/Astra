@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db
 from app.schemas.content_platform import (
+    CheckpointAttemptCreate,
+    CheckpointAttemptRead,
     CourseCurrentReleaseRead,
     CoursePublicationReceipt,
     CourseReleasePublish,
@@ -16,6 +18,7 @@ from app.schemas.content_platform import (
     CourseSharedDraftRead,
     CourseSharedDraftReplace,
 )
+from app.services import course_completion as completion_service
 from app.services import content_platform as platform_service
 
 router = APIRouter()
@@ -24,12 +27,41 @@ router = APIRouter()
 def _service_call(db: Session, operation: Callable[..., Any], **kwargs: Any) -> Any:
     try:
         return operation(db, **kwargs)
-    except platform_service.ContentPlatformError as exc:
+    except (
+        platform_service.ContentPlatformError,
+        completion_service.CourseCompletionError,
+    ) as exc:
         db.rollback()
         raise HTTPException(
             status_code=exc.status_code,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
+
+
+@router.post(
+    "/courses/{course_id}/units/{unit_id}/checkpoints/{checkpoint_key}/attempts",
+    response_model=CheckpointAttemptRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def submit_checkpoint_attempt(
+    course_id: int,
+    unit_id: int,
+    checkpoint_key: str,
+    payload: CheckpointAttemptCreate,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    return _service_call(
+        db,
+        completion_service.submit_checkpoint_attempt,
+        actor=current_user,
+        course_id=course_id,
+        unit_id=unit_id,
+        checkpoint_key=checkpoint_key,
+        payload=payload,
+        request=request,
+    )
 
 
 @router.get("/courses/{course_id}/draft", response_model=CourseSharedDraftRead)

@@ -19,6 +19,7 @@ for (const endpoint of [
   '/api/v1/courses/${requestedCourseId}/releases',
   '/api/v1/courses/${course.id}/draft',
   '/api/v1/courses/${course.id}/releases',
+  '/api/courses/${requestedCourseId}/assignments',
 ]) {
   assert.ok(contentSource.includes(endpoint), `FE-041 must call ${endpoint}`);
 }
@@ -33,12 +34,18 @@ assert.match(contentSource, /course_draft_revision_conflict/);
 assert.match(contentSource, /系统没有覆盖任何一方，也不会自动重试写入/);
 assert.match(contentSource, /确认发布下一版/);
 assert.match(contentSource, /不可变发布历史/);
+assert.match(contentSource, /学生怎样算完成本单元/);
+assert.match(contentSource, /完成一次实验操作/);
+assert.match(contentSource, /答对指定检查点/);
+assert.match(contentSource, /提交作业并完成批改/);
 assert.match(contentSource, /releaseStatusLabel\(course\)/);
 assert.match(contentSource, /function markDirty\(\)[\s\S]*data-course-content-action="save"[\s\S]*save\.disabled = Boolean\(safeSnapshot\(\)\.blocked \|\| session\.busy\)/);
+assert.match(contentSource, /container\.innerHTML = contentMarkup\(context, courses\);[\s\S]*refreshIcons\(\);/);
+assert.match(contentSource, /function refreshIcons\(\)[\s\S]*global\.lucide[\s\S]*createIcons\([\s\S]*root: session && session\.root \|\| global\.document/);
 assert.match(contentSource, /检查点答案|正确答案/);
 assert.doesNotMatch(contentSource, /contenteditable|draggable|<iframe/i);
 
-assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260825v844CourseEditorP0'/);
+assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260825v844CourseCompletionP1'/);
 assert.match(authoringSource, /import\(`\.\/teacher-course-content\.js\?v=\$\{COURSE_CONTENT_VERSION\}`\)/);
 assert.match(authoringSource, /data-teacher-course-content/);
 assert.match(authoringSource, /courseContentOwner\.destroy\(\)/);
@@ -46,10 +53,11 @@ assert.match(authoringStyles, /data-teacher-operation="course-authoring"[\s\S]*g
 assert.match(teacherSource, /secondaryOpen:\s*\{\s*structure:\s*false,\s*assignments:\s*false\s*\}/);
 assert.match(teacherSource, /addEventListener\('toggle'[\s\S]*teacherSecondary[\s\S]*detail\.open/);
 assert.match(teacherSource, /data-teacher-secondary="structure"\$\{state\.secondaryOpen\.structure/);
-assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260825v844CourseEditorP0'/);
+assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260825v844CourseCompletionP1'/);
 
 assert.match(styles, /\.teacher-course-content__editor/);
 assert.match(styles, /\.teacher-course-content__history/);
+assert.match(styles, /\.teacher-course-content__completion/);
 assert.match(styles, /min-height:\s*44px/);
 assert.match(styles, /\.teacher-course-content__nested header button\s*\{[\s\S]*?min-height:\s*44px/);
 assert.match(styles, /@media \(max-width: 760px\)/);
@@ -66,7 +74,7 @@ vm.createContext(context);
 vm.runInContext(contentSource, context, { filename: 'pages/teacher/teacher-course-content.js' });
 const contract = context.window.AstraTeacherCourseContent.contract;
 
-assert.equal(contract.VERSION, '20260825v844CourseEditorP0');
+assert.equal(contract.VERSION, '20260825v844CourseCompletionP1');
 assert.equal(contract.EXPECTED_ACTIVITY_COUNT, 127);
 assert.deepEqual(Array.from(contract.BLOCK_TYPES, item => item.type), [
   'hero', 'learning-task', 'rich-text', 'media', 'official-simulation', 'checkpoint', 'sources',
@@ -78,6 +86,7 @@ const unit = {
   activity_key: 'engineering.robot-arm-ik',
   title: '机械臂逆运动学',
   summary: '在课程中引用正式机械臂活动。',
+  completion: { preset: 'experiment_operation' },
   blocks: [],
 };
 for (const type of Array.from(contract.BLOCK_TYPES, item => item.type)) {
@@ -104,8 +113,21 @@ assert.equal(payload.expected_revision, 3);
 assert.equal(payload.units[0].position, 1);
 assert.equal(payload.units[0].content.blocks.length, 7);
 assert.equal(payload.units[0].content.blocks[4].simulationKey, 'engineering.robot-arm-ik');
+assert.equal(payload.units[0].content.courseUnit.completion.preset, 'experiment_operation');
 assert.equal(Object.prototype.hasOwnProperty.call(payload.units[0], 'localKey'), false);
 assert.equal(Object.prototype.hasOwnProperty.call(payload.units[0].content, 'script'), false);
+assert.equal(contract.validateCompletionForPublish([unit], []).valid, true);
+
+const missingCompletion = JSON.parse(JSON.stringify(unit));
+missingCompletion.completion = null;
+assert.equal(contract.validateCompletionForPublish([missingCompletion], []).valid, false);
+
+const checkpointCompletion = JSON.parse(JSON.stringify(unit));
+checkpointCompletion.completion = {
+  preset: 'checkpoint_passed',
+  checkpointKey: checkpointCompletion.blocks.find(block => block.type === 'checkpoint').checkpointKey,
+};
+assert.equal(contract.validateCompletionForPublish([checkpointCompletion], []).valid, true);
 
 const unsafe = JSON.parse(JSON.stringify(unit));
 unsafe.blocks.find(block => block.type === 'rich-text').markdown = '<script>alert(1)</script>';

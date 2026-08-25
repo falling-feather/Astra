@@ -1,6 +1,6 @@
 (function () {
     'use strict';
-    const TEACHER_ASSET_VERSION = '20260825v844CourseEditorP0', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260825v841CourseAuthoringP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
+    const TEACHER_ASSET_VERSION = '20260825v844CourseCompletionP1', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260825v841CourseAuthoringP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
     const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' }); const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
     const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' }); const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' }); const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
     const CODE_STATUS_LABELS = Object.freeze({

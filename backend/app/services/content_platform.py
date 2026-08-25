@@ -41,6 +41,11 @@ from app.services.access_control import (
     require_course_editor_or_admin,
 )
 from app.services.audit import record_audit_log
+from app.services.course_completion import (
+    CourseCompletionError,
+    prepare_completion_rule_for_release,
+)
+from app.services.course_release_plans import ensure_default_plans_for_course_unit
 
 COURSE_RELEASE_SCHEMA_VERSION = "astra-course-release-v2"
 SHARED_DRAFT_ACTIVE_KEY = "shared"
@@ -147,12 +152,14 @@ def replace_course_draft(
             )
             db.add(unit)
             db.flush()
+            ensure_default_plans_for_course_unit(db, unit)
         else:
             unit.activity_key = item.activity_key
             unit.title = item.title
             unit.position = item.position
             unit.content_slug = _canonical_content_slug(course.id, item.activity_key)
-            unit.status = "draft"
+            if unit.status != "published":
+                unit.status = "draft"
             db.flush()
         retained_ids.add(unit.id)
         content = _canonical_draft_content(
@@ -322,7 +329,6 @@ def create_course_release(
         )
         + 1
     )
-    rule_id, rule_sha256, rule_snapshot = _completion_rule_snapshot(db, course.id)
     specs = [
         _release_unit_spec(
             db,
@@ -333,6 +339,21 @@ def create_course_release(
         )
         for unit in units
     ]
+    course_class = _internal_course_class(db, course.id, locking_read=True)
+    try:
+        rule_id, rule_sha256, rule_snapshot = prepare_completion_rule_for_release(
+            db,
+            actor=actor,
+            course=course,
+            course_class=course_class,
+            specs=specs,
+        )
+    except CourseCompletionError as exc:
+        raise ContentPlatformError(
+            exc.status_code,
+            exc.code,
+            exc.message,
+        ) from exc
     package_sha256 = _course_package_sha256(
         course=course,
         completion_rule_sha256=rule_sha256,
@@ -393,6 +414,7 @@ def create_course_release(
             media_snapshot_json=spec["media_snapshot"],
         )
         db.add(release_unit)
+        spec["unit"].status = "published"
         _roll_shared_draft_forward(
             db,
             actor=actor,
@@ -403,7 +425,6 @@ def create_course_release(
             next_revision=next_draft_revision,
         )
 
-    course_class = _internal_course_class(db, course.id, locking_read=True)
     current_binding = db.scalar(
         select(CourseClassReleaseBinding)
         .where(CourseClassReleaseBinding.course_class_id == course_class.id)
@@ -566,6 +587,11 @@ def _canonical_draft_content(
     item: CourseSharedDraftUnitWrite,
     revision: int,
 ) -> ContentPageV2:
+    completion = (
+        item.content.courseUnit.completion
+        if item.content.courseUnit is not None
+        else None
+    )
     return item.content.model_copy(
         update={
             "slug": _canonical_content_slug(course.id, item.activity_key),
@@ -579,6 +605,7 @@ def _canonical_draft_content(
                 unitId=item.activity_key,
                 order=item.position,
                 title=item.title,
+                completion=completion,
             ),
         }
     )

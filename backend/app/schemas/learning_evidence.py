@@ -756,6 +756,13 @@ class LearningActivityServerRecoveryRead(StrictLearningActivityModel):
 class CompletionActivityRule(StrictLearningEvidenceWriteModel):
     activity_key: str = Field(min_length=1, max_length=120)
     outcome: DerivedEvidenceEventType = "completed"
+    preset: Literal[
+        "experiment_operation",
+        "checkpoint_passed",
+        "assignment_reviewed",
+    ] | None = None
+    checkpoint_key: str | None = Field(default=None, min_length=1, max_length=120)
+    assignment_id: int | None = Field(default=None, ge=1)
     required_event_types: list[LearnerEvidenceEventType] = Field(default_factory=list, max_length=5)
     minimum_attempts: int = Field(
         default=0,
@@ -782,6 +789,36 @@ class CompletionActivityRule(StrictLearningEvidenceWriteModel):
 
     @model_validator(mode="after")
     def require_observable_criterion(self):
+        if self.preset is not None:
+            if self.outcome != "completed":
+                raise ValueError("Course completion presets only produce completed")
+            if self.preset == "experiment_operation":
+                if self.checkpoint_key is not None or self.assignment_id is not None:
+                    raise ValueError("Experiment completion cannot carry a target")
+                if (
+                    self.required_event_types != ["attempted"]
+                    or self.minimum_attempts != 1
+                    or self.minimum_correct_attempts != 0
+                ):
+                    raise ValueError(
+                        "Experiment completion requires one runtime attempted fact"
+                    )
+                return self
+            if self.required_event_types or self.minimum_attempts or self.minimum_correct_attempts:
+                raise ValueError(
+                    "Trusted completion presets cannot consume learner-reported facts"
+                )
+            if self.preset == "checkpoint_passed":
+                if self.checkpoint_key is None or self.assignment_id is not None:
+                    raise ValueError(
+                        "Checkpoint completion requires only checkpoint_key"
+                    )
+                return self
+            if self.assignment_id is None or self.checkpoint_key is not None:
+                raise ValueError(
+                    "Assignment completion requires only assignment_id"
+                )
+            return self
         if not self.required_event_types and self.minimum_attempts == 0 and self.minimum_correct_attempts == 0:
             raise ValueError("an activity rule must require at least one observable learner fact")
         if self.minimum_correct_attempts > self.minimum_attempts:

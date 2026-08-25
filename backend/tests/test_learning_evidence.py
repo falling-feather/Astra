@@ -413,6 +413,95 @@ def _completed_activity_runtime(client, slug: str) -> tuple[dict, dict]:
     return scope, identity
 
 
+def test_experiment_completion_requires_a_formal_runtime_attempt(client):
+    scope = _learning_scope(client, "experiment-preset")
+    created = client.post(
+        "/api/learning-evidence/rules",
+        headers=_auth(scope["teacher"]["token"]),
+        json={
+            "course_id": scope["course_id"],
+            "activities": [
+                {
+                    "activity_key": scope["unit_one"]["activity_key"],
+                    "outcome": "completed",
+                    "preset": "experiment_operation",
+                    "required_event_types": ["attempted"],
+                    "minimum_attempts": 1,
+                },
+                {
+                    "activity_key": scope["unit_two"]["activity_key"],
+                    "outcome": "transferred",
+                    "required_event_types": ["explained"],
+                },
+            ],
+        },
+    )
+    assert created.status_code == 201, created.json()
+    _activate_rule(client, scope, created.json())
+    generic = client.post(
+        "/api/learning-evidence/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_event_payload(
+            scope,
+            client_event_id="experiment-preset-generic-attempt",
+            event_type="attempted",
+            occurred_at=datetime.now(UTC),
+            evidence={"operation": "forged-generic-submit"},
+        ),
+    )
+    assert generic.status_code == 201, generic.json()
+    session_factory = get_session_factory(get_settings().database_url)
+    with session_factory() as db:
+        projection = db.scalar(
+            select(LearningActivityProjection).where(
+                LearningActivityProjection.subject_user_id == scope["student"]["id"],
+                LearningActivityProjection.course_unit_id == scope["unit_one"]["id"],
+            )
+        )
+        assert projection is not None
+        assert projection.status == "in_progress"
+        assert db.scalar(
+            select(text("count(*)")).select_from(LearningEvidenceEvent).where(
+                LearningEvidenceEvent.producer_type == "rule",
+                LearningEvidenceEvent.event_type == "completed",
+            )
+        ) == 0
+
+    runtime = client.post(
+        "/api/learning-evidence/activity-runtime/events",
+        headers=_auth(scope["student"]["token"]),
+        json=_activity_runtime_event_payload(
+            scope,
+            client_event_id="experiment-preset-runtime-attempt",
+            sequence=1,
+            event_type="attempted",
+            evidence={"operation": "formal-runtime-submit"},
+        ),
+    )
+    assert runtime.status_code == 201, runtime.json()
+    with session_factory() as db:
+        projection = db.scalar(
+            select(LearningActivityProjection).where(
+                LearningActivityProjection.subject_user_id == scope["student"]["id"],
+                LearningActivityProjection.course_unit_id == scope["unit_one"]["id"],
+            )
+        )
+        assert projection is not None
+        assert projection.status == "completed"
+        derived = db.scalar(
+            select(LearningEvidenceEvent).where(
+                LearningEvidenceEvent.producer_type == "rule",
+                LearningEvidenceEvent.event_type == "completed",
+            )
+        )
+        assert derived is not None
+        assert derived.activity_runtime_id is not None
+        source = db.get(LearningEvidenceEvent, derived.source_event_ids_json[0])
+        assert source is not None
+        assert source.client_event_id == "experiment-preset-runtime-attempt"
+        assert source.activity_runtime_id == derived.activity_runtime_id
+
+
 def test_be018_runtime_owner_imports_only_named_public_legacy_bridges():
     owner_path = (
         Path(__file__).resolve().parents[1]

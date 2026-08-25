@@ -3,7 +3,7 @@
 
     if (global.AstraTeacherCourseContent) return;
 
-    const VERSION = '20260825v844CourseEditorP0';
+    const VERSION = '20260825v844CourseCompletionP1';
     const STYLE_VERSION = VERSION;
     const EXPECTED_ACTIVITY_COUNT = 127;
     const STABLE_ID_PATTERN = /^[a-z0-9][a-z0-9._:-]*$/;
@@ -46,6 +46,7 @@
             draftRevision: 0,
             draftStatus: '',
             units: [],
+            assignments: [],
             releases: [],
             selectedUnitKey: '',
             selectedReleaseId: '',
@@ -97,10 +98,22 @@
         const courses = approvedCourses(context.courses);
         reconcileSelectedCourse(courses);
         container.innerHTML = contentMarkup(context, courses);
+        refreshIcons();
         if (session.selectedCourseId && session.loadedCourseId !== session.selectedCourseId && !session.loading) {
             void loadCourse(session.selectedCourseId);
         }
         return true;
+    }
+
+    function refreshIcons() {
+        const iconRuntime = global.lucide;
+        if (!iconRuntime || typeof iconRuntime.createIcons !== 'function') return;
+        try {
+            iconRuntime.createIcons({
+                attrs: { 'stroke-width': 1.8 },
+                root: session && session.root || global.document
+            });
+        } catch (error) {}
     }
 
     function ensureStylesheet() {
@@ -134,6 +147,7 @@
         session.selectedUnitKey = '';
         session.selectedReleaseId = '';
         session.units = [];
+        session.assignments = [];
         session.releases = [];
         session.dirty = false;
         session.error = null;
@@ -150,13 +164,17 @@
         if (!options.preserveNotice) session.notice = null;
         render();
         try {
-            const [draft, releases] = await Promise.all([
+            const [draft, releases, assignments] = await Promise.all([
                 session.host.request(`/api/v1/courses/${requestedCourseId}/draft`),
-                session.host.request(`/api/v1/courses/${requestedCourseId}/releases`)
+                session.host.request(`/api/v1/courses/${requestedCourseId}/releases`),
+                session.host.request(`/api/courses/${requestedCourseId}/assignments`)
             ]);
             if (!isCurrent(generation, requestedCourseId)) return false;
             applyRemoteDraft(draft);
             session.releases = Array.isArray(releases) ? releases.slice() : [];
+            session.assignments = (Array.isArray(assignments) ? assignments : []).filter(item => (
+                positiveInteger(item && item.id) && positiveInteger(item && item.unit_id)
+            ));
             session.loadedCourseId = requestedCourseId;
             session.selectedCourseId = requestedCourseId;
             session.selectedReleaseId = session.releases.length ? String(session.releases[0].id) : '';
@@ -221,6 +239,7 @@
             content_slug: source.content_slug || '',
             last_editor_user_id: positiveInteger(source.last_editor_user_id),
             blocks: Array.isArray(normalizedContent.blocks) ? deepClone(normalizedContent.blocks) : [],
+            completion: normalizeCompletion(normalizedContent.courseUnit && normalizedContent.courseUnit.completion),
             generatedContent
         };
     }
@@ -379,11 +398,36 @@
                     <label><span>单元标题</span><input data-course-content-unit-field="title" data-unit-key="${escapeAttr(unit.localKey)}" value="${escapeAttr(unit.title)}" maxlength="180" ${blocked ? 'disabled' : ''}></label>
                     <label class="is-wide"><span>单元摘要</span><textarea data-course-content-unit-field="summary" data-unit-key="${escapeAttr(unit.localKey)}" rows="2" maxlength="4000" ${blocked ? 'disabled' : ''}>${escapeHtml(unit.summary)}</textarea></label>
                 </div>
+                ${completionMarkup(unit, blocked)}
                 <div class="teacher-course-content__blocks">
                     ${unit.blocks.map((block, index) => blockMarkup(unit, block, index, blocked)).join('')}
                 </div>
                 <div class="teacher-course-content__block-add"><label><span>新增内容块</span><select data-course-content-add-block ${blocked ? 'disabled' : ''}>${BLOCK_TYPES.map(item => `<option value="${item.type}"${item.type === session.addBlockType ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></label><button type="button" data-course-content-action="add-block" ${blocked ? 'disabled' : ''}><i data-lucide="blocks"></i><span>加入当前单元</span></button></div>
             </section>`;
+    }
+
+    function completionMarkup(unit, blocked) {
+        const completion = normalizeCompletion(unit.completion);
+        const preset = completion && completion.preset || '';
+        const checkpoints = (unit.blocks || []).filter(block => block.type === 'checkpoint' && block.mode !== 'question-set');
+        const assignments = (session.assignments || []).filter(item => (
+            Number(item.unit_id) === Number(unit.id) && item.status === 'active'
+        ));
+        let target = '';
+        if (preset === 'checkpoint_passed') {
+            target = `<label><span>作为完成依据的检查点</span><select data-course-content-completion-target="checkpointKey" data-unit-key="${escapeAttr(unit.localKey)}" ${blocked || !checkpoints.length ? 'disabled' : ''}><option value="">请选择检查点</option>${checkpoints.map(item => `<option value="${escapeAttr(item.checkpointKey)}"${item.checkpointKey === completion.checkpointKey ? ' selected' : ''}>${escapeHtml(item.title)} · ${escapeHtml(item.checkpointKey)}</option>`).join('')}</select></label>`;
+        }
+        if (preset === 'assignment_reviewed') {
+            target = `<label><span>作为完成依据的作业</span><select data-course-content-completion-target="assignmentId" data-unit-key="${escapeAttr(unit.localKey)}" ${blocked || !assignments.length ? 'disabled' : ''}><option value="">请选择作业</option>${assignments.map(item => `<option value="${escapeAttr(item.id)}"${Number(item.id) === Number(completion.assignmentId) ? ' selected' : ''}>${escapeHtml(item.title)} · #${escapeHtml(item.id)}</option>`).join('')}</select></label>`;
+        }
+        const hint = preset === 'experiment_operation'
+            ? '学生在本单元正式活动中完成一次由服务器接收的操作后记为完成。'
+            : preset === 'checkpoint_passed'
+                ? (checkpoints.length ? '学生首次答对所选检查点后记为完成。' : '请先在本单元加入一个即时检查块。')
+                : preset === 'assignment_reviewed'
+                    ? (assignments.length ? '学生提交后，由课程教师完成评分或反馈才记为完成。' : '请先保存单元，再在作业区为该单元创建作业。')
+                    : '草稿可以暂不选择，但发布前每个单元都必须明确一种完成方式。';
+        return `<section class="teacher-course-content__completion" data-state="${preset ? 'configured' : 'missing'}"><header><div><span>UNIT COMPLETION</span><strong>学生怎样算完成本单元</strong></div><em>${preset ? '已选择' : '发布前必选'}</em></header><div><label><span>完成方式</span><select data-course-content-completion-preset data-unit-key="${escapeAttr(unit.localKey)}" ${blocked ? 'disabled' : ''}><option value="">请选择</option><option value="experiment_operation"${preset === 'experiment_operation' ? ' selected' : ''}>完成一次实验操作</option><option value="checkpoint_passed"${preset === 'checkpoint_passed' ? ' selected' : ''}>答对指定检查点</option><option value="assignment_reviewed"${preset === 'assignment_reviewed' ? ' selected' : ''}>提交作业并完成批改</option></select></label>${target}</div><p>${escapeHtml(hint)}</p></section>`;
     }
 
     function blockMarkup(unit, block, index, blocked) {
@@ -442,7 +486,7 @@
     function previewMarkup(course, fromHistory) {
         const release = fromHistory ? selectedRelease() : null;
         const units = release ? release.units.map(releaseUnitAsEditorUnit) : session.units;
-        return `<section class="teacher-course-preview-live"><header><div><span>${fromHistory ? `RELEASE ${escapeHtml(release && release.release_number)}` : 'DRAFT PREVIEW'}</span><h5>${escapeHtml(release && release.title || course.title)}</h5><p>${escapeHtml(release && release.summary || course.summary || '课程内容预览')}</p></div><strong>${units.length} 个单元</strong></header>${units.length ? units.map((unit, index) => `<article class="teacher-course-preview-live__unit"><div class="teacher-course-preview-live__unit-title"><span>${String(index + 1).padStart(2, '0')}</span><div><h6>${escapeHtml(unit.title)}</h6><p>${escapeHtml(unit.summary || unit.activity_key)}</p></div><code>${escapeHtml(unit.activity_key)}</code></div><div class="teacher-course-preview-live__blocks">${(unit.blocks || []).map(block => previewBlockMarkup(block, unit)).join('')}</div></article>`).join('') : '<div class="teacher-course-content__empty"><i data-lucide="scan-eye"></i><div><strong>还没有可预览内容</strong><p>返回编辑草稿并添加一个活动单元。</p></div></div>'}</section>`;
+        return `<section class="teacher-course-preview-live"><header><div><span>${fromHistory ? `RELEASE ${escapeHtml(release && release.release_number)}` : 'DRAFT PREVIEW'}</span><h5>${escapeHtml(release && release.title || course.title)}</h5><p>${escapeHtml(release && release.summary || course.summary || '课程内容预览')}</p></div><strong>${units.length} 个单元</strong></header>${units.length ? units.map((unit, index) => `<article class="teacher-course-preview-live__unit"><div class="teacher-course-preview-live__unit-title"><span>${String(index + 1).padStart(2, '0')}</span><div><h6>${escapeHtml(unit.title)}</h6><p>${escapeHtml(unit.summary || unit.activity_key)}</p><small>${escapeHtml(completionLabel(unit.completion))}</small></div><code>${escapeHtml(unit.activity_key)}</code></div><div class="teacher-course-preview-live__blocks">${(unit.blocks || []).map(block => previewBlockMarkup(block, unit)).join('')}</div></article>`).join('') : '<div class="teacher-course-content__empty"><i data-lucide="scan-eye"></i><div><strong>还没有可预览内容</strong><p>返回编辑草稿并添加一个活动单元。</p></div></div>'}</section>`;
     }
 
     function previewBlockMarkup(block, unit) {
@@ -471,7 +515,8 @@
             activity_key: value.activity_key,
             title: value.title,
             summary: content.summary || '',
-            blocks: Array.isArray(content.blocks) ? content.blocks : []
+            blocks: Array.isArray(content.blocks) ? content.blocks : [],
+            completion: normalizeCompletion(content.courseUnit && content.courseUnit.completion)
         };
     }
 
@@ -501,7 +546,7 @@
         if (action === 'add-source') return addSource(control.dataset.unitKey, control.dataset.blockId);
         if (action === 'remove-source') return removeSource(control.dataset.unitKey, control.dataset.blockId, Number(control.dataset.sourceIndex));
         if (action === 'save') return void saveDraft();
-        if (action === 'confirm-publish') { session.publishConfirm = true; session.notice = null; render(); return; }
+        if (action === 'confirm-publish') return preparePublish();
         if (action === 'cancel-publish') { session.publishConfirm = false; render(); return; }
         if (action === 'publish') return void publishDraft();
         if (action === 'cancel-scope') { session.pendingScope = null; render(); return; }
@@ -554,6 +599,18 @@
         if (!session || !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLSelectElement)) return;
         if (event.target.matches('[data-course-content-course]')) return requestCourseChange(event.target.value);
         if (event.target.matches('[data-course-content-add-block]')) { session.addBlockType = event.target.value; return; }
+        if (event.target.matches('[data-course-content-completion-preset]')) {
+            setCompletionPreset(event.target.dataset.unitKey, event.target.value);
+            return;
+        }
+        if (event.target.matches('[data-course-content-completion-target]')) {
+            setCompletionTarget(
+                event.target.dataset.unitKey,
+                event.target.dataset.courseContentCompletionTarget,
+                event.target.value
+            );
+            return;
+        }
         if (event.target.matches('[data-course-content-unit-field="activity_key"]')) {
             const unit = unitByKey(event.target.dataset.unitKey);
             if (!unit) return;
@@ -577,12 +634,44 @@
     }
 
     function updateBlockField(control) {
-        const block = blockByKey(control.dataset.unitKey, control.dataset.blockId);
+        const unit = unitByKey(control.dataset.unitKey);
+        const block = unit && unit.blocks.find(item => item.blockId === control.dataset.blockId);
         if (!block) return;
         const name = control.dataset.courseContentBlockField;
+        const previous = block[name];
         if (['badges', 'outcomes', 'steps', 'concepts', 'acceptedAnswers'].includes(name)) block[name] = lines(control.value);
         else block[name] = control.value;
+        if (
+            name === 'checkpointKey'
+            && unit.completion
+            && unit.completion.preset === 'checkpoint_passed'
+            && unit.completion.checkpointKey === previous
+        ) unit.completion.checkpointKey = control.value;
         markDirty();
+    }
+
+    function setCompletionPreset(unitKey, preset) {
+        const unit = unitByKey(unitKey);
+        if (!unit) return;
+        if (preset === 'experiment_operation') unit.completion = { preset };
+        else if (preset === 'checkpoint_passed') {
+            const checkpoint = (unit.blocks || []).find(block => block.type === 'checkpoint' && block.mode !== 'question-set');
+            unit.completion = { preset, checkpointKey: checkpoint ? checkpoint.checkpointKey : '' };
+        } else if (preset === 'assignment_reviewed') {
+            const assignment = (session.assignments || []).find(item => Number(item.unit_id) === Number(unit.id) && item.status === 'active');
+            unit.completion = { preset, assignmentId: assignment ? Number(assignment.id) : null };
+        } else unit.completion = null;
+        markDirty();
+        render();
+    }
+
+    function setCompletionTarget(unitKey, field, value) {
+        const unit = unitByKey(unitKey);
+        if (!unit || !unit.completion) return;
+        if (field === 'checkpointKey' && unit.completion.preset === 'checkpoint_passed') unit.completion.checkpointKey = String(value || '');
+        if (field === 'assignmentId' && unit.completion.preset === 'assignment_reviewed') unit.completion.assignmentId = positiveInteger(value);
+        markDirty();
+        render();
     }
 
     function updateCorrectAnswer(control) {
@@ -635,6 +724,7 @@
         session.selectedCourseId = String(courseId);
         session.loadedCourseId = '';
         session.units = [];
+        session.assignments = [];
         session.releases = [];
         session.selectedUnitKey = '';
         session.selectedReleaseId = '';
@@ -670,6 +760,7 @@
             content_slug: '',
             last_editor_user_id: null,
             blocks: [createBlock('official-simulation', { activity_key: activityKey, title })],
+            completion: null,
             generatedContent: false
         };
         session.units.push(unit);
@@ -715,6 +806,12 @@
         if (!unit || !blockMeta(session.addBlockType)) return;
         const block = createBlock(session.addBlockType, unit, unit.blocks);
         unit.blocks.push(block);
+        if (
+            block.type === 'checkpoint'
+            && unit.completion
+            && unit.completion.preset === 'checkpoint_passed'
+            && !unit.completion.checkpointKey
+        ) unit.completion.checkpointKey = block.checkpointKey;
         markDirty();
         render();
     }
@@ -887,8 +984,30 @@
         }
     }
 
+    function preparePublish() {
+        const validation = validateCompletionForPublish(session.units, session.assignments);
+        if (!validation.valid) {
+            session.validationErrors = validation.errors;
+            session.publishConfirm = false;
+            render();
+            return false;
+        }
+        session.validationErrors = [];
+        session.publishConfirm = true;
+        session.notice = null;
+        render();
+        return true;
+    }
+
     async function publishDraft() {
         if (!session || session.busy || session.dirty || !session.publishConfirm || !session.units.length) return false;
+        const validation = validateCompletionForPublish(session.units, session.assignments);
+        if (!validation.valid) {
+            session.validationErrors = validation.errors;
+            session.publishConfirm = false;
+            render();
+            return false;
+        }
         const course = selectedCourseFromSnapshot();
         if (!beginMutation('发布课程内容版本')) return false;
         session.busy = true;
@@ -990,6 +1109,7 @@
     }
 
     function buildContentPage(unit, course, revision, index) {
+        const completion = completionPayload(unit.completion);
         return {
             schemaVersion: 'astra-content-page-v2',
             slug: `courses/${Number(course && course.id) || 1}/${String(unit.activity_key || `unit-${index + 1}`)}`,
@@ -1000,6 +1120,13 @@
             layout: 'course-page',
             status: 'draft',
             version: `draft-r${revision}`,
+            courseUnit: {
+                courseId: clean(course && course.course_key) || `course-${Number(course && course.id) || 1}`,
+                unitId: clean(unit.activity_key) || `unit-${index + 1}`,
+                order: index + 1,
+                title: clean(unit.title),
+                completion
+            },
             blocks: (unit.blocks || []).map(block => sanitizeBlock(block, unit))
         };
     }
@@ -1060,6 +1187,40 @@
             const checkpoints = new Set();
             const sources = new Set();
             blocks.forEach((block, blockIndex) => validateBlock(block, unit, `${prefix}第 ${blockIndex + 1} 块`, errors, ids, checkpoints, sources));
+        });
+        return { valid: errors.length === 0, errors };
+    }
+
+    function validateCompletionForPublish(units, assignments) {
+        const errors = [];
+        const assignmentList = Array.isArray(assignments) ? assignments : [];
+        (Array.isArray(units) ? units : []).forEach((unit, index) => {
+            const prefix = `第 ${index + 1} 单元`;
+            const completion = normalizeCompletion(unit && unit.completion);
+            if (!completion) {
+                errors.push(`${prefix}发布前必须选择完成方式`);
+                return;
+            }
+            if (completion.preset === 'experiment_operation') {
+                if (!(unit.blocks || []).some(block => block.type === 'official-simulation' && clean(block.simulationKey) === clean(unit.activity_key))) {
+                    errors.push(`${prefix}需要保留当前正式活动引用，才能按实验操作完成`);
+                }
+                return;
+            }
+            if (completion.preset === 'checkpoint_passed') {
+                if (!(unit.blocks || []).some(block => (
+                    block.type === 'checkpoint'
+                    && block.mode !== 'question-set'
+                    && clean(block.checkpointKey) === clean(completion.checkpointKey)
+                ))) errors.push(`${prefix}需要选择一个当前单元中的即时检查`);
+                return;
+            }
+            const assignment = assignmentList.find(item => (
+                Number(item.id) === Number(completion.assignmentId)
+                && Number(item.unit_id) === Number(unit.id)
+                && item.status === 'active'
+            ));
+            if (!assignment) errors.push(`${prefix}需要选择一份当前单元中的有效作业`);
         });
         return { valid: errors.length === 0, errors };
     }
@@ -1286,6 +1447,37 @@
         return ({ 'single-choice': '单选', 'multiple-choice': '多选', numeric: '数值', 'short-text': '简答' })[value] || '检查';
     }
 
+    function normalizeCompletion(value) {
+        const source = value && typeof value === 'object' ? value : null;
+        if (!source) return null;
+        if (source.preset === 'experiment_operation') return { preset: source.preset };
+        if (source.preset === 'checkpoint_passed') return {
+            preset: source.preset,
+            checkpointKey: clean(source.checkpointKey)
+        };
+        if (source.preset === 'assignment_reviewed') return {
+            preset: source.preset,
+            assignmentId: positiveInteger(source.assignmentId)
+        };
+        return null;
+    }
+
+    function completionPayload(value) {
+        const completion = normalizeCompletion(value);
+        if (!completion) return null;
+        if (completion.preset === 'checkpoint_passed' && !completion.checkpointKey) return null;
+        if (completion.preset === 'assignment_reviewed' && !completion.assignmentId) return null;
+        return completion;
+    }
+
+    function completionLabel(value) {
+        const completion = normalizeCompletion(value);
+        if (!completion) return '完成方式尚未设置';
+        if (completion.preset === 'experiment_operation') return '完成方式：完成一次实验操作';
+        if (completion.preset === 'checkpoint_passed') return `完成方式：答对检查点 ${completion.checkpointKey || '（未选择）'}`;
+        return `完成方式：作业 #${completion.assignmentId || '（未选择）'} 完成批改`;
+    }
+
     function formatDate(value) {
         if (!value) return '--';
         const date = new Date(value);
@@ -1356,6 +1548,8 @@
             createBlock,
             sanitizeBlock,
             validateEditorDraft,
+            validateCompletionForPublish,
+            completionPayload,
             safeHttpUrl
         })
     });

@@ -192,6 +192,9 @@ def _rule_signature(activities: list[dict[str, Any]]) -> list[dict[str, Any]]:
         {
             "activity_key": item["activity_key"],
             "outcome": item.get("outcome", "completed"),
+            "preset": item.get("preset"),
+            "checkpoint_key": item.get("checkpoint_key"),
+            "assignment_id": item.get("assignment_id"),
             "required_event_types": sorted(item.get("required_event_types", [])),
             "minimum_attempts": item.get("minimum_attempts", 0),
             "minimum_correct_attempts": item.get("minimum_correct_attempts", 0),
