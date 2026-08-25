@@ -45,6 +45,12 @@ from app.models.course import (
     Submission,
     UserKnowledgeSnapshot,
 )
+from app.models.course_relationship import (
+    CourseAdmissionClass,
+    CourseEnrollment,
+    CourseInformationRevision,
+    CourseJoinRequest,
+)
 from app.models.school import ClassGroup, ClassJoinRequest, ClassMembership, School, SchoolMembership
 from app.models.teacher_application import TeacherApplication
 from app.models.user import AuthSession, LoginAttempt, PasswordResetToken, User
@@ -79,8 +85,12 @@ __all__ = [
     "CodeProblemVersion",
     "CodeSubmission",
     "Course",
+    "CourseAdmissionClass",
     "CourseClass",
     "CourseCollaborator",
+    "CourseEnrollment",
+    "CourseInformationRevision",
+    "CourseJoinRequest",
     "CourseUnit",
     "CourseUnitClassPlan",
     "KnowledgeSnapshotRun",

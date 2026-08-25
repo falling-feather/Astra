@@ -27,6 +27,15 @@ class Course(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("school_id", "title", name="uq_courses_school_title"),
         UniqueConstraint("school_id", "galaxy_key", "course_key", name="uq_courses_school_galaxy_course_key"),
+        UniqueConstraint("course_code", name="uq_courses_course_code"),
+        CheckConstraint(
+            "admission_mode IN ('open', 'class_restricted')",
+            name="ck_courses_admission_mode",
+        ),
+        CheckConstraint(
+            "total_hours IS NULL OR total_hours > 0",
+            name="ck_courses_total_hours_positive",
+        ),
         Index("ix_courses_galaxy_subject", "galaxy_key", "subject_key"),
     )
 
@@ -38,6 +47,20 @@ class Course(TimestampMixin, Base):
     course_key: Mapped[str] = mapped_column(String(96), nullable=False)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    course_code: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    academic_year: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    schedule_text: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    total_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    admission_mode: Mapped[str] = mapped_column(String(24), default="open", nullable=False)
+    current_information_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "course_information_revisions.id",
+            name="fk_courses_current_information_revision_id",
+            use_alter=True,
+        ),
+        index=True,
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
 
 class CourseClass(TimestampMixin, Base):
