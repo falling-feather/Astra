@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastapi import HTTPException, Request
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -12,6 +12,7 @@ from app.models import (
     CourseAdmissionClass,
     CourseCollaborator,
     CourseInformationRevision,
+    CourseRelease,
     SchoolMembership,
     User,
 )
@@ -457,6 +458,10 @@ def build_course_draft_read(
             .order_by(ClassGroup.name, ClassGroup.id)
         ).all()
     )
+    has_published_content, content_status, content_status_label = _content_publication_status(
+        db,
+        course.id,
+    )
     return {
         "id": course.id,
         "school_id": course.school_id,
@@ -482,12 +487,21 @@ def build_course_draft_read(
             for relation, class_group in admission_rows
         ],
         "information_revision": revision,
-        "has_published_content": False,
-        "content_status": "not_published",
-        "content_status_label": "暂无已发布内容",
+        "has_published_content": has_published_content,
+        "content_status": content_status,
+        "content_status_label": content_status_label,
         "created_at": course.created_at,
         "updated_at": course.updated_at,
     }
+
+
+def _content_publication_status(db: Session, course_id: int) -> tuple[bool, str, str]:
+    latest_release_number = db.scalar(
+        select(func.max(CourseRelease.release_number)).where(CourseRelease.course_id == course_id)
+    )
+    if latest_release_number is None:
+        return False, "not_published", "暂无已发布内容"
+    return True, "published", f"已发布第 {int(latest_release_number)} 版"
 
 
 def _lock_authoring_teacher(db: Session, actor: User, school_id: int) -> User:

@@ -7,14 +7,15 @@ from app.api.endpoints import (
     classes,
     code_judge,
     content,
+    content_platform,
     course_authoring,
     course_status,
     course_unit_access,
     courses,
     health,
     knowledge,
-    learning_evidence,
     learning_events,
+    learning_evidence,
     points,
     progress,
     render,
@@ -23,7 +24,6 @@ from app.api.endpoints import (
     teacher_applications,
     users,
 )
-
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
@@ -47,3 +47,4 @@ api_router.include_router(content.router, prefix="/content", tags=["content"])
 api_router.include_router(render.router, prefix="/render", tags=["render"])
 api_router.include_router(teacher_applications.router, prefix="/v1", tags=["teacher-applications"])
 api_router.include_router(course_authoring.router, prefix="/v1", tags=["course-authoring-v1"])
+api_router.include_router(content_platform.router, prefix="/v1", tags=["content-platform-v1"])

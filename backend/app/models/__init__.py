@@ -1,4 +1,3 @@
-from app.models.base import Base
 from app.models.admin import (
     AdminAlertOutboxDispatchPlan,
     AdminAlertOutboxEntry,
@@ -11,6 +10,13 @@ from app.models.admin import (
     BugRecord,
     SecurityControlLock,
 )
+from app.models.base import Base
+from app.models.code_judge import (
+    CodeJudgeAttempt,
+    CodeProblem,
+    CodeProblemVersion,
+    CodeSubmission,
+)
 from app.models.content import (
     ContentDraft,
     ContentPageRecord,
@@ -19,16 +25,10 @@ from app.models.content import (
     ContentScriptAssetScanRun,
     ContentScriptHostPolicy,
 )
-from app.models.code_judge import CodeJudgeAttempt, CodeProblem, CodeProblemVersion, CodeSubmission
-from app.models.learning_evidence import (
-    LegacyAccessEntitlement,
-    LearningActivityProjection,
-    LearningActivityRuntime,
-    LearningCompletionRule,
-    LearningEvidenceEvent,
-    LearningResumeProjection,
-    LearningRuleActivation,
-    LearningRuleClassBinding,
+from app.models.content_platform import (
+    CourseClassReleaseBinding,
+    CourseRelease,
+    CourseReleaseUnit,
 )
 from app.models.course import (
     Assignment,
@@ -51,63 +51,82 @@ from app.models.course_relationship import (
     CourseInformationRevision,
     CourseJoinRequest,
 )
-from app.models.school import ClassGroup, ClassJoinRequest, ClassMembership, School, SchoolMembership
+from app.models.learning_evidence import (
+    LearningActivityProjection,
+    LearningActivityRuntime,
+    LearningCompletionRule,
+    LearningEvidenceEvent,
+    LearningResumeProjection,
+    LearningRuleActivation,
+    LearningRuleClassBinding,
+    LegacyAccessEntitlement,
+)
+from app.models.school import (
+    ClassGroup,
+    ClassJoinRequest,
+    ClassMembership,
+    School,
+    SchoolMembership,
+)
 from app.models.teacher_application import TeacherApplication
 from app.models.user import AuthSession, LoginAttempt, PasswordResetToken, User
 
 __all__ = [
-    "Assignment",
-    "AssignmentClassPolicy",
     "AdminAlertOutboxDispatchPlan",
     "AdminAlertOutboxEntry",
+    "Assignment",
+    "AssignmentClassPolicy",
     "AuditArchiveAnchor",
     "AuditChainHead",
     "AuditLog",
+    "AuthSession",
     "BackgroundTask",
     "BackgroundTaskAttempt",
-    "BugExternalSyncOperation",
-    "AuthSession",
     "Base",
+    "BugExternalSyncOperation",
     "BugRecord",
-    "SecurityControlLock",
     "ClassGroup",
     "ClassJoinRequest",
     "ClassKnowledgeSnapshot",
     "ClassMembership",
+    "CodeJudgeAttempt",
+    "CodeProblem",
+    "CodeProblemVersion",
+    "CodeSubmission",
     "ContentDraft",
     "ContentPageRecord",
     "ContentPageVersion",
     "ContentScriptAsset",
     "ContentScriptAssetScanRun",
     "ContentScriptHostPolicy",
-    "CodeJudgeAttempt",
-    "CodeProblem",
-    "CodeProblemVersion",
-    "CodeSubmission",
     "Course",
     "CourseAdmissionClass",
     "CourseClass",
+    "CourseClassReleaseBinding",
     "CourseCollaborator",
     "CourseEnrollment",
     "CourseInformationRevision",
     "CourseJoinRequest",
+    "CourseRelease",
+    "CourseReleaseUnit",
     "CourseUnit",
     "CourseUnitClassPlan",
     "KnowledgeSnapshotRun",
-    "LegacyAccessEntitlement",
     "LearningActivityProjection",
     "LearningActivityRuntime",
     "LearningCompletionRule",
+    "LearningEvent",
     "LearningEvidenceEvent",
     "LearningResumeProjection",
     "LearningRuleActivation",
     "LearningRuleClassBinding",
-    "LearningEvent",
+    "LegacyAccessEntitlement",
     "LoginAttempt",
     "PasswordResetToken",
     "PointLedger",
     "School",
     "SchoolMembership",
+    "SecurityControlLock",
     "Submission",
     "TeacherApplication",
     "User",

@@ -15,6 +15,7 @@ from app.models import (
     CourseClass,
     CourseCollaborator,
     CourseInformationRevision,
+    CourseRelease,
     SchoolMembership,
     User,
 )
@@ -134,6 +135,10 @@ def review_information_revision(
     revision.reviewed_at = now
     revision.review_note = _trim_optional(note)
     course.updated_at = now
+    has_published_content, content_status, content_status_label = _content_publication_status(
+        db,
+        course.id,
+    )
     record_audit_log(
         db,
         actor=reviewer,
@@ -156,8 +161,9 @@ def review_information_revision(
                 "current_information_revision_id": course.current_information_revision_id,
                 "internal_class_id": internal_scope[0],
                 "internal_course_class_id": internal_scope[1],
-                "has_published_content": False,
-                "content_status": "not_published",
+                "has_published_content": has_published_content,
+                "content_status": content_status,
+                "content_status_label": content_status_label,
                 "reviewed_by_user_id": reviewer.id,
                 "has_review_note": revision.review_note is not None,
             },
@@ -214,6 +220,10 @@ def build_information_review_read(
     if proposed_teacher_ids != current_teacher_ids:
         changed_fields.add("teacher_ids")
     internal_class_id, internal_course_class_id = _internal_scope_ids(db, course.id)
+    has_published_content, content_status, content_status_label = _content_publication_status(
+        db,
+        course.id,
+    )
 
     return {
         "revision": revision,
@@ -239,10 +249,19 @@ def build_information_review_read(
         "current_admission_classes": _class_reads(db, current_class_ids),
         "internal_class_id": internal_class_id,
         "internal_course_class_id": internal_course_class_id,
-        "has_published_content": False,
-        "content_status": "not_published",
-        "content_status_label": "暂无已发布内容",
+        "has_published_content": has_published_content,
+        "content_status": content_status,
+        "content_status_label": content_status_label,
     }
+
+
+def _content_publication_status(db: Session, course_id: int) -> tuple[bool, str, str]:
+    latest_release_number = db.scalar(
+        select(func.max(CourseRelease.release_number)).where(CourseRelease.course_id == course_id)
+    )
+    if latest_release_number is None:
+        return False, "not_published", "暂无已发布内容"
+    return True, "published", f"已发布第 {int(latest_release_number)} 版"
 
 
 def _approve_information_revision(

@@ -41,9 +41,19 @@ class ContentDraft(TimestampMixin, Base):
             "active_key",
             name="uq_content_drafts_active_author_target",
         ),
+        UniqueConstraint(
+            "course_unit_id",
+            "active_key",
+            name="uq_content_drafts_active_course_unit",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id"), index=True, nullable=True)
+    course_unit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("course_units.id"), index=True, nullable=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     author_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     last_editor_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
