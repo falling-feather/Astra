@@ -23,6 +23,7 @@ from app.api.endpoints import (
     submissions,
     teacher_applications,
     users,
+    workbench,
 )
 
 api_router = APIRouter()
@@ -48,3 +49,4 @@ api_router.include_router(render.router, prefix="/render", tags=["render"])
 api_router.include_router(teacher_applications.router, prefix="/v1", tags=["teacher-applications"])
 api_router.include_router(course_authoring.router, prefix="/v1", tags=["course-authoring-v1"])
 api_router.include_router(content_platform.router, prefix="/v1", tags=["content-platform-v1"])
+api_router.include_router(workbench.router, prefix="/v1", tags=["workbench-v1"])
