@@ -370,6 +370,14 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
         course_class = CourseClass(course_id=course.id, class_id=cohort.id, status="active")
         db.add(course_class)
         db.flush()
+        db.add(
+            ClassMembership(
+                class_id=cohort.id,
+                user_id=student["id"],
+                role="student",
+                status="active",
+            )
+        )
         unit = CourseUnit(
             course_id=course.id,
             activity_key="workbench.teacher.activity",
@@ -440,6 +448,12 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
     )
     assert assignments.status_code == 200, assignments.json()
     assert assignments.json()[0]["title"] == "Workbench Teacher Assignment"
+    progress_matrix = client.get(
+        f"/api/progress/courses/{course_id}/classes/{cohort_id}/students",
+        headers=_auth(teacher["token"]),
+    )
+    assert progress_matrix.status_code == 200, progress_matrix.json()
+    assert progress_matrix.json()["total"] == 1
     assert body["primary_action"]["kind"] == "review_course_join_request"
     assert body["primary_action"]["request_id"] == request_id
 

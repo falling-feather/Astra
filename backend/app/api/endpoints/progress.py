@@ -11,6 +11,7 @@ from app.services.access_control import (
     get_class,
     require_class_member,
     require_class_teacher_or_admin,
+    require_course_collaborator_or_admin,
     get_course,
 )
 from app.services.course_release_plans import (
@@ -84,12 +85,21 @@ def get_course_class_student_progress(
     class_group = get_class(db, class_id)
     if class_group.school_id != course.school_id:
         raise HTTPException(status_code=422, detail="Class does not belong to course school")
-    require_class_teacher_or_admin(
-        db,
-        current_user,
-        class_group,
-        detail="Course progress matrix requires class teacher scope",
-    )
+    if class_group.kind == "course_cohort":
+        require_course_collaborator_or_admin(
+            db,
+            current_user,
+            course,
+            {"editor", "content_editor", "assessment_editor"},
+            detail="Course progress matrix requires course teacher scope",
+        )
+    else:
+        require_class_teacher_or_admin(
+            db,
+            current_user,
+            class_group,
+            detail="Course progress matrix requires class teacher scope",
+        )
     course_class = get_course_class_or_404(db, course.id, class_group.id)
     return StudentCourseProgressPage.model_validate(
         build_student_course_progress_page(
