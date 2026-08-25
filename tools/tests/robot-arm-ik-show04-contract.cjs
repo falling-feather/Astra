@@ -23,6 +23,7 @@ function testRegistrationAndMarkup() {
   assert.doesNotMatch(moduleSource, /课程目标|学习任务|学习证据|先预测|章节/);
   assert.match(styles, /> \.frontier-hero\[hidden\][\s\S]*display: none !important/);
   assert.match(styles, /engineering-activity-view[^}]*box-sizing: border-box;[^}]*width: 100%/);
+  assert.match(styles, /content-section\[data-module="robot-arm-ik"\][^{]*\{[^}]*display: block;[^}]*padding: 0;/);
   assert.match(styles, /\.astra-exp--robot-arm-ik \{[^}]*box-sizing: border-box;/);
 
   const context = { window: {} };

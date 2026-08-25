@@ -12,6 +12,15 @@
     padding: clamp(82px, 8vw, 108px) clamp(12px, 3vw, 42px) clamp(28px, 5vw, 64px);
 }
 
+/* This route owns its view directly instead of going through ModuleSelector. */
+#page-engineering .engineering-activity-view[data-engineering-view="robot-arm-ik"]:not([hidden])
+    > .content-section[data-module="robot-arm-ik"] {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
 #page-engineering.engineering-page--robot-arm-ik {
     background:
         radial-gradient(circle at 74% 10%, rgba(91, 212, 232, 0.09), transparent 30%),
