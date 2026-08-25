@@ -112,7 +112,7 @@
     }
 
     function destroyStudent() {
-        state.active = false;
+        state.active = false; void roleWorkbench('destroy');
         courseEnrollmentLoadGeneration += 1;
         if (courseEnrollmentOwner) courseEnrollmentOwner.destroy();
         courseEnrollmentOwner = null;
@@ -249,6 +249,7 @@
         }
     }
 
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'student', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.authorized, refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260825v845RoleWorkbenchP0').then(invoke).catch(() => false); }
     function renderShell() {
         state.root.innerHTML = `
             <header class="student-workbench__header">
@@ -282,7 +283,7 @@
             <div id="student-course-enrollment-host" hidden></div>
             <div class="student-flash" data-student-flash hidden role="status" aria-live="polite"></div>
             <div class="student-dashboard" data-student-dashboard hidden>
-                <section class="student-join-state" data-student-join-state hidden></section>
+                <section data-student-role-overview hidden aria-label="学生首屏摘要"></section><section class="student-join-state" data-student-join-state hidden></section>
                 <section class="student-focus-stage" data-student-focus-stage hidden aria-labelledby="student-focus-title"></section>
                 <div class="student-layout" data-student-layout hidden>
                     <section class="student-panel student-panel--context" data-student-panel="context" hidden></section>
@@ -594,7 +595,7 @@
     }
 
     async function refreshAll() {
-        if (!state.root || !state.active) return;
+        if (!state.root || !state.active) return; void roleWorkbench('reset');
         const scope = beginScopeRequest();
         const previousUserId = state.user && state.user.id;
         state.busy = true;
@@ -626,7 +627,7 @@
             }
 
             state.authorized = true;
-            renderAuthState('ready', user);
+            renderAuthState('ready', user); void roleWorkbench('refresh');
             const classPayload = await requestJson('/api/classes', {
                 params: { mine: true },
                 signal: scope.signal

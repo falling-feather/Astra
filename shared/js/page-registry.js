@@ -10,6 +10,7 @@
     const ADMIN_RESOURCE_VERSION = '20260825v842CourseReviewP0';
     const PLANETS_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
+    const ROLE_WORKBENCH_OVERVIEW_VERSION = '20260825v845RoleWorkbenchP0';
 
     const definePage = (config) => Object.freeze({
         galaxy: config.galaxy || 'englab',
@@ -43,7 +44,14 @@
         student: definePage({
             galaxy: 'astra',
             roles: ['student'],
-            styles: [`pages/student/student.css?v=${ROLE_RESOURCE_VERSION}`],
+            styles: [
+                `pages/student/student.css?v=${ROLE_RESOURCE_VERSION}`,
+                `shared/css/role-workbench-overview.css?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
+            ],
+            resources: [
+                `shared/js/role-workbench-overview.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`,
+                `shared/js/role-workbench-bridge.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
+            ],
             script: `pages/student/student-workbench.js?v=${ROLE_RESOURCE_VERSION}`,
             ready: 'initStudent',
             enter: 'initStudent',
@@ -55,9 +63,15 @@
             styles: [
                 `pages/teacher/teacher-foundation.css?v=${TEACHER_RESOURCE_VERSION}`,
                 `pages/teacher/teacher-workbench.css?v=${TEACHER_RESOURCE_VERSION}`,
-                `pages/teacher/teacher-curriculum.css?v=${TEACHER_RESOURCE_VERSION}`, `pages/teacher/teacher-course-authoring.css?v=${TEACHER_RESOURCE_VERSION}`
+                `pages/teacher/teacher-curriculum.css?v=${TEACHER_RESOURCE_VERSION}`,
+                `pages/teacher/teacher-course-authoring.css?v=${TEACHER_RESOURCE_VERSION}`,
+                `shared/css/role-workbench-overview.css?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
             ],
-            resources: [`pages/teacher/teacher-course-authoring.js?v=${TEACHER_RESOURCE_VERSION}`],
+            resources: [
+                `pages/teacher/teacher-course-authoring.js?v=${TEACHER_RESOURCE_VERSION}`,
+                `shared/js/role-workbench-overview.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`,
+                `shared/js/role-workbench-bridge.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
+            ],
             script: `pages/teacher/teacher.js?v=${TEACHER_RESOURCE_VERSION}`,
             ready: 'initTeacher',
             enter: 'initTeacher',
@@ -66,7 +80,14 @@
         admin: definePage({
             galaxy: 'astra',
             roles: ['admin'],
-            styles: [`pages/admin/admin.css?v=${ADMIN_RESOURCE_VERSION}`],
+            styles: [
+                `pages/admin/admin.css?v=${ADMIN_RESOURCE_VERSION}`,
+                `shared/css/role-workbench-overview.css?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
+            ],
+            resources: [
+                `shared/js/role-workbench-overview.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`,
+                `shared/js/role-workbench-bridge.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
+            ],
             script: `pages/admin/admin.js?v=${ADMIN_RESOURCE_VERSION}`,
             ready: 'initAdmin',
             enter: 'initAdmin',
@@ -155,11 +176,11 @@
         const definition = get(page);
         return !!definition && definition.tags.includes(tag);
     };
-    const resourcesForRole = (role) => pageNames.flatMap((page) => {
+    const resourcesForRole = (role) => Array.from(new Set(pageNames.flatMap((page) => {
         const definition = get(page);
         if (!definition || !definition.roles.includes(role)) return [];
         return definition.styles.concat(definition.resources, definition.script ? [definition.script] : []);
-    });
+    })));
     const invokeHook = (page, hook) => {
         const definition = get(page);
         const hookName = definition && definition[hook];
@@ -191,10 +212,10 @@
             const definition = get(page);
             return definition ? definition.roles.slice() : [];
         },
-        stylesForRole: (role) => pageNames.flatMap((page) => {
+        stylesForRole: (role) => Array.from(new Set(pageNames.flatMap((page) => {
             const definition = get(page);
             return definition && definition.roles.includes(role) ? definition.styles : [];
-        }),
+        }))),
         resourcesForRole: (role) => resourcesForRole(String(role || '')).slice(),
         allRoleResources: () => Array.from(new Set(
             pageNames.flatMap((page) => {

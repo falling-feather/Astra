@@ -44,7 +44,7 @@
         refreshAll();
     }
     function destroyTeacher() {
-        state.active = false; state.learningEvidenceLoadGeneration += 1;
+        state.active = false; state.learningEvidenceLoadGeneration += 1; void roleWorkbench('destroy');
         if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
         courseAuthoringLoadGeneration += 1; if (courseAuthoringOwner) courseAuthoringOwner.destroy(); courseAuthoringOwner = null; courseAuthoringResourceError = null;
         invalidateRequests(); unbindRuntimeEvents(); clearWorkspace();
@@ -137,6 +137,7 @@
             renderPanels(); refreshIcons(); console.warn('[TeacherWorkbench] course authoring resource unavailable'); return false;
         }
     }
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'teacher', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.user && state.user.role === 'teacher', refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260825v845RoleWorkbenchP0').then(invoke).catch(() => false); }
     function bindRuntimeEvents() {
         if (state.runtimeBound) return;
         state.onOnline = () => {
@@ -195,7 +196,7 @@
             <div class="teacher-write-lock" data-teacher-write-lock hidden role="alert"></div>
             <div class="teacher-flash" data-teacher-flash hidden></div>
             <div class="teacher-dashboard" data-teacher-dashboard hidden>
-                <section class="teacher-focus-stage" data-teacher-focus-stage aria-labelledby="teacher-focus-title"></section><section class="teacher-summary-strip" data-teacher-kpis aria-label="教学运行摘要"></section>
+                <section data-teacher-role-overview hidden aria-label="教师首屏摘要"></section><section class="teacher-focus-stage" data-teacher-focus-stage aria-labelledby="teacher-focus-title"></section><section class="teacher-summary-strip" data-teacher-kpis aria-label="教学运行摘要"></section>
                 <section class="teacher-scope-wrap" data-teacher-scope-panel></section>
                 <nav class="teacher-view-nav" role="tablist" aria-label="教师工作台分区">
                     ${Object.entries(TEACHER_VIEWS).map(([key, label]) => `
@@ -303,7 +304,7 @@
         }, true);
     }
     async function refreshAll(options) {
-        if (!state.root || !state.active) return;
+        if (!state.root || !state.active) return; void roleWorkbench('reset');
         const request = options || {};
         const previousIdentity = state.user && `${state.user.id}:${state.user.role}`;
         if (!previousIdentity) clearWorkspace();
@@ -330,7 +331,7 @@
                 clearWorkspace();
                 return;
             }
-            renderAuthState('ready', user);
+            renderAuthState('ready', user); if (user.role === 'teacher') void roleWorkbench('refresh');
             await loadSchools(undefined, generation);
             if (!isCurrentRequest(generation)) return;
             if (request.clearWriteLock) {

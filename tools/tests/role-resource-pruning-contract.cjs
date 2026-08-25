@@ -20,8 +20,12 @@ const normalize = (items) => Array.from(items);
 const studentVersion = '20260824v816ExperimentRestoreP2';
 const teacherVersion = '20260825v844CourseCompletionP1';
 const adminVersion = '20260825v842CourseReviewP0';
+const overviewVersion = '20260825v845RoleWorkbenchP0';
 const student = [
     `pages/student/student.css?v=${studentVersion}`,
+    `shared/css/role-workbench-overview.css?v=${overviewVersion}`,
+    `shared/js/role-workbench-overview.js?v=${overviewVersion}`,
+    `shared/js/role-workbench-bridge.js?v=${overviewVersion}`,
     `pages/student/student-workbench.js?v=${studentVersion}`
 ];
 const teacher = [
@@ -29,7 +33,10 @@ const teacher = [
     `pages/teacher/teacher-workbench.css?v=${teacherVersion}`,
     `pages/teacher/teacher-curriculum.css?v=${teacherVersion}`,
     `pages/teacher/teacher-course-authoring.css?v=${teacherVersion}`,
+    `shared/css/role-workbench-overview.css?v=${overviewVersion}`,
     `pages/teacher/teacher-course-authoring.js?v=${teacherVersion}`,
+    `shared/js/role-workbench-overview.js?v=${overviewVersion}`,
+    `shared/js/role-workbench-bridge.js?v=${overviewVersion}`,
     `pages/teacher/teacher.js?v=${teacherVersion}`
 ];
 const admin = [
@@ -42,9 +49,9 @@ assert.deepEqual(normalize(registry.resourcesForRole('student')), student);
 assert.deepEqual(normalize(registry.resourcesForRole('teacher')), teacher);
 assert.deepEqual(normalize(registry.resourcesForRole('admin')), admin);
 assert.deepEqual(normalize(registry.resourcesForRole('anonymous')), []);
-assert.deepEqual(normalize(registry.stylesForRole('student')), student.slice(0, 1));
+assert.deepEqual(normalize(registry.stylesForRole('student')), student.slice(0, 2));
 assert.deepEqual(normalize(registry.rolesFor('teacher')), ['teacher', 'admin']);
-assert.equal(new Set(normalize(registry.allRoleResources())).size, 10);
+assert.equal(new Set(normalize(registry.allRoleResources())).size, 13);
 for (const owner of ['admin-course-governance.js', 'admin-secondary-governance.js']) {
     assert.equal(
         normalize(registry.allRoleResources()).some((resource) => resource.includes(owner)),

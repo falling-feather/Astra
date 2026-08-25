@@ -302,6 +302,7 @@
         else state.pendingJoinReview = null;
     }
 
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'admin', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.user && state.user.role === 'admin', refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260825v845RoleWorkbenchP0').then(invoke).catch(() => false); }
     function initAdmin() {
         state.root = document.querySelector('[data-admin-governance]');
         if (!state.root) return;
@@ -322,7 +323,7 @@
         refreshAll();
     }
     function destroyAdmin() {
-        state.active = false;
+        state.active = false; void roleWorkbench('destroy');
         invalidateRequests();
         unbindRuntimeEvents();
         if (state.eventController) state.eventController.abort();
@@ -518,7 +519,7 @@
                             <h2 data-admin-current-section-title>${escapeHtml(sectionLabel(state.activeSection))}</h2>
                         </header>
                         <section id="admin-domain-overview" role="tabpanel" class="admin-overview" data-admin-overview tabindex="-1"${state.activeSection === 'overview' ? '' : ' hidden'}>
-                            <section data-admin-business-overview aria-label="真实业务治理摘要"></section><section class="admin-kpi-grid" data-admin-stats></section>
+                            <section data-admin-role-overview hidden aria-label="管理员首屏摘要"></section><section data-admin-business-overview aria-label="真实业务治理摘要"></section><section class="admin-kpi-grid" data-admin-stats></section>
                             <section class="admin-database-map" data-admin-database-map></section>
                         </section>
                         <section class="admin-panel-grid" data-admin-panels>
@@ -826,7 +827,7 @@
     }
 
     async function refreshAll(options) {
-        if (!state.root || !state.active) return;
+        if (!state.root || !state.active) return; void roleWorkbench('reset');
         const releaseWriteLock = Boolean(options && options.releaseWriteLock);
         invalidateJoinReviewConfirmation();
         const generation = beginRequestGeneration();
@@ -853,7 +854,7 @@
                 unmountOwnerModules();
                 renderAuthState('forbidden', user);
                 return;
-            }
+            } void roleWorkbench('refresh');
             await ensureOwnerModules();
             if (!isCurrentRequest(generation)) return;
             if (!mountOwnerModules()) throw new Error('管理员治理 owner 挂载失败');
