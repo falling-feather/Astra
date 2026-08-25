@@ -5,7 +5,7 @@
     if (global.AstraPageRegistry) return;
 
     const ROLE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
-    const TEACHER_RESOURCE_VERSION = '20260813v832RoleMobileReceiptP0';
+    const TEACHER_RESOURCE_VERSION = '20260825v841CourseAuthoringP0';
     const FUTURE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const ADMIN_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
     const PLANETS_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
@@ -16,10 +16,9 @@
         tags: Object.freeze([...(config.tags || [])]),
         roles: Object.freeze([...(config.roles || [])]),
         styles: Object.freeze([...(config.styles || [])]),
+        resources: Object.freeze([...(config.resources || [])]),
         script: config.script || null,
-        ready: config.ready || null,
-        enter: config.enter || null,
-        leave: config.leave || null
+        ready: config.ready || null, enter: config.enter || null, leave: config.leave || null
     });
 
     const definitions = Object.freeze({
@@ -56,8 +55,9 @@
             styles: [
                 `pages/teacher/teacher-foundation.css?v=${TEACHER_RESOURCE_VERSION}`,
                 `pages/teacher/teacher-workbench.css?v=${TEACHER_RESOURCE_VERSION}`,
-                `pages/teacher/teacher-curriculum.css?v=${TEACHER_RESOURCE_VERSION}`
+                `pages/teacher/teacher-curriculum.css?v=${TEACHER_RESOURCE_VERSION}`, `pages/teacher/teacher-course-authoring.css?v=${TEACHER_RESOURCE_VERSION}`
             ],
+            resources: [`pages/teacher/teacher-course-authoring.js?v=${TEACHER_RESOURCE_VERSION}`],
             script: `pages/teacher/teacher.js?v=${TEACHER_RESOURCE_VERSION}`,
             ready: 'initTeacher',
             enter: 'initTeacher',
@@ -158,7 +158,7 @@
     const resourcesForRole = (role) => pageNames.flatMap((page) => {
         const definition = get(page);
         if (!definition || !definition.roles.includes(role)) return [];
-        return definition.styles.concat(definition.script ? [definition.script] : []);
+        return definition.styles.concat(definition.resources, definition.script ? [definition.script] : []);
     });
     const invokeHook = (page, hook) => {
         const definition = get(page);
@@ -200,7 +200,7 @@
             pageNames.flatMap((page) => {
                 const definition = get(page);
                 if (!definition || !definition.roles.length) return [];
-                return definition.styles.concat(definition.script ? [definition.script] : []);
+                return definition.styles.concat(definition.resources, definition.script ? [definition.script] : []);
             })
         )),
         isReady: (page) => {

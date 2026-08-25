@@ -836,7 +836,7 @@
     "pages/teacher/teacher.js": 2883,
     "pages/admin/admin.js": 2485,
     "backend/app/main.py": 151,
-    "backend/app/models/course.py": 305,
+    "backend/app/models/course.py": 328,
     "backend/app/schemas/course.py": 438,
     "backend/app/api/endpoints/learning_events.py": 352,
     "backend/app/api/endpoints/progress.py": 306,

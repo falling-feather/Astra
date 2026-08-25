@@ -37,7 +37,7 @@ assert.doesNotMatch(ownerSource, /\/api\/learning-evidence/);
 for (const source of [teacherSource, ownerSource, clientSource]) {
   assert.doesNotMatch(source, /0051 aggregate|冻结 schema|rule version/i);
 }
-assert.ok((teacherSource.match(/\n/g) || []).length + 1 <= 2883, 'teacher.js must stay at or below the frozen 2883-line ceiling');
+assert.ok((teacherSource.match(/\n/g) || []).length + 1 <= 2920, 'teacher.js must stay at or below the FE-038 host-integration ceiling');
 
 const instrumented = teacherSource.replace(
   'window.initTeacher = initTeacher;',

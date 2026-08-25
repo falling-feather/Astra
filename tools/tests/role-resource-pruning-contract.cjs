@@ -18,7 +18,7 @@ vm.runInNewContext(registrySource, context, { filename: 'shared/js/page-registry
 const registry = context.window.AstraPageRegistry;
 const normalize = (items) => Array.from(items);
 const studentVersion = '20260824v816ExperimentRestoreP2';
-const teacherVersion = '20260813v832RoleMobileReceiptP0';
+const teacherVersion = '20260825v841CourseAuthoringP0';
 const adminVersion = '20260825v840TeacherApplicationP0';
 const student = [
     `pages/student/student.css?v=${studentVersion}`,
@@ -28,6 +28,8 @@ const teacher = [
     `pages/teacher/teacher-foundation.css?v=${teacherVersion}`,
     `pages/teacher/teacher-workbench.css?v=${teacherVersion}`,
     `pages/teacher/teacher-curriculum.css?v=${teacherVersion}`,
+    `pages/teacher/teacher-course-authoring.css?v=${teacherVersion}`,
+    `pages/teacher/teacher-course-authoring.js?v=${teacherVersion}`,
     `pages/teacher/teacher.js?v=${teacherVersion}`
 ];
 const admin = [
@@ -42,7 +44,7 @@ assert.deepEqual(normalize(registry.resourcesForRole('admin')), admin);
 assert.deepEqual(normalize(registry.resourcesForRole('anonymous')), []);
 assert.deepEqual(normalize(registry.stylesForRole('student')), student.slice(0, 1));
 assert.deepEqual(normalize(registry.rolesFor('teacher')), ['teacher', 'admin']);
-assert.equal(new Set(normalize(registry.allRoleResources())).size, 8);
+assert.equal(new Set(normalize(registry.allRoleResources())).size, 10);
 for (const owner of ['admin-course-governance.js', 'admin-secondary-governance.js']) {
     assert.equal(
         normalize(registry.allRoleResources()).some((resource) => resource.includes(owner)),

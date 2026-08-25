@@ -11,11 +11,12 @@ const context = { window: {} };
 
 vm.runInNewContext(registrySource, context, { filename: 'shared/js/page-registry.js' });
 const styles = Array.from(context.window.AstraPageRegistry.stylesFor('teacher'));
-const version = '20260813v832RoleMobileReceiptP0';
+const version = '20260825v841CourseAuthoringP0';
 const expected = [
   `pages/teacher/teacher-foundation.css?v=${version}`,
   `pages/teacher/teacher-workbench.css?v=${version}`,
   `pages/teacher/teacher-curriculum.css?v=${version}`,
+  `pages/teacher/teacher-course-authoring.css?v=${version}`,
 ];
 
 assert.deepEqual(styles, expected, 'teacher style layers must keep their cascade order');

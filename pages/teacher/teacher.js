@@ -1,6 +1,6 @@
 (function () {
     'use strict';
-    const TEACHER_ASSET_VERSION = '20260813v832RoleMobileReceiptP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
+    const TEACHER_ASSET_VERSION = '20260825v841CourseAuthoringP0', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260825v841CourseAuthoringP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
     const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' }); const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
     const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' }); const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' }); const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
     const CODE_STATUS_LABELS = Object.freeze({
@@ -11,6 +11,7 @@
     });
     const PENDING_SUBMISSION_PAGE_LIMIT = 50, CODE_SUBMISSION_PAGE_LIMIT = 100, MEMBER_PAGE_LIMIT = 50,
         ACTIVE_STUDENT_PAGE_LIMIT = 50, ASSIGNMENT_SUBMISSION_PAGE_LIMIT = 50, CODE_ATTEMPT_PAGE_LIMIT = 20;
+    let courseAuthoringOwner = null, courseAuthoringResourceError = null, courseAuthoringLoadGeneration = 0;
     const state = {
         root: null, apiBase: '', initialized: false, active: false, online: navigator.onLine !== false,
         runtimeBound: false, mutationInFlight: false, evidenceMutationInFlight: false, lifecycleController: null, requestGeneration: 0,
@@ -34,7 +35,7 @@
         if (!state.root) return;
         state.active = true; state.online = navigator.onLine !== false;
         if (window.AstraApiClient) AstraApiClient.scrubLegacyTokens();
-        state.apiBase = resolveApiBase(); renderShell(); mountTeacherLearningEvidence();
+        state.apiBase = resolveApiBase(); renderShell(); mountTeacherLearningEvidence(); mountTeacherCourseAuthoring();
         if (!state.initialized) { bindEvents(); state.initialized = true; }
         bindRuntimeEvents();
         if (!state.online) {
@@ -45,6 +46,7 @@
     function destroyTeacher() {
         state.active = false; state.learningEvidenceLoadGeneration += 1;
         if (window.AstraTeacherLearningEvidence) window.AstraTeacherLearningEvidence.destroy();
+        courseAuthoringLoadGeneration += 1; if (courseAuthoringOwner) courseAuthoringOwner.destroy(); courseAuthoringOwner = null; courseAuthoringResourceError = null;
         invalidateRequests(); unbindRuntimeEvents(); clearWorkspace();
         setBusy(false); state.flash = null; state.learningEvidenceResourceError = null;
         if (state.root) {
@@ -113,6 +115,26 @@
             state.learningEvidenceResourceError = learningEvidenceResourceIssue(error); renderTeacherLearningEvidenceResourceState();
             console.warn('[TeacherWorkbench] teacher collaboration resource unavailable');
             return false;
+        }
+    }
+    function teacherCourseAuthoringHost() {
+        const snapshot = () => Object.freeze({ active: state.active, role: state.user && state.user.role || '', userId: state.user && state.user.id || 0, schoolId: state.selected.schoolId || '', schoolLabel: selectedSchool() && selectedSchool().name || '', online: state.online, blocked: Boolean(state.writeLock || !state.online || state.busy || state.mutationInFlight || state.evidenceMutationInFlight) });
+        return Object.freeze({
+            snapshot, request: (path, options) => fetchJson(path, options),
+            beginMutation: (label) => { if (!canStartMutation(label)) return false; state.mutationInFlight = true; setBusy(true); return true; },
+            endMutation: () => { state.mutationInFlight = false; setBusy(false); if (state.active) renderWorkspace(); },
+            failMutation: (error, label) => handleMutationFailure(error, label), notify: (type, message) => setFlash(type, message)
+        });
+    }
+    async function mountTeacherCourseAuthoring() {
+        const generation = ++courseAuthoringLoadGeneration; courseAuthoringResourceError = null;
+        try {
+            await import(`./teacher-course-authoring.js?v=${TEACHER_COURSE_AUTHORING_ASSET_VERSION}`); if (!state.active || generation !== courseAuthoringLoadGeneration) return false;
+            courseAuthoringOwner = window.AstraTeacherCourseAuthoring; if (!courseAuthoringOwner || typeof courseAuthoringOwner.mount !== 'function') throw new Error('课程创建向导入口不可用'); courseAuthoringOwner.mount(state.root, teacherCourseAuthoringHost());
+            renderPanels(); applyWriteAvailability(); refreshIcons(); return true;
+        } catch (error) {
+            if (!state.active || generation !== courseAuthoringLoadGeneration) return false; courseAuthoringResourceError = error;
+            renderPanels(); refreshIcons(); console.warn('[TeacherWorkbench] course authoring resource unavailable'); return false;
         }
     }
     function bindRuntimeEvents() {
@@ -746,7 +768,7 @@
             if (disabled && !control.disabled) { control.dataset.teacherBusyDisabled = ''; control.disabled = true; }
             else if (!disabled && Object.prototype.hasOwnProperty.call(control.dataset, 'teacherBusyDisabled')) { delete control.dataset.teacherBusyDisabled; control.disabled = false; }
         };
-        state.root.querySelectorAll('[data-teacher-form] button[type="submit"], [data-teacher-member-status], [data-teacher-collaborator-status], [data-teacher-plan-preset], [data-teacher-plan-reset]').forEach(control => toggle(control, blocked));
+        state.root.querySelectorAll('[data-teacher-form] button[type="submit"], [data-teacher-member-status], [data-teacher-collaborator-status], [data-teacher-plan-preset], [data-teacher-plan-reset], [data-course-authoring-control]').forEach(control => toggle(control, blocked));
         state.root.querySelectorAll('[data-teacher-scope], [data-teacher-api-base]').forEach(control => toggle(control, state.busy || mutationPending));
     }
     function renderKpis() {
@@ -808,6 +830,7 @@
         container.dataset.activeView = state.activeView;
         container.setAttribute('aria-labelledby', `teacher-tab-${state.activeView}`);
         container.innerHTML = (panels[state.activeView] || panels.overview)();
+        if (courseAuthoringOwner) courseAuthoringOwner.render();
     }
     function setActiveView(view) {
         const secondary = view === 'assignments' || view === 'structure' ? view : '';
@@ -1167,16 +1190,7 @@
                             <button type="submit" ${schoolDisabled ? 'disabled' : ''}><i data-lucide="users"></i><span>创建班级</span></button>
                         </form>
                     `)}
-                    ${renderOperation('course', 'book-plus', '创建课程', '在当前学校下建立课程内容', `
-                        <form class="teacher-form" data-teacher-form="course">
-                            <label><span>标题</span><input name="title" maxlength="180" required ${schoolDisabled ? 'disabled' : ''}></label>
-                            <label><span>所属星系</span><select name="galaxy_key" ${schoolDisabled ? 'disabled' : ''}>${optionSet([], 'englab', [['englab', '工科试验室'], ['code-space', '代码空间'], ['future-galaxy', '未来星系']])}</select></label>
-                            <label><span>课程稳定键</span><input name="course_key" maxlength="96" pattern="[a-zA-Z0-9][a-zA-Z0-9_-]*" placeholder="例如 control-flow" ${schoolDisabled ? 'disabled' : ''}></label>
-                            <label><span>状态</span><select name="status" ${schoolDisabled ? 'disabled' : ''}>${optionSet(['draft', 'published', 'archived'], 'draft')}</select></label>
-                            <label class="teacher-form__full"><span>摘要</span><textarea name="summary" maxlength="2000" rows="2" ${schoolDisabled ? 'disabled' : ''}></textarea></label>
-                            <button type="submit" ${schoolDisabled ? 'disabled' : ''}><i data-lucide="book-plus"></i><span>创建课程</span></button>
-                        </form>
-                    `)}
+                    ${renderOperation('course-authoring', 'book-plus', '创建授课课程', '分步填写并提交管理员审核', renderCourseAuthoringSurface(), true)}
                     ${renderOperation('attach', 'link', '课程挂班', '把当前课程挂接到当前班级', `
                         <form class="teacher-form teacher-form--attach" data-teacher-form="attach">
                             <p><strong>课程</strong>${escapeHtml(selectedCourseLabel())}</p><p><strong>班级</strong>${escapeHtml(selectedClassLabel())}</p>
@@ -1254,6 +1268,10 @@
                 <div class="teacher-operation__body">${content}</div>
             </details>
         `;
+    }
+    function renderCourseAuthoringSurface() {
+        const status = courseAuthoringResourceError ? `<div class="teacher-course-authoring__error" role="alert"><div><strong>课程创建向导加载失败</strong><p>${escapeHtml(errorMessage(courseAuthoringResourceError))}</p></div><button type="button" data-teacher-action="refresh">重新加载</button></div>` : '<div class="teacher-course-authoring__loading" role="status"><i data-lucide="loader-circle"></i><span>正在准备课程创建向导…</span></div>';
+        return `<div data-teacher-course-authoring>${status}</div>`;
     }
     function renderCoursePanel() {
         const selectedAssignment = findById(state.data.assignments, state.selected.assignmentId);
@@ -1528,7 +1546,6 @@
             if (formType !== 'release-plan') setBusy(true);
             if (formType === 'school') await createSchool(form);
             if (formType === 'class') await createClass(form);
-            if (formType === 'course') await createCourse(form);
             if (formType === 'attach') await attachCourseToClass();
             if (formType === 'unit') await createUnit(form);
             if (formType === 'assignment') await createAssignment(form);
@@ -1578,23 +1595,6 @@
         setFlash('success', '班级已创建');
         state.selected.classId = String(classGroup.id);
         await reconcileConfirmedWrite('创建班级', () => loadSchoolScope());
-    }
-    async function createCourse(form) {
-        const data = formData(form);
-        const course = await fetchJson('/api/courses', {
-            method: 'POST',
-            body: {
-                school_id: Number(state.selected.schoolId),
-                galaxy_key: optional(data.galaxy_key),
-                course_key: optional(data.course_key),
-                title: data.title,
-                summary: optional(data.summary),
-                status: data.status || 'draft'
-            }
-        });
-        setFlash('success', '课程已创建');
-        state.selected.courseId = String(course.id);
-        await reconcileConfirmedWrite('创建课程', () => loadSchoolScope());
     }
     async function attachCourseToClass() {
         await fetchJson(`/api/courses/${state.selected.courseId}/classes`, {

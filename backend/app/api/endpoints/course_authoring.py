@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db
-from app.models import User
 from app.schemas.course_authoring import (
     CourseAuthoringOptionsRead,
     CourseDraftCreate,
@@ -19,7 +18,7 @@ router = APIRouter()
 def create_course_draft(
     payload: CourseDraftCreate,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     return course_authoring_service.create_course_draft(
@@ -33,7 +32,7 @@ def create_course_draft(
 @router.get("/courses", response_model=list[CourseDraftRead])
 def list_course_drafts(
     school_id: int | None = Query(default=None, ge=1),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
     return course_authoring_service.list_visible_course_drafts(
@@ -46,7 +45,7 @@ def list_course_drafts(
 @router.get("/courses/authoring-options", response_model=CourseAuthoringOptionsRead)
 def get_course_authoring_options(
     school_id: int = Query(ge=1),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     return course_authoring_service.get_course_authoring_options(
@@ -59,7 +58,7 @@ def get_course_authoring_options(
 @router.get("/courses/{course_id}", response_model=CourseDraftRead)
 def get_course_draft(
     course_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     return course_authoring_service.get_visible_course_draft(
@@ -77,7 +76,7 @@ def submit_course_information_revision(
     course_id: int,
     revision_id: int,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     return course_authoring_service.submit_information_revision(
