@@ -830,7 +830,7 @@
     "index.html": 3758,
     "shared/js/main.js": 489,
     "shared/js/router.js": 1116,
-    "shared/js/page-registry.js": 221,
+    "shared/js/page-registry.js": 242,
     "sw.js": 152,
     "pages/student/student.js": 1807,
     "pages/teacher/teacher.js": 2883,
