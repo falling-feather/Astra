@@ -37,6 +37,12 @@ assert.match(student, /rememberedScope\.classId === String\(classId\)/);
 assert.match(student, /!state\.selected\.courseId && state\.data\.courses\.length/);
 assert.match(roleHome, /const preferredCourse = rememberedCourse \|\| courses\[0\]/);
 assert.match(roleHome, /rememberStudentScope\(classId, preferredCourse\.id\)/);
+assert.match(roleHome, /request\('\/api\/v1\/workbench'/);
+assert.match(roleHome, /COURSE ENROLLMENT · READY/);
+assert.match(roleHome, /if \(state\.joinDialog\) removeJoinPrompt\(\)/);
+assert.match(planets, /allowsPersonalPage\(\)[\s\S]*catalogueState\.phase === 'ready'/);
+assert.match(planets, /request\('\/api\/courses', \{ signal \}\)/);
+assert.match(student, /行政班只用于身份、准入与名单展示，不是课程学习的前置条件/);
 assert.match(planetsCss, /grid-template-columns: repeat\(auto-fit, minmax\(220px, 1fr\)\)/);
 
 assert.match(navbarCss, /\.nav-item\[hidden\]\s*\{\s*display: none !important/);

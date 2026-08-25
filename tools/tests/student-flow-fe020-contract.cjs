@@ -28,7 +28,8 @@ assert.match(planets, /request\('\/api\/classes'[\s\S]*mine: true/);
 assert.match(planets, /request\('\/api\/courses'[\s\S]*class_id: classId/);
 assert.match(planets, /request\(`\/api\/courses\/\$\{courseId\}\/units`[\s\S]*effective_release_state === 'open'/);
 assert.match(planets, /classIds = classes\.map\(\(item\) => positiveId\(item\.id\)\)/);
-assert.match(planets, /allowsPersonalPage\(\)[\s\S]*catalogueState\.classIds\.size > 0/);
+assert.match(planets, /allowsPersonalPage\(\)[\s\S]*catalogueState\.phase === 'ready'/);
+assert.match(planets, /if \(!classes\.length\)[\s\S]*request\('\/api\/courses', \{ signal \}\)[\s\S]*request\(`\/api\/courses\/\$\{courseId\}\/units`, \{ signal \}\)/);
 assert.match(planets, /guardRoute\(route, coursePages, frontierPages\)[\s\S]*personalBlocked[\s\S]*courseBlocked[\s\S]*history\.replaceState/);
 assert.match(planets, /a\[href="#student"\], a\[href\^="#student\/"\]/);
 assert.match(planets, /class_ids: Object\.freeze\(Array\.from\(catalogueState\.classIds\)\)/);
@@ -47,6 +48,8 @@ assert.match(roleHome, /addEventListener\('cancel', state\.joinCancelHandler\)/)
 assert.match(roleHome, /state\.joinCancelHandler = \(event\) => \{\s*event\.preventDefault\(\)/);
 assert.doesNotMatch(roleHome, /data-role-home-join-dismiss|稍后处理/);
 assert.match(roleHome, /astra:class-membership-changed/);
+assert.match(roleHome, /request\('\/api\/v1\/workbench'/);
+assert.match(roleHome, /行政班不是课程学习的前置条件/);
 assert.match(planetsCss, /\.student-class-join-dialog::backdrop/);
 assert.match(planetsCss, /\.student-class-join-dialog button\s*\{[^}]*min-height:\s*44px/);
 

@@ -1560,21 +1560,11 @@
         }
         return `
             <div class="student-empty-hero">
-                <span class="student-empty-hero__icon"><i data-lucide="users-round"></i></span>
+                <span class="student-empty-hero__icon"><i data-lucide="route"></i></span>
                 <div>
-                    <h2>还没有可用班级</h2>
-                    <p>输入教师提供的班级 ID 直接加入。加入成功后才会加载课程、作业与个人学习数据。</p>
+                    <h2>未关联行政班</h2>
+                    <p>行政班只用于身份、准入与名单展示，不是课程学习的前置条件。你仍可使用上方“我的课程”和“加入授课课程”；如需补充行政班身份，可使用页头的“加入班级”。</p>
                 </div>
-                <form class="student-join-form" data-student-join-form>
-                    <label>
-                        <span>班级 ID</span>
-                        <input name="class_id" type="number" inputmode="numeric" min="1" required autocomplete="off" placeholder="例如 1024">
-                    </label>
-                    <button type="submit" class="student-button student-button--primary"${state.joining || state.uncertainJoinClassId || !state.online ? ' disabled' : ''}>
-                        <i data-lucide="log-in"></i>
-                        <span>${state.joining ? '正在加入' : state.uncertainJoinClassId ? '等待对账' : '加入班级'}</span>
-                    </button>
-                </form>
             </div>
         `;
     }

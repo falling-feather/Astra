@@ -275,8 +275,32 @@
         if (!current(scope)) return;
         state.classes = classes;
         if (!classes.length) {
-            state.phase = 'empty';
-            issue('class_scope_missing', '你尚未加入可用班级；请先输入教师提供的班级代码或 ID。');
+            try {
+                const workbench = await api().request('/api/v1/workbench', { signal: scope.signal });
+                if (!current(scope)) return;
+                if (!workbench || workbench.role !== 'student' || !workbench.primary_action) {
+                    throw new Error('invalid student workbench');
+                }
+                const courses = list(workbench.courses);
+                state.aggregate = workbench;
+                state.task = Object.freeze({
+                    code: courses.length ? 'COURSE ENROLLMENT · READY' : 'COURSE ACCESS · READY',
+                    title: workbench.primary_action.label || (courses.length ? '进入我的授课课程' : '加入一门授课课程'),
+                    detail: courses.length
+                        ? '行政班不是课程学习的前置条件；你可以直接从学生工作台继续已加入的课程。'
+                        : '你暂未关联行政班，仍可进入学生工作台并使用课程码申请公开课程。',
+                    meta: courses.length
+                        ? `${courses.length} 门有效课程 · 行政班未关联`
+                        : '课程准入与行政班身份分别管理',
+                    href: '#student',
+                    action: '进入我的学习'
+                });
+                state.phase = 'ready';
+            } catch (error) {
+                if (!current(scope)) return;
+                state.phase = 'empty';
+                issue('class_scope_missing', '暂未读取到可用班级或课程；你可以输入教师提供的班级代码后重试。');
+            }
             return;
         }
         const remembered = rememberedStudentScope();
@@ -973,7 +997,7 @@
             && state.issue.code === 'class_scope_missing'
         );
         if (!shouldShow) {
-            if (state.joinDialog && state.user && state.user.role !== 'student') removeJoinPrompt();
+            if (state.joinDialog) removeJoinPrompt();
             return;
         }
         let dialog = state.joinDialog;

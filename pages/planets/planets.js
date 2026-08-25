@@ -168,7 +168,7 @@
     function applyStudentCourseDom() {
         const isStudent = catalogueState.role === 'student';
         const ready = catalogueState.phase === 'ready';
-        const hasClass = ready && catalogueState.classIds.size > 0;
+        const hasPersonalAccess = ready;
         const routedPages = [
             'mathematics', 'physics', 'chemistry', 'algorithms', 'biology',
             'cosmos', 'engineering', 'datascience', 'infotech', 'materials', 'humanities'
@@ -188,8 +188,8 @@
         });
         document.querySelectorAll('a[href="#student"], a[href^="#student/"]').forEach((link) => {
             if (!isStudent) return;
-            link.hidden = !hasClass;
-            link.toggleAttribute('inert', !hasClass);
+            link.hidden = !hasPersonalAccess;
+            link.toggleAttribute('inert', !hasPersonalAccess);
         });
         document.querySelectorAll('.module-card[data-module-target], .module-sidebar__item[data-module-target]').forEach((node) => {
             const page = node.closest('.page')?.id.replace(/^page-/, '')
@@ -240,7 +240,26 @@
             signal
         })).filter((item) => positiveId(item && item.id));
         const classIds = classes.map((item) => positiveId(item.id));
-        if (!classes.length) return { records: [], classIds };
+        if (!classes.length) {
+            const courses = list(await client.request('/api/courses', { signal }));
+            const courseResults = await Promise.allSettled(courses.map(async (course) => {
+                const match = catalogueEntryByIdentity(courseIdentity(course));
+                const courseId = positiveId(course && course.id);
+                if (!match || !courseId) return null;
+                const units = list(await client.request(`/api/courses/${courseId}/units`, { signal }));
+                const activityKeys = units
+                    .filter((unit) => unit && unit.effective_release_state === 'open')
+                    .map((unit) => String(unit.activity_key || '').trim())
+                    .filter(Boolean);
+                return activityKeys.length ? { ...match, courseId, activityKeys, classIds: [] } : null;
+            }));
+            return {
+                records: courseResults
+                    .filter((result) => result.status === 'fulfilled' && result.value)
+                    .map((result) => result.value),
+                classIds
+            };
+        }
 
         const classResults = await Promise.allSettled(classes.map(async (classroom) => {
             const classId = positiveId(classroom.id);
@@ -260,7 +279,7 @@
                     .filter((unit) => unit && unit.effective_release_state === 'open')
                     .map((unit) => String(unit.activity_key || '').trim())
                     .filter(Boolean);
-                return activityKeys.length ? { ...match, activityKeys, classIds: [classId] } : null;
+                return activityKeys.length ? { ...match, courseId, activityKeys, classIds: [classId] } : null;
             }));
             return courseResults
                 .filter((result) => result.status === 'fulfilled' && result.value)
@@ -333,12 +352,12 @@
         },
         allowsPersonalPage() {
             if (catalogueState.role !== 'student') return true;
-            return catalogueState.phase === 'ready' && catalogueState.classIds.size > 0;
+            return catalogueState.phase === 'ready';
         },
         guardRoute(route, coursePages, frontierPages) {
             if (catalogueState.role !== 'student') return route;
             const page = String(route && route.page || '');
-            const personalBlocked = page === 'student' && !(catalogueState.phase === 'ready' && catalogueState.classIds.size > 0);
+            const personalBlocked = page === 'student' && catalogueState.phase !== 'ready';
             const courseManaged = page === 'home'
                 || (coursePages || []).includes(page)
                 || (frontierPages || []).includes(page);
@@ -364,6 +383,7 @@
                     subject_key: record.entry.key,
                     galaxy_key: record.group.galaxyKey,
                     course_key: record.entry.key,
+                    course_id: positiveId(record.courseId),
                     page: record.entry.page || '',
                     activity_keys: Object.freeze((record.activityKeys || []).slice()),
                     class_ids: Object.freeze((record.classIds || []).slice())
