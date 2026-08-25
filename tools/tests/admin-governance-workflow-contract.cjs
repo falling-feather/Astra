@@ -877,9 +877,12 @@ const courseOwnerWindow = {
   AbortController,
   AstraApiClient: {
     request: (pathname, options = {}) => {
-      assert.equal(pathname, '/api/courses');
+      assert.ok([
+        '/api/courses',
+        '/api/v1/admin/course-information-revisions',
+      ].includes(pathname));
       courseReadCalls.push({ pathname, baseUrl: options.baseUrl, signal: options.signal });
-      return new Promise((resolve) => courseReadResolvers.push(resolve));
+      return new Promise((resolve) => courseReadResolvers.push({ pathname, resolve }));
     },
     isCancelled: (error) => error && error.name === 'AbortError',
     message: (error) => error.message,
@@ -903,34 +906,48 @@ assert.equal(courseOwner.mount(courseHost, {
   refreshIcons: () => {},
 }), true);
 const oldBaseActivation = courseOwner.activate();
-assert.equal(courseReadCalls.length, 1);
-assert.equal(courseReadCalls[0].baseUrl, 'https://course-old.example');
+assert.equal(courseReadCalls.length, 2);
+assert.deepEqual(courseReadCalls.map((call) => call.pathname), [
+  '/api/courses',
+  '/api/v1/admin/course-information-revisions',
+]);
+courseReadCalls.forEach((call) => assert.equal(call.baseUrl, 'https://course-old.example'));
 assert.equal(courseOwner.invalidateContext(), true);
-assert.equal(courseReadCalls[0].signal.aborted, true, 'Base reset must abort the active old-Base course read');
+courseReadCalls.forEach((call) => {
+  assert.equal(call.signal.aborted, true, 'Base reset must abort every active old-Base course-governance read');
+});
 courseApiBase = 'https://course-new.example';
-courseReadResolvers.shift()([{
+courseReadResolvers.find((item) => item.pathname === '/api/courses').resolve([{
   id: 9,
   school_id: 3,
   status: 'draft',
   title: 'OLD BASE AUTHORITY',
 }]);
+courseReadResolvers.find((item) => item.pathname === '/api/v1/admin/course-information-revisions').resolve({
+  items: [], total: 0, limit: 200, offset: 0, next_offset: null,
+});
+courseReadResolvers.length = 0;
 assert.equal(await oldBaseActivation, false);
 assert.equal(courseOwner.snapshot().loaded, false);
 assert.deepEqual(Array.from(courseOwner.snapshot().courses), [], 'late old-Base authority must write back zero courses');
 assert.doesNotMatch(courseHost.innerHTML, /OLD BASE AUTHORITY/);
 const newBaseActivation = courseOwner.activate();
-assert.equal(courseReadCalls.length, 2, 'first activation on the new Base must issue a new course request');
-assert.equal(courseReadCalls[1].baseUrl, 'https://course-new.example');
-courseReadResolvers.shift()([{
+assert.equal(courseReadCalls.length, 4, 'first activation on the new Base must issue both governance reads');
+courseReadCalls.slice(2).forEach((call) => assert.equal(call.baseUrl, 'https://course-new.example'));
+courseReadResolvers.find((item) => item.pathname === '/api/courses').resolve([{
   id: 9,
   school_id: 8,
   status: 'archived',
   title: 'NEW BASE AUTHORITY',
 }]);
+courseReadResolvers.find((item) => item.pathname === '/api/v1/admin/course-information-revisions').resolve({
+  items: [], total: 0, limit: 200, offset: 0, next_offset: null,
+});
+courseReadResolvers.length = 0;
 assert.equal(await newBaseActivation, true);
 const newBaseCourseSnapshot = jsonClone(courseOwner.snapshot().courses);
 assert.deepEqual(newBaseCourseSnapshot, [{ id: 9, school_id: 8, status: 'archived' }]);
-assert.match(courseHost.innerHTML, /NEW BASE AUTHORITY/);
+assert.match(courseHost.innerHTML, /待审队列已清空/);
 assert.doesNotMatch(courseHost.innerHTML, /OLD BASE AUTHORITY/);
 assert.equal(
   contract.buildMutation(newBaseCourseSnapshot[0], 'draft', '新 Base 重新预览').expected_status,

@@ -7,7 +7,7 @@
     const ROLE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const TEACHER_RESOURCE_VERSION = '20260825v841CourseAuthoringP0';
     const FUTURE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
-    const ADMIN_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
+    const ADMIN_RESOURCE_VERSION = '20260825v842CourseReviewP0';
     const PLANETS_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
 

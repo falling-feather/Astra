@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const ADMIN_ASSET_VERSION = '20260825v840TeacherApplicationP0';
+    const ADMIN_ASSET_VERSION = '20260825v842CourseReviewP0';
     const API_BASE_STORAGE_KEY = 'astra-admin-api-base';
 
     const state = {

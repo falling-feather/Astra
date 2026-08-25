@@ -51,7 +51,7 @@ assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?
 assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260825v841CourseAuthoringP0');
 assert.equal(registry.scriptFor('engineering'), 'pages/engineering/engineering-page.js?v=20260825v834Show04P0');
 assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260825v840TeacherApplicationP0');
-assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260825v840TeacherApplicationP0');
+assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260825v842CourseReviewP0');
 assert.equal(registry.isReady('teacher'), false);
 
 let entered = 0;

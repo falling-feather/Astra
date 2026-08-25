@@ -19,7 +19,7 @@ const registry = context.window.AstraPageRegistry;
 const normalize = (items) => Array.from(items);
 const studentVersion = '20260824v816ExperimentRestoreP2';
 const teacherVersion = '20260825v841CourseAuthoringP0';
-const adminVersion = '20260825v840TeacherApplicationP0';
+const adminVersion = '20260825v842CourseReviewP0';
 const student = [
     `pages/student/student.css?v=${studentVersion}`,
     `pages/student/student-workbench.js?v=${studentVersion}`

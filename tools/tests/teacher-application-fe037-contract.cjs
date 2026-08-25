@@ -57,9 +57,11 @@ assert.match(guard, /has_pending_teacher_application/);
 assert.match(guard, /request\.method in \{"GET", "HEAD", "OPTIONS"\}/);
 
 const generation = '20260825v840TeacherApplicationP0';
-for (const source of [html, registry, main, serviceWorker, admin]) {
+for (const source of [html, registry, main, serviceWorker]) {
   assert.match(source, new RegExp(generation), 'FE-037 assets must expose the same cache generation');
 }
+assert.match(admin, /ADMIN_ASSET_VERSION = '20260825v842CourseReviewP0'/);
+assert.match(registry, /ADMIN_RESOURCE_VERSION = '20260825v842CourseReviewP0'/);
 assert.match(html, new RegExp(`auth-ui\\.css\\?v=${generation}`));
 assert.match(html, new RegExp(`app-session\\.js\\?v=${generation}`));
 assert.match(html, new RegExp(`planets\\.js\\?v=${generation}`));

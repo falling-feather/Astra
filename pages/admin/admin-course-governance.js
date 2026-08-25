@@ -13,6 +13,20 @@
         published: '已发布',
         archived: '已归档'
     });
+    const REVIEW_FIELD_DEFINITIONS = Object.freeze([
+        Object.freeze({ key: 'title', label: '课程名称' }),
+        Object.freeze({ key: 'summary', label: '课程简介', multiline: true }),
+        Object.freeze({ key: 'academic_year', label: '学年' }),
+        Object.freeze({ key: 'schedule_text', label: '上课时间' }),
+        Object.freeze({ key: 'total_hours', label: '总课时', suffix: ' 课时' }),
+        Object.freeze({ key: 'galaxy_key', label: '所属星系' }),
+        Object.freeze({ key: 'subject_key', label: '所属学科' }),
+        Object.freeze({ key: 'admission_mode', label: '准入方式' })
+    ]);
+    const ADMISSION_LABELS = Object.freeze({
+        open: '公开申请',
+        class_restricted: '限定行政班'
+    });
     const state = {
         host: null,
         context: null,
@@ -20,6 +34,14 @@
         mounted: false,
         loaded: false,
         loading: false,
+        activeView: 'reviews',
+        reviews: [],
+        reviewTotal: 0,
+        reviewSelectedId: 0,
+        reviewNote: '',
+        reviewPending: null,
+        reviewConfirmationExecutor: null,
+        reviewMessage: null,
         courses: [],
         query: '',
         status: '',
@@ -90,6 +112,125 @@
     function pageItems(payload) {
         if (Array.isArray(payload)) return payload;
         return payload && Array.isArray(payload.items) ? payload.items : [];
+    }
+
+    function reviewRecordMatches(item) {
+        return Boolean(
+            item
+            && item.revision
+            && Number.isInteger(Number(item.revision.id))
+            && Number(item.revision.id) > 0
+            && Number.isInteger(Number(item.course_id))
+            && Number(item.course_id) > 0
+            && Number.isInteger(Number(item.school_id))
+            && Number(item.school_id) > 0
+            && item.proposed_information
+            && typeof item.proposed_information === 'object'
+            && !Array.isArray(item.proposed_information)
+            && Array.isArray(item.changed_fields)
+            && Array.isArray(item.proposed_teachers)
+            && Array.isArray(item.current_teachers)
+            && Array.isArray(item.proposed_admission_classes)
+            && Array.isArray(item.current_admission_classes)
+        );
+    }
+
+    function reviewPageMatches(payload) {
+        return Boolean(
+            payload
+            && Array.isArray(payload.items)
+            && payload.items.every(reviewRecordMatches)
+            && typeof payload.total === 'number'
+            && Number.isInteger(payload.total)
+            && payload.total >= payload.items.length
+        );
+    }
+
+    function normalizeReviewNote(value) {
+        const note = String(value == null ? '' : value).trim();
+        if (note.length > 500) throw new Error('审核说明不能超过 500 个字符');
+        return note || null;
+    }
+
+    function buildReviewMutation(review, decision, noteValue) {
+        if (!reviewRecordMatches(review)) throw new Error('课程审核权威记录不可用');
+        if (String(review.revision.status || '') !== 'submitted') {
+            throw new Error('只有待审核记录可以作出决定');
+        }
+        const status = String(decision || '');
+        if (!['approved', 'rejected'].includes(status)) throw new Error('审核决定无效');
+        return Object.freeze({ status, note: normalizeReviewNote(noteValue) });
+    }
+
+    function reviewConfirmationDecision(pending, review, payload) {
+        const revisionId = Number(review && review.revision && review.revision.id);
+        const signature = JSON.stringify([
+            revisionId,
+            payload && payload.status,
+            payload && payload.note
+        ]);
+        if (!pending || pending.signature !== signature) {
+            return {
+                send: false,
+                pending: { signature, revisionId, payload }
+            };
+        }
+        return { send: true, pending: null };
+    }
+
+    function reviewResponseMatches(result, originalReview, decision) {
+        if (!reviewRecordMatches(result) || !reviewRecordMatches(originalReview)) return false;
+        if (Number(result.revision.id) !== Number(originalReview.revision.id)) return false;
+        if (Number(result.course_id) !== Number(originalReview.course_id)) return false;
+        if (Number(result.school_id) !== Number(originalReview.school_id)) return false;
+        if (String(result.revision.status || '') !== String(decision || '')) return false;
+        if (decision === 'approved') {
+            return Boolean(
+                Number(result.current_information_revision_id) === Number(result.revision.id)
+                && String(result.course_code || '').trim()
+                && Number(result.internal_class_id) > 0
+                && Number(result.internal_course_class_id) > 0
+            );
+        }
+        return true;
+    }
+
+    function createConfirmedReviewExecutor(execute, onChange, canSubmit) {
+        let pending = null;
+        let inFlight = null;
+        const snapshot = () => Object.freeze({ pending, busy: Boolean(inFlight) });
+        const emit = () => {
+            if (typeof onChange === 'function') onChange(snapshot());
+        };
+        return Object.freeze({
+            submit: async (review, payload) => {
+                if (inFlight) return { kind: 'busy', sent: false, pending };
+                if (typeof canSubmit === 'function' && !canSubmit()) {
+                    return { kind: 'blocked', sent: false, pending };
+                }
+                const confirmation = reviewConfirmationDecision(pending, review, payload);
+                pending = confirmation.pending;
+                if (!confirmation.send) {
+                    emit();
+                    return { kind: 'confirmation', sent: false, pending };
+                }
+                pending = null;
+                const promise = Promise.resolve().then(() => execute(review, payload));
+                inFlight = promise;
+                emit();
+                try {
+                    return { kind: 'sent', sent: true, pending: null, value: await promise };
+                } finally {
+                    if (inFlight === promise) inFlight = null;
+                    emit();
+                }
+            },
+            invalidate: () => {
+                pending = null;
+                emit();
+            },
+            snapshot
+        });
     }
 
     function parseAuditSnapshot(value) {
@@ -566,6 +707,184 @@
         });
     }
 
+    function selectedReview() {
+        return state.reviews.find((item) => (
+            Number(item.revision && item.revision.id) === Number(state.reviewSelectedId)
+        )) || null;
+    }
+
+    function formatReviewDate(value) {
+        const date = new Date(value || '');
+        return Number.isNaN(date.getTime()) ? '--' : date.toLocaleString('zh-CN');
+    }
+
+    function reviewValue(key, value) {
+        if (key === 'admission_mode') return ADMISSION_LABELS[String(value || '')] || String(value || '未设置');
+        if (value === null || value === undefined || value === '') return '未填写';
+        const definition = REVIEW_FIELD_DEFINITIONS.find((item) => item.key === key);
+        return `${String(value)}${definition && definition.suffix ? definition.suffix : ''}`;
+    }
+
+    function renderReviewQueue() {
+        if (state.loading) {
+            return '<div class="admin-loading" role="status"><i data-lucide="loader-circle"></i><span>正在读取课程信息审核队列</span></div>';
+        }
+        if (!state.reviews.length) {
+            return '<div class="admin-empty"><i data-lucide="badge-check"></i><strong>待审队列已清空</strong><span>当前没有教师提交的课程信息修改。</span></div>';
+        }
+        return `<div class="admin-course-list admin-course-review-list" role="list" aria-label="课程信息审核队列">
+            ${state.reviews.map((review) => {
+                const revisionId = Number(review.revision.id);
+                const selected = revisionId === Number(state.reviewSelectedId);
+                const title = review.proposed_information.title || `课程 #${review.course_id}`;
+                const firstApproval = review.current_information == null;
+                return `
+                    <button type="button" role="listitem" class="admin-course-row admin-course-review-row${selected ? ' is-selected' : ''}" data-admin-course-review-select="${revisionId}" aria-pressed="${selected ? 'true' : 'false'}"${mutationBusy() ? ' disabled' : ''}>
+                        <span>
+                            <strong>${escapeHtml(title)}</strong>
+                            <small>课程 #${Number(review.course_id)} · 版本 ${Number(review.revision.revision_number)} · 学校 #${Number(review.school_id)}</small>
+                        </span>
+                        <span class="admin-status-pill admin-status-pill--${firstApproval ? 'warn' : 'neutral'}">${firstApproval ? '首次审核' : `${review.changed_fields.length} 项变化`}</span>
+                        <i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </button>
+                `;
+            }).join('')}
+        </div>`;
+    }
+
+    function renderTeacherSet(items, emptyText) {
+        if (!Array.isArray(items) || !items.length) return `<span class="admin-course-review-empty-value">${escapeHtml(emptyText)}</span>`;
+        return `<div class="admin-course-review-chips">${items.map((teacher) => `
+            <span><i data-lucide="${teacher.is_creator ? 'crown' : 'user-round'}"></i>${escapeHtml(teacher.display_name || teacher.username || `用户 #${teacher.user_id}`)}${teacher.is_creator ? '<b>创建者</b>' : ''}</span>
+        `).join('')}</div>`;
+    }
+
+    function renderAdmissionSet(items, emptyText) {
+        if (!Array.isArray(items) || !items.length) return `<span class="admin-course-review-empty-value">${escapeHtml(emptyText)}</span>`;
+        return `<div class="admin-course-review-chips">${items.map((item) => `
+            <span><i data-lucide="school"></i>${escapeHtml(item.name || `行政班 #${item.class_id}`)}</span>
+        `).join('')}</div>`;
+    }
+
+    function renderReviewChangeRows(review) {
+        const changed = new Set(review.changed_fields || []);
+        return REVIEW_FIELD_DEFINITIONS.map((definition) => {
+            const current = review.current_information
+                ? review.current_information[definition.key]
+                : null;
+            const proposed = review.proposed_information[definition.key];
+            const isChanged = changed.has(definition.key);
+            return `
+                <article class="admin-course-review-field${isChanged ? ' is-changed' : ''}" data-review-field="${escapeHtml(definition.key)}">
+                    <header><strong>${escapeHtml(definition.label)}</strong><span>${isChanged ? '已修改' : '未变化'}</span></header>
+                    <div>
+                        <p><small>当前</small><span>${escapeHtml(reviewValue(definition.key, current))}</span></p>
+                        <i data-lucide="arrow-right" aria-hidden="true"></i>
+                        <p><small>拟采用</small><span>${escapeHtml(reviewValue(definition.key, proposed))}</span></p>
+                    </div>
+                </article>
+            `;
+        }).join('');
+    }
+
+    function renderReviewMessage() {
+        const message = state.reviewMessage;
+        if (!message) return '';
+        const response = message.response;
+        return `
+            <section class="admin-course-result admin-course-result--${escapeHtml(message.type || 'info')} admin-course-review-result" data-admin-course-review-result tabindex="-1">
+                <h3>${escapeHtml(message.title || '课程信息审核结果')}</h3>
+                <p>${escapeHtml(message.text || '')}</p>
+                ${response && message.decision === 'approved' ? `
+                    <dl>
+                        <div><dt>课程码</dt><dd><code>${escapeHtml(response.course_code || '--')}</code></dd></div>
+                        <div><dt>内部课程群组</dt><dd>#${Number(response.internal_class_id || 0)}</dd></div>
+                        <div><dt>课程内容</dt><dd>${escapeHtml(response.content_status_label || '暂无已发布内容')}</dd></div>
+                    </dl>
+                ` : ''}
+            </section>
+        `;
+    }
+
+    function renderReviewInspectorContent(review, options) {
+        const dialogHeader = options && options.dialog ? `
+            <header class="admin-course-inspector__dialog-header">
+                <span>课程信息审核</span>
+                <button type="button" class="admin-icon-button admin-icon-button--compact" data-admin-course-close aria-label="关闭课程信息审核">
+                    <i data-lucide="x"></i>
+                </button>
+            </header>
+        ` : '';
+        if (!review) {
+            return `${dialogHeader}${renderReviewMessage() || `
+                <div class="admin-course-inspector__empty">
+                    <i data-lucide="mouse-pointer-click"></i>
+                    <strong>选择一条待审记录</strong>
+                    <p>对照教师提交的信息、共同教师和准入班级后再作出决定。</p>
+                </div>
+            `}`;
+        }
+        const changed = new Set(review.changed_fields || []);
+        const pending = state.reviewPending && Number(state.reviewPending.revisionId) === Number(review.revision.id)
+            ? state.reviewPending
+            : null;
+        return `
+            ${dialogHeader}
+            <div class="admin-course-inspector__heading" tabindex="-1" data-admin-course-title>
+                <span>COURSE #${Number(review.course_id)} · REVISION ${Number(review.revision.revision_number)}</span>
+                <h3>${escapeHtml(review.proposed_information.title || `课程 #${review.course_id}`)}</h3>
+                <p>学校 #${Number(review.school_id)} · 提交于 ${escapeHtml(formatReviewDate(review.revision.submitted_at))}</p>
+            </div>
+            <dl class="admin-course-authority admin-course-review-authority">
+                <div><dt>审核类型</dt><dd>${review.current_information ? '运行中课程修改' : '首次课程审核'}</dd></div>
+                <div><dt>课程状态</dt><dd>${escapeHtml(statusLabel(review.course_status))}</dd></div>
+                <div><dt>变化字段</dt><dd>${Number(review.changed_fields.length)} 项</dd></div>
+                <div><dt>课程内容</dt><dd>${escapeHtml(review.content_status_label || '暂无已发布内容')}</dd></div>
+            </dl>
+            ${review.current_information ? '' : '<p class="admin-course-review-first"><i data-lucide="sparkles"></i>这是首次审核，当前尚无已批准课程信息。</p>'}
+            <section class="admin-course-review-diff" aria-label="当前信息与拟修改信息对照">
+                <header><h4>信息差异</h4><p>高亮项代表本次教师提交发生变化。</p></header>
+                ${renderReviewChangeRows(review)}
+            </section>
+            <section class="admin-course-review-members${changed.has('teacher_ids') ? ' is-changed' : ''}">
+                <header><h4>共同教师</h4><span>${changed.has('teacher_ids') ? '名单已修改' : '名单未变化'}</span></header>
+                <div><small>当前</small>${renderTeacherSet(review.current_teachers, '尚无已批准教师名单')}</div>
+                <div><small>拟采用</small>${renderTeacherSet(review.proposed_teachers, '未选择共同教师')}</div>
+            </section>
+            <section class="admin-course-review-members${changed.has('admission_class_ids') ? ' is-changed' : ''}">
+                <header><h4>准入行政班</h4><span>${changed.has('admission_class_ids') ? '范围已修改' : '范围未变化'}</span></header>
+                <div><small>当前</small>${renderAdmissionSet(review.current_admission_classes, review.current_information ? '公开课程，不限定行政班' : '尚无已批准准入范围')}</div>
+                <div><small>拟采用</small>${renderAdmissionSet(review.proposed_admission_classes, '公开课程，不限定行政班')}</div>
+            </section>
+            <form class="admin-course-review-form" data-admin-course-review-form>
+                <label>
+                    <span>审核说明 <b>可选，最多 500 字</b></span>
+                    <textarea rows="3" maxlength="500" data-admin-course-review-note${mutationBusy() ? ' disabled' : ''}>${escapeHtml(state.reviewNote)}</textarea>
+                </label>
+                ${pending ? `
+                    <section class="admin-course-preview" data-admin-course-review-preview>
+                        <h4><i data-lucide="shield-alert"></i>${pending.payload.status === 'approved' ? '确认批准课程信息' : '确认驳回课程信息'}</h4>
+                        <p>${pending.payload.status === 'approved'
+                            ? '批准后将生成课程码和内部课程群组；不会提前生成空内容版本。'
+                            : review.current_information
+                                ? '驳回后原有课程信息继续运行，不受本次修改影响。'
+                                : '驳回后课程继续保持草稿状态，教师可以修改后重新提交。'}</p>
+                        <small>再次点击同一决定才会发送 PATCH；修改说明会使本次确认失效。</small>
+                    </section>
+                ` : ''}
+                <div class="admin-course-review-actions">
+                    <button type="submit" class="admin-icon-button${pending && pending.payload.status === 'approved' ? ' admin-icon-button--confirming' : ''}" data-admin-course-review-decision="approved"${mutationBusy() ? ' disabled' : ''}>
+                        <i data-lucide="badge-check"></i><span>${pending && pending.payload.status === 'approved' ? '再次确认批准' : '批准'}</span>
+                    </button>
+                    <button type="submit" class="admin-icon-button admin-icon-button--danger${pending && pending.payload.status === 'rejected' ? ' admin-icon-button--confirming' : ''}" data-admin-course-review-decision="rejected"${mutationBusy() ? ' disabled' : ''}>
+                        <i data-lucide="badge-x"></i><span>${pending && pending.payload.status === 'rejected' ? '再次确认驳回' : '驳回'}</span>
+                    </button>
+                </div>
+            </form>
+            ${renderReviewMessage()}
+        `;
+    }
+
     function renderStatusSummary() {
         const counts = { draft: 0, published: 0, archived: 0 };
         state.courses.forEach((course) => {
@@ -741,40 +1060,76 @@
 
     function render() {
         if (!state.host) return;
-        const selected = selectedCourse();
+        const reviewMode = state.activeView === 'reviews';
+        const selected = reviewMode ? selectedReview() : selectedCourse();
         const compactDialogWasOpen = Boolean(
             state.host.querySelector('[data-admin-course-dialog][open]')
         );
+        const firstApprovalCount = state.reviews.filter((item) => item.current_information == null).length;
+        const runningChangeCount = state.reviews.length - firstApprovalCount;
         state.host.innerHTML = `
             <section class="admin-course-workbench" data-admin-course-workbench>
                 <header class="admin-panel__header admin-course-header">
                     <div>
-                        <h2><i data-lucide="book-open-check"></i>课程状态治理</h2>
-                        <p>固定转换矩阵、单次 CAS 与 Request ID 对账；不提供通用课程修改或删除。</p>
+                        <h2><i data-lucide="book-open-check"></i>课程治理</h2>
+                        <p>${reviewMode
+                            ? '核对课程信息、共同教师与准入班级；课程信息审核不等同于课程内容审核。'
+                            : '固定转换矩阵、单次 CAS 与 Request ID 对账；不提供通用课程修改或删除。'}</p>
                     </div>
                     <button type="button" class="admin-icon-button admin-icon-button--compact" data-admin-course-refresh aria-label="刷新课程列表"${mutationBusy() ? ' disabled' : ''}>
                         <i data-lucide="refresh-cw"></i>
                     </button>
                 </header>
-                <div class="admin-course-status-summary" aria-label="课程状态统计">${renderStatusSummary()}</div>
-                <div class="admin-course-grid">
-                    <section class="admin-course-browser">
-                        <form class="admin-course-filters" data-admin-course-filters>
-                            <label><span>搜索</span><input type="search" name="q" value="${escapeHtml(state.query)}" placeholder="标题、Course Key、ID" autocomplete="off"></label>
-                            <label><span>状态</span><select name="status">
-                                <option value="">全部状态</option>
-                                ${Object.keys(TRANSITIONS).map((status) => `<option value="${status}"${state.status === status ? ' selected' : ''}>${escapeHtml(statusLabel(status))}</option>`).join('')}
-                            </select></label>
-                        </form>
-                        ${renderCourseList()}
-                    </section>
-                    <aside class="admin-course-inspector" data-admin-course-inspector aria-label="课程治理检查器">
-                        ${renderInspectorContent(selected)}
-                    </aside>
+                <div class="admin-course-view-tabs" role="tablist" aria-label="课程治理视图">
+                    <button type="button" role="tab" data-admin-course-view="reviews" aria-selected="${reviewMode ? 'true' : 'false'}"${courseWriteBlocked() ? ' disabled' : ''}>
+                        <i data-lucide="clipboard-check"></i><span>信息审核</span><b>${Number(state.reviewTotal).toLocaleString('zh-CN')}</b>
+                    </button>
+                    <button type="button" role="tab" data-admin-course-view="status" aria-selected="${reviewMode ? 'false' : 'true'}"${courseWriteBlocked() ? ' disabled' : ''}>
+                        <i data-lucide="sliders-horizontal"></i><span>状态治理</span>
+                    </button>
                 </div>
-                <dialog class="admin-course-dialog" data-admin-course-dialog aria-label="课程治理检查器">
-                    ${renderInspectorContent(selected, { dialog: true })}
-                </dialog>
+                ${reviewMode ? `
+                    <div class="admin-course-status-summary" aria-label="课程信息审核统计">
+                        <article><span>待审核总数</span><strong>${Number(state.reviewTotal).toLocaleString('zh-CN')}</strong></article>
+                        <article><span>本批首次审核</span><strong>${Number(firstApprovalCount).toLocaleString('zh-CN')}</strong></article>
+                        <article><span>本批运行中修改</span><strong>${Number(runningChangeCount).toLocaleString('zh-CN')}</strong></article>
+                    </div>
+                    <div class="admin-course-grid admin-course-review-grid">
+                        <section class="admin-course-browser">
+                            <header class="admin-course-review-browser-heading">
+                                <div><h3>待审课程信息</h3><p>按最新提交顺序显示，批准与驳回均需要二次确认。</p></div>
+                            </header>
+                            ${renderReviewMessage()}
+                            ${renderReviewQueue()}
+                        </section>
+                        <aside class="admin-course-inspector" data-admin-course-inspector aria-label="课程信息审核检查器">
+                            ${renderReviewInspectorContent(selected)}
+                        </aside>
+                    </div>
+                    <dialog class="admin-course-dialog" data-admin-course-dialog aria-label="课程信息审核检查器">
+                        ${renderReviewInspectorContent(selected, { dialog: true })}
+                    </dialog>
+                ` : `
+                    <div class="admin-course-status-summary" aria-label="课程状态统计">${renderStatusSummary()}</div>
+                    <div class="admin-course-grid">
+                        <section class="admin-course-browser">
+                            <form class="admin-course-filters" data-admin-course-filters>
+                                <label><span>搜索</span><input type="search" name="q" value="${escapeHtml(state.query)}" placeholder="标题、Course Key、ID" autocomplete="off"></label>
+                                <label><span>状态</span><select name="status">
+                                    <option value="">全部状态</option>
+                                    ${Object.keys(TRANSITIONS).map((status) => `<option value="${status}"${state.status === status ? ' selected' : ''}>${escapeHtml(statusLabel(status))}</option>`).join('')}
+                                </select></label>
+                            </form>
+                            ${renderCourseList()}
+                        </section>
+                        <aside class="admin-course-inspector" data-admin-course-inspector aria-label="课程治理检查器">
+                            ${renderInspectorContent(selected)}
+                        </aside>
+                    </div>
+                    <dialog class="admin-course-dialog" data-admin-course-dialog aria-label="课程治理检查器">
+                        ${renderInspectorContent(selected, { dialog: true })}
+                    </dialog>
+                `}
             </section>
         `;
         if (compactDialogWasOpen && selected && isCompact()) openCompactDialog(false);
@@ -786,15 +1141,20 @@
     }
 
     function focusSelectedTrigger() {
-        if (!state.host || !state.triggerId) return;
-        const trigger = state.host.querySelector(`[data-admin-course-select="${state.triggerId}"]`);
+        const triggerId = state.activeView === 'reviews' ? state.reviewSelectedId : state.triggerId;
+        if (!state.host || !triggerId) return;
+        const attribute = state.activeView === 'reviews'
+            ? 'data-admin-course-review-select'
+            : 'data-admin-course-select';
+        const trigger = state.host.querySelector(`[${attribute}="${triggerId}"]`);
         if (trigger) schedule(() => {
             try { trigger.focus({ preventScroll: true }); } catch (error) { trigger.focus(); }
         });
     }
 
     function openCompactDialog(focusTitle) {
-        if (!state.host || !selectedCourse()) return;
+        const selection = state.activeView === 'reviews' ? selectedReview() : selectedCourse();
+        if (!state.host || !selection) return;
         const dialog = state.host.querySelector('[data-admin-course-dialog]');
         if (!dialog || dialog.open) return;
         if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -825,6 +1185,24 @@
         return true;
     }
 
+    function clearReviewPending() {
+        state.reviewPending = null;
+        if (state.reviewConfirmationExecutor) state.reviewConfirmationExecutor.invalidate();
+    }
+
+    function selectReview(revisionId) {
+        if (courseWriteBlocked()) return false;
+        const review = state.reviews.find((item) => Number(item.revision.id) === Number(revisionId));
+        if (!review) return false;
+        state.reviewSelectedId = Number(review.revision.id);
+        state.reviewNote = '';
+        state.reviewMessage = null;
+        clearReviewPending();
+        render();
+        if (isCompact()) openCompactDialog();
+        return true;
+    }
+
     function clearPending() {
         state.pending = null;
         invalidateConfirmationContext(state.confirmationExecutor);
@@ -836,6 +1214,122 @@
         if (state.editor) {
             state.editor.message = message || '输入已变化，上一次确认已失效；请重新预览。';
             state.editor.messageType = 'warning';
+        }
+    }
+
+    async function submitReview(event) {
+        event.preventDefault();
+        const review = selectedReview();
+        const submitter = event.submitter;
+        const decision = submitter && submitter.dataset.adminCourseReviewDecision;
+        if (!review || !decision || courseWriteBlocked()) return;
+        let payload;
+        try {
+            payload = buildReviewMutation(review, decision, state.reviewNote);
+        } catch (error) {
+            state.reviewMessage = {
+                type: 'error',
+                title: '无法提交审核决定',
+                text: error.message
+            };
+            render();
+            if (isCompact()) openCompactDialog(false);
+            return;
+        }
+        if (!state.reviewConfirmationExecutor) return;
+        const outcome = await state.reviewConfirmationExecutor.submit(review, payload);
+        if (outcome.kind === 'confirmation' && state.mounted) {
+            state.reviewMessage = null;
+            render();
+            if (isCompact()) openCompactDialog(false);
+        }
+    }
+
+    async function commitReview(review, payload) {
+        const requestId = createRequestId().replace('admin-course-', 'admin-course-review-');
+        const operation = state.controllers && state.controllers.beginMutation({
+            revisionId: Number(review.revision.id),
+            courseId: Number(review.course_id),
+            review,
+            payload,
+            requestId,
+            sent: false
+        });
+        if (!operation) return false;
+        notifyWriteStateChange();
+        state.reviewMessage = {
+            type: 'info',
+            title: '正在提交审核决定',
+            text: '本次只审核课程信息，不审核课程知识内容。'
+        };
+        render();
+        if (isCompact()) openCompactDialog(false);
+        try {
+            operation.sent = true;
+            const response = await apiRequest(`/api/v1/admin/course-information-revisions/${Number(review.revision.id)}`, {
+                method: 'PATCH',
+                headers: { 'X-Request-ID': requestId },
+                body: payload,
+                signal: operation.signal
+            });
+            if (!isCurrent('mutation', operation)) return false;
+            if (!reviewResponseMatches(response, review, payload.status)) {
+                state.reviewMessage = {
+                    type: 'warning',
+                    title: '审核回执无法确认',
+                    text: '服务器返回了响应，但课程、审核版本或审批结果与本次操作不一致。页面不会自动重发，请刷新队列核对权威状态。'
+                };
+                return false;
+            }
+            state.reviews = state.reviews.filter((item) => Number(item.revision.id) !== Number(review.revision.id));
+            state.reviewTotal = Math.max(0, Number(state.reviewTotal) - 1);
+            state.reviewSelectedId = state.reviews.length ? Number(state.reviews[0].revision.id) : 0;
+            state.reviewNote = '';
+            state.reviewMessage = {
+                type: 'success',
+                title: payload.status === 'approved' ? '课程信息已批准' : '课程信息已驳回',
+                text: payload.status === 'approved'
+                    ? `课程 #${Number(review.course_id)} 已建立正式课程身份；首个内容版本仍需教师在课程编辑器中明确发布。`
+                    : review.current_information
+                        ? '本次修改已驳回，原有课程信息继续运行。'
+                        : '本次申请已驳回，课程保持草稿状态，教师可以修改后再次提交。',
+                decision: payload.status,
+                response
+            };
+            clearReviewPending();
+            notify('success', payload.status === 'approved'
+                ? `课程 #${Number(review.course_id)} 信息已批准。`
+                : `课程 #${Number(review.course_id)} 信息已驳回。`);
+            if (state.context && typeof state.context.onMutation === 'function') {
+                await state.context.onMutation({
+                    courseInformationRevision: response,
+                    requestId
+                });
+            }
+            return true;
+        } catch (error) {
+            if (!isCurrent('mutation', operation)) return false;
+            if (!global.AstraApiClient.isCancelled(error)) {
+                state.reviewMessage = {
+                    type: error && error.status === 409 ? 'warning' : 'error',
+                    title: error && error.status === 409 ? '审核记录已经变化' : '课程信息审核未完成',
+                    text: `${global.AstraApiClient.message(error)}${operation.sent ? '；系统不会自动重发，请刷新后核对。' : ''}`
+                };
+            } else if (operation.sent) {
+                state.reviewMessage = {
+                    type: 'warning',
+                    title: '离页时审核结果未知',
+                    text: 'PATCH 已发出但页面已离开；重新进入后请刷新队列核对，系统不会自动重发。'
+                };
+            }
+            return false;
+        } finally {
+            if (state.controllers) state.controllers.finish('mutation', operation);
+            notifyWriteStateChange();
+            if (state.mounted) {
+                render();
+                if (isCompact() && selectedReview()) openCompactDialog(false);
+            }
         }
     }
 
@@ -1129,15 +1623,24 @@
             render();
             return true;
         }
-        const operation = state.controllers && state.controllers.beginRead({ purpose: 'courses' });
+        const operation = state.controllers && state.controllers.beginRead({ purpose: 'course-governance' });
         if (!operation) return false;
         state.loading = true;
         render();
         try {
-            const payload = await apiRequest('/api/courses', { signal: operation.signal });
+            const [payload, reviewPayload] = await Promise.all([
+                apiRequest('/api/courses', { signal: operation.signal }),
+                apiRequest('/api/v1/admin/course-information-revisions', {
+                    params: { status: 'submitted', limit: 200, offset: 0 },
+                    signal: operation.signal
+                })
+            ]);
             if (!isCurrent('read', operation)) return false;
             if (!Array.isArray(payload)) throw new Error('课程列表响应不是数组');
+            if (!reviewPageMatches(reviewPayload)) throw new Error('课程信息审核队列响应不完整');
             state.courses = payload.slice();
+            state.reviews = reviewPayload.items.slice();
+            state.reviewTotal = Number(reviewPayload.total);
             state.loaded = true;
             const lockedId = Array.from(state.locks.keys())
                 .find((courseId) => state.courses.some((course) => Number(course.id) === Number(courseId)));
@@ -1149,6 +1652,12 @@
                 state.editor = selection.editor;
                 clearPending();
             }
+            if (!state.reviews.some((item) => Number(item.revision.id) === Number(state.reviewSelectedId))) {
+                state.reviewSelectedId = state.reviews.length ? Number(state.reviews[0].revision.id) : 0;
+                state.reviewNote = '';
+                clearReviewPending();
+            }
+            if (options && options.force) state.reviewMessage = null;
             state.loading = false;
             render();
             const locks = Array.from(state.locks.values());
@@ -1176,6 +1685,22 @@
     }
 
     function onClick(event) {
+        const view = event.target.closest('[data-admin-course-view]');
+        if (view) {
+            const targetView = String(view.dataset.adminCourseView || '');
+            if (!['reviews', 'status'].includes(targetView) || courseWriteBlocked()) return;
+            closeCompactDialog();
+            clearPending();
+            clearReviewPending();
+            state.activeView = targetView;
+            render();
+            return;
+        }
+        const reviewSelect = event.target.closest('[data-admin-course-review-select]');
+        if (reviewSelect) {
+            selectReview(reviewSelect.dataset.adminCourseReviewSelect);
+            return;
+        }
         const select = event.target.closest('[data-admin-course-select]');
         if (select) {
             selectCourse(select.dataset.adminCourseSelect);
@@ -1200,6 +1725,23 @@
     }
 
     function onInput(event) {
+        if (event.target.matches('[data-admin-course-review-note]')) {
+            state.reviewNote = event.target.value;
+            clearReviewPending();
+            const form = event.target.closest('[data-admin-course-review-form]');
+            if (form) {
+                const preview = form.querySelector('[data-admin-course-review-preview]');
+                if (preview) preview.remove();
+                form.querySelectorAll('[data-admin-course-review-decision]').forEach((button) => {
+                    button.classList.remove('admin-icon-button--confirming');
+                    const label = button.querySelector('span');
+                    if (label) label.textContent = button.dataset.adminCourseReviewDecision === 'approved'
+                        ? '批准'
+                        : '驳回';
+                });
+            }
+            return;
+        }
         if (event.target.matches('[data-admin-course-reason]') && state.editor) {
             state.editor.reason = event.target.value;
             invalidatePending();
@@ -1225,7 +1767,8 @@
     }
 
     function onSubmit(event) {
-        if (event.target.matches('[data-admin-course-form]')) submitCourse(event);
+        if (event.target.matches('[data-admin-course-review-form]')) submitReview(event);
+        else if (event.target.matches('[data-admin-course-form]')) submitCourse(event);
         else if (event.target.matches('[data-admin-course-filters]')) event.preventDefault();
     }
 
@@ -1241,7 +1784,13 @@
         if (mutationBusy() || state.locks.size) return false;
         if (state.controllers) state.controllers.invalidate('read');
         clearPending();
+        clearReviewPending();
         resetCourseContext(state);
+        state.reviews = [];
+        state.reviewTotal = 0;
+        state.reviewSelectedId = 0;
+        state.reviewNote = '';
+        state.reviewMessage = null;
         if (state.mounted) render();
         return true;
     }
@@ -1254,6 +1803,9 @@
         state.controllers = createControllerOwnership(global.AbortController);
         state.confirmationExecutor = createConfirmedMutationExecutor(commitCourse, (snapshot) => {
             state.pending = snapshot.pending;
+        }, () => !courseWriteBlocked());
+        state.reviewConfirmationExecutor = createConfirmedReviewExecutor(commitReview, (snapshot) => {
+            state.reviewPending = snapshot.pending;
         }, () => !courseWriteBlocked());
         state.mounted = true;
         state.loaded = false;
@@ -1297,6 +1849,8 @@
         state.controllers = null;
         if (state.confirmationExecutor) state.confirmationExecutor.invalidate();
         state.confirmationExecutor = null;
+        if (state.reviewConfirmationExecutor) state.reviewConfirmationExecutor.invalidate();
+        state.reviewConfirmationExecutor = null;
         cancelScheduled();
         if (state.host) {
             if (state.clickHandler) state.host.removeEventListener('click', state.clickHandler);
@@ -1311,6 +1865,13 @@
         state.context = null;
         state.loaded = false;
         state.loading = false;
+        state.activeView = 'reviews';
+        state.reviews = [];
+        state.reviewTotal = 0;
+        state.reviewSelectedId = 0;
+        state.reviewNote = '';
+        state.reviewPending = null;
+        state.reviewMessage = null;
         state.courses = [];
         state.selectedId = 0;
         state.editor = null;
@@ -1331,6 +1892,13 @@
         contract: Object.freeze({
             allowedTransitions,
             buildMutation,
+            reviewRecordMatches,
+            reviewPageMatches,
+            normalizeReviewNote,
+            buildReviewMutation,
+            reviewConfirmationDecision,
+            reviewResponseMatches,
+            createConfirmedReviewExecutor,
             selectionFromAuthority,
             storeCourseResult,
             resetCourseContext,
@@ -1361,6 +1929,10 @@
         snapshot: () => Object.freeze({
             mounted: state.mounted,
             loaded: state.loaded,
+            activeView: state.activeView,
+            reviewTotal: Number(state.reviewTotal),
+            reviewSelectedId: Number(state.reviewSelectedId || 0),
+            reviewPending: Boolean(state.reviewPending),
             selectedId: state.selectedId,
             courses: Object.freeze(state.courses.map((course) => Object.freeze({
                 id: Number(course.id),
