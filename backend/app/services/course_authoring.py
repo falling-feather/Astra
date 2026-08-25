@@ -245,6 +245,111 @@ def get_visible_course_draft(db: Session, *, actor: User, course_id: int) -> dic
     return build_course_draft_read(db, course, revision=revision)
 
 
+def create_information_revision(
+    db: Session,
+    *,
+    actor: User,
+    course_id: int,
+    payload: CourseDraftCreate,
+    request: Request | None = None,
+) -> dict:
+    course = db.scalar(
+        select(Course)
+        .where(Course.id == course_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    _require_course_authoring_access(db, actor=actor, course=course, locking_read=True)
+    if course.status == "archived":
+        raise HTTPException(status_code=409, detail="Archived course information cannot be revised")
+    if payload.school_id != course.school_id:
+        raise HTTPException(status_code=422, detail="Course school cannot be changed")
+    if course.creator_user_id in payload.collaborator_user_ids:
+        raise HTTPException(status_code=422, detail="Course creator must not be selected as co-teacher")
+
+    latest_revision = db.scalar(
+        select(CourseInformationRevision)
+        .where(CourseInformationRevision.course_id == course.id)
+        .order_by(
+            CourseInformationRevision.revision_number.desc(),
+            CourseInformationRevision.id.desc(),
+        )
+        .limit(1)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if latest_revision is None:
+        raise HTTPException(status_code=409, detail="Course information revision history is unavailable")
+    if latest_revision.status in {"draft", "submitted"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Course already has an editable or pending information revision",
+        )
+
+    duplicate_title = db.scalar(
+        select(Course.id).where(
+            Course.school_id == course.school_id,
+            Course.title == payload.title,
+            Course.id != course.id,
+        )
+    )
+    if duplicate_title is not None:
+        raise HTTPException(status_code=409, detail="Course already exists in this school")
+
+    collaborators = _load_eligible_collaborators(
+        db,
+        school_id=course.school_id,
+        user_ids=payload.collaborator_user_ids,
+    )
+    _load_admission_classes(
+        db,
+        school_id=course.school_id,
+        class_ids=payload.admission_class_ids,
+    )
+    teacher_ids = [
+        course.creator_user_id,
+        *sorted(collaborator.id for collaborator in collaborators),
+    ]
+    information_snapshot = _information_snapshot(payload)
+    revision = CourseInformationRevision(
+        course_id=course.id,
+        revision_number=latest_revision.revision_number + 1,
+        information_snapshot=information_snapshot,
+        teacher_ids_snapshot=teacher_ids,
+        status="draft",
+        created_by_user_id=actor.id,
+    )
+    db.add(revision)
+    db.flush()
+    record_audit_log(
+        db,
+        actor=actor,
+        action="course.information_revision.create",
+        resource_type="course_information_revision",
+        resource_id=revision.id,
+        school_id=course.school_id,
+        event_result="success",
+        request=request,
+        snapshot={
+            "after": {
+                "course_id": course.id,
+                "revision_number": revision.revision_number,
+                "status": revision.status,
+                "information": information_snapshot,
+                "teacher_ids": teacher_ids,
+            },
+            "based_on_revision_id": latest_revision.id,
+            "current_information_revision_id": course.current_information_revision_id,
+        },
+    )
+    db.commit()
+    db.refresh(course)
+    db.refresh(revision)
+    return build_course_draft_read(db, course, revision=revision)
+
+
 def submit_information_revision(
     db: Session,
     *,
@@ -377,6 +482,9 @@ def build_course_draft_read(
             for relation, class_group in admission_rows
         ],
         "information_revision": revision,
+        "has_published_content": False,
+        "content_status": "not_published",
+        "content_status_label": "暂无已发布内容",
         "created_at": course.created_at,
         "updated_at": course.updated_at,
     }

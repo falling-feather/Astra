@@ -5,8 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.course import _normalize_stable_key
 
-
 CourseAdmissionMode = Literal["open", "class_restricted"]
+CourseContentStatus = Literal["not_published", "published"]
 
 
 class CourseDraftCreate(BaseModel):
@@ -120,6 +120,20 @@ class CourseInformationRevisionRead(BaseModel):
     updated_at: datetime
 
 
+class CourseInformationRevisionReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["approved", "rejected"]
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("note")
+    @classmethod
+    def normalize_review_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
 class CourseDraftRead(BaseModel):
     id: int
     school_id: int
@@ -138,5 +152,37 @@ class CourseDraftRead(BaseModel):
     teachers: list[CourseTeacherRead]
     admission_classes: list[CourseAdmissionClassRead]
     information_revision: CourseInformationRevisionRead
+    has_published_content: bool
+    content_status: CourseContentStatus
+    content_status_label: str
     created_at: datetime
     updated_at: datetime
+
+
+class CourseInformationRevisionReviewRead(BaseModel):
+    revision: CourseInformationRevisionRead
+    course_id: int
+    school_id: int
+    course_status: str
+    course_code: str | None = None
+    current_information_revision_id: int | None = None
+    proposed_information: dict[str, Any]
+    current_information: dict[str, Any] | None = None
+    changed_fields: list[str]
+    proposed_teachers: list[CourseTeacherRead]
+    current_teachers: list[CourseTeacherRead]
+    proposed_admission_classes: list[CourseAdmissionClassRead]
+    current_admission_classes: list[CourseAdmissionClassRead]
+    internal_class_id: int | None = None
+    internal_course_class_id: int | None = None
+    has_published_content: bool
+    content_status: CourseContentStatus
+    content_status_label: str
+
+
+class CourseInformationRevisionReviewPage(BaseModel):
+    items: list[CourseInformationRevisionReviewRead]
+    total: int
+    limit: int
+    offset: int
+    next_offset: int | None = None
