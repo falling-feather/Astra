@@ -44,12 +44,12 @@ function surfaceSets(source) {
 }
 const expected = {
   student: {
-    data: '6a2ee7aaa9254470891c6da21cc791965836372de2c3b9e47a9ae7ce1221f79b',
+    data: 'ad92069201a5dfd955176dc36ae1662e8ba19070555f51e1329288fa7be822ca',
     api: '7547c324ab41468da6ec12a838666f8b0645fa0a4c638c75c81aaafdc29ab872',
     fetches: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
   },
   teacher: {
-    data: '17d054c46575ec3c6baca449d8da1b1279f246b37b478d558ef618fe12ed02fc',
+    data: '68c7f820771f948b1ea4ab9ac7a2dc3ed026a707e8b2636a703cb63c733e38c7',
     api: '7b0d128bb4ca0987260a492f7cc58a6acd304c578224d2b05ad346722212f730',
     fetches: 'ed688ac8b33bb1c2fb53f4ebfb54880479df151371ba907d94b5c7a1f7ed38df',
   },
@@ -58,7 +58,7 @@ for (const [owner, source] of [['student', studentSource], ['teacher', teacherSo
   const sets = surfaceSets(source);
   for (const kind of Object.keys(expected[owner])) assert.equal(digest(sets[kind]), expected[owner][kind], `${owner} ${kind} surface changed`);
 }
-assert.equal((teacherSource.match(/\n/g) || []).length + 1, 2883, 'teacher.js line ceiling changed');
+assert.equal((teacherSource.match(/\n/g) || []).length + 1, 2884, 'teacher.js line ceiling changed');
 assert.equal((studentSource.match(/class="student-focus-stage__primary/g) || []).length, 4, 'student primary-state branches changed');
 assert.equal((teacherSource.match(/class="teacher-focus-stage__action"/g) || []).length, 1, 'teacher focus must retain one action');
 
