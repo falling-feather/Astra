@@ -15,14 +15,15 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.content import ContentPage
+from app.schemas.official_activity_keys import OFFICIAL_ACTIVITY_KEYS
 
 STABLE_ID_PATTERN = r"^[a-z0-9][a-z0-9._:-]*$"
 SLUG_PATTERN = r"^[^\s/?#]+(?:/[^\s/?#]+)+$"
 
-# CONTENT-010 starts with the only backend-published V1 experiment page.  New
-# keys must be added through the official content inventory, never supplied by
-# a page payload.  This makes an unknown simulation fail closed.
-OFFICIAL_SIMULATION_KEYS = frozenset({"physics.energy-conservation"})
+# The V8.4 editor may reference every frozen official activity while unknown
+# keys still fail closed.  The projection is synchronized with the frontend's
+# 127-item catalog by the FE-041 contract tests.
+OFFICIAL_SIMULATION_KEYS = OFFICIAL_ACTIVITY_KEYS
 
 _RAW_HTML_PATTERN = re.compile(
     r"<!--|<\s*/?\s*[a-zA-Z][^>]*>", re.IGNORECASE | re.DOTALL

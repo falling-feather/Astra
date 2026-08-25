@@ -5,6 +5,7 @@
 
     const VERSION = '20260825v841CourseAuthoringP0';
     const COURSE_MEMBERSHIP_VERSION = '20260825v843CourseEnrollmentP0';
+    const COURSE_CONTENT_VERSION = '20260825v844CourseEditorP0';
     const STEPS = Object.freeze([
         Object.freeze({ id: 1, label: '基本信息' }),
         Object.freeze({ id: 2, label: '共同教师' }),
@@ -45,6 +46,9 @@
     let courseMembershipOwner = null;
     let courseMembershipLoadGeneration = 0;
     let courseMembershipResourceError = null;
+    let courseContentOwner = null;
+    let courseContentLoadGeneration = 0;
+    let courseContentResourceError = null;
 
     function academicYearDefault(now = new Date()) {
         const year = now.getFullYear();
@@ -123,12 +127,17 @@
         root.addEventListener('change', session.onChange);
         root.addEventListener('submit', session.onSubmit);
         render();
+        void mountCourseContent();
         void mountCourseMembership();
         return true;
     }
 
     function destroy() {
         if (!session) return;
+        courseContentLoadGeneration += 1;
+        if (courseContentOwner) courseContentOwner.destroy();
+        courseContentOwner = null;
+        courseContentResourceError = null;
         courseMembershipLoadGeneration += 1;
         if (courseMembershipOwner) courseMembershipOwner.destroy();
         courseMembershipOwner = null;
@@ -158,6 +167,7 @@
         }
         if (session.schoolId !== schoolId) resetScope(schoolId);
         container.innerHTML = authoringMarkup(context);
+        if (courseContentOwner) courseContentOwner.render();
         if (courseMembershipOwner) courseMembershipOwner.render();
         if (!session.loaded && !session.loading) void refreshScope();
         return true;
@@ -176,6 +186,44 @@
                 ? session.options.homerooms.slice()
                 : []
         }));
+    }
+
+    function courseContentSnapshot() {
+        const context = safeSnapshot();
+        return Object.freeze(Object.assign({}, context, {
+            courses: session ? session.courses.slice() : []
+        }));
+    }
+
+    function courseContentHost() {
+        return Object.freeze({
+            snapshot: courseContentSnapshot,
+            request: (path, options) => session.host.request(path, options),
+            beginMutation,
+            endMutation,
+            failMutation,
+            notify
+        });
+    }
+
+    async function mountCourseContent() {
+        const generation = ++courseContentLoadGeneration;
+        courseContentResourceError = null;
+        try {
+            await import(`./teacher-course-content.js?v=${COURSE_CONTENT_VERSION}`);
+            if (!session || generation !== courseContentLoadGeneration) return false;
+            courseContentOwner = global.AstraTeacherCourseContent;
+            if (!courseContentOwner || typeof courseContentOwner.mount !== 'function') throw new Error('课程内容中心入口不可用');
+            courseContentOwner.mount(session.root, courseContentHost());
+            render();
+            return true;
+        } catch (error) {
+            if (!session || generation !== courseContentLoadGeneration) return false;
+            courseContentResourceError = error;
+            render();
+            console.warn('[TeacherCourseAuthoring] course content resource unavailable');
+            return false;
+        }
     }
 
     function courseMembershipHost() {
@@ -295,8 +343,15 @@
                 ${noticeMarkup()}
                 ${session.loading && !session.loaded ? loadingMarkup() : ''}
                 ${session.error ? errorMarkup(session.error) : ''}
-                ${session.loaded && !session.error ? `${session.open ? wizardMarkup(context) : launchMarkup(blocked)}${courseListMarkup(blocked)}${courseMembershipHostMarkup()}` : ''}
+                ${session.loaded && !session.error ? `${session.open ? wizardMarkup(context) : launchMarkup(blocked)}${courseListMarkup(blocked)}${courseContentHostMarkup()}${courseMembershipHostMarkup()}` : ''}
             </section>`;
+    }
+
+    function courseContentHostMarkup() {
+        const status = courseContentResourceError
+            ? '<div class="teacher-course-content__resource-error" role="alert"><i data-lucide="circle-alert"></i><div><strong>课程内容中心加载失败</strong><p>服务器中的课程草稿与发布记录不受影响，请刷新教师工作台后重试。</p></div></div>'
+            : '<div class="teacher-course-content__resource-loading" role="status"><i data-lucide="loader-circle"></i><span>正在准备结构化课程编辑器…</span></div>';
+        return `<div data-teacher-course-content>${courseContentOwner ? '' : status}</div>`;
     }
 
     function courseMembershipHostMarkup() {
@@ -442,8 +497,18 @@
                 <div class="teacher-course-draft__status"><span>${escapeHtml(courseStatusLabel(status))}</span><small>${course.course_code ? `课程码 ${escapeHtml(course.course_code)}` : '审核通过后生成课程码'}</small></div>
                 <div class="teacher-course-draft__body"><span>${escapeHtml(galaxyLabel(course.galaxy_key))} · ${escapeHtml(subjectLabel(course.galaxy_key, course.subject_key))}</span><h5>${escapeHtml(course.title)}</h5><p>${escapeHtml(course.academic_year || '--')} · ${escapeHtml(course.schedule_text || '--')} · ${escapeHtml(course.total_hours || 0)} 课时</p></div>
                 <div class="teacher-course-draft__people"><i data-lucide="users-round"></i><span>${teachers.length ? teachers.map(item => escapeHtml(item.display_name)).join('、') : '教师信息待读取'}</span></div>
-                ${status === 'draft' ? `<button type="button" data-course-authoring-submit-draft="${escapeAttr(course.id)}" data-revision-id="${escapeAttr(revision.id)}" data-course-authoring-control ${blocked ? 'disabled' : ''}>提交审核 <i data-lucide="send"></i></button>` : '<span class="teacher-course-draft__receipt"><i data-lucide="clock-3"></i>等待管理员处理</span>'}
+                ${courseStatusActionMarkup(course, revision, status, blocked)}
             </article>`;
+    }
+
+    function courseStatusActionMarkup(course, revision, status, blocked) {
+        if (status === 'draft') return `<button type="button" data-course-authoring-submit-draft="${escapeAttr(course.id)}" data-revision-id="${escapeAttr(revision.id)}" data-course-authoring-control ${blocked ? 'disabled' : ''}>提交审核 <i data-lucide="send"></i></button>`;
+        const receipt = status === 'approved'
+            ? ['circle-check-big', '课程已启用']
+            : status === 'rejected'
+                ? ['undo-2', '按退回意见修改']
+                : ['clock-3', '等待管理员处理'];
+        return `<span class="teacher-course-draft__receipt"><i data-lucide="${receipt[0]}"></i>${receipt[1]}</span>`;
     }
 
     function handleClick(event) {

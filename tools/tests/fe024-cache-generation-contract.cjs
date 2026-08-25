@@ -12,7 +12,7 @@ const show04Generation = '20260825v834Show04P0';
 const v834Generation = '20260813v834ShowcaseLayoutP0';
 const moduleGeneration = showcaseGeneration;
 const studentGeneration = legacyShellGeneration;
-const teacherGeneration = '20260825v841CourseAuthoringP0';
+const teacherGeneration = '20260825v844CourseEditorP0';
 const physicsGeneration = legacyShellGeneration;
 const frontierGeneration = legacyShellGeneration;
 

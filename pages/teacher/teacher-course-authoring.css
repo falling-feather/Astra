@@ -5,6 +5,54 @@
     color: #dceaf6;
 }
 
+/* The course workflow owns a full row: its editor must never sit beneath the
+   stretched hit area of the adjacent, closed operation card. */
+.teacher-operation[data-teacher-operation="course-authoring"] {
+    grid-column: 1 / -1;
+    border-right: 0;
+}
+
+.teacher-course-content__resource-loading,
+.teacher-course-content__resource-error {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 68px;
+    padding: 14px 16px;
+    border: 1px solid rgba(139, 180, 224, 0.16);
+    border-radius: 6px;
+    background: rgba(5, 16, 28, 0.62);
+    color: #dceaf6;
+}
+
+.teacher-course-content__resource-loading > svg,
+.teacher-course-content__resource-error > svg {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 auto;
+    color: #6fcfe7;
+}
+
+.teacher-course-content__resource-loading > svg {
+    animation: teacher-course-authoring-spin 0.9s linear infinite;
+}
+
+.teacher-course-content__resource-error {
+    border-color: rgba(255, 136, 112, 0.32);
+}
+
+.teacher-course-content__resource-error > div {
+    display: grid;
+    gap: 4px;
+}
+
+.teacher-course-content__resource-error p {
+    margin: 0;
+    color: #91a6b9;
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
 .teacher-course-authoring__header,
 .teacher-course-drafts > header,
 .teacher-course-authoring__launch,

@@ -1,10 +1,17 @@
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
+
 from app.schemas.content import ContentPage
 from app.schemas.content_v2 import ContentPageV2, adapt_content_page_v1
+from app.schemas.official_activity_keys import (
+    OFFICIAL_ACTIVITY_COUNT,
+    OFFICIAL_ACTIVITY_KEYS,
+)
 from app.services.content_catalog import ENERGY_CONSERVATION_PAGE
-from pydantic import ValidationError
 
 
 def test_content_page_v2_accepts_all_seven_approved_block_types():
@@ -21,6 +28,36 @@ def test_content_page_v2_accepts_all_seven_approved_block_types():
         "sources",
     ]
     assert page.model_dump(mode="json")["blocks"][2]["markdown"].startswith("## 探究")
+
+
+def test_official_simulation_catalog_matches_124_protected_and_three_frozen_additions():
+    baseline_path = (
+        Path(__file__).resolve().parents[2]
+        / "tools"
+        / "quality"
+        / "baselines"
+        / "protected-activities-v822.json"
+    )
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    expected = {item["activity_key"] for item in baseline["activities"]}
+    expected.update(
+        {
+            "physics.double-pendulum-chaos",
+            "chemistry.chromatography-separation",
+            "engineering.robot-arm-ik",
+        }
+    )
+
+    assert OFFICIAL_ACTIVITY_COUNT == 127
+    assert len(OFFICIAL_ACTIVITY_KEYS) == OFFICIAL_ACTIVITY_COUNT
+    assert OFFICIAL_ACTIVITY_KEYS == expected
+
+    robot_arm = _seven_block_page()
+    robot_arm["blocks"][4]["simulationKey"] = "engineering.robot-arm-ik"
+    assert (
+        ContentPageV2.model_validate(robot_arm).blocks[4].simulationKey
+        == "engineering.robot-arm-ik"
+    )
 
 
 @pytest.mark.parametrize(

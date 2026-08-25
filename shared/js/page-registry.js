@@ -5,7 +5,7 @@
     if (global.AstraPageRegistry) return;
 
     const ROLE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
-    const TEACHER_RESOURCE_VERSION = '20260825v841CourseAuthoringP0';
+    const TEACHER_RESOURCE_VERSION = '20260825v844CourseEditorP0';
     const FUTURE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const ADMIN_RESOURCE_VERSION = '20260825v842CourseReviewP0';
     const PLANETS_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
