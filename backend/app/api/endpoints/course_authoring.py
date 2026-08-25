@@ -13,7 +13,20 @@ from app.schemas.course_authoring import (
     CourseInformationRevisionReviewPage,
     CourseInformationRevisionReviewRead,
 )
+from app.schemas.course_enrollment import (
+    CourseAdmissionDiscoveryRead,
+    CourseClassBatchEnrollmentCreate,
+    CourseClassBatchEnrollmentRead,
+    CourseEnrollmentPage,
+    CourseEnrollmentRead,
+    CourseEnrollmentStatusPatch,
+    CourseJoinRequestCreate,
+    CourseJoinRequestPage,
+    CourseJoinRequestRead,
+    CourseJoinRequestReview,
+)
 from app.services import course_authoring as course_authoring_service
+from app.services import course_enrollments as course_enrollment_service
 from app.services import course_information_reviews as course_information_review_service
 
 router = APIRouter()
@@ -60,6 +73,19 @@ def get_course_authoring_options(
     )
 
 
+@router.get("/courses/by-code/{course_code}", response_model=CourseAdmissionDiscoveryRead)
+def discover_course_by_code(
+    course_code: str,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return course_enrollment_service.discover_course_by_code(
+        db,
+        student=current_user,
+        course_code=course_code,
+    )
+
+
 @router.get("/courses/{course_id}", response_model=CourseDraftRead)
 def get_course_draft(
     course_id: int,
@@ -70,6 +96,157 @@ def get_course_draft(
         db,
         actor=current_user,
         course_id=course_id,
+    )
+
+
+@router.post(
+    "/courses/{course_id}/join-requests",
+    response_model=CourseJoinRequestRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_course_join_request(
+    course_id: int,
+    payload: CourseJoinRequestCreate,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return course_enrollment_service.create_join_request(
+        db,
+        actor=current_user,
+        course_id=course_id,
+        source_class_id=payload.source_class_id,
+        message=payload.message,
+        request=request,
+    )
+
+
+@router.get(
+    "/courses/{course_id}/join-requests",
+    response_model=CourseJoinRequestPage,
+)
+def list_course_join_requests(
+    course_id: int,
+    status_filter: Literal["pending", "approved", "rejected", "all"] = Query(
+        default="pending",
+        alias="status",
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CourseJoinRequestPage:
+    items, total, next_page = course_enrollment_service.list_join_requests(
+        db,
+        actor=current_user,
+        course_id=course_id,
+        status_filter=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+    return CourseJoinRequestPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        next_offset=next_page,
+    )
+
+
+@router.patch(
+    "/courses/{course_id}/join-requests/{join_request_id}",
+    response_model=CourseJoinRequestRead,
+)
+def review_course_join_request(
+    course_id: int,
+    join_request_id: int,
+    payload: CourseJoinRequestReview,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return course_enrollment_service.review_join_request(
+        db,
+        actor=current_user,
+        course_id=course_id,
+        join_request_id=join_request_id,
+        decision=payload.status,
+        note=payload.note,
+        request=request,
+    )
+
+
+@router.get(
+    "/courses/{course_id}/enrollments",
+    response_model=CourseEnrollmentPage,
+)
+def list_course_enrollments(
+    course_id: int,
+    status_filter: Literal["active", "left", "all"] = Query(
+        default="active",
+        alias="status",
+    ),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CourseEnrollmentPage:
+    items, total, next_page = course_enrollment_service.list_enrollments(
+        db,
+        actor=current_user,
+        course_id=course_id,
+        status_filter=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+    return CourseEnrollmentPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        next_offset=next_page,
+    )
+
+
+@router.post(
+    "/courses/{course_id}/enrollments/batch",
+    response_model=CourseClassBatchEnrollmentRead,
+)
+def batch_enroll_course_class(
+    course_id: int,
+    payload: CourseClassBatchEnrollmentCreate,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return course_enrollment_service.batch_enroll_class(
+        db,
+        actor=current_user,
+        course_id=course_id,
+        class_id=payload.class_id,
+        request=request,
+    )
+
+
+@router.patch(
+    "/courses/{course_id}/enrollments/{enrollment_id}",
+    response_model=CourseEnrollmentRead,
+)
+def leave_course_enrollment(
+    course_id: int,
+    enrollment_id: int,
+    payload: CourseEnrollmentStatusPatch,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return course_enrollment_service.leave_enrollment(
+        db,
+        actor=current_user,
+        course_id=course_id,
+        enrollment_id=enrollment_id,
+        note=payload.note,
+        request=request,
     )
 
 
