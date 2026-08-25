@@ -78,6 +78,7 @@ assert.match(bridgeSource, /focusTeacherLegacyCourse\(record, action\.course_id\
 assert.match(bridgeSource, /AstraTeacherWorkbenchScope\.openGrading\(action\)/, 'course-cohort grading must enter the existing teacher grading owner');
 assert.match(teacher, /AstraTeacherWorkbenchScope = Object\.freeze\(\{ openGrading: openDirectCourseGrading \}\)/);
 assert.match(teacher, /课程直属名单（不关联行政班）/);
+assert.match(teacher, /state\.data\.curriculumAttached = true;/);
 assert.match(bridgeSource, /if \(String\(select\.value\) === normalized\) return false;/, 'a navigation shortcut must not emit duplicate scope changes');
 assert.match(bridgeSource, /AdminSecondaryGovernance\.open/);
 assert.match(bridgeSource, /data-admin-section-button=\"courses\"/);

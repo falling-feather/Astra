@@ -728,6 +728,7 @@
                 });
             state.selected.classId = String(classId);
             state.selected.courseId = String(courseId);
+            state.data.curriculumAttached = true;
             renderWorkspace();
             await loadCourseScope(generation);
             if (!isCurrentRequest(generation)) return false;

@@ -113,6 +113,38 @@ _DISCOVERABLE_EVENT_TYPES = (
 )
 
 
+def _require_teacher_course_scope(
+    db: Session,
+    *,
+    actor: User,
+    class_group,
+    course_id: int,
+    detail: str,
+    locking_read: bool = False,
+) -> Course:
+    course = get_course(db, course_id)
+    if class_group.school_id != course.school_id:
+        _fail(403, "scope_mismatch", "Class is outside course scope")
+    if class_group.kind == "course_cohort":
+        require_course_collaborator_or_admin(
+            db,
+            actor,
+            course,
+            {"editor", "content_editor", "assessment_editor"},
+            detail=detail,
+            locking_read=locking_read,
+        )
+    else:
+        require_class_teacher_or_admin(
+            db,
+            actor,
+            class_group,
+            detail=detail,
+            locking_read=locking_read,
+        )
+    return course
+
+
 def create_completion_rule(
     db: Session,
     *,
@@ -700,10 +732,11 @@ def _append_teacher_correction_locked(
         target_hint.class_id,
         expected_school_id=locked_course.school_id,
     )
-    require_class_teacher_or_admin(
+    _require_teacher_course_scope(
         db,
-        actor,
-        class_group,
+        actor=actor,
+        class_group=class_group,
+        course_id=locked_course.id,
         detail="Learning evidence correction requires class teacher scope",
         locking_read=True,
     )
@@ -973,10 +1006,11 @@ def _append_trusted_assessment_result_locked(
         class_id,
         expected_school_id=locked_course.school_id,
     )
-    require_class_teacher_or_admin(
+    _require_teacher_course_scope(
         db,
-        actor,
-        class_group,
+        actor=actor,
+        class_group=class_group,
+        course_id=locked_course.id,
         detail="Trusted assessment evidence requires class teacher scope",
         locking_read=True,
     )
@@ -1167,10 +1201,11 @@ def teacher_learning_aggregate(
     course_id: int,
 ) -> dict:
     class_group = get_class(db, class_id)
-    require_class_teacher_or_admin(
+    _require_teacher_course_scope(
         db,
-        actor,
-        class_group,
+        actor=actor,
+        class_group=class_group,
+        course_id=course_id,
         detail="Learning evidence aggregate requires class teacher scope",
     )
     if not course_attached_to_class(db, course_id, class_id):
@@ -1265,10 +1300,11 @@ def teacher_learning_evidence_events(
     offset: int,
 ) -> dict:
     class_group = get_class(db, class_id)
-    require_class_teacher_or_admin(
+    _require_teacher_course_scope(
         db,
-        actor,
-        class_group,
+        actor=actor,
+        class_group=class_group,
+        course_id=course_id,
         detail="Learning evidence discovery requires class teacher scope",
     )
     course = get_course(db, course_id)
@@ -1409,10 +1445,11 @@ def _rebuild_learning_projections_locked(
         class_id,
         expected_school_id=locked_course.school_id,
     )
-    require_class_teacher_or_admin(
+    _require_teacher_course_scope(
         db,
-        actor,
-        class_group,
+        actor=actor,
+        class_group=class_group,
+        course_id=course_id,
         detail="Learning projection rebuild requires class teacher scope",
         locking_read=True,
     )
