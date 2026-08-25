@@ -7,6 +7,7 @@ from app.api.endpoints import (
     classes,
     code_judge,
     content,
+    course_authoring,
     course_status,
     course_unit_access,
     courses,
@@ -45,3 +46,4 @@ api_router.include_router(progress.router, prefix="/progress", tags=["progress"]
 api_router.include_router(content.router, prefix="/content", tags=["content"])
 api_router.include_router(render.router, prefix="/render", tags=["render"])
 api_router.include_router(teacher_applications.router, prefix="/v1", tags=["teacher-applications"])
+api_router.include_router(course_authoring.router, prefix="/v1", tags=["course-authoring-v1"])
