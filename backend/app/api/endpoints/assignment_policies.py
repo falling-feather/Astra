@@ -15,9 +15,8 @@ from app.services.access_control import (
     course_attached_to_class,
     lock_active_class_for_write,
     lock_active_school_for_write,
-    require_class_teacher_or_admin,
     require_course_author_or_admin,
-    require_course_collaborator_or_admin,
+    require_course_class_assignment_scope,
     require_school_role,
 )
 from app.services.assignment_policies import (
@@ -83,10 +82,12 @@ def read_assignment_class_policy(
 ) -> AssignmentClassPolicyRead:
     assignment, _, course, class_group = _resolve_assignment_class_scope(db, assignment_id, class_id)
     require_school_role(db, current_user, course.school_id, {"admin", "teacher"})
-    require_class_teacher_or_admin(
+    require_course_class_assignment_scope(
         db,
         current_user,
+        course,
         class_group,
+        course_roles={"editor", "assessment_editor"},
         detail="Assignment class policy requires class teacher scope",
     )
     return _policy_read(db, assignment, class_id)
@@ -106,17 +107,12 @@ def put_assignment_class_policy(
 ) -> AssignmentClassPolicyRead:
     assignment, _, course, class_group = _resolve_assignment_class_scope(db, assignment_id, class_id)
     require_school_role(db, current_user, course.school_id, {"admin", "teacher"})
-    require_course_collaborator_or_admin(
+    require_course_class_assignment_scope(
         db,
         current_user,
         course,
-        {"editor", "assessment_editor"},
-        detail="Assignment class policy requires editor or assessment_editor role",
-    )
-    require_class_teacher_or_admin(
-        db,
-        current_user,
         class_group,
+        course_roles={"editor", "assessment_editor"},
         detail="Assignment class policy requires class teacher scope",
     )
     class_group = lock_active_class_for_write(db, class_group.id)
@@ -174,17 +170,12 @@ def delete_assignment_class_policy(
 ) -> Response:
     assignment, _, course, class_group = _resolve_assignment_class_scope(db, assignment_id, class_id)
     require_school_role(db, current_user, course.school_id, {"admin", "teacher"})
-    require_course_collaborator_or_admin(
+    require_course_class_assignment_scope(
         db,
         current_user,
         course,
-        {"editor", "assessment_editor"},
-        detail="Assignment class policy requires editor or assessment_editor role",
-    )
-    require_class_teacher_or_admin(
-        db,
-        current_user,
         class_group,
+        course_roles={"editor", "assessment_editor"},
         detail="Assignment class policy requires class teacher scope",
     )
     class_group = lock_active_class_for_write(db, class_group.id)

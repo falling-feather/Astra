@@ -424,6 +424,7 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
         school_id = school.id
         course_id = course.id
         cohort_id = cohort.id
+        assignment_id = assignment.id
         request_id = join_request.id
 
     response = client.get("/api/v1/workbench", headers=_auth(teacher["token"]))
@@ -454,6 +455,11 @@ def test_teacher_workbench_prioritizes_student_review_and_preserves_other_queues
     )
     assert progress_matrix.status_code == 200, progress_matrix.json()
     assert progress_matrix.json()["total"] == 1
+    assignment_policy = client.get(
+        f"/api/assignments/{assignment_id}/classes/{cohort_id}/policy",
+        headers=_auth(teacher["token"]),
+    )
+    assert assignment_policy.status_code == 200, assignment_policy.json()
     assert body["primary_action"]["kind"] == "review_course_join_request"
     assert body["primary_action"]["request_id"] == request_id
 

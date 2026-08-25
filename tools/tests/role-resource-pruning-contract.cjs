@@ -35,6 +35,7 @@ const teacher = [
     `pages/teacher/teacher-course-authoring.css?v=${teacherVersion}`,
     `shared/css/role-workbench-overview.css?v=${overviewVersion}`,
     `pages/teacher/teacher-course-authoring.js?v=${teacherVersion}`,
+    `pages/teacher/teacher-course-grading.js?v=${teacherVersion}`,
     `shared/js/role-workbench-overview.js?v=${overviewVersion}`,
     `shared/js/role-workbench-bridge.js?v=${overviewVersion}`,
     `pages/teacher/teacher.js?v=${teacherVersion}`
@@ -51,7 +52,7 @@ assert.deepEqual(normalize(registry.resourcesForRole('admin')), admin);
 assert.deepEqual(normalize(registry.resourcesForRole('anonymous')), []);
 assert.deepEqual(normalize(registry.stylesForRole('student')), student.slice(0, 2));
 assert.deepEqual(normalize(registry.rolesFor('teacher')), ['teacher', 'admin']);
-assert.equal(new Set(normalize(registry.allRoleResources())).size, 13);
+assert.equal(new Set(normalize(registry.allRoleResources())).size, 14);
 for (const owner of ['admin-course-governance.js', 'admin-secondary-governance.js']) {
     assert.equal(
         normalize(registry.allRoleResources()).some((resource) => resource.includes(owner)),
