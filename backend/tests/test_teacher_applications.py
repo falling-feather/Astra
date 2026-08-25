@@ -151,6 +151,94 @@ def test_teacher_application_approval_and_pending_read_only_gate(client) -> None
     assert repeated.json()["detail"] == "Teacher application has already been reviewed"
 
 
+def test_approved_teacher_can_request_first_school_class_membership(client) -> None:
+    admin = _bootstrap_admin(client)
+    class_teacher = _register_and_login(client, "teacher_first_school_owner", "teacher")
+    applicant = _register_and_login(client, "teacher_first_school_applicant")
+
+    school = client.post(
+        "/api/schools",
+        headers=_auth(class_teacher),
+        json={"name": "Teacher First School"},
+    )
+    assert school.status_code == 201, school.json()
+    school_id = school.json()["id"]
+    classroom = client.post(
+        "/api/classes",
+        headers=_auth(class_teacher),
+        json={"school_id": school_id, "name": "First School Physics"},
+    )
+    assert classroom.status_code == 201, classroom.json()
+    class_id = classroom.json()["id"]
+
+    student_role_forbidden = client.post(
+        f"/api/classes/{class_id}/join-requests",
+        headers=_auth(applicant),
+        json={"role": "teacher"},
+    )
+    assert student_role_forbidden.status_code == 403
+    assert student_role_forbidden.json()["detail"] == "Only teachers can request teacher role"
+
+    application = client.post(
+        "/api/v1/teacher-applications",
+        headers=_auth(applicant),
+        json={"message": "I will co-teach physics."},
+    )
+    assert application.status_code == 201, application.json()
+    approved_application = client.patch(
+        f"/api/v1/admin/teacher-applications/{application.json()['id']}",
+        headers=_auth(admin),
+        json={"status": "approved", "note": "identity verified"},
+    )
+    assert approved_application.status_code == 200, approved_application.json()
+
+    invisible_before_request = client.get(
+        f"/api/classes?school_id={school_id}",
+        headers=_auth(applicant),
+    )
+    assert invisible_before_request.status_code == 403
+
+    requested = client.post(
+        f"/api/classes/{class_id}/join-requests",
+        headers={**_auth(applicant), "X-Request-ID": "teacher-first-school-request"},
+        json={"role": "teacher", "message": "Please add me as a co-teacher."},
+    )
+    assert requested.status_code == 201, requested.json()
+    assert requested.json()["role"] == "teacher"
+    assert requested.json()["status"] == "pending"
+
+    reviewed = client.patch(
+        f"/api/classes/{class_id}/join-requests/{requested.json()['id']}",
+        headers={**_auth(class_teacher), "X-Request-ID": "teacher-first-school-approve"},
+        json={"status": "approved", "note": "Welcome to the teaching team."},
+    )
+    assert reviewed.status_code == 200, reviewed.json()
+    assert reviewed.json()["status"] == "approved"
+
+    visible_after_approval = client.get(
+        f"/api/classes?school_id={school_id}",
+        headers=_auth(applicant),
+    )
+    assert visible_after_approval.status_code == 200, visible_after_approval.json()
+    assert [item["id"] for item in visible_after_approval.json()] == [class_id]
+
+    members = client.get(f"/api/classes/{class_id}/members", headers=_auth(applicant))
+    assert members.status_code == 200, members.json()
+    applicant_member = next(item for item in members.json() if item["username"] == "teacher_first_school_applicant")
+    assert applicant_member["role"] == "teacher"
+    assert applicant_member["status"] == "active"
+
+    audit = client.get(
+        f"/api/admin/audit-logs?action=class.join.request.approve&resource_id={requested.json()['id']}",
+        headers=_auth(admin),
+    )
+    assert audit.status_code == 200, audit.json()
+    assert audit.json()["total"] == 1
+    after = audit.json()["items"][0]["snapshot_json"]["after"]
+    assert after["membership_created"] is True
+    assert after["membership_outcome"] == "created"
+
+
 def test_rejected_teacher_applicant_returns_to_student_and_can_reapply(client) -> None:
     admin = _bootstrap_admin(client)
     applicant = _register_and_login(client, "rejected_application_student")

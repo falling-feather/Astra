@@ -1089,8 +1089,6 @@ def create_class_join_request(
     role = normalize_class_role(payload.role)
     if role == "teacher" and current_user.role not in {"admin", "teacher"}:
         raise HTTPException(status_code=403, detail="Only teachers can request teacher role")
-    if role == "teacher" and current_user.role != "admin":
-        require_school_role(db, current_user, class_group.school_id, {"admin", "teacher"})
 
     if existing_active_class_membership(db, class_group.id, current_user.id, role) is not None:
         raise HTTPException(status_code=409, detail="Class membership already exists")

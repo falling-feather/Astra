@@ -244,7 +244,7 @@ python -m scripts.rc_external_scope_gate \
 | POST | `/api/classes/{id}/teachers/transfer` | 班级 teacher membership 转让；仅全局 admin 可把源 active teacher 转给同校 active teacher/admin，目标 membership 不存在则创建、inactive 则恢复，可选择停用源 teacher |
 | POST | `/api/classes/{id}/students/{membership_id}/transfer` | 学生同校转班；要求操作者同时具备源班和目标班 active teacher scope，源 membership 软停用、目标创建或恢复，目标状态已存在时幂等返回 `applied=false` |
 | POST | `/api/classes/{id}/students/batch-import` | 按校内用户名批量导入学生；只接纳 active 同校 student membership，逐项返回 `created/restored/unchanged/failed`，允许部分失败并按成员权威状态幂等 |
-| POST | `/api/classes/{id}/join-requests` | 审批流入口：创建班级加入申请；不立即生成成员关系 |
+| POST | `/api/classes/{id}/join-requests` | 审批流入口：创建班级加入申请；不立即生成成员关系。active 正式教师即使尚无该校成员关系，也可凭已知 `class_id` 申请 teacher 角色；普通学生不能冒用 teacher 角色 |
 | GET | `/api/classes/{id}/join-requests` | 班级教师或管理员查看加入申请，可按 `status` 过滤 |
 | PATCH | `/api/classes/{id}/join-requests/{request_id}` | 班级教师或管理员审批加入申请，支持 `approved` / `rejected` |
 | GET/POST | `/api/courses` | 当前用户可见课程 / 教师创建课程；学生仅返回本人 active 班级内 published 课程 |
@@ -442,7 +442,7 @@ node tools/browser/script-sandbox-isolation-proof.cjs --api http://127.0.0.1:800
 - `app.services.points` 负责 assignment 级积分规则规范化与批改积分计算；默认规则为 `enabled=true`、`points_per_score=1`、`max_points=null`，批改时写入“规则目标积分 - 当前 submission 已入账 assignment_grade 积分”的差额流水，避免重复批改累计膨胀，并支持封顶或禁用规则后的反向校正。
 - 知识统计 `rule_version=v2` 把分母定义为 effective active assignment-class pair；课程/单元必须 published，班级策略必须 assigned，effective status 必须 active。提交数按 `submitted_at`、评分与分数按 `graded_at`、事件按 `occurred_at`、积分按 ledger `created_at` 进入时间窗；`LearningEvent.knowledge_code` 经 trim/lower 后作为知识点稳定编码。`knowledge_stats_json` 继续承载扩展维度，因此 v1 历史快照无需回填即可兼容读取，新重算写入 v2 并按 course/unit/knowledge_point/assignment 稳定排序输出 evidence。
 - `app.services.class_join_requests` 负责加入申请审批状态流转和成员关系补齐。
-- `POST /api/classes/{id}/join` 与 `POST /api/classes/{id}/join-requests` 长期并存：前者是保留给学生自助加入、admin 治理、受控导入/邀请码或旧 UI 的 direct join；teacher 角色的普通教师加入必须走后者，由教师/admin 审批后生成 teacher membership；前端不得把审批流表现为唯一加入路径，也不得让普通教师绕过审批自助成为班级 teacher。
+- `POST /api/classes/{id}/join` 与 `POST /api/classes/{id}/join-requests` 长期并存：前者是保留给学生自助加入、admin 治理、受控导入/邀请码或旧 UI 的 direct join；active 正式教师可在尚无学校成员关系时凭已知 `class_id` 通过后者申请 teacher 角色，审批前不获得任何学校或班级权限，由该班教师/admin 批准时原子建立学校 teacher 与班级 teacher membership。前端不得把审批流表现为唯一加入路径，也不得让普通教师绕过审批自助成为班级 teacher。
 - 学生端不得依赖公共学校/班级发现：`GET /api/classes?mine=true` 只返回当前用户 active membership 对应班级；无班级学生只能使用教师提供的 `class_id` 走 direct join。学生作业中心必须按 `/api/assignments/me` 返回的 class-expanded 条目保留班级上下文。
 - `app.services.audit` 负责写入审计日志及请求元数据；新记录以 `prev_hash/current_hash` 保存应用层 SHA-256 链，并通过单例 `audit_chain_heads` 串行化并发链尾。MySQL 使用数据库行锁，SQLite 本地回归使用事务级进程锁；这仍不能替代备份、binlog 或独立保留的外部回执。管理端 JSON/CSV 明细导出默认剥离 `snapshot_json`，审计摘要不记录候选明细或秘密值。
 - `app.services.audit_archive_anchors` 与 `app.services.audit_anchor_delivery` 负责校验 Manifest/归档文件、创建幂等锚定账本并发送 `astra.audit-archive-anchor.v1` hash-only 信封。稳定 Idempotency-Key、HMAC-SHA256、no-redirect、严格回执 hash 匹配和统一任务重试用于 staging/生产接入；失败只更新独立账本，不改写 `audit_logs`、Manifest 或归档字节。
