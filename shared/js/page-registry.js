@@ -68,7 +68,7 @@
                 `shared/css/role-workbench-overview.css?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
             ],
             resources: [
-                `pages/teacher/teacher-course-authoring.js?v=${TEACHER_RESOURCE_VERSION}`,
+                `pages/teacher/teacher-course-authoring.js?v=${TEACHER_RESOURCE_VERSION}`, `pages/teacher/teacher-course-grading.js?v=${TEACHER_RESOURCE_VERSION}`,
                 `shared/js/role-workbench-overview.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`,
                 `shared/js/role-workbench-bridge.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
             ],

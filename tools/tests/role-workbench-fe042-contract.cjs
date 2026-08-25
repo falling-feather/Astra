@@ -14,6 +14,7 @@ const styles = read('shared/css/role-workbench-overview.css');
 const registry = read('shared/js/page-registry.js');
 const student = read('pages/student/student-workbench.js');
 const teacher = read('pages/teacher/teacher.js');
+const teacherCourseGrading = read('pages/teacher/teacher-course-grading.js');
 const admin = read('pages/admin/admin.js');
 
 assert.equal((ownerSource.match(/'\/api\/v1\/workbench'/g) || []).length, 1, 'the overview owner must expose one aggregate read path');
@@ -76,9 +77,11 @@ assert.match(
 );
 assert.match(bridgeSource, /focusTeacherLegacyCourse\(record, action\.course_id\)/, 'legacy teaching courses must retain a visible management fallback');
 assert.match(bridgeSource, /AstraTeacherWorkbenchScope\.openGrading\(action\)/, 'course-cohort grading must enter the existing teacher grading owner');
-assert.match(teacher, /AstraTeacherWorkbenchScope = Object\.freeze\(\{ openGrading: openDirectCourseGrading \}\)/);
-assert.match(teacher, /课程直属名单（不关联行政班）/);
-assert.match(teacher, /state\.data\.curriculumAttached = true;/);
+assert.match(teacher, /teacher-course-grading\.js\?v=\$\{TEACHER_ASSET_VERSION\}/);
+assert.match(teacher, /AstraTeacherWorkbenchScope = Object\.freeze\(\{ openGrading:/);
+assert.match(teacherCourseGrading, /课程直属名单（不关联行政班）/);
+assert.match(teacherCourseGrading, /state\.data\.curriculumAttached = true;/);
+assert.match(teacherCourseGrading, /AstraTeacherCourseGrading = Object\.freeze\(\{ open \}\)/);
 assert.match(bridgeSource, /if \(String\(select\.value\) === normalized\) return false;/, 'a navigation shortcut must not emit duplicate scope changes');
 assert.match(bridgeSource, /AdminSecondaryGovernance\.open/);
 assert.match(bridgeSource, /data-admin-section-button=\"courses\"/);
