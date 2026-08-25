@@ -407,6 +407,30 @@ def require_course_editor_or_admin(
     )
 
 
+def require_course_class_assignment_scope(
+    db: Session,
+    user: User,
+    course: Course,
+    class_group: ClassGroup,
+) -> None:
+    if user.role == "student":
+        require_class_member(db, user, class_group.id)
+    elif class_group.kind == "course_cohort":
+        require_course_editor_or_admin(
+            db,
+            user,
+            course,
+            detail="Course assignment scope requires an active course teacher",
+        )
+    else:
+        require_class_teacher_or_admin(
+            db,
+            user,
+            class_group,
+            detail="Class assignment scope requires class teacher role",
+        )
+
+
 def require_course_collaborator_or_admin(
     db: Session,
     user: User,
