@@ -155,6 +155,7 @@ class CourseDraftRead(BaseModel):
     has_published_content: bool
     content_status: CourseContentStatus
     content_status_label: str
+    active_student_count: int = Field(default=0, ge=0)
     created_at: datetime
     updated_at: datetime
 

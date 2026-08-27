@@ -34,6 +34,14 @@ assert.match(contentSource, /course_draft_revision_conflict/);
 assert.match(contentSource, /系统没有覆盖任何一方，也不会自动重试写入/);
 assert.match(contentSource, /确认发布下一版/);
 assert.match(contentSource, /不可变发布历史/);
+assert.match(contentSource, /课程版本时光机/);
+assert.match(contentSource, /VERSION TIME MACHINE/);
+assert.match(contentSource, /这一版改变了什么/);
+assert.match(contentSource, /compareReleaseUnits/);
+assert.match(contentSource, /发布影响预演/);
+assert.match(contentSource, /RELEASE IMPACT PREVIEW/);
+assert.match(contentSource, /active_student_count/);
+assert.match(contentSource, /当前草稿与已发布内容一致/);
 assert.match(contentSource, /学生怎样算完成本单元/);
 assert.match(contentSource, /完成一次实验操作/);
 assert.match(contentSource, /答对指定检查点/);
@@ -45,7 +53,7 @@ assert.match(contentSource, /function refreshIcons\(\)[\s\S]*global\.lucide[\s\S
 assert.match(contentSource, /检查点答案|正确答案/);
 assert.doesNotMatch(contentSource, /contenteditable|draggable|<iframe/i);
 
-assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260825v844CourseCompletionP1'/);
+assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260828v854ManagementShowcaseP0'/);
 assert.match(authoringSource, /import\(`\.\/teacher-course-content\.js\?v=\$\{COURSE_CONTENT_VERSION\}`\)/);
 assert.match(authoringSource, /data-teacher-course-content/);
 assert.match(authoringSource, /courseContentOwner\.destroy\(\)/);
@@ -53,10 +61,15 @@ assert.match(authoringStyles, /data-teacher-operation="course-authoring"[\s\S]*g
 assert.match(teacherSource, /secondaryOpen:\s*\{\s*structure:\s*false,\s*assignments:\s*false\s*\}/);
 assert.match(teacherSource, /addEventListener\('toggle'[\s\S]*teacherSecondary[\s\S]*detail\.open/);
 assert.match(teacherSource, /data-teacher-secondary="structure"\$\{state\.secondaryOpen\.structure/);
-assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260825v844CourseCompletionP1'/);
+assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260828v854ManagementShowcaseP0'/);
 
 assert.match(styles, /\.teacher-course-content__editor/);
 assert.match(styles, /\.teacher-course-content__history/);
+assert.match(styles, /\.teacher-course-version-rail/);
+assert.match(styles, /\.teacher-course-version-diff/);
+assert.match(styles, /\.teacher-course-version-diff__changes/);
+assert.match(styles, /\.teacher-course-release-impact/);
+assert.match(styles, /\.teacher-course-release-impact__route/);
 assert.match(styles, /\.teacher-course-content__completion/);
 assert.match(styles, /min-height:\s*44px/);
 assert.match(styles, /\.teacher-course-content__nested header button\s*\{[\s\S]*?min-height:\s*44px/);
@@ -74,7 +87,7 @@ vm.createContext(context);
 vm.runInContext(contentSource, context, { filename: 'pages/teacher/teacher-course-content.js' });
 const contract = context.window.AstraTeacherCourseContent.contract;
 
-assert.equal(contract.VERSION, '20260825v844CourseCompletionP1');
+assert.equal(contract.VERSION, '20260828v854ManagementShowcaseP0');
 assert.equal(contract.EXPECTED_ACTIVITY_COUNT, 127);
 assert.deepEqual(Array.from(contract.BLOCK_TYPES, item => item.type), [
   'hero', 'learning-task', 'rich-text', 'media', 'official-simulation', 'checkpoint', 'sources',
@@ -117,6 +130,31 @@ assert.equal(payload.units[0].content.courseUnit.completion.preset, 'experiment_
 assert.equal(Object.prototype.hasOwnProperty.call(payload.units[0], 'localKey'), false);
 assert.equal(Object.prototype.hasOwnProperty.call(payload.units[0].content, 'script'), false);
 assert.equal(contract.validateCompletionForPublish([unit], []).valid, true);
+
+const releaseDiff = contract.compareReleaseUnits(
+  [
+    { activity_key: 'unit.keep', title: '保留单元', position: 1, content_schema_sha256: 'same' },
+    { activity_key: 'unit.change', title: '调整后单元', position: 2, content_schema_sha256: 'new' },
+    { activity_key: 'unit.add', title: '新增单元', position: 3, content_schema_sha256: 'add' },
+  ],
+  [
+    { activity_key: 'unit.keep', title: '保留单元', position: 1, content_schema_sha256: 'same' },
+    { activity_key: 'unit.change', title: '调整前单元', position: 2, content_schema_sha256: 'old' },
+    { activity_key: 'unit.remove', title: '移除单元', position: 3, content_schema_sha256: 'remove' },
+  ],
+);
+assert.equal(releaseDiff.added.length, 1);
+assert.equal(releaseDiff.changed.length, 1);
+assert.deepEqual(Array.from(releaseDiff.changed[0].fields), ['title', 'content']);
+assert.equal(releaseDiff.removed.length, 1);
+assert.equal(releaseDiff.unchanged.length, 1);
+
+const semanticSame = contract.compareReleaseUnits(
+  [{ activity_key: 'unit.semantic', title: '语义相同', position: 1, content: { version: 'draft-r9', status: 'draft', slug: 'courses/1/unit.semantic', courseUnit: { courseId: 'course-1' }, blocks: [{ type: 'hero', blockId: 'hero', title: '同一内容', eyebrow: '', badges: [] }] } }],
+  [{ activity_key: 'unit.semantic', title: '语义相同', position: 1, content_schema_sha256: 'server-hash', content: { version: 'draft-r3', status: 'published', slug: 'demo/unit-semantic', courseUnit: { courseId: 'legacy-demo' }, blocks: [{ title: '同一内容', blockId: 'hero', type: 'hero' }] } }],
+);
+assert.equal(semanticSame.changed.length, 0, 'internal routing metadata, empty optional fields, and object key order must not create a false release impact');
+assert.equal(semanticSame.unchanged.length, 1);
 
 const missingCompletion = JSON.parse(JSON.stringify(unit));
 missingCompletion.completion = null;

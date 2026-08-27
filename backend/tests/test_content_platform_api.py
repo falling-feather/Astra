@@ -432,6 +432,7 @@ def test_publish_automatically_switches_enrolled_students_and_redacts_answers(cl
     assert course_detail.json()["has_published_content"] is True
     assert course_detail.json()["content_status"] == "published"
     assert course_detail.json()["content_status_label"] == "已发布第 1 版"
+    assert course_detail.json()["active_student_count"] == 1
 
     student_current = client.get(
         f"/api/v1/courses/{course_id}/releases/current",

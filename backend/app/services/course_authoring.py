@@ -11,6 +11,7 @@ from app.models import (
     Course,
     CourseAdmissionClass,
     CourseCollaborator,
+    CourseEnrollment,
     CourseInformationRevision,
     CourseRelease,
     SchoolMembership,
@@ -462,6 +463,15 @@ def build_course_draft_read(
         db,
         course.id,
     )
+    active_student_count = int(
+        db.scalar(
+            select(func.count(CourseEnrollment.id)).where(
+                CourseEnrollment.course_id == course.id,
+                CourseEnrollment.status == "active",
+            )
+        )
+        or 0
+    )
     return {
         "id": course.id,
         "school_id": course.school_id,
@@ -490,6 +500,7 @@ def build_course_draft_read(
         "has_published_content": has_published_content,
         "content_status": content_status,
         "content_status_label": content_status_label,
+        "active_student_count": active_student_count,
         "created_at": course.created_at,
         "updated_at": course.updated_at,
     }
