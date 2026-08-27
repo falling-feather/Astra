@@ -619,35 +619,24 @@
             </form>`;
     }
 
-    function renderPortal() {
+    function renderPortal(scrollTarget) {
         if (!state.overlay) return;
         const forms = state.view === 'register' ? registerForm() : (state.view === 'reset' ? resetForm() : loginForm());
-        state.overlay.innerHTML = `
-            <main class="app-auth-portal" aria-labelledby="app-auth-title">
-                <section class="app-auth-context">
-                    <div class="app-auth-brand" aria-label="星序认证入口">ASTRA <span>星序</span></div>
-                    <div>
-                        <p class="app-auth-context__kicker">统一身份入口</p>
-                        <h1 id="app-auth-title">先确认身份，再进入你的星序。</h1>
-                        <p>学生只进入学习空间，教师获得教学与班级管理，管理员进入全局治理。权限由服务端会话确认，不由页面自行声明。</p>
-                    </div>
-                    <ul class="app-auth-context__roles" aria-label="角色权限说明">
-                        <li><span>学生</span>课程、班级、作业与提交</li>
-                        <li><span>教师</span>教学、作业、审批与班级</li>
-                        <li><span>管理员</span>用户、组织、审计与全局状态</li>
-                    </ul>
-                </section>
-                <section class="app-auth-panel">
-                    <div class="app-auth-tabs" role="tablist" aria-label="账号操作">
-                        <button type="button" data-app-auth-view="login" class="${state.view === 'login' ? 'active' : ''}">登录</button>
-                        <button type="button" data-app-auth-view="register" class="${state.view === 'register' ? 'active' : ''}">注册</button>
-                        <button type="button" data-app-auth-view="reset" class="${state.view === 'reset' ? 'active' : ''}">重置密码</button>
-                    </div>
-                    ${statusMarkup()}
-                    ${forms}
-                    <p class="app-auth-panel__note">登录凭据由 HttpOnly Cookie 与服务端 Session 协调保存；本页面不会把访问令牌写入浏览器存储。</p>
-                </section>
-            </main>`;
+        if (global.AstraPublicGuide && typeof global.AstraPublicGuide.render === 'function') {
+            state.overlay.innerHTML = global.AstraPublicGuide.render({
+                activeView: state.view,
+                forms: forms,
+                status: statusMarkup()
+            });
+            if (typeof global.AstraPublicGuide.enhance === 'function') {
+                global.AstraPublicGuide.enhance(state.overlay);
+            }
+            if (scrollTarget && typeof global.AstraPublicGuide.scrollTo === 'function') {
+                global.AstraPublicGuide.scrollTo(state.overlay, scrollTarget, 'auto');
+            }
+            return;
+        }
+        state.overlay.innerHTML = `<main class="app-auth-portal" aria-labelledby="app-auth-title"><section class="app-auth-panel"><h1 id="app-auth-title">登录星序</h1>${statusMarkup()}${forms}<p class="app-auth-panel__note">登录凭据由 HttpOnly Cookie 与服务端 Session 协调保存。</p></section></main>`;
     }
 
     function ensurePortal() {
@@ -672,6 +661,11 @@
     }
 
     function handlePortalClick(event) {
+        const publicTarget = event.target instanceof Element ? event.target.closest('[data-public-target]') : null;
+        if (publicTarget && global.AstraPublicGuide && typeof global.AstraPublicGuide.scrollTo === 'function') {
+            global.AstraPublicGuide.scrollTo(state.overlay, publicTarget.dataset.publicTarget, 'smooth');
+            return;
+        }
         const clearRetry = event.target instanceof Element ? event.target.closest('[data-learning-authority-retry]') : null;
         if (clearRetry && !state.busy) {
             retryLearningAuthorityClear();
@@ -681,7 +675,7 @@
         if (!viewNode || state.busy || state.authorityClearRetry) return;
         state.view = viewNode.dataset.appAuthView || 'login';
         state.status = null;
-        renderPortal();
+        renderPortal('auth');
     }
 
     function formValue(form, name) {
@@ -707,7 +701,7 @@
         if (!form.reportValidity()) return;
         state.busy = true;
         state.status = null;
-        renderPortal();
+        renderPortal('auth');
         try {
             if (form.dataset.appAuthForm === 'login') await submitLogin(form);
             if (form.dataset.appAuthForm === 'register') await submitRegister(form);
@@ -717,7 +711,7 @@
             state.status = { type: 'error', message: api().message(error) };
         } finally {
             state.busy = false;
-            if (!state.user) renderPortal();
+            if (!state.user) renderPortal('auth');
         }
     }
 
@@ -839,7 +833,7 @@
             code: 'learning_evidence_clear_retrying',
             message: '正在重新清理本地学习证据…'
         };
-        renderPortal();
+        renderPortal('auth');
         try {
             await clearLearningAuthority(retry.reason || 'retry-after-clear-failure');
             state.authorityClearRetry = null;
@@ -863,7 +857,7 @@
             return false;
         } finally {
             state.busy = false;
-            if (!state.reloadPending && !state.user) renderPortal();
+            if (!state.reloadPending && !state.user) renderPortal('auth');
         }
     }
 

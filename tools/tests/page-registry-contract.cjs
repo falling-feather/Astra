@@ -68,7 +68,7 @@ assert.equal(registry.leave('mathematics'), false);
 
 assert.match(
   html,
-  /app-session\.js[\s\S]*experiment-registry\.js[\s\S]*frontier-manifest\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/,
+  /experiment-registry\.js[\s\S]*learning-activity-catalog\.js[\s\S]*public-guide\.js[\s\S]*app-session\.js[\s\S]*frontier-manifest\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/,
 );
 assert.match(serviceWorker, /page-registry\.js\?v=20260825v840TeacherApplicationP0/);
 assert.match(router, /AstraPageRegistry\.pagesByTag\('course'\)/);
