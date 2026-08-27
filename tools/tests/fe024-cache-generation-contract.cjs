@@ -5,14 +5,14 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const generation = '20260825v840TeacherApplicationP0';
+const generation = '20260828v854ManagementShowcaseP0';
 const legacyShellGeneration = '20260824v816ExperimentRestoreP2';
 const showcaseGeneration = '20260824v832Show03P0';
 const show04Generation = '20260825v834Show04P0';
 const v834Generation = '20260813v834ShowcaseLayoutP0';
 const moduleGeneration = showcaseGeneration;
 const studentGeneration = legacyShellGeneration;
-const teacherGeneration = '20260825v844CourseCompletionP1';
+const teacherGeneration = '20260828v854ManagementShowcaseP0';
 const physicsGeneration = legacyShellGeneration;
 const frontierGeneration = legacyShellGeneration;
 

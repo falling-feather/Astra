@@ -11,8 +11,8 @@ const context = { window: {} };
 
 vm.runInNewContext(registrySource, context, { filename: 'shared/js/page-registry.js' });
 const styles = Array.from(context.window.AstraPageRegistry.stylesFor('teacher'));
-const version = '20260825v844CourseCompletionP1';
-const overviewVersion = '20260825v845RoleWorkbenchP0';
+const version = '20260828v854ManagementShowcaseP0';
+const overviewVersion = '20260828v850TeachingCockpitP0';
 const expected = [
   `pages/teacher/teacher-foundation.css?v=${version}`,
   `pages/teacher/teacher-workbench.css?v=${version}`,
@@ -83,8 +83,8 @@ function cascadedMinHeight(matchingSelectors) {
 
 assert.equal(
   crypto.createHash('sha256').update(normalizedCascade).digest('hex'),
-  '7afb0302c6ebff5465a158a9ec89f1cda4cdac6038bc87ea9ed4a562a2687dbe',
-  'teacher style layers must preserve the reviewed UI-007 mobile-receipt cascade byte order',
+  '61ad1e68370507acc695399d8a646934187c9e49e07496b2ee54f364cacd9ad8',
+  'teacher style layers must preserve the reviewed V8.5.3 evidence-chain cascade byte order',
 );
 
 assert.match(foundation, /^\.teacher-page\s*\{/);
@@ -103,6 +103,7 @@ assert.match(curriculum, /V7\.8\.5 · 教师自然工作流/);
 assert.match(curriculum, /\.teacher-progress-desktop[\s\S]*\.teacher-progress-mobile/);
 assert.match(curriculum, /@media \(max-width: 760px\)[\s\S]*\.teacher-progress-desktop\s*\{[\s\S]*display:\s*none/);
 assert.match(curriculum, /\.teacher-natural-dialog[\s\S]*max-height:\s*min\(820px, calc\(100dvh - 32px\)\)/);
+assert.match(curriculum, /\.teacher-evidence-chain[\s\S]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
 assert.match(curriculum, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.teacher-natural-dialog \*/);
 const floorIndex = curriculum.lastIndexOf('.teacher-page button,');
 for (const legacyRule of ['min-height: 32px', 'min-height: 37px', 'min-height: 42px']) {

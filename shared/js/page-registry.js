@@ -5,12 +5,12 @@
     if (global.AstraPageRegistry) return;
 
     const ROLE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
-    const TEACHER_RESOURCE_VERSION = '20260825v844CourseCompletionP1';
+    const TEACHER_RESOURCE_VERSION = '20260828v854ManagementShowcaseP0';
     const FUTURE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
     const ADMIN_RESOURCE_VERSION = '20260825v842CourseReviewP0';
-    const PLANETS_RESOURCE_VERSION = '20260825v840TeacherApplicationP0';
+    const PLANETS_RESOURCE_VERSION = '20260828v854ManagementShowcaseP0';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
-    const ROLE_WORKBENCH_OVERVIEW_VERSION = '20260825v845RoleWorkbenchP0';
+    const ROLE_WORKBENCH_OVERVIEW_VERSION = '20260828v850TeachingCockpitP0';
 
     const definePage = (config) => Object.freeze({
         galaxy: config.galaxy || 'englab',

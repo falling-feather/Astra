@@ -56,7 +56,7 @@ assert.match(endpoint, /@router\.patch\("\/admin\/teacher-applications\/\{applic
 assert.match(guard, /has_pending_teacher_application/);
 assert.match(guard, /request\.method in \{"GET", "HEAD", "OPTIONS"\}/);
 
-const generation = '20260825v840TeacherApplicationP0';
+const generation = '20260828v854ManagementShowcaseP0';
 for (const source of [html, registry, main, serviceWorker]) {
   assert.match(source, new RegExp(generation), 'FE-037 assets must expose the same cache generation');
 }
