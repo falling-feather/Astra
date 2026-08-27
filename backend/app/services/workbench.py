@@ -205,6 +205,13 @@ def _build_admin_workbench(
             "active_homerooms": 0,
         },
     )
+    teaching_snapshot = _safe_section(
+        db,
+        issues=issues,
+        section="teaching_snapshot",
+        loader=lambda: _admin_teaching_snapshot(db),
+        fallback=lambda: _empty_admin_teaching_snapshot(),
+    )
     return {
         "role": "admin",
         "generated_at": utc_now(),
@@ -217,6 +224,7 @@ def _build_admin_workbench(
         "pending_course_revisions": revisions,
         "organization_alerts": alerts,
         "catalog_totals": totals,
+        "teaching_snapshot": teaching_snapshot,
         "section_errors": issues,
     }
 
@@ -785,6 +793,201 @@ def _admin_catalog_totals(db: Session) -> dict[str, int]:
             )
             or 0
         ),
+    }
+
+
+def _empty_admin_teaching_snapshot() -> dict[str, Any]:
+    return {
+        "published_courses": 0,
+        "draft_courses": 0,
+        "active_enrollments": 0,
+        "immutable_releases": 0,
+        "released_units": 0,
+        "completed_activities": 0,
+        "pending_grading": 0,
+        "galaxy_distribution": [
+            {
+                "galaxy_key": galaxy_key,
+                "courses": 0,
+                "active_enrollments": 0,
+                "releases": 0,
+            }
+            for galaxy_key in ("englab", "code-space", "future-galaxy")
+        ],
+        "course_pulse": [],
+    }
+
+
+def _admin_teaching_snapshot(db: Session) -> dict[str, Any]:
+    """Read existing teaching facts for the admin showcase; no new state is stored."""
+
+    published_courses = int(
+        db.scalar(select(func.count(Course.id)).where(Course.status == "published"))
+        or 0
+    )
+    draft_courses = int(
+        db.scalar(select(func.count(Course.id)).where(Course.status == "draft")) or 0
+    )
+    active_enrollments = int(
+        db.scalar(
+            select(func.count(CourseEnrollment.id)).where(
+                CourseEnrollment.status == "active"
+            )
+        )
+        or 0
+    )
+    immutable_releases = int(db.scalar(select(func.count(CourseRelease.id))) or 0)
+    released_units = int(db.scalar(select(func.count(CourseReleaseUnit.id))) or 0)
+    completed_activities = int(
+        db.scalar(
+            select(func.count(LearningActivityProjection.id)).where(
+                LearningActivityProjection.status == "completed"
+            )
+        )
+        or 0
+    )
+    pending_grading = int(
+        db.scalar(
+            select(func.count(Submission.id)).where(Submission.status == "submitted")
+        )
+        or 0
+    )
+
+    course_counts = {
+        str(galaxy_key): int(total)
+        for galaxy_key, total in db.execute(
+            select(Course.galaxy_key, func.count(Course.id))
+            .where(Course.status == "published")
+            .group_by(Course.galaxy_key)
+        ).all()
+    }
+    enrollment_counts = {
+        str(galaxy_key): int(total)
+        for galaxy_key, total in db.execute(
+            select(Course.galaxy_key, func.count(CourseEnrollment.id))
+            .join(Course, Course.id == CourseEnrollment.course_id)
+            .where(
+                Course.status == "published",
+                CourseEnrollment.status == "active",
+            )
+            .group_by(Course.galaxy_key)
+        ).all()
+    }
+    release_counts = {
+        str(galaxy_key): int(total)
+        for galaxy_key, total in db.execute(
+            select(Course.galaxy_key, func.count(CourseRelease.id))
+            .join(Course, Course.id == CourseRelease.course_id)
+            .where(Course.status == "published")
+            .group_by(Course.galaxy_key)
+        ).all()
+    }
+    known_galaxies = ["englab", "code-space", "future-galaxy"]
+    extra_galaxies = sorted(
+        (set(course_counts) | set(enrollment_counts) | set(release_counts))
+        - set(known_galaxies)
+    )
+    galaxy_distribution = [
+        {
+            "galaxy_key": galaxy_key,
+            "courses": course_counts.get(galaxy_key, 0),
+            "active_enrollments": enrollment_counts.get(galaxy_key, 0),
+            "releases": release_counts.get(galaxy_key, 0),
+        }
+        for galaxy_key in [*known_galaxies, *extra_galaxies]
+    ]
+
+    recent_courses = list(
+        db.scalars(
+            select(Course)
+            .where(Course.status == "published")
+            .order_by(Course.updated_at.desc(), Course.id.desc())
+            .limit(6)
+        ).all()
+    )
+    course_pulse: list[dict[str, Any]] = []
+    for course in recent_courses:
+        latest_release = db.scalar(
+            select(CourseRelease)
+            .where(CourseRelease.course_id == course.id)
+            .order_by(CourseRelease.release_number.desc(), CourseRelease.id.desc())
+            .limit(1)
+        )
+        student_count = int(
+            db.scalar(
+                select(func.count(CourseEnrollment.id)).where(
+                    CourseEnrollment.course_id == course.id,
+                    CourseEnrollment.status == "active",
+                )
+            )
+            or 0
+        )
+        unit_count = (
+            int(
+                db.scalar(
+                    select(func.count(CourseReleaseUnit.id)).where(
+                        CourseReleaseUnit.course_release_id == latest_release.id
+                    )
+                )
+                or 0
+            )
+            if latest_release is not None
+            else 0
+        )
+        completed_count = int(
+            db.scalar(
+                select(func.count(LearningActivityProjection.id)).where(
+                    LearningActivityProjection.course_id == course.id,
+                    LearningActivityProjection.status == "completed",
+                )
+            )
+            or 0
+        )
+        course_pending_grading = int(
+            db.scalar(
+                select(func.count(Submission.id))
+                .join(Assignment, Assignment.id == Submission.assignment_id)
+                .join(CourseUnit, CourseUnit.id == Assignment.unit_id)
+                .where(
+                    CourseUnit.course_id == course.id,
+                    Submission.status == "submitted",
+                )
+            )
+            or 0
+        )
+        expected_count = student_count * unit_count
+        progress_percent = (
+            min(100, round(completed_count / expected_count * 100))
+            if expected_count
+            else 0
+        )
+        course_pulse.append(
+            {
+                "course_id": course.id,
+                "title": course.title,
+                "galaxy_key": course.galaxy_key,
+                "subject_key": course.subject_key,
+                "current_release_number": (
+                    latest_release.release_number if latest_release is not None else None
+                ),
+                "active_student_count": student_count,
+                "published_unit_count": unit_count,
+                "completed_activity_count": completed_count,
+                "pending_grading_count": course_pending_grading,
+                "progress_percent": progress_percent,
+            }
+        )
+
+    return {
+        "published_courses": published_courses,
+        "draft_courses": draft_courses,
+        "active_enrollments": active_enrollments,
+        "immutable_releases": immutable_releases,
+        "released_units": released_units,
+        "completed_activities": completed_activities,
+        "pending_grading": pending_grading,
+        "galaxy_distribution": galaxy_distribution,
+        "course_pulse": course_pulse,
     }
 
 

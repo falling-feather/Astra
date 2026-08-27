@@ -24,13 +24,19 @@ assert.match(ownerSource, /data-role-workbench-action="retry"/);
 assert.match(ownerSource, /section_errors/);
 assert.match(ownerSource, /当前唯一下一步/);
 assert.match(ownerSource, /没有建立第二套工作台状态/);
+assert.match(ownerSource, /教学运行驾驶舱/);
+assert.match(ownerSource, /TEACHING OPERATIONS/);
+assert.match(ownerSource, /teaching_snapshot/);
+assert.match(ownerSource, /galaxy_distribution/);
+assert.match(ownerSource, /course_pulse/);
+assert.match(ownerSource, /progress_percent/);
 
 for (const [label, source, host] of [
   ['student', student, 'data-student-role-overview'],
   ['teacher', teacher, 'data-teacher-role-overview'],
   ['admin', admin, 'data-admin-role-overview'],
 ]) {
-  assert.match(source, /import\('\.\.\/\.\.\/shared\/js\/role-workbench-bridge\.js\?v=20260825v845RoleWorkbenchP0'\)/, `${label} must lazy-load the shared bridge`);
+  assert.match(source, /import\('\.\.\/\.\.\/shared\/js\/role-workbench-bridge\.js\?v=20260828v850TeachingCockpitP0'\)/, `${label} must lazy-load the shared bridge`);
   assert.ok(source.includes(host), `${label} must provide its overview host`);
   assert.match(source, /roleWorkbench\('destroy'\)/, `${label} must destroy the overview owner on leave`);
   assert.match(source, /roleWorkbench\('reset'\)/, `${label} must clear stale role data before refresh`);
@@ -43,7 +49,7 @@ assert.match(bridgeSource, /owner\.destroy\(\)/, 'the bridge must destroy its ow
 assert.match(bridgeSource, /owner\.reset\(\)/, 'the bridge must clear stale aggregate state');
 assert.doesNotMatch(bridgeSource, /method:\s*['"](?:POST|PATCH|PUT|DELETE)['"]/i, 'the bridge must remain navigation and read orchestration only');
 
-assert.match(registry, /ROLE_WORKBENCH_OVERVIEW_VERSION = '20260825v845RoleWorkbenchP0'/);
+assert.match(registry, /ROLE_WORKBENCH_OVERVIEW_VERSION = '20260828v850TeachingCockpitP0'/);
 assert.equal((registry.match(/shared\/css\/role-workbench-overview\.css\?v=\$\{ROLE_WORKBENCH_OVERVIEW_VERSION\}/g) || []).length, 3);
 assert.equal((registry.match(/shared\/js\/role-workbench-overview\.js\?v=\$\{ROLE_WORKBENCH_OVERVIEW_VERSION\}/g) || []).length, 3);
 assert.equal((registry.match(/shared\/js\/role-workbench-bridge\.js\?v=\$\{ROLE_WORKBENCH_OVERVIEW_VERSION\}/g) || []).length, 3);
@@ -95,16 +101,19 @@ assert.match(styles, /@container \(max-width: 760px\)/);
 assert.match(styles, /@container \(max-width: 560px\)/);
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 assert.doesNotMatch(styles, /100vw/);
+assert.match(styles, /\.role-workbench-cockpit\s*\{/);
+assert.match(styles, /\.role-workbench-cockpit__stage\s*\{[\s\S]*?grid-template-columns:/);
+assert.match(styles, /\.role-workbench-pulse-card__ring\s*\{[\s\S]*?conic-gradient/);
 
 const context = { window: {}, console, Date, Intl, AbortController, setTimeout, clearTimeout };
 context.window.window = context.window;
 vm.createContext(context);
 vm.runInContext(ownerSource, context, { filename: 'shared/js/role-workbench-overview.js' });
 const contract = context.window.AstraRoleWorkbenchOverview.contract;
-assert.equal(contract.VERSION, '20260825v845RoleWorkbenchP0');
+assert.equal(contract.VERSION, '20260828v850TeachingCockpitP0');
 assert.deepEqual(Array.from(contract.roles), ['student', 'teacher', 'admin']);
 vm.runInContext(bridgeSource, context, { filename: 'shared/js/role-workbench-bridge.js' });
-assert.equal(context.window.AstraRoleWorkbenchBridge.contract.VERSION, '20260825v845RoleWorkbenchP0');
+assert.equal(context.window.AstraRoleWorkbenchBridge.contract.VERSION, '20260828v850TeachingCockpitP0');
 assert.deepEqual(
   JSON.parse(JSON.stringify(context.window.AstraRoleWorkbenchBridge.contract.HOST_SELECTORS)),
   {

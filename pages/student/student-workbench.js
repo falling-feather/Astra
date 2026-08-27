@@ -249,7 +249,7 @@
         }
     }
 
-    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'student', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.authorized, refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260825v845RoleWorkbenchP0').then(invoke).catch(() => false); }
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'student', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.authorized, refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v850TeachingCockpitP0').then(invoke).catch(() => false); }
     function renderShell() {
         state.root.innerHTML = `
             <header class="student-workbench__header">

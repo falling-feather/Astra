@@ -3,7 +3,7 @@
 
     if (global.AstraRoleWorkbenchOverview) return;
 
-    const VERSION = '20260825v845RoleWorkbenchP0';
+    const VERSION = '20260828v850TeachingCockpitP0';
     const ROLES = new Set(['student', 'teacher', 'admin']);
     const ROLE_META = Object.freeze({
         student: Object.freeze({
@@ -287,6 +287,7 @@
                 ['启用学校', count(totals.active_schools), 'landmark', 'school'],
                 ['启用行政班', count(totals.active_homerooms), 'school', 'homeroom']
             ])}
+            ${adminTeachingCockpitMarkup(payload.teaching_snapshot)}
             <div class="role-workbench-overview__flow role-workbench-overview__flow--admin">
                 ${sectionMarkup('01', '教师身份申请', `${count(payload.pending_teacher_applications.total)} 份待审`, queueMarkup(
                     pageItems(payload.pending_teacher_applications).slice(0, 4), adminTeacherApplicationMarkup,
@@ -304,6 +305,78 @@
                 ${secondaryAction('open_organization_governance', '学校与班级', 'landmark')}
                 ${secondaryAction('open_catalog_governance', '用户与课程查询', 'search')}
             </div>`;
+    }
+
+    function adminTeachingCockpitMarkup(value) {
+        const snapshot = normalizeTeachingSnapshot(value);
+        const galaxies = snapshot.galaxy_distribution;
+        const maxCourses = Math.max(1, ...galaxies.map((item) => count(item.courses)));
+        const pulse = snapshot.course_pulse;
+        return `<section class="role-workbench-cockpit" aria-labelledby="admin-teaching-cockpit-title">
+            <header class="role-workbench-cockpit__header">
+                <div><span><i data-lucide="orbit"></i>TEACHING OPERATIONS</span><h3 id="admin-teaching-cockpit-title">教学运行驾驶舱</h3><p>把课程、发布、学生学习和批改状态压缩为一个可讲解的权威快照。</p></div>
+                <div class="role-workbench-cockpit__status"><i data-lucide="radio-tower"></i><span>当前教学网络</span><strong>${count(snapshot.published_courses)} 门课程运行中</strong></div>
+            </header>
+            <dl class="role-workbench-cockpit__signals">
+                <div><dt>在课学生</dt><dd>${count(snapshot.active_enrollments)}</dd><small>有效选课关系</small></div>
+                <div><dt>发布版本</dt><dd>${count(snapshot.immutable_releases)}</dd><small>${count(snapshot.released_units)} 个版本单元</small></div>
+                <div><dt>完成信号</dt><dd>${count(snapshot.completed_activities)}</dd><small>学习规则已成立</small></div>
+                <div data-alert="${count(snapshot.pending_grading) > 0 ? 'true' : 'false'}"><dt>待批改</dt><dd>${count(snapshot.pending_grading)}</dd><small>${count(snapshot.pending_grading) ? '需要教师处理' : '当前队列已清空'}</small></div>
+            </dl>
+            <div class="role-workbench-cockpit__stage">
+                <section class="role-workbench-cockpit__galaxies" aria-label="星系课程分布">
+                    <header><div><span>01 · 课程星图</span><strong>三星系统一纳入教学网络</strong></div><small>${count(snapshot.draft_courses)} 门草稿课程待完善</small></header>
+                    <div class="role-workbench-cockpit__orbit" aria-hidden="true"><span></span><span></span><i></i></div>
+                    <div class="role-workbench-cockpit__galaxy-list">${galaxies.map((item, index) => adminGalaxyMarkup(item, index, maxCourses)).join('')}</div>
+                </section>
+                <section class="role-workbench-cockpit__pulse" aria-label="课程运行脉搏">
+                    <header><div><span>02 · 课程脉搏</span><strong>最近更新的运行课程</strong></div>${actionButton({ kind: 'open_course_governance', section: 'utility' }, '查看全部', 'role-workbench-cockpit__all', 'arrow-up-right')}</header>
+                    <div class="role-workbench-cockpit__course-list">${pulse.length
+                        ? pulse.slice(0, 4).map(adminCoursePulseMarkup).join('')
+                        : emptyMarkup('暂无运行课程', '课程审核通过并完成首发后，运行状态会在这里点亮。', 'radar')}</div>
+                </section>
+            </div>
+        </section>`;
+    }
+
+    function normalizeTeachingSnapshot(value) {
+        const source = value && typeof value === 'object' ? value : {};
+        const fallbackGalaxies = ['englab', 'code-space', 'future-galaxy'];
+        const galaxies = Array.isArray(source.galaxy_distribution) && source.galaxy_distribution.length
+            ? source.galaxy_distribution
+            : fallbackGalaxies.map((galaxy_key) => ({ galaxy_key, courses: 0, active_enrollments: 0, releases: 0 }));
+        return {
+            published_courses: count(source.published_courses),
+            draft_courses: count(source.draft_courses),
+            active_enrollments: count(source.active_enrollments),
+            immutable_releases: count(source.immutable_releases),
+            released_units: count(source.released_units),
+            completed_activities: count(source.completed_activities),
+            pending_grading: count(source.pending_grading),
+            galaxy_distribution: galaxies,
+            course_pulse: Array.isArray(source.course_pulse) ? source.course_pulse : []
+        };
+    }
+
+    function adminGalaxyMarkup(item, index, maxCourses) {
+        const courses = count(item.courses);
+        const strength = Math.max(8, Math.round(courses / maxCourses * 100));
+        return `<article class="role-workbench-galaxy" data-galaxy="${escapeAttr(item.galaxy_key || '')}" style="--galaxy-strength:${strength}%">
+            <span class="role-workbench-galaxy__node"><i></i><b>${String(index + 1).padStart(2, '0')}</b></span>
+            <div><strong>${escapeHtml(galaxyLabel(item.galaxy_key))}</strong><small>${count(item.active_enrollments)} 名学生 · ${count(item.releases)} 个版本</small><span><i></i></span></div>
+            <em>${courses}<small>门课</small></em>
+        </article>`;
+    }
+
+    function adminCoursePulseMarkup(item) {
+        const percent = Math.min(100, count(item.progress_percent));
+        const pending = count(item.pending_grading_count);
+        const state = !item.current_release_number ? '待首发' : pending ? '待批改' : percent >= 60 ? '学习活跃' : count(item.active_student_count) ? '运行中' : '待加入';
+        return `<article class="role-workbench-pulse-card" style="--course-progress:${percent}" data-state="${escapeAttr(state)}">
+            <div class="role-workbench-pulse-card__ring"><span>${percent}<small>%</small></span></div>
+            <div class="role-workbench-pulse-card__body"><span>${escapeHtml(galaxyLabel(item.galaxy_key))} · ${escapeHtml(subjectLabel(item.subject_key))}</span><strong>${escapeHtml(item.title || '未命名课程')}</strong><small>${count(item.active_student_count)} 名学生 · ${count(item.published_unit_count)} 个单元 · ${item.current_release_number ? `第 ${count(item.current_release_number)} 版` : '尚未首发'}</small></div>
+            <div class="role-workbench-pulse-card__action"><b>${escapeHtml(state)}</b>${actionButton({ kind: 'open_course_governance', section: 'utility', course_id: item.course_id }, '查看', '', 'chevron-right')}</div>
+        </article>`;
     }
 
     function metricsMarkup(items) {
@@ -468,7 +541,8 @@
         return ({
             courses: '课程', assignments: '作业', continue_learning: '续学位置', submissions: '提交回执', homerooms: '行政班',
             pending_students: '学生申请', unpublished_drafts: '共享草稿', pending_grading: '待批改作业',
-            pending_teacher_applications: '教师申请', pending_course_revisions: '课程审核', organization_alerts: '组织提醒', catalog_totals: '治理总数'
+            pending_teacher_applications: '教师申请', pending_course_revisions: '课程审核', organization_alerts: '组织提醒', catalog_totals: '治理总数',
+            teaching_snapshot: '教学运行快照'
         })[section] || String(section || '未知分区');
     }
 

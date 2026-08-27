@@ -18,9 +18,9 @@ vm.runInNewContext(registrySource, context, { filename: 'shared/js/page-registry
 const registry = context.window.AstraPageRegistry;
 const normalize = (items) => Array.from(items);
 const studentVersion = '20260824v816ExperimentRestoreP2';
-const teacherVersion = '20260825v844CourseCompletionP1';
+const teacherVersion = '20260828v854ManagementShowcaseP0';
 const adminVersion = '20260825v842CourseReviewP0';
-const overviewVersion = '20260825v845RoleWorkbenchP0';
+const overviewVersion = '20260828v850TeachingCockpitP0';
 const student = [
     `pages/student/student.css?v=${studentVersion}`,
     `shared/css/role-workbench-overview.css?v=${overviewVersion}`,
@@ -67,7 +67,7 @@ assert.doesNotMatch(html, /<link[^>]+href="pages\/(?:student|teacher|admin)\//);
 const appShell = serviceWorker.match(/const APP_SHELL = \[([\s\S]*?)\n\];/);
 assert.ok(appShell, 'service-worker APP_SHELL must remain inspectable');
 assert.doesNotMatch(appShell[1], roleAssetPattern, 'APP_SHELL must not pre-cache any role resource');
-assert.match(serviceWorker, /astra-static-v20260825v840TeacherApplicationP0/);
+assert.match(serviceWorker, /astra-static-v20260828v854ManagementShowcaseP0/);
 
 const coreFallback = main.match(/const CORE_HTTP_FALLBACK_ASSETS = \[([\s\S]*?)\n\];/);
 const galaxyFallback = main.match(/const GALAXY_HTTP_FALLBACK_ASSETS = \{([\s\S]*?)\n\};/);

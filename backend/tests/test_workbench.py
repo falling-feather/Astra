@@ -547,8 +547,55 @@ def test_admin_workbench_prioritizes_review_queues_and_reports_organization_aler
     assert body["organization_alerts"]["next_offset"] == 1
     assert body["catalog_totals"]["users"] == 3
     assert body["catalog_totals"]["courses"] == 1
+    assert body["teaching_snapshot"]["published_courses"] == 0
+    assert body["teaching_snapshot"]["draft_courses"] == 1
+    assert body["teaching_snapshot"]["active_enrollments"] == 0
+    assert body["teaching_snapshot"]["immutable_releases"] == 0
+    assert [item["galaxy_key"] for item in body["teaching_snapshot"]["galaxy_distribution"]] == [
+        "englab",
+        "code-space",
+        "future-galaxy",
+    ]
+    assert body["teaching_snapshot"]["course_pulse"] == []
     assert body["primary_action"]["kind"] == "review_teacher_application"
     assert body["primary_action"]["request_id"] == application.json()["id"]
+
+
+def test_admin_workbench_teaching_snapshot_uses_existing_course_facts(client) -> None:
+    admin = _bootstrap_admin(client, "workbench_admin_cockpit")
+    teacher = _register(client, "workbench_cockpit_teacher", "teacher")
+
+    with _session_factory()() as db:
+        school = School(name="Workbench Cockpit School", status="active")
+        db.add(school)
+        db.flush()
+        course = Course(
+            school_id=school.id,
+            creator_user_id=teacher["id"],
+            galaxy_key="englab",
+            subject_key="physics",
+            course_key="workbench-cockpit-course",
+            title="Workbench Running Course",
+            admission_mode="open",
+            status="published",
+        )
+        db.add(course)
+        db.commit()
+
+    response = client.get("/api/v1/workbench", headers=_auth(admin["token"]))
+    assert response.status_code == 200, response.json()
+    snapshot = response.json()["teaching_snapshot"]
+    assert snapshot["published_courses"] == 1
+    assert snapshot["draft_courses"] == 0
+    assert snapshot["galaxy_distribution"][0] == {
+        "galaxy_key": "englab",
+        "courses": 1,
+        "active_enrollments": 0,
+        "releases": 0,
+    }
+    assert snapshot["course_pulse"][0]["title"] == "Workbench Running Course"
+    assert snapshot["course_pulse"][0]["current_release_number"] is None
+    assert snapshot["course_pulse"][0]["progress_percent"] == 0
 
 
 def test_workbench_keeps_healthy_sections_when_one_section_fails(

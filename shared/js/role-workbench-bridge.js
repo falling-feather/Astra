@@ -3,7 +3,7 @@
 
     if (global.AstraRoleWorkbenchBridge) return;
 
-    const VERSION = '20260825v845RoleWorkbenchP0';
+    const VERSION = '20260828v850TeachingCockpitP0';
     const OWNER_PATH = `./role-workbench-overview.js?v=${VERSION}`;
     const HOST_SELECTORS = Object.freeze({
         student: '[data-student-role-overview]',

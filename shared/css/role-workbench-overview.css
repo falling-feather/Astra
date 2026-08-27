@@ -247,6 +247,439 @@
     font-variant-numeric: tabular-nums;
 }
 
+.role-workbench-cockpit {
+    position: relative;
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    padding: clamp(18px, 2.3vw, 28px);
+    overflow: hidden;
+    color: #e9fffb;
+    border: 1px solid rgba(94, 234, 212, 0.2);
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at 14% 10%, rgba(45, 212, 191, 0.18), transparent 29%),
+        radial-gradient(circle at 86% 85%, rgba(59, 130, 246, 0.16), transparent 30%),
+        linear-gradient(138deg, #071c24 0%, #0a2930 52%, #0b2235 100%);
+    box-shadow: 0 22px 50px rgba(4, 31, 42, 0.2);
+}
+
+.role-workbench-cockpit::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.24;
+    background-image:
+        linear-gradient(rgba(148, 223, 214, 0.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 223, 214, 0.12) 1px, transparent 1px);
+    background-size: 38px 38px;
+    mask-image: linear-gradient(to bottom, black, transparent 78%);
+    pointer-events: none;
+}
+
+.role-workbench-cockpit > * {
+    position: relative;
+    z-index: 1;
+}
+
+.role-workbench-cockpit__header,
+.role-workbench-cockpit__header > div > span,
+.role-workbench-cockpit__status,
+.role-workbench-cockpit__stage header,
+.role-workbench-galaxy,
+.role-workbench-pulse-card {
+    display: flex;
+    align-items: center;
+}
+
+.role-workbench-cockpit__header {
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.role-workbench-cockpit__header > div:first-child {
+    min-width: 0;
+}
+
+.role-workbench-cockpit__header > div > span {
+    gap: 7px;
+    color: #74f2dc;
+    font-size: 0.68rem;
+    font-weight: 850;
+    letter-spacing: 0.16em;
+}
+
+.role-workbench-cockpit__header svg {
+    width: 16px;
+    height: 16px;
+}
+
+.role-workbench-cockpit__header h3,
+.role-workbench-cockpit__header p {
+    margin: 0;
+}
+
+.role-workbench-cockpit__header h3 {
+    margin-top: 6px;
+    color: white;
+    font-size: clamp(1.25rem, 2vw, 1.7rem);
+    letter-spacing: -0.025em;
+}
+
+.role-workbench-cockpit__header p {
+    margin-top: 6px;
+    color: rgba(220, 252, 247, 0.65);
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+.role-workbench-cockpit__status {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px 9px;
+    max-width: 260px;
+    padding: 11px 14px;
+    border: 1px solid rgba(94, 234, 212, 0.17);
+    border-radius: 14px;
+    background: rgba(13, 62, 69, 0.7);
+}
+
+.role-workbench-cockpit__status svg {
+    color: #5eead4;
+}
+
+.role-workbench-cockpit__status span {
+    color: rgba(220, 252, 247, 0.64);
+    font-size: 0.68rem;
+}
+
+.role-workbench-cockpit__status strong {
+    flex-basis: 100%;
+    text-align: right;
+    font-size: 0.78rem;
+}
+
+.role-workbench-cockpit__signals {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+    margin: 0;
+}
+
+.role-workbench-cockpit__signals > div {
+    min-width: 0;
+    padding: 12px 13px;
+    border: 1px solid rgba(134, 239, 222, 0.12);
+    border-radius: 14px;
+    background: rgba(6, 40, 49, 0.66);
+}
+
+.role-workbench-cockpit__signals > div[data-alert="true"] {
+    border-color: rgba(251, 191, 36, 0.26);
+    background: rgba(77, 49, 16, 0.36);
+}
+
+.role-workbench-cockpit__signals dt,
+.role-workbench-cockpit__signals dd,
+.role-workbench-cockpit__signals small {
+    display: block;
+    margin: 0;
+}
+
+.role-workbench-cockpit__signals dt {
+    color: rgba(220, 252, 247, 0.62);
+    font-size: 0.68rem;
+}
+
+.role-workbench-cockpit__signals dd {
+    margin: 4px 0 2px;
+    color: white;
+    font-size: 1.45rem;
+    font-weight: 850;
+    font-variant-numeric: tabular-nums;
+}
+
+.role-workbench-cockpit__signals small {
+    overflow: hidden;
+    color: rgba(220, 252, 247, 0.47);
+    font-size: 0.64rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.role-workbench-cockpit__stage {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.8fr) minmax(380px, 1.2fr);
+    gap: 12px;
+}
+
+.role-workbench-cockpit__galaxies,
+.role-workbench-cockpit__pulse {
+    position: relative;
+    min-width: 0;
+    padding: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(134, 239, 222, 0.12);
+    border-radius: 18px;
+    background: rgba(5, 34, 43, 0.72);
+}
+
+.role-workbench-cockpit__stage header {
+    position: relative;
+    z-index: 2;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    margin-bottom: 10px;
+}
+
+.role-workbench-cockpit__stage header span,
+.role-workbench-cockpit__stage header strong,
+.role-workbench-cockpit__stage header small {
+    display: block;
+}
+
+.role-workbench-cockpit__stage header span,
+.role-workbench-cockpit__stage header small {
+    color: rgba(220, 252, 247, 0.5);
+    font-size: 0.64rem;
+}
+
+.role-workbench-cockpit__stage header strong {
+    margin-top: 3px;
+    color: #f0fdfa;
+    font-size: 0.84rem;
+}
+
+.role-workbench-cockpit__orbit {
+    position: absolute;
+    inset: 26px auto auto 55%;
+    width: 180px;
+    height: 180px;
+    opacity: 0.36;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.role-workbench-cockpit__orbit span {
+    position: absolute;
+    inset: 12%;
+    border: 1px solid rgba(94, 234, 212, 0.28);
+    border-radius: 50%;
+    transform: rotate(-18deg) scaleY(0.55);
+}
+
+.role-workbench-cockpit__orbit span:nth-child(2) {
+    inset: 25%;
+    border-color: rgba(96, 165, 250, 0.35);
+    transform: rotate(24deg) scaleY(0.63);
+}
+
+.role-workbench-cockpit__orbit i {
+    position: absolute;
+    inset: 45%;
+    border-radius: 50%;
+    background: #5eead4;
+    box-shadow: 0 0 28px 11px rgba(45, 212, 191, 0.32);
+}
+
+.role-workbench-cockpit__galaxy-list,
+.role-workbench-cockpit__course-list {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 8px;
+}
+
+.role-workbench-galaxy {
+    gap: 10px;
+    min-width: 0;
+    padding: 9px;
+    border-radius: 13px;
+    background: rgba(12, 62, 69, 0.56);
+}
+
+.role-workbench-galaxy__node {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(94, 234, 212, 0.24);
+    border-radius: 50%;
+}
+
+.role-workbench-galaxy__node i {
+    position: absolute;
+    inset: 7px;
+    border-radius: inherit;
+    background: #2dd4bf;
+    box-shadow: 0 0 14px rgba(45, 212, 191, 0.48);
+}
+
+.role-workbench-galaxy__node b {
+    position: relative;
+    color: #042f2e;
+    font-size: 0.59rem;
+}
+
+.role-workbench-galaxy > div {
+    min-width: 0;
+    flex: 1;
+}
+
+.role-workbench-galaxy > div > strong,
+.role-workbench-galaxy > div > small {
+    display: block;
+}
+
+.role-workbench-galaxy > div > strong {
+    font-size: 0.78rem;
+}
+
+.role-workbench-galaxy > div > small {
+    margin-top: 2px;
+    color: rgba(220, 252, 247, 0.5);
+    font-size: 0.62rem;
+}
+
+.role-workbench-galaxy > div > span {
+    display: block;
+    height: 3px;
+    margin-top: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(94, 234, 212, 0.1);
+}
+
+.role-workbench-galaxy > div > span i {
+    display: block;
+    width: var(--galaxy-strength);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2dd4bf, #60a5fa);
+}
+
+.role-workbench-galaxy > em {
+    color: white;
+    font-size: 1.05rem;
+    font-style: normal;
+    font-weight: 850;
+}
+
+.role-workbench-galaxy > em small {
+    margin-left: 2px;
+    color: rgba(220, 252, 247, 0.45);
+    font-size: 0.58rem;
+    font-weight: 600;
+}
+
+.role-workbench-cockpit__all {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 36px !important;
+    padding: 0 10px;
+    color: #99f6e4;
+    border: 1px solid rgba(94, 234, 212, 0.2) !important;
+    border-radius: 10px;
+    background: rgba(15, 118, 110, 0.2);
+    font-size: 0.68rem;
+}
+
+.role-workbench-cockpit__all svg {
+    width: 14px;
+}
+
+.role-workbench-pulse-card {
+    display: grid;
+    grid-template-columns: 45px minmax(0, 1fr) auto;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 9px;
+    border: 1px solid rgba(134, 239, 222, 0.1);
+    border-radius: 13px;
+    background: rgba(13, 54, 64, 0.66);
+}
+
+.role-workbench-pulse-card__ring {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: conic-gradient(#5eead4 calc(var(--course-progress) * 1%), rgba(94, 234, 212, 0.12) 0);
+}
+
+.role-workbench-pulse-card__ring::before {
+    content: "";
+    grid-area: 1 / 1;
+    width: 32px;
+    height: 32px;
+    border-radius: inherit;
+    background: #0b3039;
+}
+
+.role-workbench-pulse-card__ring span {
+    position: relative;
+    grid-area: 1 / 1;
+    color: white;
+    font-size: 0.69rem;
+    font-weight: 850;
+}
+
+.role-workbench-pulse-card__ring small {
+    color: rgba(220, 252, 247, 0.55);
+    font-size: 0.46rem;
+}
+
+.role-workbench-pulse-card__body {
+    min-width: 0;
+}
+
+.role-workbench-pulse-card__body span,
+.role-workbench-pulse-card__body strong,
+.role-workbench-pulse-card__body small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.role-workbench-pulse-card__body span,
+.role-workbench-pulse-card__body small {
+    color: rgba(220, 252, 247, 0.48);
+    font-size: 0.58rem;
+}
+
+.role-workbench-pulse-card__body strong {
+    margin: 2px 0;
+    color: #f0fdfa;
+    font-size: 0.76rem;
+}
+
+.role-workbench-pulse-card__action {
+    display: grid;
+    justify-items: end;
+    gap: 3px;
+}
+
+.role-workbench-pulse-card__action b {
+    color: #99f6e4;
+    font-size: 0.58rem;
+}
+
+.role-workbench-pulse-card__action .role-workbench-overview__row-action {
+    min-width: 62px;
+    min-height: 32px;
+    color: #ccfbf1;
+    border-color: rgba(94, 234, 212, 0.17);
+    background: rgba(15, 118, 110, 0.22);
+}
+
 .role-workbench-overview__flow {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -767,6 +1200,10 @@
     .role-workbench-overview__utility--actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .role-workbench-cockpit__stage {
+        grid-template-columns: 1fr;
+    }
 }
 
 @container (max-width: 560px) {
@@ -783,6 +1220,10 @@
     .role-workbench-overview__metrics,
     .role-workbench-overview__utility--actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .role-workbench-cockpit__stage {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -803,6 +1244,40 @@
 
     .role-workbench-overview__primary {
         padding: 16px;
+    }
+
+    .role-workbench-cockpit {
+        padding: 14px;
+        border-radius: 19px;
+    }
+
+    .role-workbench-cockpit__header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .role-workbench-cockpit__status {
+        justify-content: flex-start;
+        max-width: none;
+    }
+
+    .role-workbench-cockpit__status strong {
+        text-align: left;
+    }
+
+    .role-workbench-cockpit__signals {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .role-workbench-pulse-card {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .role-workbench-pulse-card__action {
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        justify-items: start;
     }
 
     .role-workbench-overview__metrics,

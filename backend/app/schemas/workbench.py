@@ -185,6 +185,38 @@ class AdminCatalogTotals(BaseModel):
     active_homerooms: int = Field(ge=0)
 
 
+class AdminGalaxyTeachingSummary(BaseModel):
+    galaxy_key: str
+    courses: int = Field(ge=0)
+    active_enrollments: int = Field(ge=0)
+    releases: int = Field(ge=0)
+
+
+class AdminCoursePulseSummary(BaseModel):
+    course_id: int
+    title: str
+    galaxy_key: str
+    subject_key: str
+    current_release_number: int | None = None
+    active_student_count: int = Field(ge=0)
+    published_unit_count: int = Field(ge=0)
+    completed_activity_count: int = Field(ge=0)
+    pending_grading_count: int = Field(ge=0)
+    progress_percent: int = Field(ge=0, le=100)
+
+
+class AdminTeachingSnapshot(BaseModel):
+    published_courses: int = Field(ge=0)
+    draft_courses: int = Field(ge=0)
+    active_enrollments: int = Field(ge=0)
+    immutable_releases: int = Field(ge=0)
+    released_units: int = Field(ge=0)
+    completed_activities: int = Field(ge=0)
+    pending_grading: int = Field(ge=0)
+    galaxy_distribution: list[AdminGalaxyTeachingSummary] = Field(default_factory=list)
+    course_pulse: list[AdminCoursePulseSummary] = Field(default_factory=list)
+
+
 class AdminWorkbenchDTO(BaseModel):
     role: Literal["admin"] = "admin"
     generated_at: datetime
@@ -193,6 +225,7 @@ class AdminWorkbenchDTO(BaseModel):
     pending_course_revisions: WorkbenchPage[AdminCourseRevisionSummary]
     organization_alerts: WorkbenchPage[AdminOrganizationAlert]
     catalog_totals: AdminCatalogTotals
+    teaching_snapshot: AdminTeachingSnapshot | None = None
     section_errors: list[WorkbenchSectionIssue] = Field(default_factory=list)
 
 
