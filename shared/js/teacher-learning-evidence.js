@@ -777,6 +777,30 @@
         return `${factList}${controlNote}${truncated}`;
     }
 
+    function teacherEvidenceChainMarkup(item, row, releaseState) {
+        const block = (row && row.blocks || []).find(candidate => candidate.course_unit_id === item.course_unit_id);
+        const result = block && block.completed
+            ? '已写入完成结果'
+            : item.event_type === 'completed'
+                ? '服务端确认完成'
+                : releaseState === 'open'
+                    ? '已记录，等待完成条件'
+                    : releaseState === 'locked'
+                        ? '已记录，当前分块锁定'
+                        : '历史证据，只读保留';
+        const sourceLabel = block ? `课程分块 ${block.position}` : '课程活动来源';
+        return `
+            <div class="teacher-evidence-chain" aria-label="学习证据流转链">
+                <span><small>操作</small><b>${escapeHtml(EVENT_LABELS[item.event_type] || item.event_type)}</b></span>
+                <i aria-hidden="true">→</i>
+                <span><small>规则</small><b>当前课程完成规则</b></span>
+                <i aria-hidden="true">→</i>
+                <span><small>结果</small><b>${escapeHtml(result)}</b></span>
+                <i aria-hidden="true">→</i>
+                <span><small>来源</small><button type="button" data-teacher-evidence-source="${escapeHtml(item.activity_key)}"><code>${escapeHtml(item.activity_key)}</code><em>${escapeHtml(sourceLabel)}</em></button></span>
+            </div>`;
+    }
+
     function evidenceItemsMarkup(session) {
         const page = session.evidencePage;
         if (!page || !page.items.length) {
@@ -796,8 +820,9 @@
                 && !item.corrected_by_event_id
                 && !['completed', 'transferred'].includes(item.event_type);
             return `
-                <article class="teacher-evidence-event">
+                <article class="teacher-evidence-event" data-event-type="${escapeHtml(item.event_type)}">
                     <header><strong>${escapeHtml(EVENT_LABELS[item.event_type] || item.event_type)}</strong><time>${escapeHtml(formatDate(item.occurred_at))}</time></header>
+                    ${teacherEvidenceChainMarkup(item, row, releaseState)}
                     ${evidenceFactsMarkup(item)}
                     ${item.corrected_by_event_id
                         ? '<p class="teacher-evidence-corrected">这条原记录已有追加式纠正；原事实仍保留。</p>'
@@ -1116,6 +1141,22 @@
             loadEvidence(session, positiveInteger(evidenceButton.dataset.teacherStudentEvidence), {
                 trigger: evidenceButton
             });
+            return;
+        }
+        const evidenceSource = closest(target, '[data-teacher-evidence-source]');
+        if (evidenceSource && session.selectedStudentId) {
+            const activityKey = String(evidenceSource.dataset.teacherEvidenceSource || '');
+            const row = studentRow(session, session.selectedStudentId);
+            const knownActivities = new Set((row && row.blocks || []).map(block => block.activity_key));
+            if (knownActivities.has(activityKey)) {
+                session.evidenceFilters.activityKey = activityKey;
+                session.evidenceFilters.eventType = '';
+                loadEvidence(session, session.selectedStudentId, {
+                    offset: 0,
+                    trigger: session.returnFocus,
+                    feedback: `已定位 ${activityKey} 的完整证据链。`
+                });
+            }
             return;
         }
         const pageButton = closest(target, '[data-teacher-natural-page]');

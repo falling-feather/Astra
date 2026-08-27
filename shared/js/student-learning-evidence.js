@@ -89,6 +89,54 @@
             </li>`).join('')}</ul>`;
     }
 
+    function evidenceTraceMarkup(recovery) {
+        const activities = recovery && Array.isArray(recovery.activities) ? recovery.activities : [];
+        if (!activities.length) {
+            return '<div class="student-evidence-trace__empty"><strong>证据链尚未开始</strong><p>进入课程正式活动并完成一次可验证操作后，这里会形成“操作—规则—结果—来源”的时间链。</p></div>';
+        }
+        return `<section class="student-evidence-trace" aria-label="学习证据链"><header><div><span>EVIDENCE TRACE</span><strong>操作如何变成学习结果</strong></div><small>规则 v${escapeHtml(recovery.rule_version)} · 服务端投影</small></header><ol>${activities.slice().sort((left, right) => traceTime(left) - traceTime(right)).slice(-8).map((item, index) => studentTraceItemMarkup(item, recovery.rule_version, index)).join('')}</ol></section>`;
+    }
+
+    function studentTraceItemMarkup(item, ruleVersion, index) {
+        const status = {
+            not_started: '尚未形成结果',
+            in_progress: '正在学习',
+            completed: '已确认完成',
+            transferred: '历史结果已迁移'
+        }[item.status] || item.status;
+        const operation = item.learner_event_count
+            ? `${Number(item.attempt_count || 0)} 次尝试 · ${Number(item.corrected_count || 0)} 次修正 · ${Number(item.explained_count || 0)} 次解释`
+            : '等待首次有效操作';
+        const href = evidenceSourceHref(item);
+        const source = href
+            ? `<a href="${escapeHtml(href)}" data-student-evidence-source="${escapeHtml(item.activity_key)}"><code>${escapeHtml(item.activity_key)}</code><span>回到来源</span></a>`
+            : `<code>${escapeHtml(item.activity_key)}</code><small>来源活动</small>`;
+        const eventTime = item.completed_at || item.transferred_at || item.last_occurred_at || item.first_started_at;
+        return `<li data-status="${escapeHtml(item.status)}"><i><b>${String(index + 1).padStart(2, '0')}</b></i><article><header><strong>${escapeHtml(status)}</strong><time>${escapeHtml(formatTraceDate(eventTime))}</time></header><div class="student-evidence-trace__route"><span><small>操作</small><b>${escapeHtml(operation)}</b></span><em>→</em><span><small>规则</small><b>课程规则 v${escapeHtml(ruleVersion)}</b></span><em>→</em><span><small>结果</small><b>${escapeHtml(status)}</b></span><em>→</em><span><small>来源</small>${source}</span></div><footer><span>${Number(item.learner_event_count || 0)} 条学生证据</span><span>${item.completed_at ? `完成于 ${escapeHtml(formatTraceDate(item.completed_at))}` : '尚未到达完成条件'}</span></footer></article></li>`;
+    }
+
+    function evidenceSourceHref(item) {
+        const catalog = global.AstraLearningActivityCatalog;
+        if (!catalog || typeof catalog.entries !== 'function' || typeof catalog.recoveryHref !== 'function') return '';
+        const entry = catalog.entries().find(candidate => candidate.activity_key === item.activity_key);
+        if (!entry) return '';
+        const parts = String(item.activity_key || '').split('.');
+        const contentSlug = parts.length === 2 ? `${parts[0]}/${parts[1]}` : '';
+        return catalog.recoveryHref(entry, { activity_key: item.activity_key, content_slug: contentSlug });
+    }
+
+    function traceTime(item) {
+        const value = item && (item.completed_at || item.transferred_at || item.last_occurred_at || item.first_started_at);
+        const time = new Date(value || 0).getTime();
+        return Number.isFinite(time) ? time : 0;
+    }
+
+    function formatTraceDate(value) {
+        if (!value) return '等待事件';
+        const date = new Date(value);
+        return Number.isFinite(date.getTime()) ? date.toLocaleString('zh-CN', { hour12: false }) : '时间待确认';
+    }
+
     function header(title, eyebrow) {
         return `<header class="astra-authority-summary__header"><div><span>${escapeHtml(eyebrow)}</span><h3>${escapeHtml(title)}</h3></div></header>`;
     }
@@ -103,7 +151,7 @@
         const progress = session.root.querySelector('[data-student-panel="progress"]');
         const compatibility = session.root.querySelector('[data-student-panel="knowledge"]');
         const projectionSignature = session.recovery && Array.isArray(session.recovery.activities)
-            ? session.recovery.activities.map(item => `${item.course_unit_id}:${item.activity_key}:${item.status}:${item.attempt_count}:${item.corrected_count}:${item.explained_count}`).join('|')
+            ? session.recovery.activities.map(item => `${item.course_unit_id}:${item.activity_key}:${item.status}:${item.attempt_count}:${item.corrected_count}:${item.explained_count}:${item.last_occurred_at || ''}:${item.completed_at || ''}`).join('|')
             : '';
         const signature = `${session.scopeKey}:${session.phase}:${session.errorCode}:${session.pendingError}:${session.recovery && session.recovery.rule_version || ''}:${session.pending && session.pending.count || 0}:${projectionSignature}`;
         if (progress && progress.dataset.authoritySignature !== signature) {
@@ -117,7 +165,7 @@
             compatibility.dataset.authoritySignature = signature;
             compatibility.classList.add('astra-authority-summary');
             compatibility.innerHTML = session.phase === 'ready'
-                ? `${header('学习活动记录', '课程记录')}${activityList(session.recovery)}<p class="astra-authority-summary__note">历史兼容统计不会用于判断学习掌握情况。</p>`
+                ? `${header('学习证据链', '学习活动记录')}${evidenceTraceMarkup(session.recovery)}<details class="student-evidence-trace__details"><summary>查看原始活动计数</summary>${activityList(session.recovery)}</details><p class="astra-authority-summary__note">历史兼容统计不会用于判断学习掌握情况；证据链只解释服务端投影，也不会把浏览页面本身当作完成。</p>`
                 : stateMarkup('学习活动记录', '课程记录', session.phase, session.errorCode);
         }
     }

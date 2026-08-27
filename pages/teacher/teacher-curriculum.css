@@ -1664,6 +1664,85 @@
     font-size: 0.67rem;
 }
 
+.teacher-evidence-chain {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    min-width: 0;
+}
+
+.teacher-evidence-chain > span {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
+    min-height: 68px;
+    padding: 10px;
+    border: 1px solid rgba(103, 232, 227, 0.15);
+    border-radius: 4px;
+    background: rgba(4, 15, 27, 0.7);
+}
+
+.teacher-evidence-chain > i {
+    display: none;
+}
+
+.teacher-evidence-chain > span:not(:last-of-type)::after {
+    position: absolute;
+    top: 50%;
+    right: -15px;
+    content: '\2192';
+    color: rgba(103, 232, 227, 0.62);
+    font-style: normal;
+    transform: translateY(-50%);
+}
+
+.teacher-evidence-chain small {
+    color: #70889e;
+    font: 0.6rem/1.4 'JetBrains Mono', monospace;
+    letter-spacing: 0.08em;
+}
+
+.teacher-evidence-chain b,
+.teacher-evidence-chain code {
+    color: #dcecf8;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.teacher-evidence-chain button {
+    display: grid;
+    align-content: center;
+    gap: 3px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.teacher-evidence-chain button em {
+    color: #67ddd7;
+    font-size: 0.61rem;
+    font-style: normal;
+}
+
+.teacher-evidence-chain button:hover code,
+.teacher-evidence-chain button:focus-visible code {
+    color: #7df2ea;
+}
+
+.teacher-evidence-chain button:focus-visible {
+    border-radius: 2px;
+    outline: 1px solid rgba(103, 232, 227, 0.62);
+    outline-offset: 4px;
+}
+
 .teacher-evidence-facts {
     display: grid;
     gap: 7px;
@@ -1891,6 +1970,23 @@
     .teacher-evidence-event > header {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .teacher-evidence-chain {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .teacher-evidence-chain > span {
+        min-height: 0;
+    }
+
+    .teacher-evidence-chain > span:not(:last-of-type)::after {
+        top: auto;
+        right: 12px;
+        bottom: -8px;
+        content: '\2193';
+        transform: none;
     }
 
     .teacher-release-preview-list dl > div,
