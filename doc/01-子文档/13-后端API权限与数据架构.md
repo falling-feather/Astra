@@ -3,7 +3,7 @@
 > 子文档编号：13
 > 上级文档：[01-开发者手册](../01-开发者手册.md)
 > 文档状态：已从原始主文档迁移，保留原有技术事实
-> 最近更新：2026-08-22
+> 最近更新：2026-08-28
 > 更新者：DOC 组（主开发单线兼任）
 
 集中说明 C++ 静态服务、Python 业务后端、认证授权、接口、数据与存活探针等后端实现。
@@ -44,6 +44,8 @@ Release 构建会在可执行文件旁生成 `englab_server.build-manifest.json`
 V6.6.47 起，`?backendSchema=1` 的前端试点会读取 `scriptManifest.embed` 并创建 iframe sandbox。V6.6.52 起，内置能量守恒实验由后端模板注册表提供独立 DOM/CSS，脚本只查询传入 root；父页严格校验 descriptor、sandbox URL、opaque origin、template/document contract 和消息元数据，终态失败会卸载 iframe 并恢复静态实验。该能力仍是 opt-in 接入层，不改变默认静态页面回退策略。
 
 FastAPI 后端位于 `backend/`，当前首切片提供配置、数据库探针、健康检查、部署预检、部署 smoke、反向代理/服务注册拓扑报告脚本、API no-store 缓存边界、内容协议样例、内容 seed 启动初始化与读取无副作用边界、正式内容初始化入口、ContentDraft 草稿、脚本审核、脚本静态分析风险等级、脚本 sandbox 契约、脚本资产 allowlist/SRI 静态门禁、脚本资产下载校验证据、发布版本绑定的外部脚本资产镜像、管理端脚本资产供应链清单、内容脚本镜像一致性审计、内容脚本远端漂移扫描、内容脚本扫描 run 台账与远端漂移告警候选摘要、内容脚本远端漂移扫描调度与 CLI observe-only 首轮、内容脚本扫描 run 健康与队列摘要、内容脚本远端漂移告警 outbox 人工复核入队与状态流转、内容脚本 CDN host 信任治理首轮、公开 render 脚本 manifest 脱敏与沙箱执行契约头、稳定 `sectionId/sourceId` 内容身份、草稿编辑、提交/退回/撤回工作流、active 草稿数据库唯一约束、内容发布/版本记录/追加式回滚、发布/回滚冲突 409、脚本历史版本 rollback 重审门禁、内容页 current 指针、草稿 base version/hash、版本 previous 链、发布元数据、中文路径/中文 slug 回归、管理端版本 JSON path diff 敏感预览脱敏与带显式稳定 ID 字段的 semantic 富语义摘要、本地认证安全基线、活动会话列表与单会话撤销、会话设备标识与 last_seen 追踪/节流、管理员密码重置、用户自助密码重置令牌、密码重置 token 留存清理脚本、禁用用户会话撤销、用户名大小写规范化与 normalized key 数据库唯一约束、必填文本修剪后校验、学校班级加入申请审批、teacher direct join 审批收口、学校/班级/课程访问控制服务层、课程/作业/学习事件、普通提交批改、代码题目/不可变版本/源码提交/判题租约、跨班级提交唯一性、学生资源状态可见性、学生侧只读复盘、积分流水、个人进度摘要、知识状态/班级规则统计、个人/班级知识快照、知识快照周期重算脚本/运行记录/进程内调度器/数据库租约防重入/自动心跳、管理端知识快照运行列表/健康摘要/调度积压摘要/告警候选摘要/告警 outbox 人工复核台账、状态流转、队列摘要与批量复核、协作式取消与手动 requeue、管理端基础 API、管理端加入申请队列、管理端列表分页搜索、管理端内容页数据库侧分页、缺陷记录外部 issue 链接、审计元数据、认证事件审计、审计日志链式哈希、审计链完整性校验、审计日志 JSON/CSV 明细导出、报表摘要导出、审计高频候选摘要、审计留存预检、本地审计归档包导出/Manifest 校验与导出/摘要行为审计留痕、前端 opt-in schema 试点和测试入口。
+
+V8.1.2 候选曾建立独立 `app.schemas.content_v2`，冻结 hero、学习任务、Markdown 富文本、媒体、官方模拟、检查点和来源七类闭合内容块，并提供 V1 五类 section 的确定性只读适配。该候选已由 BE-027 按 V8.4 通用课程边界取舍；当前七类内容、共享草稿与发布实现以 [19 号子文档](19-当前功能业务闭环与展示边界.md#v844-多教师共享草稿与不可变发布be-027-当前稳定实现) 为准，下述旧候选细节只作兼容追溯。
 
 **阶段状态读法**：
 
@@ -545,6 +547,104 @@ python -m scripts.backend_stage_gate --require-mysql \
 - 同班重复提交统一按 `409` 处理。提交请求出现未知网络结果时，应先重新读取 review / 作业中心确认服务端状态，不得自动重发；反馈与富文本内容必须以安全文本或受控渲染方式展示。
 - 学生概览消费个人 progress、points、knowledge 与 snapshots；V6.6.53 起按 `rule_version=v2` 展示 overall 以及最弱 course/unit/knowledge_point/assignment 维度，并根据服务端 evidence 生成确定性补强建议。建议不得伪装为 AI 推断，也不得自动触发快照重算；hidden/draft/archived/closed/unassigned 资源不进入当前统计分母，v1 历史快照仍保持兼容读取。
 - V7.5.7 起，学生页不再拥有未来星系发布 adapter 的私有会话监听，而是调用 `FutureGalaxyPublicationContext.refreshFromSession()`；共享控制器只保存内存态 `class_id/course_ids`，多班级无显式上下文、认证丢失、映射不完整或 API 异常均失败关闭，并在新会话 generation 到来时中止旧请求。
+
+### 5.2.1 V8.1 内容平台持久化历史候选
+
+> **非当前实现**：本节保存未提交 V8.1 候选的原始数据设计，避免清理时丢失背景；冲突迁移、旧服务和旧接口已被 V8.4 课程闭环取代，不得据此恢复第二套权威模型。
+
+`DATA-008 / V8.1.3` 通过 Alembic `20260823_0054` 增加内容平台持久化 owner。模型集中在 `app.models.content_platform`，没有继续扩张冻结的 `course.py`；`Course.learning_space_id` 由新 owner 以兼容扩展方式映射。现有课程在迁移中全部回填学习空间，字段暂时允许 NULL，只为保证旧 `/api` 在 `BE-022` 接管写入前仍能创建课程；任何 V2 发布服务都必须拒绝没有学习空间的课程，不能把 NULL 当成默认官方空间。
+
+> **2026-08-24 现行产品边界**：以上结构仍是未提交工作区候选，只说明后端数据能力，不代表既有实验需要迁入 `ContentPageV2`。旧 V8.1.6 课程旅程已否决；内容平台不得改变当前 124 项实验的路由、首屏、交互、动画或求解器，只能在实验外承担授权、布置、版本和结果回读。
+
+| 表 | 主要职责 | 写入性质 |
+| --- | --- | --- |
+| `learning_spaces` | 保存学校范围的官方空间或教师主题星系 | 元数据可编辑，`school_id + space_key` 稳定唯一 |
+| `course_releases` | 冻结整门课程、完成规则与 package SHA-256 | 发布后 append-only |
+| `course_release_units` | 冻结单元顺序、活动键和精确 `ContentPageVersion` | 随父 release 不可变 |
+| `course_release_media_assets` | 把发布单元内容块绑定到精确媒体版本 | append-only |
+| `course_class_release_bindings` | 以递增 revision 给班级选定课程 release | append-only，旧 revision 永久保留 |
+| `media_assets` | 保存普通课程媒体身份、hash 和本地/外部存储引用 | 内容身份不可变；不复用脚本沙箱缓存 |
+| `checkpoint_attempts` | 保存学生对版本化检查点的答案与评价事实 | append-only，重试新增 attempt |
+| `unit_progress_projections` | 汇总学生在一个 binding/release unit 下的恢复与完成状态 | 可重建投影，不是第二事实账本 |
+
+```mermaid
+flowchart TD
+    S[School + galaxy_key] --> LS[LearningSpace]
+    C[Published Course] --> R{完整发布条件}
+    P[Current ContentPageVersion] --> R
+    CR[Active completion rule] --> R
+    R -->|全部成立| REL[CourseRelease + Units]
+    R -->|任一缺失| NR[不生成 release]
+    CC[Active CourseClass] --> B{课程有 release?}
+    REL --> B
+    B -->|是| CB[revision 1 binding]
+    B -->|否| NB[保持未迁移，无假绑定]
+    E[LearningEvidenceEvent] --> UP[UnitProgressProjection]
+    SUB[Submission] --> UP
+    LE[旧 LearningEvent.complete] -. 不抬升 .-> UP
+```
+
+初始回填遵循以下事实边界：
+
+1. `learning_spaces` 按现有 `school_id + galaxy_key` 确定性生成，同校同空间只建一行；三个官方 key 使用现有中文名称，其余 key 保持学校私有类型。
+2. 只有 published Course 至少有一个 published CourseUnit、每个发布单元都能解析到当前 published `ContentPageVersion`，并且课程存在 `LearningRuleActivation` 指向的 active rule 时，才生成 release 1。package hash 只由稳定课程键、单元顺序、内容版本/hash 和规则版本/hash 组成；缺任一事实则整门课程不生成 release。
+3. active `CourseClass` 只在课程已有 release 时生成 revision 1 binding；`CourseClass.plan_version` 不参与内容版本身份。
+4. 进度只从 `LearningEvidenceEvent` 和正式 `Submission` 回填。只有 `completed/transferred` 权威证据令 `completion_confirmed=true`；单纯提交或尝试只形成 `in_progress`。旧 `LearningEvent.complete` 不会自动升级。
+5. `ContentScriptAsset` 不迁入 `media_assets`；当前普通媒体表为空，等待 V8.2 唯一官方清单提供可追踪资产。
+
+技术 downgrade 按 projection → attempt → binding → release media → release unit → release → media → Course relation → space 的反向依赖顺序删除 V8.1 结构，不改写旧课程、内容、作业、提交或学习证据。它会删除迁移后产生的 V2 数据，因此生产执行前仍需单独导出与确认；“Alembic 能降级”不等于“真实业务允许丢弃”。
+
+专项验证位于 `backend/tests/test_content_platform_storage.py`：覆盖八表模型与 MySQL `DATETIME(6)`/ASCII binary token DDL、空 SQLite 升级—降级—再升级、既有 SQLite 的完整/不完整课程分流、revision 1 binding、权威进度回填、旧表保留和 package hash 重建一致。迁移后的新 API 和学生答案脱敏不在本任务中，由 `BE-022` 负责。
+
+### 5.2.2 V8.1 内容平台第一组 API 历史候选
+
+> **非当前实现**：以下接口表只说明候选当时的意图。当前 `/api/v1` 课程身份、信息审核、选课、草稿和发布接口以本文件现行接口段及 [19 号子文档](19-当前功能业务闭环与展示边界.md) 为准。
+
+`BE-022 / V8.1.4` 新增 `app.schemas.content_platform`、`app.services.content_platform` 和薄路由 `app.api.endpoints.content_platform`。路由统一挂载在 `/api/v1`，旧 `/api` 路由文件和响应模型不改；V1 内容页只在生成或读取新版课程发布包时通过 `adapt_content_page_v1()` 确定性转换，不复制脚本字段，也不改写历史 `ContentPageVersion`。
+
+| 方法 | 路径 | 主要角色与用途 |
+| --- | --- | --- |
+| GET / POST | `/api/v1/learning-spaces` | 学校成员读取可见学习空间；教师/管理员创建学校主题空间 |
+| POST | `/api/v1/learning-spaces/{space_id}/courses` | 教师/管理员在明确空间内创建课程草稿 |
+| GET / PATCH | `/api/v1/courses/{course_id}/draft` | 课程编辑者读取草稿；PATCH 携带 `expected_updated_at`，并发变化返回 409 |
+| POST | `/api/v1/courses/{course_id}/draft/units` | 给 draft 课程增加稳定 activity key、顺序和内容 slug |
+| GET / POST | `/api/v1/learning-spaces/{space_id}/media-assets` | 教师/管理员登记和读取受控本地/HTTPS 媒体；图片与图示必须有替代文本 |
+| GET / POST | `/api/v1/courses/{course_id}/releases` | 读取或生成不可变整课发布包；内容、规则和单元未变化时拒绝重复发布 |
+| POST | `/api/v1/course-classes/{course_class_id}/release-bindings` | 课程编辑者且为本班教师，按 `expected_revision` 追加班级选版事实 |
+| GET | `/api/v1/course-classes/{course_class_id}/release` | 班级成员读取当前最高 binding revision；学生响应剥离检查点答案 |
+| GET | `/api/v1/course-classes/{course_class_id}/unit-progress` | 学生读取本人进度；教师/管理员按指定学生读取本班进度 |
+| POST | `/api/v1/checkpoint-attempts` | 学生提交当前 binding 下的版本化检查点；相同 client id 与相同请求返回原结果 |
+
+```mermaid
+sequenceDiagram
+    participant T as 教师/管理员
+    participant V as /api/v1
+    participant R as CourseRelease
+    participant B as ClassReleaseBinding
+    participant S as 学生
+    participant P as UnitProgressProjection
+    T->>V: 创建空间、课程草稿、单元与媒体
+    T->>V: 发布整门课程
+    V->>R: 冻结 page version + rule + media hash
+    T->>V: expected_revision 绑定班级
+    V->>B: 追加不可变 revision
+    S->>V: 读取当前班级 release
+    V-->>S: 返回去答案 ContentPageV2
+    S->>V: 提交 checkpoint attempt
+    V->>P: 从 attempt/evidence/submission 重建进度
+    T->>V: 按学生回读进度
+```
+
+关键事实边界如下：
+
+1. 发布包 hash 不包含 release number，只由稳定课程身份、标题、规则版本/hash、单元顺序和精确内容版本/hash决定；同一事实不能通过重复点击制造新版本。
+2. 学生只能从当前班级 binding 读取和追加学习；旧 binding 可用于历史进度读取，但不能继续提交新 attempt。
+3. `client_attempt_id` 是网络幂等键，不是学习次数。相同键和相同响应返回 200 + `outcome=duplicate`；相同键不同响应返回 409。
+4. 正确 checkpoint 只记录一次有效尝试和通过计数，不自行伪造“完成”。只有既有权威 `completed/transferred` evidence 能令 `completion_confirmed=true`。
+5. 尚无事实的单元读取为 `id=null/status=not_started/projection_revision=0`，不因 GET 创建数据库投影；首个正式事实到来后才落库。
+6. endpoint 不导入数据库模型、不复制权限或事务算法；权限、发布、脱敏、幂等和投影重建均由 service owner 负责。
+
+专项验证位于 `backend/tests/test_content_platform_api.py`：覆盖教师 authoring、全局管理员治理读取、学生公开 release、越权访问、草稿乐观冲突、媒体路径校验、重复发布、binding revision、答案脱敏、检查点幂等和师生进度对账。`test_content_schema_v2.py`、`test_content_platform_storage.py` 与该文件联合 25 项通过；完整前端/架构合同继续为 239 JS 与 61/61 合同通过。
 
 ### 5.3 C++ 内部存活探针
 
