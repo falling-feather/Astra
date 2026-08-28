@@ -53,7 +53,7 @@ assert.match(contentSource, /function refreshIcons\(\)[\s\S]*global\.lucide[\s\S
 assert.match(contentSource, /检查点答案|正确答案/);
 assert.doesNotMatch(contentSource, /contenteditable|draggable|<iframe/i);
 
-assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260828v861PresentationCleanupP3'/);
+assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260828v863CourseHealthMatrixP0'/);
 assert.match(authoringSource, /import\(`\.\/teacher-course-content\.js\?v=\$\{COURSE_CONTENT_VERSION\}`\)/);
 assert.match(authoringSource, /data-teacher-course-content/);
 assert.match(authoringSource, /courseContentOwner\.destroy\(\)/);
@@ -61,7 +61,7 @@ assert.match(authoringStyles, /data-teacher-operation="course-authoring"[\s\S]*g
 assert.match(teacherSource, /secondaryOpen:\s*\{\s*structure:\s*false,\s*assignments:\s*false\s*\}/);
 assert.match(teacherSource, /addEventListener\('toggle'[\s\S]*teacherSecondary[\s\S]*detail\.open/);
 assert.match(teacherSource, /data-teacher-secondary="structure"\$\{state\.secondaryOpen\.structure/);
-assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260828v861PresentationCleanupP3'/);
+assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260828v863CourseHealthMatrixP0'/);
 
 assert.match(styles, /\.teacher-course-content__editor/);
 assert.match(styles, /\.teacher-course-content__history/);
@@ -87,7 +87,7 @@ vm.createContext(context);
 vm.runInContext(contentSource, context, { filename: 'pages/teacher/teacher-course-content.js' });
 const contract = context.window.AstraTeacherCourseContent.contract;
 
-assert.equal(contract.VERSION, '20260828v861PresentationCleanupP3');
+assert.equal(contract.VERSION, '20260828v863CourseHealthMatrixP0');
 assert.equal(contract.EXPECTED_ACTIVITY_COUNT, 127);
 assert.deepEqual(Array.from(contract.BLOCK_TYPES, item => item.type), [
   'hero', 'learning-task', 'rich-text', 'media', 'official-simulation', 'checkpoint', 'sources',

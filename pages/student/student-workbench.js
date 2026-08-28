@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const studentRuntimeVersion = '20260828v861PresentationCleanupP3';
+    const studentRuntimeVersion = '20260828v863CourseHealthMatrixP0';
     const STUDENT_COURSE_ENROLLMENT_VERSION = '20260825v843CourseEnrollmentP0';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
@@ -262,7 +262,7 @@
         }
     }
 
-    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'student', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.authorized, refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v850TeachingCockpitP0').then(invoke).catch(() => false); }
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'student', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.authorized, refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v863CourseHealthMatrixP0').then(invoke).catch(() => false); }
     function renderShell() {
         state.root.innerHTML = `
             <header class="student-workbench__header">

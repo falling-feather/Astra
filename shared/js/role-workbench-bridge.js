@@ -3,7 +3,7 @@
 
     if (global.AstraRoleWorkbenchBridge) return;
 
-    const VERSION = '20260828v850TeachingCockpitP0';
+    const VERSION = '20260828v863CourseHealthMatrixP0';
     const OWNER_PATH = `./role-workbench-overview.js?v=${VERSION}`;
     const HOST_SELECTORS = Object.freeze({
         student: '[data-student-role-overview]',
@@ -269,10 +269,18 @@
             }
             return true;
         }
-        if (kind === 'review_course_information' || kind === 'open_course_governance') {
+        const courseHealthActions = new Set([
+            'open_course_content', 'open_course_grading', 'open_course_learning', 'open_course_governance'
+        ]);
+        if (kind === 'review_course_information' || courseHealthActions.has(kind)) {
             clickLater(record, '[data-admin-section-button="courses"]');
             if (kind === 'review_course_information') {
                 focusLater(record, `[data-admin-course-review-select="${positiveNumber(action.revision_id)}"]`, null, true);
+            } else {
+                clickLater(record, '[data-admin-course-view="status"]');
+                if (positiveNumber(action.course_id)) {
+                    focusLater(record, `[data-admin-course-select="${positiveNumber(action.course_id)}"]`, null, true);
+                }
             }
             return true;
         }

@@ -286,8 +286,7 @@
 .role-workbench-cockpit__header > div > span,
 .role-workbench-cockpit__status,
 .role-workbench-cockpit__stage header,
-.role-workbench-galaxy,
-.role-workbench-pulse-card {
+.role-workbench-galaxy {
     display: flex;
     align-items: center;
 }
@@ -452,6 +451,22 @@
     font-size: 0.84rem;
 }
 
+.role-workbench-cockpit__clear {
+    min-height: 34px !important;
+    padding: 0 10px;
+    color: rgba(204, 251, 241, 0.7);
+    border: 1px solid rgba(94, 234, 212, 0.16) !important;
+    border-radius: 10px;
+    background: rgba(15, 118, 110, 0.16);
+    font-size: 0.66rem;
+    white-space: nowrap;
+}
+
+.role-workbench-cockpit__clear[aria-pressed="true"] {
+    color: #042f2e;
+    background: #5eead4;
+}
+
 .role-workbench-cockpit__orbit {
     position: absolute;
     inset: 26px auto auto 55%;
@@ -493,11 +508,28 @@
 }
 
 .role-workbench-galaxy {
+    width: 100%;
     gap: 10px;
     min-width: 0;
     padding: 9px;
+    color: #f0fdfa;
+    text-align: left;
+    border: 1px solid transparent !important;
     border-radius: 13px;
     background: rgba(12, 62, 69, 0.56);
+    transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.role-workbench-galaxy:hover {
+    border-color: rgba(94, 234, 212, 0.3) !important;
+    background: rgba(15, 88, 88, 0.66);
+    transform: translateY(-1px);
+}
+
+.role-workbench-galaxy[aria-pressed="true"] {
+    border-color: rgba(94, 234, 212, 0.58) !important;
+    background: linear-gradient(105deg, rgba(13, 148, 136, 0.38), rgba(30, 64, 175, 0.2));
+    box-shadow: inset 3px 0 #5eead4;
 }
 
 .role-workbench-galaxy__node {
@@ -576,6 +608,15 @@
     font-weight: 600;
 }
 
+.role-workbench-cockpit__galaxy-note {
+    position: relative;
+    z-index: 1;
+    margin: 10px 2px 0;
+    color: rgba(220, 252, 247, 0.48);
+    font-size: 0.62rem;
+    line-height: 1.55;
+}
+
 .role-workbench-cockpit__all {
     display: inline-flex;
     align-items: center;
@@ -594,90 +635,247 @@
     width: 14px;
 }
 
-.role-workbench-pulse-card {
-    display: grid;
-    grid-template-columns: 45px minmax(0, 1fr) auto;
-    gap: 10px;
-    min-width: 0;
-    padding: 8px 9px;
-    border: 1px solid rgba(134, 239, 222, 0.1);
-    border-radius: 13px;
-    background: rgba(13, 54, 64, 0.66);
+.role-workbench-health-filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
-.role-workbench-pulse-card__ring {
+.role-workbench-health-filters button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 9px;
+    color: rgba(220, 252, 247, 0.66);
+    border: 1px solid rgba(134, 239, 222, 0.12) !important;
+    border-radius: 999px;
+    background: rgba(12, 62, 69, 0.46);
+    font-size: 0.62rem;
+    white-space: nowrap;
+}
+
+.role-workbench-health-filters button b {
     display: grid;
     place-items: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: conic-gradient(#5eead4 calc(var(--course-progress) * 1%), rgba(94, 234, 212, 0.12) 0);
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    color: #ecfeff;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+    font-size: 0.62rem;
 }
 
-.role-workbench-pulse-card__ring::before {
-    content: "";
-    grid-area: 1 / 1;
-    width: 32px;
-    height: 32px;
-    border-radius: inherit;
-    background: #0b3039;
+.role-workbench-health-filters button[aria-pressed="true"] {
+    color: #042f2e;
+    border-color: transparent !important;
+    background: #5eead4;
 }
 
-.role-workbench-pulse-card__ring span {
-    position: relative;
-    grid-area: 1 / 1;
-    color: white;
-    font-size: 0.69rem;
-    font-weight: 850;
+.role-workbench-health-filters button[aria-pressed="true"] b {
+    color: #f0fdfa;
+    background: #0f766e;
 }
 
-.role-workbench-pulse-card__ring small {
-    color: rgba(220, 252, 247, 0.55);
-    font-size: 0.46rem;
+.role-workbench-health-card {
+    --health-accent: #5eead4;
+    --health-soft: rgba(94, 234, 212, 0.12);
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--health-accent) 32%, transparent);
+    border-radius: 15px;
+    background: linear-gradient(115deg, var(--health-soft), rgba(6, 39, 48, 0.72) 42%);
+    box-shadow: inset 3px 0 var(--health-accent);
 }
 
-.role-workbench-pulse-card__body {
+.role-workbench-health-card[data-health-state="awaiting_first_release"] {
+    --health-accent: #fbbf24;
+    --health-soft: rgba(251, 191, 36, 0.1);
+}
+
+.role-workbench-health-card[data-health-state="pending_grading"] {
+    --health-accent: #fb7185;
+    --health-soft: rgba(251, 113, 133, 0.1);
+}
+
+.role-workbench-health-card[data-health-state="unpublished_changes"] {
+    --health-accent: #c084fc;
+    --health-soft: rgba(192, 132, 252, 0.1);
+}
+
+.role-workbench-health-card[data-health-state="no_learning_results"] {
+    --health-accent: #60a5fa;
+    --health-soft: rgba(96, 165, 250, 0.1);
+}
+
+.role-workbench-health-card[data-health-state="healthy"] {
+    --health-accent: #34d399;
+    --health-soft: rgba(52, 211, 153, 0.1);
+}
+
+.role-workbench-health-card > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    min-height: 0;
+    margin: 0;
+}
+
+.role-workbench-health-card > header div {
     min-width: 0;
 }
 
-.role-workbench-pulse-card__body span,
-.role-workbench-pulse-card__body strong,
-.role-workbench-pulse-card__body small {
+.role-workbench-health-card > header span,
+.role-workbench-health-card > header strong {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.role-workbench-pulse-card__body span,
-.role-workbench-pulse-card__body small {
-    color: rgba(220, 252, 247, 0.48);
-    font-size: 0.58rem;
+.role-workbench-health-card > header span {
+    color: rgba(220, 252, 247, 0.5);
+    font-size: 0.59rem;
 }
 
-.role-workbench-pulse-card__body strong {
+.role-workbench-health-card > header strong {
+    margin-top: 3px;
+    color: #f0fdfa;
+    font-size: 0.8rem;
+}
+
+.role-workbench-health-card > header > b {
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    color: var(--health-accent);
+    border: 1px solid color-mix(in srgb, var(--health-accent) 38%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--health-accent) 10%, transparent);
+    font-size: 0.6rem;
+}
+
+.role-workbench-health-card > p {
+    margin: 0;
+    color: rgba(220, 252, 247, 0.72);
+    font-size: 0.67rem;
+    line-height: 1.55;
+}
+
+.role-workbench-health-card__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    gap: 6px;
+    margin: 0;
+}
+
+.role-workbench-health-card__facts > div {
+    padding: 7px 8px;
+    border: 1px solid rgba(204, 251, 241, 0.08);
+    border-radius: 10px;
+    background: rgba(3, 28, 36, 0.4);
+}
+
+.role-workbench-health-card__facts dt {
+    color: rgba(220, 252, 247, 0.45);
+    font-size: 0.56rem;
+}
+
+.role-workbench-health-card__facts dd {
+    margin: 2px 0 0;
+    color: #f0fdfa;
+    font-size: 0.84rem;
+    font-weight: 850;
+}
+
+.role-workbench-health-card__facts dd small {
+    margin-left: 2px;
+    color: rgba(220, 252, 247, 0.48);
+    font-size: 0.54rem;
+    font-weight: 600;
+}
+
+.role-workbench-health-card__progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.role-workbench-health-card__progress > span {
+    flex: 1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(204, 251, 241, 0.08);
+}
+
+.role-workbench-health-card__progress i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--health-accent);
+}
+
+.role-workbench-health-card__progress small {
+    color: rgba(220, 252, 247, 0.44);
+    font-size: 0.56rem;
+    white-space: nowrap;
+}
+
+.role-workbench-health-card > footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(204, 251, 241, 0.08);
+}
+
+.role-workbench-health-card > footer div {
+    min-width: 0;
+}
+
+.role-workbench-health-card > footer span,
+.role-workbench-health-card > footer strong,
+.role-workbench-health-card > footer small {
+    display: block;
+}
+
+.role-workbench-health-card > footer span,
+.role-workbench-health-card > footer small {
+    color: rgba(220, 252, 247, 0.43);
+    font-size: 0.55rem;
+}
+
+.role-workbench-health-card > footer strong {
     margin: 2px 0;
     color: #f0fdfa;
-    font-size: 0.76rem;
+    font-size: 0.65rem;
 }
 
-.role-workbench-pulse-card__action {
-    display: grid;
-    justify-items: end;
-    gap: 3px;
+.role-workbench-health-card__action {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 44px !important;
+    padding: 0 10px;
+    color: #042f2e;
+    border-radius: 10px;
+    background: var(--health-accent);
+    font-size: 0.64rem;
+    font-weight: 800;
 }
 
-.role-workbench-pulse-card__action b {
-    color: #99f6e4;
-    font-size: 0.58rem;
-}
-
-.role-workbench-pulse-card__action .role-workbench-overview__row-action {
-    min-width: 62px;
-    min-height: 32px;
-    color: #ccfbf1;
-    border-color: rgba(94, 234, 212, 0.17);
-    background: rgba(15, 118, 110, 0.22);
+.role-workbench-health-card__action svg {
+    width: 14px;
+    height: 14px;
 }
 
 .role-workbench-overview__flow {
@@ -1269,15 +1467,13 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .role-workbench-pulse-card {
-        grid-template-columns: 42px minmax(0, 1fr);
+    .role-workbench-health-card > footer {
+        align-items: stretch;
+        flex-direction: column;
     }
 
-    .role-workbench-pulse-card__action {
-        grid-column: 1 / -1;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        justify-items: start;
+    .role-workbench-health-card__action {
+        width: 100%;
     }
 
     .role-workbench-overview__metrics,

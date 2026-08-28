@@ -3,7 +3,7 @@
 
     if (global.AstraTeacherCourseContent) return;
 
-    const VERSION = '20260828v861PresentationCleanupP3';
+    const VERSION = '20260828v863CourseHealthMatrixP0';
     const STYLE_VERSION = VERSION;
     const EXPECTED_ACTIVITY_COUNT = 127;
     const STABLE_ID_PATTERN = /^[a-z0-9][a-z0-9._:-]*$/;

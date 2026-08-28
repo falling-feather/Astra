@@ -20,7 +20,7 @@ const main = read('shared/js/main.js');
 
 assert.match(
   html,
-  /pages\/planets\/planets\.js\?v=20260828v861PresentationCleanupP3[\s\S]*page-registry\.js\?v=20260828v861PresentationCleanupP3/,
+  /pages\/planets\/planets\.js\?v=20260828v863CourseHealthMatrixP0[\s\S]*page-registry\.js\?v=20260828v863CourseHealthMatrixP0/,
   'the authoritative student catalogue must load before Router cold-start restoration'
 );
 assert.match(planets, /AstraStudentCourseCatalogue = Object\.freeze\(\{[\s\S]*refresh: refreshCatalogue/);

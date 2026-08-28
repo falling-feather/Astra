@@ -47,11 +47,11 @@ assert.equal(registry.galaxyFor('teacher'), 'astra');
 assert.equal(registry.galaxyFor('admin'), 'astra');
 assert.equal(registry.galaxyFor('cosmos'), 'frontier');
 assert.equal(registry.galaxyFor('unknown-page'), 'englab');
-assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?v=20260828v861PresentationCleanupP3');
-assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260828v861PresentationCleanupP3');
+assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?v=20260828v863CourseHealthMatrixP0');
+assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260828v863CourseHealthMatrixP0');
 assert.equal(registry.scriptFor('engineering'), 'pages/engineering/engineering-page.js?v=20260825v834Show04P0');
-assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260828v861PresentationCleanupP3');
-assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260828v861PresentationCleanupP3');
+assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260828v863CourseHealthMatrixP0');
+assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260828v863CourseHealthMatrixP0');
 assert.equal(registry.isReady('teacher'), false);
 
 let entered = 0;
@@ -70,7 +70,7 @@ assert.match(
   html,
   /experiment-registry\.js[\s\S]*learning-activity-catalog\.js[\s\S]*public-guide\.js[\s\S]*app-session\.js[\s\S]*frontier-manifest\.js[\s\S]*page-registry\.js[\s\S]*router\.js[\s\S]*main\.js/,
 );
-assert.match(serviceWorker, /page-registry\.js\?v=20260828v861PresentationCleanupP3/);
+assert.match(serviceWorker, /page-registry\.js\?v=20260828v863CourseHealthMatrixP0/);
 assert.match(router, /AstraPageRegistry\.pagesByTag\('course'\)/);
 assert.match(router, /AstraPageRegistry\.galaxyFor\(page\)/);
 assert.match(router, /AstraPageRegistry\.scriptFor\(page\)/);

@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const ADMIN_ASSET_VERSION = '20260828v861PresentationCleanupP3';
+    const ADMIN_ASSET_VERSION = '20260828v863CourseHealthMatrixP0';
     const API_BASE_STORAGE_KEY = 'astra-admin-api-base';
 
     const state = {
@@ -302,7 +302,7 @@
         else state.pendingJoinReview = null;
     }
 
-    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'admin', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.user && state.user.role === 'admin', refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v850TeachingCockpitP0').then(invoke).catch(() => false); }
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'admin', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.user && state.user.role === 'admin', refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v863CourseHealthMatrixP0').then(invoke).catch(() => false); }
     function initAdmin() {
         state.root = document.querySelector('[data-admin-governance]');
         if (!state.root) return;

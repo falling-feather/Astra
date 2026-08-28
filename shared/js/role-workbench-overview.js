@@ -3,7 +3,7 @@
 
     if (global.AstraRoleWorkbenchOverview) return;
 
-    const VERSION = '20260828v850TeachingCockpitP0';
+    const VERSION = '20260828v863CourseHealthMatrixP0';
     const ROLES = new Set(['student', 'teacher', 'admin']);
     const ROLE_META = Object.freeze({
         student: Object.freeze({
@@ -43,6 +43,17 @@
     const COURSE_STATUS_LABELS = Object.freeze({
         draft: '草稿', published: '已发布', archived: '已归档'
     });
+    const COURSE_HEALTH_STATES = Object.freeze([
+        Object.freeze({ key: 'awaiting_first_release', label: '待首发' }),
+        Object.freeze({ key: 'pending_grading', label: '待批改' }),
+        Object.freeze({ key: 'unpublished_changes', label: '待发布' }),
+        Object.freeze({ key: 'no_learning_results', label: '尚未形成结果' }),
+        Object.freeze({ key: 'healthy', label: '运行正常' })
+    ]);
+    const COURSE_HEALTH_KEYS = new Set(COURSE_HEALTH_STATES.map((item) => item.key));
+    const COURSE_HEALTH_ACTIONS = new Set([
+        'open_course_content', 'open_course_grading', 'open_course_learning', 'open_course_governance'
+    ]);
 
     function create(host, options) {
         if (!(host instanceof Element)) throw new TypeError('工作台概览挂载点无效');
@@ -57,7 +68,25 @@
         let payload = null;
         let phase = 'idle';
         let problem = null;
+        const viewState = { galaxy: 'all', health: 'all' };
         const clickHandler = (event) => {
+            const galaxyFilter = event.target instanceof Element
+                ? event.target.closest('[data-course-health-galaxy]')
+                : null;
+            if (galaxyFilter && host.contains(galaxyFilter)) {
+                viewState.galaxy = String(galaxyFilter.dataset.courseHealthGalaxy || 'all');
+                if (phase === 'ready') render();
+                return;
+            }
+            const healthFilter = event.target instanceof Element
+                ? event.target.closest('[data-course-health-state]')
+                : null;
+            if (healthFilter && host.contains(healthFilter)) {
+                const requested = String(healthFilter.dataset.courseHealthState || 'all');
+                viewState.health = requested === 'all' || COURSE_HEALTH_KEYS.has(requested) ? requested : 'all';
+                if (phase === 'ready') render();
+                return;
+            }
             const target = event.target instanceof Element
                 ? event.target.closest('[data-role-workbench-action]')
                 : null;
@@ -81,6 +110,8 @@
             payload = null;
             phase = 'idle';
             problem = null;
+            viewState.galaxy = 'all';
+            viewState.health = 'all';
             host.hidden = true;
             host.innerHTML = '';
         }
@@ -125,7 +156,7 @@
             host.dataset.phase = phase;
             if (phase === 'loading') host.innerHTML = loadingMarkup(role);
             else if (phase === 'error') host.innerHTML = errorMarkup(role, problem);
-            else if (phase === 'ready') host.innerHTML = readyMarkup(role, payload);
+            else if (phase === 'ready') host.innerHTML = readyMarkup(role, payload, viewState);
             else host.innerHTML = '';
             refreshIcons(config);
         }
@@ -179,8 +210,34 @@
             requirePage(value.pending_course_revisions, '课程审核');
             requirePage(value.organization_alerts, '组织提醒');
             if (!value.catalog_totals || typeof value.catalog_totals !== 'object') throw responseError('治理总数无法识别');
+            validateTeachingSnapshot(value.teaching_snapshot);
         }
         return value;
+    }
+
+    function validateTeachingSnapshot(value) {
+        if (value === null || value === undefined) return;
+        if (typeof value !== 'object' || !Array.isArray(value.galaxy_distribution) || !Array.isArray(value.course_pulse)) {
+            throw responseError('教学运行快照无法识别');
+        }
+        value.course_pulse.forEach((item) => {
+            const health = item && item.health;
+            if (!positiveNumber(item && item.course_id) || !health || !COURSE_HEALTH_KEYS.has(String(health.state || ''))) {
+                throw responseError('课程健康状态无法识别');
+            }
+            if (!String(health.label || '').trim() || !String(health.reason || '').trim()) {
+                throw responseError('课程健康解释不完整');
+            }
+            if (!Array.isArray(health.facts) || health.facts.length < 2 || health.facts.some((fact) => (
+                !fact || !String(fact.label || '').trim() || !Number.isFinite(Number(fact.value)) || Number(fact.value) < 0
+            ))) {
+                throw responseError('课程健康事实不完整');
+            }
+            if (!health.next_action || !COURSE_HEALTH_ACTIONS.has(String(health.next_action.kind || ''))
+                || positiveNumber(health.next_action.course_id) !== positiveNumber(item.course_id)) {
+                throw responseError('课程健康处理入口无法识别');
+            }
+        });
     }
 
     function requirePage(value, label) {
@@ -193,7 +250,7 @@
         return Object.assign(new Error(message), { code: 'invalid_workbench_response' });
     }
 
-    function readyMarkup(role, payload) {
+    function readyMarkup(role, payload, viewState) {
         const meta = ROLE_META[role];
         return `
             <section class="role-workbench-overview role-workbench-overview--${escapeAttr(role)}" data-role="${escapeAttr(role)}" aria-labelledby="${escapeAttr(role)}-role-workbench-title">
@@ -210,7 +267,7 @@
                     </div>
                 </header>
                 ${sectionIssuesMarkup(payload.section_errors)}
-                ${role === 'student' ? studentMarkup(payload) : role === 'teacher' ? teacherMarkup(payload) : adminMarkup(payload)}
+                ${role === 'student' ? studentMarkup(payload) : role === 'teacher' ? teacherMarkup(payload) : adminMarkup(payload, viewState)}
                 <footer class="role-workbench-overview__freshness">
                     <span><i data-lucide="database-zap"></i>读取现有业务事实，没有建立第二套工作台状态</span>
                     <time datetime="${escapeAttr(payload.generated_at || '')}">${escapeHtml(formatDate(payload.generated_at))}</time>
@@ -278,7 +335,7 @@
             </div>`;
     }
 
-    function adminMarkup(payload) {
+    function adminMarkup(payload, viewState) {
         const totals = payload.catalog_totals;
         return `
             ${metricsMarkup([
@@ -287,7 +344,7 @@
                 ['启用学校', count(totals.active_schools), 'landmark', 'school'],
                 ['启用行政班', count(totals.active_homerooms), 'school', 'homeroom']
             ])}
-            ${adminTeachingCockpitMarkup(payload.teaching_snapshot)}
+            ${adminTeachingCockpitMarkup(payload.teaching_snapshot, viewState)}
             <div class="role-workbench-overview__flow role-workbench-overview__flow--admin">
                 ${sectionMarkup('01', '教师身份申请', `${count(payload.pending_teacher_applications.total)} 份待审`, queueMarkup(
                     pageItems(payload.pending_teacher_applications).slice(0, 4), adminTeacherApplicationMarkup,
@@ -307,11 +364,17 @@
             </div>`;
     }
 
-    function adminTeachingCockpitMarkup(value) {
+    function adminTeachingCockpitMarkup(value, viewState) {
         const snapshot = normalizeTeachingSnapshot(value);
         const galaxies = snapshot.galaxy_distribution;
         const maxCourses = Math.max(1, ...galaxies.map((item) => count(item.courses)));
         const pulse = snapshot.course_pulse;
+        const filters = normalizeCourseHealthFilters(viewState);
+        const filteredPulse = filterCoursePulse(pulse, filters);
+        const healthCounts = Object.fromEntries(COURSE_HEALTH_STATES.map((item) => [
+            item.key,
+            pulse.filter((course) => course.health && course.health.state === item.key).length
+        ]));
         return `<section class="role-workbench-cockpit" aria-labelledby="admin-teaching-cockpit-title">
             <header class="role-workbench-cockpit__header">
                 <div><span><i data-lucide="orbit"></i>TEACHING OPERATIONS</span><h3 id="admin-teaching-cockpit-title">教学运行驾驶舱</h3><p>把课程、发布、学生学习和批改状态压缩为一个可讲解的权威快照。</p></div>
@@ -325,15 +388,20 @@
             </dl>
             <div class="role-workbench-cockpit__stage">
                 <section class="role-workbench-cockpit__galaxies" aria-label="星系课程分布">
-                    <header><div><span>01 · 课程星图</span><strong>三星系统一纳入教学网络</strong></div><small>${count(snapshot.draft_courses)} 门草稿课程待完善</small></header>
+                    <header><div><span>01 · 星系视角</span><strong>选择星系，查看对应课程</strong></div><button type="button" class="role-workbench-cockpit__clear" data-course-health-galaxy="all" aria-pressed="${filters.galaxy === 'all'}">全部星系</button></header>
                     <div class="role-workbench-cockpit__orbit" aria-hidden="true"><span></span><span></span><i></i></div>
-                    <div class="role-workbench-cockpit__galaxy-list">${galaxies.map((item, index) => adminGalaxyMarkup(item, index, maxCourses)).join('')}</div>
+                    <div class="role-workbench-cockpit__galaxy-list">${galaxies.map((item, index) => adminGalaxyMarkup(item, index, maxCourses, filters.galaxy)).join('')}</div>
+                    <p class="role-workbench-cockpit__galaxy-note">另有 ${count(snapshot.draft_courses)} 门草稿课程待完善；健康矩阵只解释已进入运行列表的真实课程。</p>
                 </section>
-                <section class="role-workbench-cockpit__pulse" aria-label="课程运行脉搏">
-                    <header><div><span>02 · 课程脉搏</span><strong>最近更新的运行课程</strong></div>${actionButton({ kind: 'open_course_governance', section: 'utility' }, '查看全部', 'role-workbench-cockpit__all', 'arrow-up-right')}</header>
-                    <div class="role-workbench-cockpit__course-list">${pulse.length
-                        ? pulse.slice(0, 4).map(adminCoursePulseMarkup).join('')
-                        : emptyMarkup('暂无运行课程', '课程审核通过并完成首发后，运行状态会在这里点亮。', 'radar')}</div>
+                <section class="role-workbench-cockpit__pulse" aria-label="课程健康矩阵">
+                    <header><div><span>02 · 课程视角</span><strong>课程健康矩阵</strong><small>显示 ${filteredPulse.length} / ${pulse.length} 门近期课程</small></div>${actionButton({ kind: 'open_course_governance', section: 'utility' }, '课程治理', 'role-workbench-cockpit__all', 'arrow-up-right')}</header>
+                    <div class="role-workbench-health-filters" role="group" aria-label="按课程健康状态筛选">
+                        <button type="button" data-course-health-state="all" aria-pressed="${filters.health === 'all'}"><span>全部</span><b>${pulse.length}</b></button>
+                        ${COURSE_HEALTH_STATES.map((item) => `<button type="button" data-course-health-state="${escapeAttr(item.key)}" data-health-state="${escapeAttr(item.key)}" aria-pressed="${filters.health === item.key}"><span>${escapeHtml(item.label)}</span><b>${count(healthCounts[item.key])}</b></button>`).join('')}
+                    </div>
+                    <div class="role-workbench-cockpit__course-list">${filteredPulse.length
+                        ? filteredPulse.map(adminCourseHealthMarkup).join('')
+                        : emptyMarkup(pulse.length ? '当前筛选下没有课程' : '暂无运行课程', pulse.length ? '切换星系或状态即可查看其他课程。' : '课程审核通过并进入运行列表后，健康解释会在这里出现。', pulse.length ? 'list-filter' : 'radar')}</div>
                 </section>
             </div>
         </section>`;
@@ -358,24 +426,44 @@
         };
     }
 
-    function adminGalaxyMarkup(item, index, maxCourses) {
+    function normalizeCourseHealthFilters(value) {
+        const source = value && typeof value === 'object' ? value : {};
+        const health = String(source.health || 'all');
+        return {
+            galaxy: String(source.galaxy || 'all'),
+            health: health === 'all' || COURSE_HEALTH_KEYS.has(health) ? health : 'all'
+        };
+    }
+
+    function filterCoursePulse(items, filters) {
+        const view = normalizeCourseHealthFilters(filters);
+        return (Array.isArray(items) ? items : []).filter((item) => (
+            (view.galaxy === 'all' || String(item.galaxy_key || '') === view.galaxy)
+            && (view.health === 'all' || item.health && String(item.health.state || '') === view.health)
+        ));
+    }
+
+    function adminGalaxyMarkup(item, index, maxCourses, selectedGalaxy) {
         const courses = count(item.courses);
         const strength = Math.max(8, Math.round(courses / maxCourses * 100));
-        return `<article class="role-workbench-galaxy" data-galaxy="${escapeAttr(item.galaxy_key || '')}" style="--galaxy-strength:${strength}%">
+        const selected = String(selectedGalaxy || 'all') === String(item.galaxy_key || '');
+        return `<button type="button" class="role-workbench-galaxy" data-galaxy="${escapeAttr(item.galaxy_key || '')}" data-course-health-galaxy="${escapeAttr(item.galaxy_key || '')}" aria-pressed="${selected}" style="--galaxy-strength:${strength}%">
             <span class="role-workbench-galaxy__node"><i></i><b>${String(index + 1).padStart(2, '0')}</b></span>
             <div><strong>${escapeHtml(galaxyLabel(item.galaxy_key))}</strong><small>${count(item.active_enrollments)} 名学生 · ${count(item.releases)} 个版本</small><span><i></i></span></div>
             <em>${courses}<small>门课</small></em>
-        </article>`;
+        </button>`;
     }
 
-    function adminCoursePulseMarkup(item) {
+    function adminCourseHealthMarkup(item) {
         const percent = Math.min(100, count(item.progress_percent));
-        const pending = count(item.pending_grading_count);
-        const state = !item.current_release_number ? '待首发' : pending ? '待批改' : percent >= 60 ? '学习活跃' : count(item.active_student_count) ? '运行中' : '待加入';
-        return `<article class="role-workbench-pulse-card" style="--course-progress:${percent}" data-state="${escapeAttr(state)}">
-            <div class="role-workbench-pulse-card__ring"><span>${percent}<small>%</small></span></div>
-            <div class="role-workbench-pulse-card__body"><span>${escapeHtml(galaxyLabel(item.galaxy_key))} · ${escapeHtml(subjectLabel(item.subject_key))}</span><strong>${escapeHtml(item.title || '未命名课程')}</strong><small>${count(item.active_student_count)} 名学生 · ${count(item.published_unit_count)} 个单元 · ${item.current_release_number ? `第 ${count(item.current_release_number)} 版` : '尚未首发'}</small></div>
-            <div class="role-workbench-pulse-card__action"><b>${escapeHtml(state)}</b>${actionButton({ kind: 'open_course_governance', section: 'utility', course_id: item.course_id }, '查看', '', 'chevron-right')}</div>
+        const health = item.health;
+        const nextAction = Object.assign({}, health.next_action, { course_id: item.course_id });
+        return `<article class="role-workbench-health-card" data-health-state="${escapeAttr(health.state)}" data-galaxy="${escapeAttr(item.galaxy_key || '')}">
+            <header><div><span>${escapeHtml(galaxyLabel(item.galaxy_key))} · ${escapeHtml(subjectLabel(item.subject_key))}</span><strong>${escapeHtml(item.title || '未命名课程')}</strong></div><b>${escapeHtml(health.label)}</b></header>
+            <p>${escapeHtml(health.reason)}</p>
+            <dl class="role-workbench-health-card__facts">${health.facts.map((fact) => `<div><dt>${escapeHtml(fact.label)}</dt><dd>${count(fact.value)}<small>${escapeHtml(fact.unit || '')}</small></dd></div>`).join('')}</dl>
+            <div class="role-workbench-health-card__progress"><span><i style="width:${percent}%"></i></span><small>课程完成信号 ${percent}%</small></div>
+            <footer><div><span>教师责任动作</span><strong>${escapeHtml(health.next_action.label)}</strong><small>管理员可定位课程，但不代替授课教师写入。</small></div>${actionButton(nextAction, '定位处理', 'role-workbench-health-card__action', 'locate-fixed')}</footer>
         </article>`;
     }
 
@@ -630,6 +718,14 @@
 
     global.AstraRoleWorkbenchOverview = Object.freeze({
         create,
-        contract: Object.freeze({ VERSION, roles: Object.freeze(Array.from(ROLES)), validatePayload, actionFromControl })
+        contract: Object.freeze({
+            VERSION,
+            roles: Object.freeze(Array.from(ROLES)),
+            healthStates: COURSE_HEALTH_STATES,
+            validatePayload,
+            validateTeachingSnapshot,
+            filterCoursePulse,
+            actionFromControl
+        })
     });
 })(window);

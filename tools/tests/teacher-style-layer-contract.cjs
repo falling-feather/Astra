@@ -11,8 +11,8 @@ const context = { window: {} };
 
 vm.runInNewContext(registrySource, context, { filename: 'shared/js/page-registry.js' });
 const styles = Array.from(context.window.AstraPageRegistry.stylesFor('teacher'));
-const version = '20260828v861PresentationCleanupP3';
-const overviewVersion = '20260828v850TeachingCockpitP0';
+const version = '20260828v863CourseHealthMatrixP0';
+const overviewVersion = '20260828v863CourseHealthMatrixP0';
 const expected = [
   `pages/teacher/teacher-foundation.css?v=${version}`,
   `pages/teacher/teacher-workbench.css?v=${version}`,
@@ -24,7 +24,7 @@ const expected = [
 assert.deepEqual(styles, expected, 'teacher style layers must keep their cascade order');
 assert.deepEqual(
   Array.from(context.window.AstraPageRegistry.stylesForRole('admin')),
-  [...expected, 'pages/admin/admin.css?v=20260828v861PresentationCleanupP3'],
+  [...expected, 'pages/admin/admin.css?v=20260828v863CourseHealthMatrixP0'],
   'admin must reuse the complete teacher cascade before its governance overrides',
 );
 for (const resource of styles) {

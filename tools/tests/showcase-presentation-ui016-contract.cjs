@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..', '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-const generation = '20260828v861PresentationCleanupP3';
+const generation = '20260828v863CourseHealthMatrixP0';
 const roleHome = read('shared/js/role-home-client.js');
 const authUi = read('shared/js/auth-ui.js');
 const student = read('pages/student/student.js');

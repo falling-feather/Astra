@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const STUDENT_ASSET_VERSION = '20260828v861PresentationCleanupP3';
+    const STUDENT_ASSET_VERSION = '20260828v863CourseHealthMatrixP0';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
     const ASSIGNMENT_PAGE_LIMIT = 8;
