@@ -818,6 +818,94 @@ def _empty_admin_teaching_snapshot() -> dict[str, Any]:
     }
 
 
+def _course_health(
+    *,
+    course_id: int,
+    current_release_number: int | None,
+    active_student_count: int,
+    completed_activity_count: int,
+    pending_grading_count: int,
+    content_draft_revision: int,
+    published_draft_revision: int | None,
+) -> dict[str, Any]:
+    """Explain existing course facts without persisting a second health state."""
+
+    release_count = int(current_release_number or 0)
+    students = int(active_student_count or 0)
+    completions = int(completed_activity_count or 0)
+    grading = int(pending_grading_count or 0)
+    draft_revision = int(content_draft_revision or 0)
+    published_draft = int(published_draft_revision or 0)
+    has_unpublished_changes = _has_unpublished_changes(
+        draft_revision,
+        published_draft_revision,
+    )
+
+    def action(kind: str, label: str) -> dict[str, Any]:
+        return {
+            "kind": kind,
+            "label": label,
+            "section": "teaching_snapshot",
+            "course_id": course_id,
+        }
+
+    if current_release_number is None:
+        return {
+            "state": "awaiting_first_release",
+            "label": "待首发",
+            "reason": "课程已经建立，但还没有学生可读取的正式内容版本。",
+            "facts": [
+                {"key": "release_count", "label": "发布版本", "value": 0, "unit": "个"},
+                {"key": "active_students", "label": "在读学生", "value": students, "unit": "人"},
+            ],
+            "next_action": action("open_course_content", "进入课程内容中心"),
+        }
+    if grading > 0:
+        return {
+            "state": "pending_grading",
+            "label": "待批改",
+            "reason": "课程中有学生提交正在等待教师处理。",
+            "facts": [
+                {"key": "pending_grading", "label": "待批改", "value": grading, "unit": "份"},
+                {"key": "completed_activities", "label": "完成信号", "value": completions, "unit": "条"},
+            ],
+            "next_action": action("open_course_grading", "进入批改队列"),
+        }
+    if has_unpublished_changes:
+        return {
+            "state": "unpublished_changes",
+            "label": "待发布",
+            "reason": "共享草稿已经更新，但学生仍在读取上一正式版本。",
+            "facts": [
+                {"key": "draft_revision", "label": "当前草稿", "value": draft_revision, "unit": "代"},
+                {"key": "published_draft_revision", "label": "已发布草稿", "value": published_draft, "unit": "代"},
+            ],
+            "next_action": action("open_course_content", "进入发布预演"),
+        }
+    if students > 0 and completions == 0:
+        return {
+            "state": "no_learning_results",
+            "label": "尚未形成结果",
+            "reason": "课程已有在读学生，但当前还没有形成已确认的完成信号。",
+            "facts": [
+                {"key": "active_students", "label": "在读学生", "value": students, "unit": "人"},
+                {"key": "completed_activities", "label": "完成信号", "value": 0, "unit": "条"},
+            ],
+            "next_action": action("open_course_learning", "进入课程学情"),
+        }
+    return {
+        "state": "healthy",
+        "label": "运行正常",
+        "reason": "当前没有待首发、待批改或未发布修改事项。",
+        "facts": [
+            {"key": "active_students", "label": "在读学生", "value": students, "unit": "人"},
+            {"key": "release_count", "label": "当前版本", "value": release_count, "unit": "版"},
+            {"key": "completed_activities", "label": "完成信号", "value": completions, "unit": "条"},
+        ],
+        "next_action": action("open_course_governance", "查看课程详情"),
+    }
+
+
 def _admin_teaching_snapshot(db: Session) -> dict[str, Any]:
     """Read existing teaching facts for the admin showcase; no new state is stored."""
 
@@ -975,6 +1063,23 @@ def _admin_teaching_snapshot(db: Session) -> dict[str, Any]:
                 "completed_activity_count": completed_count,
                 "pending_grading_count": course_pending_grading,
                 "progress_percent": progress_percent,
+                "health": _course_health(
+                    course_id=course.id,
+                    current_release_number=(
+                        latest_release.release_number
+                        if latest_release is not None
+                        else None
+                    ),
+                    active_student_count=student_count,
+                    completed_activity_count=completed_count,
+                    pending_grading_count=course_pending_grading,
+                    content_draft_revision=int(course.content_draft_revision or 0),
+                    published_draft_revision=(
+                        latest_release.draft_revision
+                        if latest_release is not None
+                        else None
+                    ),
+                ),
             }
         )
 

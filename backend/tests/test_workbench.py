@@ -596,6 +596,75 @@ def test_admin_workbench_teaching_snapshot_uses_existing_course_facts(client) ->
     assert snapshot["course_pulse"][0]["title"] == "Workbench Running Course"
     assert snapshot["course_pulse"][0]["current_release_number"] is None
     assert snapshot["course_pulse"][0]["progress_percent"] == 0
+    assert snapshot["course_pulse"][0]["health"] == {
+        "state": "awaiting_first_release",
+        "label": "待首发",
+        "reason": "课程已经建立，但还没有学生可读取的正式内容版本。",
+        "facts": [
+            {"key": "release_count", "label": "发布版本", "value": 0, "unit": "个"},
+            {"key": "active_students", "label": "在读学生", "value": 0, "unit": "人"},
+        ],
+        "next_action": {
+            "kind": "open_course_content",
+            "label": "进入课程内容中心",
+            "section": "teaching_snapshot",
+            "course_id": snapshot["course_pulse"][0]["course_id"],
+            "course_unit_id": None,
+            "assignment_id": None,
+            "class_id": None,
+            "submission_id": None,
+            "request_id": None,
+            "revision_id": None,
+        },
+    }
+
+
+def test_course_health_explains_each_supported_fact_combination() -> None:
+    base = {
+        "course_id": 17,
+        "current_release_number": 2,
+        "active_student_count": 3,
+        "completed_activity_count": 4,
+        "pending_grading_count": 0,
+        "content_draft_revision": 3,
+        "published_draft_revision": 2,
+    }
+
+    cases = [
+        (
+            {**base, "current_release_number": None, "published_draft_revision": None},
+            "awaiting_first_release",
+            "进入课程内容中心",
+        ),
+        (
+            {**base, "pending_grading_count": 2},
+            "pending_grading",
+            "进入批改队列",
+        ),
+        (
+            {**base, "content_draft_revision": 4},
+            "unpublished_changes",
+            "进入发布预演",
+        ),
+        (
+            {**base, "completed_activity_count": 0},
+            "no_learning_results",
+            "进入课程学情",
+        ),
+        (base, "healthy", "查看课程详情"),
+    ]
+    for facts, expected_state, expected_action in cases:
+        health = workbench_service._course_health(**facts)
+        assert health["state"] == expected_state
+        assert health["reason"]
+        assert len(health["facts"]) >= 2
+        assert all(item["label"] and item["value"] >= 0 for item in health["facts"])
+        assert health["next_action"] == {
+            "kind": health["next_action"]["kind"],
+            "label": expected_action,
+            "section": "teaching_snapshot",
+            "course_id": 17,
+        }
 
 
 def test_workbench_keeps_healthy_sections_when_one_section_fails(

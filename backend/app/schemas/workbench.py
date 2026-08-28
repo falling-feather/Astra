@@ -192,6 +192,34 @@ class AdminGalaxyTeachingSummary(BaseModel):
     releases: int = Field(ge=0)
 
 
+class AdminCourseHealthFact(BaseModel):
+    key: Literal[
+        "release_count",
+        "active_students",
+        "completed_activities",
+        "pending_grading",
+        "draft_revision",
+        "published_draft_revision",
+    ]
+    label: str
+    value: int = Field(ge=0)
+    unit: str
+
+
+class AdminCourseHealthItem(BaseModel):
+    state: Literal[
+        "awaiting_first_release",
+        "pending_grading",
+        "unpublished_changes",
+        "no_learning_results",
+        "healthy",
+    ]
+    label: str
+    reason: str
+    facts: list[AdminCourseHealthFact] = Field(min_length=2)
+    next_action: WorkbenchPrimaryAction
+
+
 class AdminCoursePulseSummary(BaseModel):
     course_id: int
     title: str
@@ -203,6 +231,7 @@ class AdminCoursePulseSummary(BaseModel):
     completed_activity_count: int = Field(ge=0)
     pending_grading_count: int = Field(ge=0)
     progress_percent: int = Field(ge=0, le=100)
+    health: AdminCourseHealthItem
 
 
 class AdminTeachingSnapshot(BaseModel):
