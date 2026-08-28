@@ -755,7 +755,7 @@
     function renderTeacherSet(items, emptyText) {
         if (!Array.isArray(items) || !items.length) return `<span class="admin-course-review-empty-value">${escapeHtml(emptyText)}</span>`;
         return `<div class="admin-course-review-chips">${items.map((teacher) => `
-            <span><i data-lucide="${teacher.is_creator ? 'crown' : 'user-round'}"></i>${escapeHtml(teacher.display_name || teacher.username || `用户 #${teacher.user_id}`)}${teacher.is_creator ? '<b>创建者</b>' : ''}</span>
+            <span><i data-lucide="${teacher.is_creator ? 'crown' : 'user-round'}"></i>${escapeHtml(teacher.display_name || teacher.username || '未命名教师')}${teacher.is_creator ? '<b>创建者</b>' : ''}</span>
         `).join('')}</div>`;
     }
 
@@ -1017,7 +1017,7 @@
             </div>
             <dl class="admin-course-authority">
                 <div><dt>当前状态</dt><dd><span class="admin-status-pill admin-status-pill--${statusClass(course.status)}">${escapeHtml(statusLabel(course.status))}</span></dd></div>
-                <div><dt>创建者</dt><dd>#${escapeHtml(course.creator_user_id || '--')}</dd></div>
+                <div><dt>创建者</dt><dd>课程创建教师</dd></div>
             </dl>
             ${lock ? renderLock(lock) : `
                 <form class="admin-course-form" data-admin-course-form>

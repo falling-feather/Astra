@@ -53,7 +53,7 @@ assert.match(contentSource, /function refreshIcons\(\)[\s\S]*global\.lucide[\s\S
 assert.match(contentSource, /检查点答案|正确答案/);
 assert.doesNotMatch(contentSource, /contenteditable|draggable|<iframe/i);
 
-assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260828v854ManagementShowcaseP0'/);
+assert.match(authoringSource, /COURSE_CONTENT_VERSION = '20260828v861PresentationCleanupP3'/);
 assert.match(authoringSource, /import\(`\.\/teacher-course-content\.js\?v=\$\{COURSE_CONTENT_VERSION\}`\)/);
 assert.match(authoringSource, /data-teacher-course-content/);
 assert.match(authoringSource, /courseContentOwner\.destroy\(\)/);
@@ -61,7 +61,7 @@ assert.match(authoringStyles, /data-teacher-operation="course-authoring"[\s\S]*g
 assert.match(teacherSource, /secondaryOpen:\s*\{\s*structure:\s*false,\s*assignments:\s*false\s*\}/);
 assert.match(teacherSource, /addEventListener\('toggle'[\s\S]*teacherSecondary[\s\S]*detail\.open/);
 assert.match(teacherSource, /data-teacher-secondary="structure"\$\{state\.secondaryOpen\.structure/);
-assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260828v854ManagementShowcaseP0'/);
+assert.match(registrySource, /TEACHER_RESOURCE_VERSION = '20260828v861PresentationCleanupP3'/);
 
 assert.match(styles, /\.teacher-course-content__editor/);
 assert.match(styles, /\.teacher-course-content__history/);
@@ -87,7 +87,7 @@ vm.createContext(context);
 vm.runInContext(contentSource, context, { filename: 'pages/teacher/teacher-course-content.js' });
 const contract = context.window.AstraTeacherCourseContent.contract;
 
-assert.equal(contract.VERSION, '20260828v854ManagementShowcaseP0');
+assert.equal(contract.VERSION, '20260828v861PresentationCleanupP3');
 assert.equal(contract.EXPECTED_ACTIVITY_COUNT, 127);
 assert.deepEqual(Array.from(contract.BLOCK_TYPES, item => item.type), [
   'hero', 'learning-task', 'rich-text', 'media', 'official-simulation', 'checkpoint', 'sources',
@@ -155,6 +155,16 @@ const semanticSame = contract.compareReleaseUnits(
 );
 assert.equal(semanticSame.changed.length, 0, 'internal routing metadata, empty optional fields, and object key order must not create a false release impact');
 assert.equal(semanticSame.unchanged.length, 1);
+
+const completionOnly = contract.compareReleaseUnits(
+  [{ activity_key: 'unit.rule', title: '完成规则示例', position: 1, content: { courseUnit: { completion: { preset: 'experiment_operation' } }, blocks: [] } }],
+  [{ activity_key: 'unit.rule', title: '完成规则示例', position: 1, content: { courseUnit: { completion: { preset: 'checkpoint_passed', checkpointKey: 'check-1' } }, blocks: [] } }],
+);
+assert.equal(completionOnly.changed.length, 1);
+assert.deepEqual(Array.from(completionOnly.changed[0].fields), ['completion']);
+assert.match(contentSource, /data-tone="rule"><dt>完成规则/);
+assert.match(contentSource, /完成方式调整为/);
+assert.match(styles, /teacher-course-release-impact[^]*data-tone="rule"/);
 
 const missingCompletion = JSON.parse(JSON.stringify(unit));
 missingCompletion.completion = null;

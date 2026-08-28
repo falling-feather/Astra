@@ -1,6 +1,6 @@
 (function () {
     'use strict';
-    const TEACHER_ASSET_VERSION = '20260828v854ManagementShowcaseP0', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260825v841CourseAuthoringP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
+    const TEACHER_ASSET_VERSION = '20260828v861PresentationCleanupP3', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260828v861PresentationCleanupP3', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
     const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' }); const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
     const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' }); const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' }); const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
     const CODE_STATUS_LABELS = Object.freeze({
@@ -8,7 +8,7 @@
         wrong_answer: '答案不符', partial: '部分通过', compile_error: '编译错误', runtime_error: '运行错误',
         time_limit: '运行超时', memory_limit: '内存超限', output_limit: '输出超限', internal_error: '判题异常',
         cancelled: '已取消'
-    });
+    }); const LEGACY_DEMO_TEXT = Object.freeze({ 'Physics evidence review': '机械运动证据回顾', 'Humanities claim review': '人文观点证据辨析', 'Loop boundary review': '循环边界过程回顾' }); function presentationText(value) { const text = String(value || ''); return LEGACY_DEMO_TEXT[text] || text; }
     const PENDING_SUBMISSION_PAGE_LIMIT = 50, CODE_SUBMISSION_PAGE_LIMIT = 100, MEMBER_PAGE_LIMIT = 50,
         ACTIVE_STUDENT_PAGE_LIMIT = 50, ASSIGNMENT_SUBMISSION_PAGE_LIMIT = 50, CODE_ATTEMPT_PAGE_LIMIT = 20;
     let courseAuthoringOwner = null, courseAuthoringResourceError = null, courseAuthoringLoadGeneration = 0;
@@ -65,8 +65,8 @@
     }
     function teacherLearningEvidenceResourceMarkup(issue) {
         return `
-            <header class="teacher-natural-header"><div><span>RESOURCE FAIL-CLOSED</span><h3>学生进度与学习证据</h3></div></header>
-            <div class="teacher-natural-state" role="alert"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p>
+            <header class="teacher-natural-header"><div><span>数据连接提示</span><h3>学生进度与学习证据</h3></div></header>
+            <div class="teacher-natural-state" role="alert"><strong>教学记录暂时无法载入</strong><p>${escapeHtml(issue.message)}</p>
             <button type="button" class="astra-authority-summary__retry" data-teacher-evidence-resource-retry>重试加载学习证据</button></div>`;
     }
     function renderTeacherLearningEvidenceResourceState() {
@@ -118,7 +118,7 @@
         }
     }
     function teacherCourseAuthoringHost() {
-        const snapshot = () => Object.freeze({ active: state.active, role: state.user && state.user.role || '', userId: state.user && state.user.id || 0, schoolId: state.selected.schoolId || '', schoolLabel: selectedSchool() && selectedSchool().name || '', online: state.online, blocked: Boolean(state.writeLock || !state.online || state.busy || state.mutationInFlight || state.evidenceMutationInFlight) });
+        const snapshot = () => Object.freeze({ active: state.active, role: state.user && state.user.role || '', userId: state.user && state.user.id || 0, displayName: state.user && state.user.display_name || '', username: state.user && state.user.username || '', schoolId: state.selected.schoolId || '', schoolLabel: selectedSchool() && selectedSchool().name || '', online: state.online, blocked: Boolean(state.writeLock || !state.online || state.busy || state.mutationInFlight || state.evidenceMutationInFlight) });
         return Object.freeze({
             snapshot, request: (path, options) => fetchJson(path, options),
             beginMutation: (label) => { if (!canStartMutation(label)) return false; state.mutationInFlight = true; setBusy(true); return true; },
@@ -1300,7 +1300,7 @@
                     <div>
                         <h3>作业</h3>
                         ${renderSimpleList(state.data.assignments, (assignment) => `
-                            <strong>${escapeHtml(assignment.title)}</strong>
+                            <strong>${escapeHtml(presentationText(assignment.title))}</strong>
                             <span>${escapeHtml(assignment.status)} · ${formatNumber(assignment.max_score)} 分 · ${assignment.due_at ? formatDate(assignment.due_at) : '无截止'}</span>
                         `, state.errors.assignments)}
                     </div>
@@ -1423,7 +1423,7 @@
                     <tbody>
                         ${state.data.members.map((member) => `
                             <tr>
-                                <td><strong>${escapeHtml(member.display_name || member.username)}</strong><span>${escapeHtml(member.username)} · #${member.user_id}</span></td>
+                                <td><strong>${escapeHtml(member.display_name || member.username || '未命名学生')}</strong><span>${escapeHtml(member.username || '已注册学习者')}</span></td>
                                 <td>${statusBadge(member.role)}</td>
                                 <td>${statusBadge(member.status)}</td>
                                 <td>
@@ -1455,7 +1455,7 @@
                         <li>
                             <span>${escapeHtml(item.username || '(空用户名)')}</span>
                             ${statusBadge(item.outcome)}
-                            ${item.error_code ? `<code>${escapeHtml(item.error_code)}</code>` : ''}
+                            ${item.error_code ? '<small>该项未处理，请核对成员信息</small>' : ''}
                         </li>
                     `).join('')}
                 </ul>
@@ -1488,8 +1488,8 @@
                     <tbody>
                         ${state.data.submissions.map((item) => `
                             <tr>
-                                <td><strong>${escapeHtml(item.student_display_name || item.student_username)}</strong><span>#${item.student_id}</span></td>
-                                <td><strong>${escapeHtml(item.assignment_title)}</strong><span>${escapeHtml(item.course_title || '')}</span></td>
+                                <td><strong>${escapeHtml(item.student_display_name || item.student_username || '未命名学生')}</strong><span>${escapeHtml(item.student_username || '已注册学习者')}</span></td>
+                                <td><strong>${escapeHtml(presentationText(item.assignment_title))}</strong><span>${escapeHtml(item.course_title || '')}</span></td>
                                 <td>${statusBadge(item.status)}</td>
                                 <td>${formatDate(item.submitted_at)}</td>
                             </tr>
@@ -1502,7 +1502,7 @@
     function renderGradeForm() {
         const options = state.data.assignmentSubmissions.map((submission) => {
             const member = state.data.members.find((item) => item.user_id === submission.student_id);
-            const label = `${member ? (member.display_name || member.username) : `#${submission.student_id}`} · ${submission.status} · #${submission.id}`;
+            const label = `${member ? (member.display_name || member.username) : '未命名学生'} · ${submission.status}`;
             return `<option value="${submission.id}">${escapeHtml(label)}</option>`;
         }).join('');
         const disabled = !options || isClassReadOnly() || isSchoolReadOnly();
@@ -2438,9 +2438,9 @@
         if (!state.data.collaborators.length) return `<div class="teacher-empty teacher-empty--inline">暂无协作者</div>`;
         return `
             <div class="teacher-collaborators">
-                ${state.data.collaborators.map((item) => `
+                ${state.data.collaborators.map((item, index) => `
                     <div>
-                        <span>#${item.user_id}</span>
+                        <span>${Number(item.user_id) === Number(state.user && state.user.id) ? '当前教师' : `共同教师 ${index + 1}`}</span>
                         ${statusBadge(item.role)}
                         ${statusBadge(item.status)}
                         <button type="button" class="teacher-icon-button teacher-icon-button--compact" data-teacher-collaborator-status="${item.status === 'active' ? 'inactive' : 'active'}" data-collaborator-id="${item.id}" ${canManageCourseOwnership() ? '' : 'disabled'} aria-label="切换协作者状态">
@@ -2458,11 +2458,11 @@
             <div class="teacher-member-import-result" role="status">
                 <strong>批量协作者：新增 ${formatNumber(result.created_count)} · 更新 ${formatNumber(result.updated_count)} · 未变化 ${formatNumber(result.unchanged_count)} · 失败 ${formatNumber(result.failed_count)}</strong>
                 <ul>
-                    ${result.items.map((item) => `
+                    ${result.items.map((item, index) => `
                         <li>
-                            <span>用户 #${formatNumber(item.user_id)}</span>
+                            <span>${item.client_ref ? `导入项 ${escapeHtml(item.client_ref)}` : `导入项 ${formatNumber(index + 1)}`}</span>
                             ${statusBadge(item.outcome)}
-                            ${item.error_code ? `<code>${escapeHtml(item.error_code)}</code>` : ''}
+                            ${item.error_code ? '<small>该项未处理，请核对协作者信息</small>' : ''}
                         </li>
                     `).join('')}
                 </ul>
@@ -2637,11 +2637,11 @@
     function studentLabel(studentId) {
         const candidates = state.data.activeStudents.concat(state.data.members);
         const member = candidates.find((item) => Number(item.user_id) === Number(studentId));
-        return member ? (member.display_name || member.username || `学生 #${studentId}`) : `学生 #${studentId}`;
+        return member ? (member.display_name || member.username || '未命名学生') : '未命名学生';
     }
     function assignmentOptions() {
         return state.data.assignments.map((assignment) => (
-            `<option value="${assignment.id}"${String(assignment.id) === state.selected.assignmentId ? ' selected' : ''}>${escapeHtml(assignment.title)}</option>`
+            `<option value="${assignment.id}"${String(assignment.id) === state.selected.assignmentId ? ' selected' : ''}>${escapeHtml(presentationText(assignment.title))}</option>`
         )).join('') || '<option value="">--</option>';
     }
     function optionSet(values, current, prefix) {

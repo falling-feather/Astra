@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const ADMIN_ASSET_VERSION = '20260825v842CourseReviewP0';
+    const ADMIN_ASSET_VERSION = '20260828v861PresentationCleanupP3';
     const API_BASE_STORAGE_KEY = 'astra-admin-api-base';
 
     const state = {
@@ -1948,11 +1948,11 @@
         const status = controls && controls.querySelector('[data-admin-user-status]')?.value;
         if (!userId || !['student', 'teacher', 'admin'].includes(role) || !['active', 'disabled'].includes(status)) return;
 
-        const currentUser = ((state.panelData.users && state.panelData.users.items) || [])
-            .find((item) => Number(item.id) === userId);
+        const currentUser = ((state.panelData.users && state.panelData.users.items) || []).find((item) => Number(item.id) === userId);
+        const currentUserLabel = currentUser && (currentUser.display_name || currentUser.username) || '当前用户';
         if (currentUser && currentUser.role === role && currentUser.status === status) {
             state.pendingUserUpdate = null;
-            setNotice('warning', `用户 #${userId} 的角色和状态没有变化，未发送写入。`);
+            setNotice('warning', `${currentUserLabel} 的角色和状态没有变化，未发送写入。`);
             rerenderPanel('users');
             refreshIcons();
             return;
@@ -1961,7 +1961,7 @@
         const confirmationKey = `${userId}:${role}:${status}`;
         if (!state.pendingUserUpdate || state.pendingUserUpdate.key !== confirmationKey) {
             state.pendingUserUpdate = { key: confirmationKey, userId, role, status };
-            setNotice('warning', `将用户 #${userId} 调整为 ${role} / ${status}。再次点击同一保存按钮才会写入；权限变化会撤销其活动会话。`);
+            setNotice('warning', `将 ${currentUserLabel} 调整为 ${role} / ${status}。再次点击同一保存按钮才会写入；权限变化会撤销其活动会话。`);
             rerenderPanel('users');
             refreshIcons();
             return;
@@ -1983,7 +1983,7 @@
                 setWriteLock({ action: 'user-governance', resourceId: userId });
                 setNotice('warning', '用户变更已由服务端确认，但列表核对未完整完成；写入已锁定，请刷新后核对。');
             } else {
-                setNotice('success', `用户 #${userId} 已更新为 ${role} / ${status}，审计日志和统计已同步。`);
+                setNotice('success', `${currentUserLabel} 已更新为 ${role} / ${status}，审计日志和统计已同步。`);
             }
         } catch (error) {
             if (error && (error.confirmed || AstraApiClient.isAmbiguousMutation(error))) {

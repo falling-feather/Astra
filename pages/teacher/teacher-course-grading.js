@@ -62,7 +62,7 @@
                     ...item,
                     assignment_title: assignment ? assignment.title : `作业 #${assignmentId}`,
                     course_title: course.title,
-                    student_display_name: `学生 #${item.student_id}`
+                    student_display_name: '未命名学生'
                 }));
             state.data.submissions.total = state.data.submissions.length;
             port.renderWorkspace();

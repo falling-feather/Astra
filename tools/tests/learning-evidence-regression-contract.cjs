@@ -1795,7 +1795,9 @@ async function testPageOwnerResourceFailureFallbacks() {
     },
   };
   assert.equal(await studentContext.__studentEvidenceResourceTest.mountStudentLearningEvidence(), false);
-  assert.match(studentProgress.innerHTML, /learning_evidence_resource_404/);
+  assert.equal(studentContext.__studentEvidenceResourceTest.state.learningEvidenceResourceError.code, 'learning_evidence_resource_404');
+  assert.doesNotMatch(studentProgress.innerHTML, /learning_evidence_resource_404/);
+  assert.match(studentProgress.innerHTML, /学习记录暂时无法载入/);
   assert.match(studentProgress.innerHTML, /data-student-evidence-resource-retry/);
   assert.match(studentKnowledge.innerHTML, /data-student-evidence-resource-retry/);
   let studentMounts = 0;
@@ -1839,7 +1841,9 @@ async function testPageOwnerResourceFailureFallbacks() {
     },
   };
   assert.equal(await teacherContext.__teacherEvidenceResourceTest.mountTeacherLearningEvidence(), false);
-  assert.match(teacherAggregate.innerHTML, /learning_evidence_resource_timeout/);
+  assert.equal(teacherContext.__teacherEvidenceResourceTest.state.learningEvidenceResourceError.code, 'learning_evidence_resource_timeout');
+  assert.doesNotMatch(teacherAggregate.innerHTML, /learning_evidence_resource_timeout/);
+  assert.match(teacherAggregate.innerHTML, /教学记录暂时无法载入/);
   assert.match(teacherAggregate.innerHTML, /data-teacher-evidence-resource-retry/);
   let teacherMounts = 0;
   teacherContext.AstraLearningEvidenceLoader.ensure = async () => {};

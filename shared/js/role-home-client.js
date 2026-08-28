@@ -5,9 +5,9 @@
 
     const NEXT_ACTIVITY_STATUSES = new Set(['not_started', 'in_progress']);
     const ROLE_COPY = Object.freeze({
-        student: Object.freeze({ eyebrow: 'LEARNER PRIORITY', title: '当前首要学习任务', action: '进入我的学习' }),
-        teacher: Object.freeze({ eyebrow: 'TEACHING PRIORITY', title: '当前首要教学事项', action: '进入教学工作台' }),
-        admin: Object.freeze({ eyebrow: 'GOVERNANCE PRIORITY', title: '当前首要治理事项', action: '进入全局治理' })
+        student: Object.freeze({ eyebrow: '学习优先级', title: '当前首要学习任务', action: '进入我的学习' }),
+        teacher: Object.freeze({ eyebrow: '教学优先级', title: '当前首要教学事项', action: '进入教学工作台' }),
+        admin: Object.freeze({ eyebrow: '治理优先级', title: '当前首要治理事项', action: '进入全局治理' })
     });
     const state = {
         root: null,
@@ -162,7 +162,7 @@
         const blocked = item.read_only || item.can_submit === false;
         const overdue = Boolean(!submitted && !blocked && dueValid && dueAt.getTime() < Date.now());
         return Object.freeze({
-            code: submitted ? 'ASSIGNMENT · SUBMITTED' : blocked ? 'ASSIGNMENT · LOCKED' : overdue ? 'ASSIGNMENT · OVERDUE' : 'ASSIGNMENT · ACTIVE',
+            code: submitted ? '作业已提交' : blocked ? '作业暂不可提交' : overdue ? '作业已逾期' : '作业进行中',
             title: assignment.title || assignment.name || '待完成作业',
             detail: !due ? '无截止时间' : dueValid
                 ? `${overdue ? '已逾期 · 截止' : '截止'} ${dueAt.toLocaleString('zh-CN')}`
@@ -215,10 +215,10 @@
             : '';
         if (!unit || !href) return null;
         return Object.freeze({
-            code: 'SCOPED RECOVERY',
+            code: '继续上次学习',
             title: unit.title || courseLabel(course),
             detail: '仅恢复当前明确班级与课程中的权威学习位置。',
-            meta: `规则版本 ${resume.rule_version} · 服务端记录于 ${new Date(resume.last_occurred_at).toLocaleString('zh-CN')}`,
+            meta: `最近一次有效学习记录：${new Date(resume.last_occurred_at).toLocaleString('zh-CN')}`,
             href,
             action: '继续本课程'
         });
@@ -258,10 +258,10 @@
             : '';
         if (!href) return null;
         return Object.freeze({
-            code: 'COURSE UNIT · OPEN',
+            code: '当前课程单元',
             title: unit.title || courseLabel(course),
             detail: '当前班级与课程发布计划中的首个开放单元。',
-            meta: `权威发布状态：open · ${courseLabel(course)}`,
+            meta: `当前单元已开放 · ${courseLabel(course)}`,
             href,
             action: '开始学习'
         });
@@ -284,7 +284,7 @@
                 const courses = list(workbench.courses);
                 state.aggregate = workbench;
                 state.task = Object.freeze({
-                    code: courses.length ? 'COURSE ENROLLMENT · READY' : 'COURSE ACCESS · READY',
+                    code: courses.length ? '授课课程已就绪' : '可以加入课程',
                     title: workbench.primary_action.label || (courses.length ? '进入我的授课课程' : '加入一门授课课程'),
                     detail: courses.length
                         ? '行政班不是课程学习的前置条件；你可以直接从学生工作台继续已加入的课程。'
@@ -500,14 +500,14 @@
         }
         const review = list(reviewResult.value)[0] || null;
         state.task = review ? Object.freeze({
-            code: 'REVIEW · PENDING',
+            code: '有提交待处理',
             title: review.assignment_title || review.title || '有一项提交等待处理',
             detail: '该事项来自当前明确班级与课程的待处理提交列表。',
             meta: state.aggregate ? `权威汇总更新时间 ${new Date(state.aggregate.generated_at).toLocaleTimeString('zh-CN')}` : '学习证据汇总暂不可用。',
             href: '#teacher',
             action: '处理教学事项'
         }) : state.aggregate ? Object.freeze({
-            code: 'EVIDENCE · AGGREGATE',
+            code: '课程学习概况',
             title: '查看当前课程学习证据汇总',
             detail: `当前作用域包含 ${Number(state.aggregate.active_students || 0)} 名活跃学习者。`,
             meta: `权威汇总更新时间 ${new Date(state.aggregate.generated_at).toLocaleTimeString('zh-CN')}`,
@@ -527,12 +527,12 @@
         if (!course) return null;
         const archived = course.status === 'archived';
         return Object.freeze({
-            code: archived ? 'COURSE · ARCHIVED' : 'COURSE · DRAFT',
-            title: course.title || course.course_key || `课程 #${course.id}`,
+            code: archived ? '课程已归档' : '课程待完善',
+            title: course.title || course.course_key || '未命名课程',
             detail: archived
                 ? '该课程处于已归档状态，需要管理员决定是否恢复为草稿后重新复核。'
                 : '该课程仍为草稿，需要管理员核对后决定发布或归档。',
-            meta: `${course.galaxy_key || '未标注星系'} · 课程 #${course.id}`,
+            meta: `${course.galaxy_key || '未标注星系'} · ${archived ? '等待恢复决定' : '等待治理决定'}`,
             href: '#admin',
             action: '进入课程治理'
         });
@@ -582,10 +582,6 @@
         return value === null
             || typeof value === 'string'
             || (typeof value === 'number' && Number.isFinite(value));
-    }
-
-    function adminScalarText(value) {
-        return adminNullableScalar(value) && value !== null ? String(value) : '';
     }
 
     function validateAdminPage(payload, expected, itemValid) {
@@ -666,17 +662,11 @@
     function adminAuditTask(payload) {
         const audit = list(payload).find(isBusinessAudit);
         if (!audit) return null;
-        const resourceId = adminScalarText(audit.resource_id);
-        const requestId = adminScalarText(audit.request_id);
-        const resource = [
-            audit.resource_type,
-            resourceId ? `#${resourceId}` : ''
-        ].filter(Boolean).join(' ');
         return Object.freeze({
-            code: 'AUDIT · RECENT',
-            title: audit.action,
-            detail: resource ? `最近业务审计作用于 ${resource}。` : '最近业务审计已写入权威审计链。',
-            meta: requestId ? `Request ID ${requestId}` : '该记录未提供 Request ID。',
+            code: '近期治理记录',
+            title: '检查最近一次治理变更',
+            detail: '最近一项课程或组织变更已写入审计记录。',
+            meta: '可在管理员工作台查看变更对象、结果与时间。',
             href: '#admin',
             action: '进入审计治理'
         });
@@ -713,10 +703,10 @@
         const pending = pendingPayload.items[0];
         if (pending) {
             return Object.freeze({
-                code: 'GOVERNANCE · PENDING',
+                code: '有申请待审核',
                 title: `处理 ${pending.class_name} 的加入申请`,
                 detail: '该事项来自权威治理队列；申请人明细仅在治理工作区显示。',
-                meta: `${pending.role} · 申请 #${pending.id}`,
+                meta: `${pending.role === 'teacher' ? '教师' : '学生'} · 等待管理员审核`,
                 href: '#admin',
                 action: '进入人员治理'
             });
@@ -893,12 +883,12 @@
                 <a href="${escapeHtml(state.task.href)}">${escapeHtml(state.task.action)} <b aria-hidden="true">→</b></a>
             </article>`;
         }
-        return state.issue ? '' : '<div class="planets-priority__empty"><strong>no_authoritative_task</strong><p>当前没有可显示的权威任务。</p><button type="button" data-role-home-retry>重新加载</button></div>';
+        return state.issue ? '' : '<div class="planets-priority__empty"><strong>当前没有待办事项</strong><p>你所在的课程范围内暂时没有需要继续处理的内容。</p><button type="button" data-role-home-retry>重新加载</button></div>';
     }
 
     function issueMarkup() {
         if (!state.issue) return '';
-        return `<div class="planets-priority__issue" role="status"><strong>${escapeHtml(state.issue.code)}</strong><p>${escapeHtml(state.issue.message)}</p><button type="button" data-role-home-retry>重新核对</button></div>`;
+        return `<div class="planets-priority__issue" role="status"><strong>信息暂时无法读取</strong><p>${escapeHtml(state.issue.message)}</p><button type="button" data-role-home-retry>重新核对</button></div>`;
     }
 
     function removeJoinPrompt() {

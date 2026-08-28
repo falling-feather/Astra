@@ -6,6 +6,9 @@
         teacher: { label: '教师', icon: 'presentation', route: 'teacher', registration: true },
         admin: { label: '管理员', icon: 'shield-check', route: 'admin', registration: false }
     });
+    const ACCOUNT_STATUS_LABELS = Object.freeze({
+        active: '账号正常', disabled: '账号已停用', pending: '等待审核', inactive: '暂未启用'
+    });
     const mounted = new WeakMap();
 
     function mountGate(container, options) {
@@ -163,7 +166,7 @@
                     <span class="astra-auth__icon" aria-hidden="true"><i data-lucide="${actual.icon}"></i></span>
                     <div>
                         <strong>${escapeHtml(user.display_name || user.username || '当前用户')}</strong>
-                        <span>${escapeHtml(user.username || '')} · ${escapeHtml(actual.label)} · ${escapeHtml(user.status || '')}</span>
+                        <span>${escapeHtml(actual.label)} · ${escapeHtml(ACCOUNT_STATUS_LABELS[user.status] || '状态待确认')}</span>
                         ${mismatch ? `<em>此入口需要${expected.label}身份，请切换账号。</em>` : '<em>Cookie 会话已连接，敏感数据不写入普通存储。</em>'}
                     </div>
                 </div>

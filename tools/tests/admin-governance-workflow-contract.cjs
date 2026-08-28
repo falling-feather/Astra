@@ -78,7 +78,7 @@ const courseHomeTask = await roleHomeContract.resolveAdminTask(async (pathname, 
   throw new Error(`unexpected admin home request: ${pathname}`);
 });
 assert.equal(courseHomeTask.title, '真实草稿课');
-assert.equal(courseHomeTask.code, 'COURSE · DRAFT');
+assert.equal(courseHomeTask.code, '课程待完善');
 assert.equal(courseHomeTask.href, '#admin');
 assert.deepEqual(
   adminHomeCalls.map((call) => call.pathname),
@@ -103,8 +103,8 @@ const auditHomeTask = await roleHomeContract.resolveAdminTask(async (pathname, o
       },
   ]);
 });
-assert.equal(auditHomeTask.title, 'class.join.request.approve');
-assert.equal(auditHomeTask.meta, 'Request ID recent-business-audit');
+assert.equal(auditHomeTask.title, '检查最近一次治理变更');
+assert.equal(auditHomeTask.meta, '可在管理员工作台查看变更对象、结果与时间。');
 assert.equal(auditHomeTask.href, '#admin');
 assert.deepEqual(
   adminHomeCalls.map((call) => call.pathname),
@@ -153,7 +153,7 @@ const lateBusinessTask = await roleHomeContract.resolveAdminTask(async (pathname
     request_id: 'business-at-26',
   }], 26, 25);
 });
-assert.equal(lateBusinessTask.meta, 'Request ID business-at-26');
+assert.equal(lateBusinessTask.meta, '可在管理员工作台查看变更对象、结果与时间。');
 assert.deepEqual(
   lateBusinessCalls.filter((call) => call.pathname === '/api/admin/audit-logs').map((call) => call.params.offset),
   [0, 25],
@@ -1849,8 +1849,8 @@ assert.equal(
 );
 assert.equal(
   canonicalSha256(sharedAuthRuntime),
-  'da90cae4df569ef6e7781244359c9313c8b7792ad1c48a465b1a123229144f48',
-  'the shared auth-ui runtime must keep its V7.9.55 canonical content SHA-256',
+  '27215dcce9c6f132fd50b09291240e40b09bfcf31accdb0de5781bef1bb4e6f6',
+  'the shared auth-ui runtime must keep its V8.6.1 presentation-cleanup canonical content SHA-256',
 );
 
 const lineCount = admin.replace(/\r\n?/g, '\n').split('\n').length - (admin.endsWith('\n') ? 1 : 0);

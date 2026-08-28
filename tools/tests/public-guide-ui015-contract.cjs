@@ -13,7 +13,7 @@ const serviceWorker = read('sw.js');
 
 assert.match(
   html,
-  /experiment-registry\.js\?v=20260824v832Show03P0[\s\S]*learning-activity-catalog\.js\?v=20260825v834Show04P0[\s\S]*public-guide\.js\?v=20260824v816ExperimentRestoreP2[\s\S]*app-session\.js\?v=20260828v854ManagementShowcaseP0/,
+  /experiment-registry\.js\?v=20260824v832Show03P0[\s\S]*learning-activity-catalog\.js\?v=20260825v834Show04P0[\s\S]*public-guide\.js\?v=20260824v816ExperimentRestoreP2[\s\S]*app-session\.js\?v=20260828v861PresentationCleanupP3/,
   'the public guide must receive the verified catalog before session bootstrap',
 );
 
@@ -78,6 +78,6 @@ for (const asset of ['learning-activity-catalog.js', 'public-guide.js', 'app-ses
   assert.ok(main.includes(asset), `HTTP fallback is missing ${asset}`);
   assert.ok(serviceWorker.includes(asset), `service worker shell is missing ${asset}`);
 }
-assert.match(serviceWorker, /astra-static-v20260828v854ManagementShowcaseP0/);
+assert.match(serviceWorker, /astra-static-v20260828v861PresentationCleanupP3/);
 
 console.log('public-guide-ui015-contract: ok');

@@ -945,7 +945,7 @@
 
 .teacher-course-release-impact > dl {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 7px;
     margin: 0;
 }
@@ -981,6 +981,10 @@
     color: #67e8f9;
 }
 
+.teacher-course-release-impact > dl [data-tone="rule"] dd {
+    color: #fbbf24;
+}
+
 .teacher-course-release-impact > dl [data-tone="removed"] dd {
     color: #fda4af;
 }
@@ -1011,6 +1015,10 @@
 
 .teacher-course-release-impact__changes > span[data-tone="changed"] b {
     color: #67e8f9;
+}
+
+.teacher-course-release-impact__changes > span[data-tone="rule"] b {
+    color: #fbbf24;
 }
 
 .teacher-course-release-impact__changes > span[data-tone="removed"] b {

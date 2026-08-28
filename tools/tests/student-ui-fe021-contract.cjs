@@ -38,7 +38,7 @@ assert.match(student, /!state\.selected\.courseId && state\.data\.courses\.lengt
 assert.match(roleHome, /const preferredCourse = rememberedCourse \|\| courses\[0\]/);
 assert.match(roleHome, /rememberStudentScope\(classId, preferredCourse\.id\)/);
 assert.match(roleHome, /request\('\/api\/v1\/workbench'/);
-assert.match(roleHome, /COURSE ENROLLMENT · READY/);
+assert.match(roleHome, /授课课程已就绪/);
 assert.match(roleHome, /if \(state\.joinDialog\) removeJoinPrompt\(\)/);
 assert.match(planets, /allowsPersonalPage\(\)[\s\S]*catalogueState\.phase === 'ready'/);
 assert.match(planets, /request\('\/api\/courses', \{ signal \}\)/);

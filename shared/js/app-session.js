@@ -363,7 +363,7 @@
         const submitted = application
             ? `<dl class="teacher-application-dialog__facts">
                     <div><dt>当前状态</dt><dd data-teacher-application-status="${escapeHtml(statusValue)}">${escapeHtml(teacherApplicationStatusLabel(statusValue))}</dd></div>
-                    <div><dt>申请编号</dt><dd>#${escapeHtml(application.id)}</dd></div>
+                    <div><dt>申请记录</dt><dd>已提交并等待处理</dd></div>
                     <div><dt>提交时间</dt><dd>${escapeHtml(new Date(application.created_at).toLocaleString('zh-CN'))}</dd></div>
                 </dl>${application.message ? `<div class="teacher-application-dialog__note"><span>申请说明</span><p>${escapeHtml(application.message)}</p></div>` : ''}${reviewNote}`
             : '<p class="teacher-application-dialog__empty">当前账号仍是普通学生。提交后，在管理员审核完成前只能预览正式发布内容。</p>';

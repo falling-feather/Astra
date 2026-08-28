@@ -177,22 +177,22 @@ assert.deepEqual(assignmentDeclarations, [
   {
     course_key: 'physics',
     activity_key: 'physics.mechanics',
-    title: 'Physics evidence review',
-    description: 'Synthetic local-preview evidence for the review loop.',
+    title: '机械运动证据回顾',
+    description: '整理本次实验的观察结论，并说明现象与判断依据。',
     desired_status: 'graded',
   },
   {
     course_key: 'humanities-futures',
     activity_key: 'humanities.claim-review',
-    title: 'Humanities claim review',
-    description: 'Synthetic local-preview evidence for the review loop.',
+    title: '人文观点证据辨析',
+    description: '选择支持观点的事实依据，并说明证据与结论之间的联系。',
     desired_status: 'pending',
   },
   {
     course_key: 'control-flow',
     activity_key: 'control-flow.loop-boundary',
-    title: 'Loop boundary review',
-    description: 'Synthetic loop trace awaiting teacher feedback.',
+    title: '循环边界过程回顾',
+    description: '记录循环结束前后的条件变化，等待教师给出针对性反馈。',
     desired_status: 'pending',
   },
 ]);
@@ -204,6 +204,10 @@ assert.deepEqual(
   [assignmentDeclarations[2].course_key, assignmentDeclarations[2].activity_key],
   [codeProblemScope[1], codeProblemScope[2]],
 );
+assert.match(manifest, /"title": "循环边界演示题"/);
+assert.match(manifest, /追踪有限循环最后一次条件为假的过程/);
+assert.match(initializer, /"kind": "structured-response"/);
+assert.match(initializer, /观察记录完整；请进一步解释边界条件为什么会改变最终结果。/);
 
 const expectedCode = {
   'program-start': ['program-start.first-output', 'program-start.variable-box', 'program-start.input-response'],

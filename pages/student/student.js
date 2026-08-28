@@ -1,10 +1,12 @@
 (function () {
     'use strict';
 
-    const STUDENT_ASSET_VERSION = '20260719v757StudentPublicationP0';
+    const STUDENT_ASSET_VERSION = '20260828v861PresentationCleanupP3';
     const API_BASE_STORAGE_KEY = 'astra-student-api-base';
     const REQUEST_TIMEOUT_MS = 12000;
     const ASSIGNMENT_PAGE_LIMIT = 8;
+    const LEGACY_DEMO_TEXT = Object.freeze({ 'Physics evidence review': '机械运动证据回顾', 'Humanities claim review': '人文观点证据辨析', 'Loop boundary review': '循环边界过程回顾', 'Synthetic local-preview evidence for the review loop.': '整理本次学习证据，并说明现象与判断依据。', 'Synthetic loop trace awaiting teacher feedback.': '记录循环结束前后的条件变化，等待教师给出针对性反馈。', 'Synthetic feedback: explain the observed boundary.': '观察记录完整；请进一步解释边界条件为什么会改变最终结果。' });
+    function presentationText(value) { const text = String(value || ''); return LEGACY_DEMO_TEXT[text] || text; }
 
     function emptyPage() {
         return { items: [], total: 0, limit: ASSIGNMENT_PAGE_LIMIT, offset: 0, next_offset: null };
@@ -133,9 +135,9 @@
 
     function learningEvidenceResourceMarkup(issue, title) {
         return `
-            <header class="astra-authority-summary__header"><div><span>RESOURCE FAIL-CLOSED</span><h3>${escapeHtml(title)}</h3></div></header>
+            <header class="astra-authority-summary__header"><div><span>数据连接提示</span><h3>${escapeHtml(title)}</h3></div></header>
             <div class="astra-authority-summary__state" role="status">
-                <strong>${escapeHtml(issue.code)}</strong>
+                <strong>学习记录暂时无法载入</strong>
                 <p>${escapeHtml(issue.message)}</p>
                 <button type="button" class="astra-authority-summary__retry" data-student-evidence-resource-retry>重试加载学习证据</button>
             </div>`;
@@ -1155,7 +1157,7 @@
             <div class="student-today-task">
                 <span class="student-today-task__icon"><i data-lucide="${itemCanSubmit(item) ? 'clipboard-pen-line' : 'book-open-check'}"></i></span>
                 <div class="student-today-task__copy">
-                    <strong>${escapeHtml(assignment.title || '未命名作业')}</strong>
+                    <strong>${escapeHtml(presentationText(assignment.title) || '未命名作业')}</strong>
                     <span>${escapeHtml([unit && unit.title, course && course.title].filter(Boolean).join(' · ') || '当前课程')}</span>
                     <small class="${due.overdue ? 'is-overdue' : ''}">${escapeHtml(due.label)}</small>
                 </div>
@@ -1241,7 +1243,7 @@
             <article class="student-assignment-row${selected ? ' is-selected' : ''}">
                 <span class="student-assignment-row__index">${escapeHtml(assignmentIdOf(item))}</span>
                 <div class="student-assignment-row__copy">
-                    <div><strong>${escapeHtml(assignment.title || '未命名作业')}</strong>${statusPill(status)}</div>
+                    <div><strong>${escapeHtml(presentationText(assignment.title) || '未命名作业')}</strong>${statusPill(status)}</div>
                     <span>${escapeHtml((unit && unit.title) || '课程作业')}</span>
                     <small class="${due.overdue ? 'is-overdue' : ''}">${escapeHtml(due.label)}</small>
                 </div>
@@ -1281,13 +1283,13 @@
             ${panelHeader('提交与反馈', 'send')}
             <div class="student-submission-heading">
                 <div>
-                    <h3>${escapeHtml(assignment.title || '未命名作业')}</h3>
+                    <h3>${escapeHtml(presentationText(assignment.title) || '未命名作业')}</h3>
                     <p>${escapeHtml((unit && unit.title) || '课程作业')} · 满分 ${formatNumber(assignment.max_score)} 分</p>
                 </div>
                 ${statusPill(assignmentStatus(item))}
             </div>
             <p class="student-submission-due ${due.overdue ? 'is-overdue' : ''}">${escapeHtml(due.label)}${due.overdue && canSubmit ? ' · 当前仍开放提交' : ''}</p>
-            ${assignment.description ? `<div class="student-assignment-description">${escapeHtml(assignment.description)}</div>` : ''}
+            ${assignment.description ? `<div class="student-assignment-description">${escapeHtml(presentationText(assignment.description))}</div>` : ''}
             ${submission
                 ? renderSubmissionReview(submission)
                 : canSubmit
@@ -1325,7 +1327,7 @@
                 </div>
                 <div class="student-feedback ${submission.feedback ? 'has-feedback' : ''}">
                     <span><i data-lucide="message-circle-more"></i> 教师反馈</span>
-                    <p>${escapeHtml(submission.feedback || '教师尚未留下反馈')}</p>
+                    <p>${escapeHtml(presentationText(submission.feedback) || '教师尚未留下反馈')}</p>
                 </div>
             </div>
         `;
@@ -1358,7 +1360,7 @@
                         <div class="student-points-list">
                             ${points.map((item) => `
                                 <div>
-                                    <span>${escapeHtml(pointReasonLabel(item.reason))}${item.assignment_id ? ` · 作业 #${escapeHtml(item.assignment_id)}` : ''}</span>
+                                    <span>${escapeHtml(pointReasonLabel(item.reason))}${item.assignment_id ? ' · 指定作业' : ''}</span>
                                     <strong class="${Number(item.delta) >= 0 ? 'is-positive' : 'is-negative'}">${Number(item.delta) >= 0 ? '+' : ''}${formatNumber(item.delta)}</strong>
                                 </div>
                             `).join('')}
@@ -1629,11 +1631,9 @@
             for (const key of ['answer', 'text', 'response', 'content']) {
                 if (typeof content[key] === 'string') return content[key];
             }
-            try {
-                return JSON.stringify(content, null, 2).slice(0, 5000);
-            } catch (error) {
-                return '';
-            }
+            if (String(content.kind || '') === 'synthetic-demo') return '已完成实验观察记录，等待教师查看。';
+            const itemCount = Array.isArray(content) ? content.length : Object.keys(content).length;
+            return itemCount > 0 ? `已提交结构化作答，共包含 ${itemCount} 项记录。` : '已提交作答。';
         }
         return String(content);
     }

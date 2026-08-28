@@ -101,22 +101,23 @@ def test_manifest_is_complete_and_contains_no_credential_material():
         for item in DEMO_ASSIGNMENTS
     } == {
         ("physics", "physics.mechanics"): (
-            "Physics evidence review",
-            "Synthetic local-preview evidence for the review loop.",
+            "机械运动证据回顾",
+            "整理本次实验的观察结论，并说明现象与判断依据。",
             "graded",
         ),
         ("humanities-futures", "humanities.claim-review"): (
-            "Humanities claim review",
-            "Synthetic local-preview evidence for the review loop.",
+            "人文观点证据辨析",
+            "选择支持观点的事实依据，并说明证据与结论之间的联系。",
             "pending",
         ),
         ("control-flow", "control-flow.loop-boundary"): (
-            "Loop boundary review",
-            "Synthetic loop trace awaiting teacher feedback.",
+            "循环边界过程回顾",
+            "记录循环结束前后的条件变化，等待教师给出针对性反馈。",
             "pending",
         ),
     }
     assert DEMO_CODE_PROBLEM["activity_key"] == "control-flow.loop-boundary"
+    assert DEMO_CODE_PROBLEM["title"] == "循环边界演示题"
     control_assignment = next(item for item in DEMO_ASSIGNMENTS if item["course_key"] == "control-flow")
     assert (control_assignment["course_key"], control_assignment["activity_key"]) == (
         DEMO_CODE_PROBLEM["course_key"],

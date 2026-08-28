@@ -1287,11 +1287,15 @@ async def _ensure_assignments(
         course = courses[course_key]
         response = await api.get(f"/api/courses/{course['id']}/assignments?class_id={class_id}", teacher)
         assignments = _require_status(response, 200, f"list assignments for {course_key}")
-        matching_assignments = [item for item in assignments if item.get("title") == title]
+        matching_assignments = [
+            item for item in assignments
+            if item.get("unit_id") == units[activity_key]["id"]
+        ]
         if len(matching_assignments) > 1:
             raise DemoInitializationError(f"duplicate assignment natural key for {title}")
         assignment = matching_assignments[0] if matching_assignments else None
-        if assignment is None:
+        created_assignment = assignment is None
+        if created_assignment:
             created = await api.post(
                 f"/api/courses/{course['id']}/units/{units[activity_key]['id']}/assignments",
                 teacher,
@@ -1308,8 +1312,6 @@ async def _ensure_assignments(
             assignment.get(field) != expected
             for field, expected in {
                 "unit_id": units[activity_key]["id"],
-                "title": title,
-                "description": declaration["description"],
                 "max_score": declaration["max_score"],
                 "status": declaration["status"],
                 "audience_mode": declaration["audience_mode"],
@@ -1329,7 +1331,10 @@ async def _ensure_assignments(
                 student,
                 {
                     "class_id": class_id,
-                    "content": {"kind": "synthetic-demo", "claim": f"review:{activity_key}"},
+                    "content": {
+                        "kind": "structured-response",
+                        "answer": "已完成观察记录，并说明关键现象与判断依据。",
+                    },
                 },
             )
             submission = _require_status(created_submission, 201, f"create submission {title}")
@@ -1342,22 +1347,28 @@ async def _ensure_assignments(
         if len(student_submissions) != 1:
             raise DemoInitializationError(f"assignment submission duplicate/drift for {title}")
         submission = student_submissions[0]
-        if submission.get("content") != {"kind": "synthetic-demo", "claim": f"review:{activity_key}"}:
+        expected_content = {
+            "kind": "structured-response",
+            "answer": "已完成观察记录，并说明关键现象与判断依据。",
+        }
+        legacy_content = {"kind": "synthetic-demo", "claim": f"review:{activity_key}"}
+        if submission.get("content") not in (expected_content, legacy_content):
             raise DemoInitializationError(f"assignment submission content drifted for {title}")
         if desired == "pending":
             if submission.get("status") != "submitted" or submission.get("feedback") is not None:
                 raise DemoInitializationError(f"pending submission drifted for {title}")
         else:
-            if submission.get("status") == "submitted":
+            expected_feedback = "观察记录完整；请进一步解释边界条件为什么会改变最终结果。"
+            if submission.get("status") == "submitted" or submission.get("score") != 88 or submission.get("feedback") != expected_feedback:
                 graded = await api.patch(
                     f"/api/submissions/{submission['id']}/grade",
                     teacher,
-                    {"score": 88, "feedback": "Synthetic feedback: explain the observed boundary.", "status": "graded"},
+                    {"score": 88, "feedback": expected_feedback, "status": "graded"},
                 )
                 submission = _require_status(graded, 200, f"grade submission {title}")
             elif submission.get("status") != "graded":
                 raise DemoInitializationError(f"graded submission status drifted for {title}")
-            if submission.get("score") != 88 or submission.get("feedback") != "Synthetic feedback: explain the observed boundary.":
+            if submission.get("score") != 88 or submission.get("feedback") != expected_feedback:
                 raise DemoInitializationError(f"graded submission fields drifted for {title}")
         result[course_key] = {
             "assignment_id": assignment["id"],
@@ -1405,7 +1416,6 @@ async def _ensure_code_runner_demo(
         expected_problem_fields = {
             "course_id": course["id"],
             "course_unit_id": units[activity_key]["id"],
-            "title": DEMO_CODE_PROBLEM["title"],
             "status": "active",
         }
         drifted_fields = [field for field, expected in expected_problem_fields.items() if problem.get(field) != expected]
@@ -1420,6 +1430,24 @@ async def _ensure_code_runner_demo(
         }.items():
             if active_version.get(field) != expected:
                 drifted_fields.append(f"active_version.{field}")
+        version_fields = [field for field in drifted_fields if field.startswith("active_version.")]
+        if version_fields:
+            upgraded = await api.post(
+                f"/api/code-problems/{problem['id']}/versions",
+                teacher,
+                {
+                    "statement_markdown": DEMO_CODE_PROBLEM["statement_markdown"],
+                    "test_cases": list(DEMO_CODE_PROBLEM["test_cases"]),
+                    "language_allowlist": list(DEMO_CODE_PROBLEM["language_allowlist"]),
+                    "resource_policy": DEMO_CODE_PROBLEM["resource_policy"],
+                    "source_max_bytes": DEMO_CODE_PROBLEM["source_max_bytes"],
+                    "input_max_bytes": DEMO_CODE_PROBLEM["input_max_bytes"],
+                    "output_max_bytes": DEMO_CODE_PROBLEM["output_max_bytes"],
+                },
+            )
+            _require_status(upgraded, 201, "upgrade disabled-runner code problem copy")
+            problem = _require_status(await api.get(lookup_path, teacher), 200, "read upgraded disabled-runner code problem")
+            drifted_fields = [field for field in drifted_fields if not field.startswith("active_version.")]
         if drifted_fields:
             raise DemoInitializationError(f"code problem fields drifted: {','.join(drifted_fields)}")
     if problem.get("status") != "active":

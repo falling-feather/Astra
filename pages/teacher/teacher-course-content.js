@@ -3,7 +3,7 @@
 
     if (global.AstraTeacherCourseContent) return;
 
-    const VERSION = '20260828v854ManagementShowcaseP0';
+    const VERSION = '20260828v861PresentationCleanupP3';
     const STYLE_VERSION = VERSION;
     const EXPECTED_ACTIVITY_COUNT = 127;
     const STABLE_ID_PATTERN = /^[a-z0-9][a-z0-9._:-]*$/;
@@ -286,7 +286,7 @@
         return `
             <div class="teacher-course-content__scope">
                 <label><span>正在编辑</span><select data-course-content-course ${blocked ? 'disabled' : ''}>${courses.map(item => `<option value="${escapeAttr(item.id)}"${String(item.id) === String(course.id) ? ' selected' : ''}>${escapeHtml(item.title)} · ${escapeHtml(item.course_code)}</option>`).join('')}</select></label>
-                <div><span>共享草稿</span><strong>revision ${escapeHtml(session.draftRevision)}</strong></div>
+                <div><span>共享草稿</span><strong>第 ${escapeHtml(session.draftRevision)} 代</strong></div>
                 <div><span>发布状态</span><strong>${escapeHtml(releaseStatusLabel(course))}</strong></div>
                 <div data-course-content-dirty data-state="${session.dirty ? 'dirty' : 'saved'}"><span>${session.dirty ? '有未保存修改' : '已与服务器同步'}</span></div>
             </div>
@@ -345,7 +345,7 @@
 
     function conflictMarkup() {
         const conflict = session.conflict;
-        return `<div class="teacher-course-content__conflict" role="alertdialog" aria-label="共享草稿冲突"><div><span>REVISION CONFLICT</span><h5>另一位教师已经更新了共享草稿</h5><p>本地基于 revision ${escapeHtml(conflict.localRevision)}，服务器当前为 revision ${escapeHtml(conflict.remote && conflict.remote.revision)}。系统没有覆盖任何一方，也不会自动重试写入。</p></div><div class="teacher-course-content__conflict-actions"><button type="button" data-course-content-action="export-local"><i data-lucide="download"></i>导出本地副本</button><button type="button" data-course-content-action="use-remote">采用服务器草稿</button><button type="button" class="is-warning" data-course-content-action="keep-local">以最新代际保留本地内容</button></div><small>“保留本地内容”只更新预期 revision，不会立即写入；请复核后再次点击保存。</small></div>`;
+        return `<div class="teacher-course-content__conflict" role="alertdialog" aria-label="共享草稿冲突"><div><span>协同编辑提示</span><h5>另一位教师已经更新了共享草稿</h5><p>你的编辑基于第 ${escapeHtml(conflict.localRevision)} 代草稿，服务器当前为第 ${escapeHtml(conflict.remote && conflict.remote.revision)} 代。系统没有覆盖任何一方，也不会自动重试写入。</p></div><div class="teacher-course-content__conflict-actions"><button type="button" data-course-content-action="export-local"><i data-lucide="download"></i>导出本地副本</button><button type="button" data-course-content-action="use-remote">采用服务器草稿</button><button type="button" class="is-warning" data-course-content-action="keep-local">以最新代际保留本地内容</button></div><small>“保留本地内容”只更新预期草稿代际，不会立即写入；请复核后再次点击保存。</small></div>`;
     }
 
     function editorMarkup(course, blocked) {
@@ -418,7 +418,7 @@
             target = `<label><span>作为完成依据的检查点</span><select data-course-content-completion-target="checkpointKey" data-unit-key="${escapeAttr(unit.localKey)}" ${blocked || !checkpoints.length ? 'disabled' : ''}><option value="">请选择检查点</option>${checkpoints.map(item => `<option value="${escapeAttr(item.checkpointKey)}"${item.checkpointKey === completion.checkpointKey ? ' selected' : ''}>${escapeHtml(item.title)} · ${escapeHtml(item.checkpointKey)}</option>`).join('')}</select></label>`;
         }
         if (preset === 'assignment_reviewed') {
-            target = `<label><span>作为完成依据的作业</span><select data-course-content-completion-target="assignmentId" data-unit-key="${escapeAttr(unit.localKey)}" ${blocked || !assignments.length ? 'disabled' : ''}><option value="">请选择作业</option>${assignments.map(item => `<option value="${escapeAttr(item.id)}"${Number(item.id) === Number(completion.assignmentId) ? ' selected' : ''}>${escapeHtml(item.title)} · #${escapeHtml(item.id)}</option>`).join('')}</select></label>`;
+            target = `<label><span>作为完成依据的作业</span><select data-course-content-completion-target="assignmentId" data-unit-key="${escapeAttr(unit.localKey)}" ${blocked || !assignments.length ? 'disabled' : ''}><option value="">请选择作业</option>${assignments.map(item => `<option value="${escapeAttr(item.id)}"${Number(item.id) === Number(completion.assignmentId) ? ' selected' : ''}>${escapeHtml(item.title || '未命名作业')}</option>`).join('')}</select></label>`;
         }
         const hint = preset === 'experiment_operation'
             ? '学生在本单元正式活动中完成一次由服务器接收的操作后记为完成。'
@@ -481,7 +481,7 @@
     function editorActionsMarkup(course, blocked) {
         const hasUnits = session.units.length > 0;
         const impact = releaseImpact(course);
-        return `${session.publishConfirm ? releaseImpactMarkup(impact) : ''}<footer class="teacher-course-content__actions"><div><strong>${session.dirty ? '草稿尚未保存' : `服务器 revision ${session.draftRevision}`}</strong><span>${hasUnits ? '保存后再显式发布；共同教师会读取同一代际。' : '可以保留空草稿，但至少建立一个单元后才能发布。'}</span></div><div><button type="button" data-course-content-action="save" ${blocked || !session.dirty ? 'disabled' : ''}><i data-lucide="save"></i><span>${session.busy ? '正在写入…' : '保存共享草稿'}</span></button>${session.publishConfirm ? `<label class="teacher-course-content__publish-note"><span>发布说明（可选）</span><input data-course-content-publish-note value="${escapeAttr(session.publishNote)}" maxlength="1000" ${blocked ? 'disabled' : ''}></label><button type="button" data-course-content-action="cancel-publish" ${blocked ? 'disabled' : ''}>取消</button><button type="button" class="is-primary" data-course-content-action="publish" ${blocked || session.dirty || !hasUnits || !impact.hasChanges ? 'disabled' : ''}><i data-lucide="send"></i><span>确认发布下一版 · 第 ${impact.nextReleaseNumber} 版</span></button>` : `<button type="button" class="is-primary" data-course-content-action="confirm-publish" ${blocked || session.dirty || !hasUnits ? 'disabled' : ''}><i data-lucide="rocket"></i><span>准备发布</span></button>`}</div></footer>`;
+        return `${session.publishConfirm ? releaseImpactMarkup(impact) : ''}<footer class="teacher-course-content__actions"><div><strong>${session.dirty ? '草稿尚未保存' : `服务器已保存第 ${session.draftRevision} 代草稿`}</strong><span>${hasUnits ? '保存后再显式发布；共同教师会读取同一代际。' : '可以保留空草稿，但至少建立一个单元后才能发布。'}</span></div><div><button type="button" data-course-content-action="save" ${blocked || !session.dirty ? 'disabled' : ''}><i data-lucide="save"></i><span>${session.busy ? '正在写入…' : '保存共享草稿'}</span></button>${session.publishConfirm ? `<label class="teacher-course-content__publish-note"><span>发布说明（可选）</span><input data-course-content-publish-note value="${escapeAttr(session.publishNote)}" maxlength="1000" ${blocked ? 'disabled' : ''}></label><button type="button" data-course-content-action="cancel-publish" ${blocked ? 'disabled' : ''}>取消</button><button type="button" class="is-primary" data-course-content-action="publish" ${blocked || session.dirty || !hasUnits || !impact.hasChanges ? 'disabled' : ''}><i data-lucide="send"></i><span>确认发布下一版 · 第 ${impact.nextReleaseNumber} 版</span></button>` : `<button type="button" class="is-primary" data-course-content-action="confirm-publish" ${blocked || session.dirty || !hasUnits ? 'disabled' : ''}><i data-lucide="rocket"></i><span>准备发布</span></button>`}</div></footer>`;
     }
 
     function releaseImpact(course) {
@@ -494,11 +494,15 @@
         }));
         const diff = compareReleaseUnits(currentUnits, latest && latest.units);
         const changeCount = diff.added.length + diff.changed.length + diff.removed.length;
+        const contentChanged = diff.changed.filter(item => item.fields.some(field => field !== 'completion'));
+        const completionChanged = diff.changed.filter(item => item.fields.includes('completion'));
         return {
             currentReleaseNumber: latest ? Number(latest.release_number) : 0,
             nextReleaseNumber: latest ? Number(latest.release_number) + 1 : 1,
             affectedStudents: nonNegativeInteger(course && course.active_student_count),
             hasChanges: !latest || changeCount > 0,
+            contentChanged,
+            completionChanged,
             diff
         };
     }
@@ -507,10 +511,11 @@
         const diff = impact.diff;
         const changes = [
             ...diff.added.map(item => ({ tone: 'added', label: '新增', title: item.current.title })),
-            ...diff.changed.map(item => ({ tone: 'changed', label: '调整', title: item.current.title })),
+            ...impact.contentChanged.map(item => ({ tone: 'changed', label: '内容调整', title: item.current.title })),
+            ...impact.completionChanged.map(item => ({ tone: 'rule', label: '完成规则', title: `${item.current.title}：${releaseUnitCompletionLabel(item.current)}` })),
             ...diff.removed.map(item => ({ tone: 'removed', label: '移除', title: item.previous.title }))
         ];
-        return `<section class="teacher-course-release-impact" role="region" aria-label="发布影响预演"><header><div><span>RELEASE IMPACT PREVIEW</span><h5>发布影响预演</h5><p>这是发布前的确定性计算，不会写入课程；确认后学生下次读取即切换到新版本。</p></div><strong data-state="${impact.hasChanges ? 'ready' : 'same'}">${impact.hasChanges ? `准备生成第 ${impact.nextReleaseNumber} 版` : '与当前发布版一致'}</strong></header><div class="teacher-course-release-impact__route"><span><i data-lucide="file-pen-line"></i><b>共享草稿</b><small>revision ${session.draftRevision}</small></span><i data-lucide="arrow-right"></i><span><i data-lucide="package-check"></i><b>不可变版本</b><small>release ${impact.nextReleaseNumber}</small></span><i data-lucide="arrow-right"></i><span><i data-lucide="users-round"></i><b>${impact.affectedStudents} 名学生</b><small>下次读取自动生效</small></span></div><dl><div><dt>影响学生</dt><dd>${impact.affectedStudents}</dd></div><div data-tone="added"><dt>新增单元</dt><dd>${diff.added.length}</dd></div><div data-tone="changed"><dt>调整单元</dt><dd>${diff.changed.length}</dd></div><div data-tone="removed"><dt>移除单元</dt><dd>${diff.removed.length}</dd></div></dl>${changes.length ? `<div class="teacher-course-release-impact__changes">${changes.slice(0, 6).map(item => `<span data-tone="${escapeAttr(item.tone)}"><b>${escapeHtml(item.label)}</b>${escapeHtml(item.title || '未命名单元')}</span>`).join('')}${changes.length > 6 ? `<small>另有 ${changes.length - 6} 项变化</small>` : ''}</div>` : '<div class="teacher-course-release-impact__same"><i data-lucide="circle-equal"></i><span><strong>没有检测到可发布的结构或内容变化</strong><small>继续编辑并保存草稿后再发布，避免生成重复版本。</small></span></div>'}</section>`;
+        return `<section class="teacher-course-release-impact" role="region" aria-label="发布影响预演"><header><div><span>RELEASE IMPACT PREVIEW</span><h5>发布影响预演</h5><p>这是发布前的确定性计算，不会写入课程；确认后学生下次读取即切换到新版本。</p></div><strong data-state="${impact.hasChanges ? 'ready' : 'same'}">${impact.hasChanges ? `准备生成第 ${impact.nextReleaseNumber} 版` : '与当前发布版一致'}</strong></header><div class="teacher-course-release-impact__route"><span><i data-lucide="file-pen-line"></i><b>共享草稿</b><small>草稿第 ${session.draftRevision} 代</small></span><i data-lucide="arrow-right"></i><span><i data-lucide="package-check"></i><b>不可变版本</b><small>课程第 ${impact.nextReleaseNumber} 版</small></span><i data-lucide="arrow-right"></i><span><i data-lucide="users-round"></i><b>${impact.affectedStudents} 名学生</b><small>下次读取自动生效</small></span></div><dl><div><dt>影响学生</dt><dd>${impact.affectedStudents}</dd></div><div data-tone="added"><dt>新增单元</dt><dd>${diff.added.length}</dd></div><div data-tone="changed"><dt>内容调整</dt><dd>${impact.contentChanged.length}</dd></div><div data-tone="rule"><dt>完成规则</dt><dd>${impact.completionChanged.length}</dd></div><div data-tone="removed"><dt>移除单元</dt><dd>${diff.removed.length}</dd></div></dl>${changes.length ? `<div class="teacher-course-release-impact__changes">${changes.slice(0, 8).map(item => `<span data-tone="${escapeAttr(item.tone)}"><b>${escapeHtml(item.label)}</b>${escapeHtml(item.title || '未命名单元')}</span>`).join('')}${changes.length > 8 ? `<small>另有 ${changes.length - 8} 项变化</small>` : ''}</div>` : '<div class="teacher-course-release-impact__same"><i data-lucide="circle-equal"></i><span><strong>没有检测到可发布的结构、内容或完成规则变化</strong><small>继续编辑并保存草稿后再发布，避免生成重复版本。</small></span></div>'}</section>`;
     }
 
     function previewMarkup(course, fromHistory) {
@@ -532,7 +537,15 @@
 
     function historyMarkup(course) {
         const release = selectedRelease();
-        return `<section class="teacher-course-content__history"><aside><header><span>VERSION TIME MACHINE</span><strong>课程版本时光机</strong><small>选择不可变发布历史中的任一节点，回看当时学生实际读取的内容。</small></header><div class="teacher-course-version-rail">${session.releases.length ? session.releases.map(releaseTimelineButtonMarkup).join('') : '<div class="teacher-course-content__unit-empty">尚未发布；保存草稿后从编辑视图显式发布。</div>'}</div></aside><main>${release ? `${releaseDiffMarkup(release)}<div class="teacher-course-content__release-meta"><div><span>发布者</span><strong>用户 #${escapeHtml(release.published_by_user_id)}</strong></div><div><span>草稿代际</span><strong>revision ${escapeHtml(release.draft_revision)}</strong></div><div><span>完成规则</span><strong>${release.completion_rule_id ? `规则 #${escapeHtml(release.completion_rule_id)}` : '尚未配置'}</strong></div></div>${previewMarkup(course, true)}` : '<div class="teacher-course-content__canvas-empty"><i data-lucide="history"></i><h5>暂无发布历史</h5><p>已发布版本会永久保留在这里，不能直接修改。</p></div>'}</main></section>`;
+        return `<section class="teacher-course-content__history"><aside><header><span>VERSION TIME MACHINE</span><strong>课程版本时光机</strong><small>选择不可变发布历史中的任一节点，回看当时学生实际读取的内容。</small></header><div class="teacher-course-version-rail">${session.releases.length ? session.releases.map(releaseTimelineButtonMarkup).join('') : '<div class="teacher-course-content__unit-empty">尚未发布；保存草稿后从编辑视图显式发布。</div>'}</div></aside><main>${release ? `${releaseDiffMarkup(release)}<div class="teacher-course-content__release-meta"><div><span>发布者</span><strong>${escapeHtml(releasePublisherLabel(release))}</strong></div><div><span>草稿代际</span><strong>第 ${escapeHtml(release.draft_revision)} 代草稿</strong></div><div><span>完成规则</span><strong>${release.completion_rule_id ? '已配置自动判定' : '尚未配置'}</strong></div></div>${previewMarkup(course, true)}` : '<div class="teacher-course-content__canvas-empty"><i data-lucide="history"></i><h5>暂无发布历史</h5><p>已发布版本会永久保留在这里，不能直接修改。</p></div>'}</main></section>`;
+    }
+
+    function releasePublisherLabel(release) {
+        const snapshot = safeSnapshot();
+        if (Number(release && release.published_by_user_id) === Number(snapshot.userId)) {
+            return snapshot.displayName || snapshot.username || '当前教师';
+        }
+        return '共同授课教师';
     }
 
     function releaseTimelineButtonMarkup(item) {
@@ -548,12 +561,15 @@
         const previous = previousRelease(release);
         const diff = compareReleaseUnits(release.units, previous && previous.units);
         const completionChanged = Boolean(previous && String(previous.completion_rule_sha256 || '') !== String(release.completion_rule_sha256 || ''));
+        const contentChanges = diff.changed.filter(item => item.fields.some(field => field !== 'completion'));
+        const completionChanges = diff.changed.filter(item => item.fields.includes('completion'));
         const changes = [
             ...diff.added.map(item => ({ tone: 'added', icon: 'plus', title: item.current.title, detail: '新增到本版课程路径' })),
-            ...diff.changed.map(item => ({ tone: 'changed', icon: 'refresh-cw', title: item.current.title, detail: releaseChangeDetail(item.fields) })),
+            ...contentChanges.map(item => ({ tone: 'changed', icon: 'refresh-cw', title: item.current.title, detail: releaseChangeDetail(item.fields.filter(field => field !== 'completion')) })),
+            ...completionChanges.map(item => ({ tone: 'rule', icon: 'route', title: item.current.title, detail: `完成方式调整为“${releaseUnitCompletionLabel(item.current)}”` })),
             ...diff.removed.map(item => ({ tone: 'removed', icon: 'minus', title: item.previous.title, detail: '本版不再向学生呈现' }))
         ];
-        if (completionChanged) changes.unshift({ tone: 'rule', icon: 'route', title: '完成规则发生变化', detail: '本版使用新的学习完成判定；旧版本事实继续保留' });
+        if (completionChanged && !completionChanges.length) changes.unshift({ tone: 'rule', icon: 'route', title: '课程完成规则发生变化', detail: '本版使用新的学习完成判定；旧版本事实继续保留' });
         const relation = previous ? `对比第 ${escapeHtml(previous.release_number)} 版` : '首个发布基线';
         return `<section class="teacher-course-version-diff" aria-label="第 ${escapeAttr(release.release_number)} 版变化摘要"><header><div><span>RELEASE ${escapeHtml(release.release_number)} · ${relation}</span><h5>这一版改变了什么</h5><p>${previous ? '结构差异来自两份不可变发布包，不依赖人工填写更新日志。' : '首版作为后续版本对比的稳定起点。'}</p></div><strong>${changes.length ? `${changes.length} 项可见变化` : '内容结构保持一致'}</strong></header><dl><div data-tone="added"><dt>新增</dt><dd>${diff.added.length}</dd></div><div data-tone="changed"><dt>调整</dt><dd>${diff.changed.length}</dd></div><div data-tone="removed"><dt>移除</dt><dd>${diff.removed.length}</dd></div><div data-tone="stable"><dt>保持</dt><dd>${diff.unchanged.length}</dd></div></dl>${changes.length ? `<div class="teacher-course-version-diff__changes">${changes.slice(0, 8).map(item => `<article data-tone="${escapeAttr(item.tone)}"><span><i data-lucide="${escapeAttr(item.icon)}"></i></span><div><strong>${escapeHtml(item.title || '未命名单元')}</strong><small>${escapeHtml(item.detail)}</small></div></article>`).join('')}${changes.length > 8 ? `<small>另有 ${changes.length - 8} 项变化，可在下方完整版本内容中查看。</small>` : ''}</div>` : '<div class="teacher-course-version-diff__stable"><i data-lucide="shield-check"></i><span><strong>结构与上一版一致</strong><small>本次发布仍形成独立版本，旧学习记录不会被覆盖。</small></span></div>'}</section>`;
     }
@@ -584,6 +600,7 @@
             if (String(item.title || '') !== String(oldItem.title || '')) fields.push('title');
             if (Number(item.position) !== Number(oldItem.position)) fields.push('position');
             if (releaseUnitContentChanged(item, oldItem)) fields.push('content');
+            if (releaseUnitCompletionToken(item) !== releaseUnitCompletionToken(oldItem)) fields.push('completion');
             (fields.length ? changed : unchanged).push({ current: item, previous: oldItem, fields });
         });
         previousByKey.forEach((item, key) => {
@@ -595,7 +612,9 @@
     function releaseUnitContentChanged(current, previous) {
         const currentHash = String(current && current.content_schema_sha256 || '');
         const previousHash = String(previous && previous.content_schema_sha256 || '');
-        if (currentHash && previousHash) return currentHash !== previousHash;
+        const currentHasContent = Boolean(current && current.content && typeof current.content === 'object');
+        const previousHasContent = Boolean(previous && previous.content && typeof previous.content === 'object');
+        if ((!currentHasContent || !previousHasContent) && currentHash && previousHash) return currentHash !== previousHash;
         return releaseUnitContentToken(current) !== releaseUnitContentToken(previous);
     }
 
@@ -609,10 +628,21 @@
                 title: content.title,
                 summary: content.summary,
                 layout: content.layout,
-                completion: content.courseUnit && content.courseUnit.completion,
                 blocks: Array.isArray(content.blocks) ? content.blocks : []
             }));
         } catch (error) { return ''; }
+    }
+
+    function releaseUnitCompletionToken(item) {
+        try {
+            const content = item && item.content || {};
+            return JSON.stringify(normalizeComparableValue(content.courseUnit && content.courseUnit.completion || {}));
+        } catch (error) { return ''; }
+    }
+
+    function releaseUnitCompletionLabel(item) {
+        const content = item && item.content || {};
+        return completionLabel(normalizeCompletion(content.courseUnit && content.courseUnit.completion));
     }
 
     function normalizeComparableValue(value) {
@@ -633,7 +663,7 @@
     }
 
     function releaseChangeDetail(fields) {
-        const labels = { title: '标题', position: '顺序', content: '内容与完成方式' };
+        const labels = { title: '标题', position: '顺序', content: '学习内容', completion: '完成规则' };
         return `${fields.map(field => labels[field] || field).join('、')}发生变化`;
     }
 
@@ -1099,7 +1129,7 @@
             const remote = await session.host.request(`/api/v1/courses/${course.id}/draft`, { method: 'PATCH', body: payload });
             applyRemoteDraft(remote);
             session.loadedCourseId = String(course.id);
-            session.notice = { type: 'success', message: `共享草稿已保存为 revision ${remote.revision}；共同教师刷新后会看到同一版本。` };
+            session.notice = { type: 'success', message: `共享草稿已保存为第 ${remote.revision} 代；共同教师刷新后会看到同一版本。` };
             notify('success', '共享课程草稿已保存');
             return true;
         } catch (error) {
@@ -1199,7 +1229,7 @@
         if (!session.conflict || !session.conflict.remote) return;
         applyRemoteDraft(session.conflict.remote);
         session.conflict = null;
-        session.notice = { type: 'success', message: `已采用服务器 revision ${session.draftRevision}；本地冲突内容未写入。` };
+        session.notice = { type: 'success', message: `已采用服务器第 ${session.draftRevision} 代草稿；本地冲突内容未写入。` };
         render();
     }
 
@@ -1215,7 +1245,7 @@
         session.selectedUnitKey = session.units[0] && session.units[0].localKey || '';
         session.conflict = null;
         session.dirty = true;
-        session.notice = { type: 'warning', message: `本地内容已放到服务器 revision ${session.draftRevision} 之上；请逐项复核，再手动点击保存。` };
+        session.notice = { type: 'warning', message: `本地内容已放到服务器第 ${session.draftRevision} 代草稿之上；请逐项复核，再手动点击保存。` };
         render();
     }
 
@@ -1613,7 +1643,7 @@
         if (!completion) return '完成方式尚未设置';
         if (completion.preset === 'experiment_operation') return '完成方式：完成一次实验操作';
         if (completion.preset === 'checkpoint_passed') return `完成方式：答对检查点 ${completion.checkpointKey || '（未选择）'}`;
-        return `完成方式：作业 #${completion.assignmentId || '（未选择）'} 完成批改`;
+        return completion.assignmentId ? '完成方式：指定作业完成批改' : '完成方式：尚未选择作业';
     }
 
     function formatDate(value) {
