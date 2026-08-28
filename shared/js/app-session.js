@@ -7,8 +7,11 @@
         ? document.currentScript.src
         : new URL('shared/js/app-session.js', document.baseURI).href;
     const learningEvidenceLoader = new URL('learning-evidence-loader.js', currentScriptUrl);
-    const currentScriptVersion = new URL(currentScriptUrl, document.baseURI).searchParams.get('v') || '';
+    const currentScriptQuery = new URL(currentScriptUrl, document.baseURI).searchParams;
+    const currentScriptVersion = currentScriptQuery.get('v') || '';
+    const currentScriptPatch = currentScriptQuery.get('patch') || '';
     if (currentScriptVersion) learningEvidenceLoader.searchParams.set('v', currentScriptVersion);
+    if (currentScriptPatch) learningEvidenceLoader.searchParams.set('patch', currentScriptPatch);
     const learningEvidenceLoaderUrl = learningEvidenceLoader.href;
     let learningEvidenceLoaderPromise = null;
     let signedOutPromise = null;

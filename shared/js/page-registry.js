@@ -25,14 +25,14 @@
     const definitions = Object.freeze({
         planets: definePage({
             galaxy: 'astra',
-            script: `pages/planets/planets.js?v=${PLANETS_RESOURCE_VERSION}`,
+            script: `pages/planets/planets.js?v=${PLANETS_RESOURCE_VERSION}&patch=20260828v866StudentProjectionP0`,
             ready: 'initPlanets',
             enter: 'initPlanets',
             leave: 'destroyPlanets'
         }),
         home: definePage({
             galaxy: 'englab',
-            script: 'pages/home/home.js?v=20260825v834Show04P0',
+            script: 'pages/home/home.js?v=20260825v834Show04P0&patch=20260828v866StudentProjectionP0',
             ready: 'initHome',
             enter: 'initHome'
         }),
@@ -52,7 +52,7 @@
                 `shared/js/role-workbench-overview.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`,
                 `shared/js/role-workbench-bridge.js?v=${ROLE_WORKBENCH_OVERVIEW_VERSION}`
             ],
-            script: `pages/student/student-workbench.js?v=${ROLE_RESOURCE_VERSION}`,
+            script: `pages/student/student-workbench.js?v=${ROLE_RESOURCE_VERSION}&patch=20260828v866StudentProjectionP0`,
             ready: 'initStudent',
             enter: 'initStudent',
             leave: 'destroyStudent'

@@ -251,7 +251,7 @@
                     .filter((unit) => unit && unit.effective_release_state === 'open')
                     .map((unit) => String(unit.activity_key || '').trim())
                     .filter(Boolean);
-                return activityKeys.length ? { ...match, courseId, activityKeys, classIds: [] } : null;
+                return activityKeys.length ? { ...match, courseId, courseIds: [courseId], activityKeys, classIds: [] } : null;
             }));
             return {
                 records: courseResults
@@ -261,6 +261,7 @@
             };
         }
 
+        const classCourseIds = new Set();
         const classResults = await Promise.allSettled(classes.map(async (classroom) => {
             const classId = positiveId(classroom.id);
             const courses = list(await client.request('/api/courses', {
@@ -270,6 +271,7 @@
             const courseResults = await Promise.allSettled(courses.map(async (course) => {
                 const match = catalogueEntryByIdentity(courseIdentity(course));
                 const courseId = positiveId(course && course.id);
+                if (courseId) classCourseIds.add(courseId);
                 if (!match || !courseId) return null;
                 const units = list(await client.request(`/api/courses/${courseId}/units`, {
                     params: { class_id: classId },
@@ -279,7 +281,7 @@
                     .filter((unit) => unit && unit.effective_release_state === 'open')
                     .map((unit) => String(unit.activity_key || '').trim())
                     .filter(Boolean);
-                return activityKeys.length ? { ...match, courseId, activityKeys, classIds: [classId] } : null;
+                return activityKeys.length ? { ...match, courseId, courseIds: [courseId], activityKeys, classIds: [classId] } : null;
             }));
             return courseResults
                 .filter((result) => result.status === 'fulfilled' && result.value)
@@ -287,22 +289,43 @@
         }));
 
         const merged = new Map();
+        const mergeRecord = (record) => {
+            const identity = `${record.group.galaxyKey}:${record.entry.key}`;
+            const current = merged.get(identity);
+            if (!current) {
+                merged.set(identity, {
+                    ...record,
+                    courseIds: Array.from(new Set(record.courseIds || [record.courseId].filter(Boolean))),
+                    activityKeys: Array.from(new Set(record.activityKeys)),
+                    classIds: Array.from(new Set(record.classIds || []))
+                });
+                return;
+            }
+            current.courseIds = Array.from(new Set((current.courseIds || []).concat(record.courseIds || [record.courseId].filter(Boolean))));
+            current.activityKeys = Array.from(new Set(current.activityKeys.concat(record.activityKeys)));
+            current.classIds = Array.from(new Set((current.classIds || []).concat(record.classIds || [])));
+        };
         classResults.forEach((classResult) => {
             if (classResult.status !== 'fulfilled') return;
-            classResult.value.forEach((record) => {
-                const identity = `${record.group.galaxyKey}:${record.entry.key}`;
-                const current = merged.get(identity);
-                if (!current) {
-                    merged.set(identity, {
-                        ...record,
-                        activityKeys: Array.from(new Set(record.activityKeys)),
-                        classIds: Array.from(new Set(record.classIds || []))
-                    });
-                    return;
-                }
-                current.activityKeys = Array.from(new Set(current.activityKeys.concat(record.activityKeys)));
-                current.classIds = Array.from(new Set((current.classIds || []).concat(record.classIds || [])));
-            });
+            classResult.value.forEach(mergeRecord);
+        });
+
+        const visibleCourses = list(await client.request('/api/courses', { signal }));
+        const directResults = await Promise.allSettled(visibleCourses
+            .filter((course) => !classCourseIds.has(positiveId(course && course.id)))
+            .map(async (course) => {
+                const match = catalogueEntryByIdentity(courseIdentity(course));
+                const courseId = positiveId(course && course.id);
+                if (!match || !courseId) return null;
+                const units = list(await client.request(`/api/courses/${courseId}/units`, { signal }));
+                const activityKeys = units
+                    .filter((unit) => unit && unit.effective_release_state === 'open')
+                    .map((unit) => String(unit.activity_key || '').trim())
+                    .filter(Boolean);
+                return activityKeys.length ? { ...match, courseId, courseIds: [courseId], activityKeys, classIds: [] } : null;
+            }));
+        directResults.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value) mergeRecord(result.value);
         });
         return { records: Array.from(merged.values()), classIds };
     }
@@ -384,6 +407,7 @@
                     galaxy_key: record.group.galaxyKey,
                     course_key: record.entry.key,
                     course_id: positiveId(record.courseId),
+                    course_ids: Object.freeze((record.courseIds || [record.courseId]).map(positiveId).filter(Boolean)),
                     page: record.entry.page || '',
                     activity_keys: Object.freeze((record.activityKeys || []).slice()),
                     class_ids: Object.freeze((record.classIds || []).slice())

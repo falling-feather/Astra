@@ -9,6 +9,7 @@ const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf
 const indexSource = read('codevis/index.html');
 const routerSource = read('codevis/shared/js/router.js');
 const manifestSource = read('codevis/shared/js/course-manifest.js');
+const publicationAdapterSource = read('codevis/shared/js/course-publication-adapter.js');
 const catalogSource = read('codevis/pages/course-catalog/course-catalog.js');
 const challengeSource = read('codevis/pages/course-challenge/course-challenge.js');
 const cppSource = read('codevis/shared/js/runtimes/runtime-cpp.js');
@@ -18,7 +19,7 @@ const navbarCss = read('codevis/shared/css/navbar.css');
 const versionedShellAssets = Array.from(indexSource.matchAll(/(?:href|src)="(?!\.\.\/shared\/js\/api-client\.js)([^"]+\?v=([^"]+))"/g));
 assert.ok(versionedShellAssets.length >= 18, 'code space must version every local course shell asset');
 versionedShellAssets.forEach((match) => {
-  assert.equal(match[2], '759r1', `${match[1]} must use the V7.5.9 cache generation`);
+  assert.equal(match[2], '759r3', `${match[1]} must use the V7.5.9 cache generation`);
 });
 assert.match(navbarCss, /\.cv-navbar__brand\s*\{[^}]*min-height:\s*44px;/, 'Code Space mobile brand needs a 44px touch target');
 assert.match(navbarCss, /\.cv-nav-item\s*\{[^}]*min-height:\s*44px;/, 'Code Space primary navigation needs 44px touch targets');
@@ -42,6 +43,7 @@ assert.match(challengeSource, /#lesson\?activity=/);
 
 const sandbox = { window: {} };
 vm.runInNewContext(manifestSource, sandbox, { filename: 'course-manifest.js' });
+vm.runInNewContext(publicationAdapterSource, sandbox, { filename: 'course-publication-adapter.js' });
 const { CvCourseManifest: manifest, CvCourseStateAdapter: stateAdapter } = sandbox.window;
 assert.equal(manifest.galaxy_key, 'code-space');
 assert.equal(manifest.courses.length, 6, 'course directory must expose six ordered course groups');
@@ -66,6 +68,9 @@ assert.equal(
 );
 assert.equal(stateAdapter.contract.maps.absent_from_authoritative_response, 'hidden');
 assert.equal(stateAdapter.contract.maps.invalid_or_failed_adapter, 'unavailable');
+assert.doesNotMatch(publicationAdapterSource, /lock_reason:\s*unit\.lock_reasons\.join/, 'student Code Space must not expose backend lock reason codes');
+assert.match(publicationAdapterSource, /manual_locked:\s*'教师暂未开放'/, 'known release reasons need student-facing Chinese copy');
+assert.match(indexSource, /shared\/js\/course-publication-adapter\.js\?v=759r3/, 'the release adapter must load after the protected activity manifest');
 
 assert.match(challengeSource, /预测[\s\S]*运行[\s\S]*追踪[\s\S]*修正/);
 assert.match(challengeSource, /仅用于学习反馈/);

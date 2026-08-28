@@ -237,10 +237,10 @@ const CORE_HTTP_FALLBACK_ASSETS = [
     './shared/js/config.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
     './shared/js/api-client.js?v=' + ROLE_LANDING_ASSET_VERSION,
     './shared/js/experiment-registry.js?v=20260824v832Show03P0', './shared/js/learning-activity-catalog.js?v=' + PAGE_REGISTRY_ASSET_VERSION, './shared/js/public-guide.js?v=' + SESSION_STYLE_ASSET_VERSION,
-    './shared/js/app-session.js?v=' + SHELL_RUNTIME_ASSET_VERSION,
-    './shared/js/page-registry.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
-    './shared/js/router.js?v=' + SHELL_RUNTIME_ASSET_VERSION,
-    './shared/js/main.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
+    './shared/js/app-session.js?v=' + SHELL_RUNTIME_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
+    './shared/js/page-registry.js?v=' + PAGE_REGISTRY_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
+    './shared/js/router.js?v=' + SHELL_RUNTIME_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
+    './shared/js/main.js?v=' + PAGE_REGISTRY_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
     './shared/js/backend-content.js?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/backend-content.css?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/auth-ui.css?v=' + PAGE_REGISTRY_ASSET_VERSION,
@@ -250,7 +250,7 @@ const CORE_HTTP_FALLBACK_ASSETS = [
 const GALAXY_HTTP_FALLBACK_ASSETS = {
     astra: [
         './pages/planets/planets.css?v=' + ROLE_LANDING_ASSET_VERSION,
-        './pages/planets/planets.js?v=' + ROLE_LANDING_ASSET_VERSION
+        './pages/planets/planets.js?v=' + ROLE_LANDING_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0'
     ],
     englab: [
         './shared/css/module-selector.css?v=20260731v7969StudentUiP0',
@@ -266,7 +266,7 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './pages/chemistry/chemistry.css?v=20260618ionP1',
         './pages/algorithms/algorithms.css?v=20260618algoTextP1',
         './pages/biology/biology.css?v=20260618neuralP1',
-        './shared/js/module-selector.js?v=20260824v832Show03P0',
+        './shared/js/module-selector.js?v=20260824v832Show03P0' + '&patch=20260828v866StudentProjectionP0',
         './shared/js/scroll-animations.js?v=20260731v7969StudentUiP0',
         './shared/js/experiment-guide.js?v=20260716v7427RoleWorkflowGateP0',
         './shared/js/experiment-export.js?v=20260528v61f',
@@ -277,12 +277,13 @@ const GALAXY_HTTP_FALLBACK_ASSETS = {
         './shared/js/global-search.js?v=20260731v7969StudentUiP0',
         './shared/js/keyboard-shortcuts.js?v=20260424v45b',
         './shared/js/related-experiments.js?v=20260424v45c',
-        './pages/home/home.js?v=' + PAGE_REGISTRY_ASSET_VERSION
+        './pages/home/home.js?v=' + PAGE_REGISTRY_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0'
     ],
     frontier: [
         './pages/frontier/frontier.css?v=20260824v816ExperimentRestoreP2',
-        './pages/frontier/frontier-manifest.js?v=' + PAGE_REGISTRY_ASSET_VERSION,
-        './shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2',
+        './pages/frontier/frontier-manifest.js?v=' + PAGE_REGISTRY_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
+        './shared/js/frontier-course-publication-adapter.js?v=20260828v866StudentProjectionP0',
+        './shared/js/frontier-publication-context.js?v=20260824v816ExperimentRestoreP2' + '&patch=20260828v866StudentProjectionP0',
         './shared/js/frontier-learning.js?v=20260824v816ExperimentRestoreP2',
         './pages/engineering/engineering.css?v=20260824v816ExperimentRestoreP2', './pages/engineering/engineering-page.js?v=' + PAGE_REGISTRY_ASSET_VERSION, './pages/engineering/bridge-truss.js?v=20260824v816ExperimentRestoreP2', './pages/engineering/robot-arm-ik/styles.css?v=' + PAGE_REGISTRY_ASSET_VERSION, './pages/engineering/robot-arm-ik/index.js?v=' + PAGE_REGISTRY_ASSET_VERSION
     ]

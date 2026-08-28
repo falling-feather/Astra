@@ -209,7 +209,7 @@
             ? catalog.resolve(course.galaxy_key, resume.activity_key)
             : null;
         const href = mapping
-            && mapping.course_key === course.course_key
+            && mapping.subject_key === (course.subject_key || course.course_key)
             && typeof catalog.recoveryHref === 'function'
             ? catalog.recoveryHref(mapping, unit)
             : '';
@@ -252,7 +252,7 @@
             ? catalog.resolve(course.galaxy_key, unit.activity_key)
             : null;
         const href = mapping
-            && mapping.course_key === course.course_key
+            && mapping.subject_key === (course.subject_key || course.course_key)
             && typeof catalog.recoveryHref === 'function'
             ? catalog.recoveryHref(mapping, unit)
             : '';

@@ -10,7 +10,13 @@
     const currentScriptUrl = document.currentScript && document.currentScript.src
         ? document.currentScript.src
         : new URL('codevis/shared/js/student-context.js', document.baseURI || `${global.location.origin}/`).href;
-    const learningEvidenceLoaderUrl = new URL('../../../shared/js/learning-evidence-loader.js', currentScriptUrl).href;
+    const learningEvidenceLoader = new URL('../../../shared/js/learning-evidence-loader.js', currentScriptUrl);
+    const currentScriptQuery = new URL(currentScriptUrl).searchParams;
+    ['v', 'patch'].forEach((key) => {
+        const value = currentScriptQuery.get(key);
+        if (value) learningEvidenceLoader.searchParams.set(key, value);
+    });
+    const learningEvidenceLoaderUrl = learningEvidenceLoader.href;
     let learningEvidenceLoaderPromise = null;
     const state = {
         phase: 'booting',
@@ -18,6 +24,7 @@
         classes: [],
         selectedClassId: null,
         courseIds: null,
+        courseClassIds: null,
         generation: 0,
         controller: null,
         started: null,
@@ -92,6 +99,7 @@
 
     function clearCourseScope() {
         state.courseIds = null;
+        state.courseClassIds = null;
         const adapter = global.CvCourseStateAdapter;
         if (adapter && typeof adapter.configureHttp === 'function') adapter.configureHttp({});
     }
@@ -125,18 +133,26 @@
         return classes;
     }
 
-    function courseMapping(payload) {
+    function courseMapping(payload, preferredPayload, preferredClassId) {
         const manifest = global.CvCourseManifest;
-        if (!manifest || !Array.isArray(manifest.courses) || !Array.isArray(payload)) return null;
+        if (!manifest || !Array.isArray(manifest.courses) || !Array.isArray(payload) || !Array.isArray(preferredPayload || [])) return null;
         const expected = new Set(manifest.courses.map(course => course.course_key));
         const mapping = Object.create(null);
-        for (const course of payload) {
-            if (!course || typeof course !== 'object') return null;
-            if (course.galaxy_key !== manifest.galaxy_key || !expected.has(course.course_key)) continue;
-            if (!positiveInteger(course.id) || mapping[course.course_key]) return null;
-            mapping[course.course_key] = course.id;
-        }
-        return Object.keys(mapping).length === expected.size ? mapping : null;
+        const classIds = Object.create(null);
+        const include = (courses, classId, overwrite) => {
+            for (const course of courses) {
+                if (!course || typeof course !== 'object') return false;
+                const subjectKey = String(course.subject_key || course.course_key || '');
+                if (course.galaxy_key !== manifest.galaxy_key || !expected.has(subjectKey)) continue;
+                if (!positiveInteger(course.id)) return false;
+                if (!overwrite && mapping[subjectKey]) continue;
+                mapping[subjectKey] = course.id;
+                classIds[subjectKey] = positiveInteger(classId) ? classId : null;
+            }
+            return true;
+        };
+        if (!include(payload, null, false) || !include(preferredPayload || [], preferredClassId, true)) return null;
+        return Object.keys(mapping).length ? { courseIds: mapping, courseClassIds: classIds } : null;
     }
 
     function redirectToLogin() {
@@ -183,8 +199,8 @@
             booting: ['正在确认学习范围', '正在确认你的课程范围。'],
             selecting_class: ['选择班级后继续', '请选择班级后再打开课程内容。'],
             loading_scope: ['正在切换班级', '正在确认该班级的课程与发布状态。'],
-            no_classes: ['当前没有可用班级', '加入班级后才能打开课程内容。'],
-            unavailable: ['课程范围暂不可用', '当前班级缺少完整课程范围或服务暂不可用，请稍后重试。'],
+            no_courses: ['当前没有代码课程', '加入代码空间课程后即可打开对应内容。'],
+            unavailable: ['课程范围暂不可用', '当前课程发布范围或服务暂不可用，请稍后重试。'],
             redirecting: ['正在返回登录入口', '请登录后再打开代码空间。']
         }[state.phase] || ['课程范围暂不可用', '暂不能打开课程内容。'];
         return { blocked: true, title: copy[0], message: copy[1] };
@@ -261,6 +277,35 @@
         };
     }
 
+    async function configureCourseScope(scope, classId, courses, classCourses = []) {
+        const courseScope = courseMapping(courses, classCourses, classId);
+        if (!courseScope) {
+            state.phase = 'no_courses';
+            clearCourseScope();
+            refreshViews();
+            return false;
+        }
+        const adapter = global.CvCourseStateAdapter;
+        if (!adapter || typeof adapter.configureHttp !== 'function' || typeof adapter.refresh !== 'function') {
+            throw new Error('course release adapter unavailable');
+        }
+        const unitRequestError = { value: null };
+        adapter.configureHttp({
+            course_ids: courseScope.courseIds,
+            class_id: classId,
+            course_class_ids: courseScope.courseClassIds,
+            fetcher: stateFetcher(scope, unitRequestError)
+        });
+        const refreshed = await adapter.refresh();
+        if (!isCurrent(scope)) return false;
+        if (!refreshed) throw unitRequestError.value || new Error('course release state unavailable');
+        state.courseIds = courseScope.courseIds;
+        state.courseClassIds = courseScope.courseClassIds;
+        state.phase = 'ready';
+        refreshViews();
+        return true;
+    }
+
     async function selectClass(classId) {
         if (state.authorityClearFatal || state.phase === 'authority_clear_failed') return false;
         const selected = state.classes.find(item => item.id === classId);
@@ -271,34 +316,21 @@
         clearCourseScope();
         refreshViews();
         try {
-            const courses = await api().request('/api/courses', {
-                method: 'GET',
-                params: { class_id: selected.id },
-                signal: scope.signal,
-                dispatchAuthRequired: false
-            });
+            const [classCourses, courses] = await Promise.all([
+                api().request('/api/courses', {
+                    method: 'GET',
+                    params: { class_id: selected.id },
+                    signal: scope.signal,
+                    dispatchAuthRequired: false
+                }),
+                api().request('/api/courses', {
+                    method: 'GET',
+                    signal: scope.signal,
+                    dispatchAuthRequired: false
+                })
+            ]);
             if (!isCurrent(scope)) return false;
-            const courseIds = courseMapping(courses);
-            if (!courseIds) throw new Error('code-space course mapping unavailable');
-
-            const adapter = global.CvCourseStateAdapter;
-            if (!adapter || typeof adapter.configureHttp !== 'function' || typeof adapter.refresh !== 'function') {
-                throw new Error('course release adapter unavailable');
-            }
-            const unitRequestError = { value: null };
-            adapter.configureHttp({
-                course_ids: courseIds,
-                class_id: selected.id,
-                fetcher: stateFetcher(scope, unitRequestError)
-            });
-            const refreshed = await adapter.refresh();
-            if (!isCurrent(scope)) return false;
-            if (!refreshed) throw unitRequestError.value || new Error('course release state unavailable');
-
-            state.courseIds = courseIds;
-            state.phase = 'ready';
-            refreshViews();
-            return true;
+            return configureCourseScope(scope, selected.id, courses, classCourses);
         } catch (error) {
             if (!isCurrent(scope)) return false;
             if (await requestFailure(error)) return false;
@@ -374,10 +406,13 @@
                 if (!classes) throw new Error('invalid class response');
                 state.classes = classes;
                 if (!classes.length) {
-                    state.phase = 'no_classes';
-                    clearCourseScope();
-                    refreshViews();
-                    return false;
+                    const courses = await client.request('/api/courses', {
+                        method: 'GET',
+                        signal: scope.signal,
+                        dispatchAuthRequired: false
+                    });
+                    if (!isCurrent(scope)) return false;
+                    return configureCourseScope(scope, null, courses, []);
                 }
                 if (classes.length > 1) {
                     state.phase = 'selecting_class';
@@ -403,12 +438,12 @@
         if (
             state.authorityClearFatal || state.role !== 'student' || state.phase !== 'ready' || !state.courseIds ||
             !activity || activity.galaxy_key !== (manifest && manifest.galaxy_key) ||
-            !positiveInteger(state.selectedClassId) || !positiveInteger(state.courseIds[activity.course_key])
+            !state.courseClassIds || !positiveInteger(state.courseClassIds[activity.course_key])
         ) return null;
         return {
             authenticated: true,
             role: 'student',
-            class_id: state.selectedClassId,
+            class_id: state.courseClassIds[activity.course_key],
             course_id: state.courseIds[activity.course_key]
         };
     }
@@ -453,7 +488,8 @@
             role: state.role,
             class_id: state.selectedClassId,
             classes: state.classes.slice(),
-            course_ids: state.courseIds && Object.assign({}, state.courseIds)
+            course_ids: state.courseIds && Object.assign({}, state.courseIds),
+            course_class_ids: state.courseClassIds && Object.assign({}, state.courseClassIds)
         })
     });
 })(window);

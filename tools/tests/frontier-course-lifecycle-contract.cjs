@@ -6,11 +6,19 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..', '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const manifestSource = read('pages/frontier/frontier-manifest.js');
+const publicationAdapterSource = read('shared/js/frontier-course-publication-adapter.js');
 const frontierCss = read('pages/frontier/frontier.css');
 
 function manifestFor(window) {
   const context = vm.createContext({ window, Object, Set, Error, Number });
   vm.runInContext(manifestSource, context, { filename: 'frontier-manifest.js' });
+  return window.FrontierCourseManifest;
+}
+
+function projectedManifestFor(window) {
+  const context = vm.createContext({ window, Object, Set, Error, Number, Map, Promise });
+  vm.runInContext(manifestSource, context, { filename: 'frontier-manifest.js' });
+  vm.runInContext(publicationAdapterSource, context, { filename: 'frontier-course-publication-adapter.js' });
   return window.FrontierCourseManifest;
 }
 
@@ -43,6 +51,18 @@ const beUnits = localManifest.adaptBe004Units('earth-space', [{ id: 'u-1', activ
 assert.equal(beUnits['cosmos.day-season'].state, 'open');
 assert.equal(beUnits['cosmos.orbital-scale'].state, 'hidden', 'BE-004 omission maps only known manifest keys to hidden');
 assert.equal(localManifest.adaptBe004Units('earth-space', [{ id: 'bad', activity_key: 'not-in-manifest', title: 'bad', position: 1, effective_release_state: 'open', lock_reasons: [] }]), null, 'unknown BE activity must fail closed');
+
+const projected = projectedManifestFor({});
+const projectionRequests = [];
+assert.equal(projected.configureHttp({
+  course_ids: { 'earth-space': 41 },
+  course_class_ids: { 'earth-space': null },
+  class_id: null,
+  fetcher: async (url) => {
+    projectionRequests.push(url);
+    return { ok: true, json: async () => [{ id: 501, activity_key: 'cosmos.day-season', title: '昼夜与季节', position: 0, effective_release_state: 'open', lock_reasons: [] }] };
+  }
+}), true, 'a partial direct course projection must be accepted');
 
 const noMethodManifest = manifestFor({ AstraCourseStateAdapter: {} });
 assert.equal(noMethodManifest.resolveAvailability().availability, 'unavailable', 'adapter without contract must fail closed');
@@ -252,6 +272,13 @@ const threeSource = read('shared/vendor/three-r185/SOURCE.md');
 });
 
 (async () => {
+  const projectedSnapshot = await projected.refresh();
+  assert.equal(projectedSnapshot.availability, 'available');
+  assert.equal(projectedSnapshot.activity_access['cosmos.day-season'].state, 'open');
+  assert.equal(projectedSnapshot.course_access['engineering-systems'].state, 'hidden', 'unconfigured future directions must stay hidden');
+  assert.deepEqual(projectionRequests, ['/api/courses/41/units'], 'a direct course must not invent a class query');
+  assert.equal(projected.resolveEvidenceBinding('earth-space', 'cosmos.day-season'), null, 'classless direct courses must not invent evidence authority');
+
   const httpWindow = {};
   const httpManifest = manifestFor(httpWindow);
   const courseIds = Object.fromEntries(httpManifest.courses.map((course) => [course.course_key, `course-${course.page}`]));

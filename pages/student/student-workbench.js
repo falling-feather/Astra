@@ -785,9 +785,9 @@
         const allowed = new Set((snapshot.records || []).filter((record) => (
             Array.isArray(record.class_ids)
             && record.class_ids.some((candidate) => Number(candidate) === selectedClassId)
-        )).map((record) => `${record.galaxy_key}:${record.course_key}`));
+        )).map((record) => `${record.galaxy_key}:${record.subject_key || record.course_key}`));
         return (courses || []).filter((course) => allowed.has(
-            `${String(course && course.galaxy_key || '')}:${String(course && course.course_key || '')}`
+            `${String(course && course.galaxy_key || '')}:${String(course && (course.subject_key || course.course_key) || '')}`
         ));
     }
 
@@ -1223,7 +1223,7 @@
         const classId = String(state.selected.classId || '').trim();
         const courseId = String(state.selected.courseId || '').trim();
         const galaxyKey = String(course && course.galaxy_key || '').trim();
-        const courseKey = String(course && course.course_key || '').trim();
+        const subjectKey = String(course && (course.subject_key || course.course_key) || '').trim();
         const activityKey = String(unit && unit.activity_key || '').trim();
         const releaseState = String(unit && unit.effective_release_state || '').trim().toLowerCase();
         if (
@@ -1234,7 +1234,7 @@
             || !courseId
             || String(entityId(course)) !== courseId
             || galaxyKey !== 'future-galaxy'
-            || !courseKey
+            || !subjectKey
             || !activityKey
             || releaseState !== 'open'
         ) return '';
@@ -1255,7 +1255,7 @@
         if (
             !entry
             || entry.galaxy_key !== galaxyKey
-            || entry.course_key !== courseKey
+            || entry.subject_key !== subjectKey
             || entry.activity_key !== activityKey
         ) return '';
 
@@ -1267,7 +1267,7 @@
         const scopedRecord = (snapshot.records || []).find((record) => (
             record
             && record.galaxy_key === galaxyKey
-            && record.course_key === courseKey
+            && (record.subject_key || record.course_key) === subjectKey
             && record.page === page
             && Array.isArray(record.class_ids)
             && record.class_ids.some((candidate) => String(candidate) === classId)
@@ -1599,7 +1599,7 @@
         return (courses || []).find((course) => (
             course
             && course.galaxy_key === context.galaxyKey
-            && course.course_key === context.courseKey
+            && (course.subject_key || course.course_key) === context.courseKey
         )) || null;
     }
 

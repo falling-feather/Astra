@@ -7,7 +7,9 @@
         ? document.currentScript.src
         : new URL('shared/js/learning-evidence-loader.js', document.baseURI).href;
     const base = new URL('./', current);
-    const assetVersion = new URL(current, document.baseURI).searchParams.get('v') || '';
+    const assetQuery = new URL(current, document.baseURI).searchParams;
+    const assetVersion = assetQuery.get('v') || '';
+    const assetPatch = assetQuery.get('patch') || '';
     const pending = new Map();
     const representativeActivities = new Map([
         ['englab:physics.mechanics', true],
@@ -494,6 +496,7 @@
     function asset(name) {
         const url = new URL(name, base);
         if (assetVersion) url.searchParams.set('v', assetVersion);
+        if (assetPatch) url.searchParams.set('patch', assetPatch);
         return url.href;
     }
 

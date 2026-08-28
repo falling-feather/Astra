@@ -23,7 +23,7 @@ const Router = {
     _galaxyCacheVersion: '20260704qianduanV70',
     courseSupportScripts: [
         'shared/js/lucide.min.js?v=20260417d',
-        'shared/js/module-selector.js?v=20260824v832Show03P0'
+        'shared/js/module-selector.js?v=20260824v832Show03P0&patch=20260828v866StudentProjectionP0'
     ],
     galaxySupportScripts: {
         astra: [
@@ -31,7 +31,7 @@ const Router = {
         ],
         englab: [
             'shared/js/lucide.min.js?v=20260417d',
-            'shared/js/learning-progress.js?v=20260422a',
+            'shared/js/learning-progress.js?v=20260422a&patch=20260828v866StudentProjectionP0',
             'shared/js/back-to-top.js?v=20260424rr',
             'shared/js/fab-trigger.js?v=20260528v61g',
             'shared/js/touch-gestures.js?v=20260418a',

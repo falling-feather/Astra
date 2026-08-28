@@ -1618,7 +1618,7 @@ function createRoleHomeHarness(identityInitiallyReady) {
       async request(pathname) {
         if (pathname === '/api/classes') return [{ id: 7, name: '一班' }];
         if (pathname === '/api/courses') {
-          return [{ id: 701, title: '力学课程', galaxy_key: 'englab', course_key: 'physics' }];
+          return [{ id: 701, title: '力学课程', galaxy_key: 'englab', subject_key: 'physics', course_key: 'course-instance-701' }];
         }
         if (pathname === '/api/assignments/me') return [];
         if (pathname === '/api/courses/701/units') {
@@ -1638,7 +1638,7 @@ function createRoleHomeHarness(identityInitiallyReady) {
     AstraLearningActivityCatalog: {
       resolve(galaxyKey, activityKey) {
         if (galaxyKey === 'englab' && activityKey === 'physics.mechanics') {
-          return { galaxy_key: galaxyKey, course_key: 'physics', activity_key: activityKey };
+          return { galaxy_key: galaxyKey, subject_key: 'physics', course_key: 'physics', activity_key: activityKey };
         }
         return null;
       },

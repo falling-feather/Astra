@@ -232,6 +232,9 @@ const ModuleSelector = {
 
         const activeCount = visibleExperiments.length;
         const label = this._escapeHtml(CONFIG.pages[page]?.label || page);
+        const overviewCopy = page === 'physics'
+            ? ''
+            : `<p>${this._escapeHtml(subject.overview || CONFIG.pages[page]?.desc || '')}</p>`;
         const featured = visibleExperiments.slice(0, 3).map((exp, idx) => `
             <div class="learning-path__item">
                 <span class="learning-path__index">${String(idx + 1).padStart(2, '0')}</span>
@@ -247,7 +250,7 @@ const ModuleSelector = {
             <div class="learning-overview__copy">
                 <span class="learning-overview__eyebrow">${label} · 学习地图</span>
                 <h2>${this._escapeHtml(CONFIG.pages[page]?.title || label)}</h2>
-                <p>${this._escapeHtml(subject.overview || CONFIG.pages[page]?.desc || '')}</p>
+                ${overviewCopy}
             </div>
             <div class="learning-overview__ledger" aria-label="学习概览">
                 <div><span>实验数</span><strong>${activeCount}</strong></div>
@@ -318,6 +321,7 @@ const ModuleSelector = {
     },
 
     createLearningSources(page, pageEl) {
+        if (page === 'physics') return;
         const learning = CONFIG.learningDesign;
         const subject = learning && learning.subjects ? learning.subjects[page] : null;
         const gallery = document.getElementById(`gallery-${page}`);
@@ -616,7 +620,35 @@ const ModuleSelector = {
         if (page !== 'physics' || !this._isStableModuleId(page, moduleId)) return false;
         const session = window.AstraApplicationSession;
         const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
-        return Boolean(user && user.role === 'student');
+        if (!user || user.role !== 'student') return false;
+
+        // A directly enrolled course can coexist with an unrelated administrative
+        // class. Decide from the exact activity source instead of the student's
+        // global class count; otherwise a direct-only physics unit can be rendered
+        // by the catalogue and then blocked again by the class-only resolver.
+        const catalogue = window.AstraStudentCourseCatalogue;
+        if (catalogue && typeof catalogue.snapshot === 'function') {
+            try {
+                const snapshot = catalogue.snapshot();
+                const activityKey = `${page}.${moduleId}`;
+                const sources = snapshot && Array.isArray(snapshot.records)
+                    ? snapshot.records.filter(record => (
+                        record
+                        && record.page === page
+                        && Array.isArray(record.activity_keys)
+                        && record.activity_keys.includes(activityKey)
+                    ))
+                    : [];
+                if (
+                    snapshot
+                    && snapshot.phase === 'ready'
+                    && snapshot.role === 'student'
+                    && sources.length
+                    && sources.every(record => !Array.isArray(record.class_ids) || record.class_ids.length === 0)
+                ) return false;
+            } catch (error) {}
+        }
+        return true;
     },
 
     _openPublicationGuardedModule(page, moduleId, pageEl, sections) {

@@ -12,8 +12,10 @@
         controller: null,
         classId: '',
         courseIds: null,
+        courseClassIds: null,
         userId: ''
     };
+    let projectionAdapterPromise = null;
 
     const normalizeList = (payload) => Array.isArray(payload)
         ? payload
@@ -34,6 +36,44 @@
             : null;
     }
 
+    function ensureProjectionAdapter() {
+        if (global.FrontierCoursePublicationAdapter) {
+            return global.FrontierCoursePublicationAdapter;
+        }
+        const documentRef = global.document;
+        if (!documentRef || typeof documentRef.createElement !== 'function') {
+            return getManifest();
+        }
+        if (projectionAdapterPromise) return projectionAdapterPromise;
+        const source = 'shared/js/frontier-course-publication-adapter.js?v=20260828v866StudentProjectionP0';
+        projectionAdapterPromise = new Promise((resolve, reject) => {
+            const scripts = documentRef.scripts ? Array.from(documentRef.scripts) : [];
+            const existing = scripts.find(script => {
+                const src = String(script.getAttribute && script.getAttribute('src') || script.src || '');
+                return src.split('?')[0].endsWith('shared/js/frontier-course-publication-adapter.js');
+            });
+            const finish = () => global.FrontierCoursePublicationAdapter
+                ? resolve(global.FrontierCoursePublicationAdapter)
+                : reject(new Error('Future course projection adapter unavailable'));
+            if (existing) {
+                existing.addEventListener('load', finish, { once: true });
+                existing.addEventListener('error', () => reject(new Error('Future course projection adapter failed to load')), { once: true });
+                return;
+            }
+            const script = documentRef.createElement('script');
+            script.src = source;
+            script.async = true;
+            script.dataset.frontierCourseProjection = 'true';
+            script.addEventListener('load', finish, { once: true });
+            script.addEventListener('error', () => reject(new Error('Future course projection adapter failed to load')), { once: true });
+            documentRef.head.appendChild(script);
+        }).catch(error => {
+            projectionAdapterPromise = null;
+            throw error;
+        });
+        return projectionAdapterPromise;
+    }
+
     function currentStudent() {
         const session = global.AstraApplicationSession;
         const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
@@ -46,13 +86,14 @@
         abortController(state.controller);
         state.generation += 1;
         state.controller = new AbortController();
-        // A student context is not authoritative until its class and complete course map
-        // have both been verified. Close the legacy catalogue before the first await so a
+        // A student context is not authoritative until its course scope has been verified.
+        // Close the legacy catalogue before the first await so a
         // direct Future Galaxy route cannot mount an owner while /api/classes is pending.
         const manifest = getManifest();
         if (manifest) manifest.configureHttp({});
         state.classId = '';
         state.courseIds = null;
+        state.courseClassIds = null;
         rerenderIfActive();
         return {
             generation: state.generation,
@@ -94,6 +135,7 @@
         if (manifest) manifest.configureHttp({});
         state.classId = '';
         state.courseIds = null;
+        state.courseClassIds = null;
         state.userId = '';
         rerenderIfActive();
         return true;
@@ -105,17 +147,33 @@
     }
 
     function buildCourseIdMap(payload, manifest) {
+        const scope = buildCourseScope(payload, [], null, manifest);
+        return scope && scope.courseIds;
+    }
+
+    function buildCourseScope(payload, preferredPayload, preferredClassId, manifest) {
         const target = manifest || getManifest();
         if (!target) return null;
         const expected = new Set(target.courses.map((course) => course.course_key));
         const map = {};
-        for (const item of normalizeList(payload)) {
-            if (!item || item.galaxy_key !== GALAXY_KEY) continue;
-            const courseKey = String(item.course_key || '');
-            if (!expected.has(courseKey) || Object.prototype.hasOwnProperty.call(map, courseKey) || !validCourseId(item.id)) return null;
-            map[courseKey] = item.id;
-        }
-        return Object.keys(map).length === expected.size ? Object.freeze(map) : null;
+        const classIds = {};
+        const include = (items, classId, overwrite) => {
+            for (const item of normalizeList(items)) {
+                if (!item || item.galaxy_key !== GALAXY_KEY) continue;
+                const subjectKey = String(item.subject_key || item.course_key || '');
+                if (!expected.has(subjectKey)) continue;
+                if (!validCourseId(item.id)) return false;
+                if (!overwrite && Object.prototype.hasOwnProperty.call(map, subjectKey)) continue;
+                map[subjectKey] = item.id;
+                classIds[subjectKey] = validCourseId(classId) ? classId : null;
+            }
+            return true;
+        };
+        if (!include(payload, null, false) || !include(preferredPayload, preferredClassId, true)) return null;
+        return Object.keys(map).length ? Object.freeze({
+            courseIds: Object.freeze(map),
+            courseClassIds: Object.freeze(classIds)
+        }) : null;
     }
 
     async function requestSameOriginJson(path, options) {
@@ -136,17 +194,18 @@
         return response.json();
     }
 
-    async function configureForContext(context, classId, coursePayload) {
+    async function configureForContext(context, classId, coursePayload, classCoursePayload = []) {
         const manifest = getManifest();
         if (!manifest || !isCurrent(context)) return { availability: 'unavailable', source: 'manifest-unavailable' };
-        const courseIds = buildCourseIdMap(coursePayload, manifest);
-        if (!courseIds) {
+        const courseScope = buildCourseScope(coursePayload, classCoursePayload, classId, manifest);
+        if (!courseScope) {
             close(context);
             return { availability: 'unavailable', source: 'course-map-unavailable' };
         }
         const configured = manifest.configureHttp({
-            course_ids: courseIds,
+            course_ids: courseScope.courseIds,
             class_id: classId,
+            course_class_ids: courseScope.courseClassIds,
             fetcher: (path, request) => {
                 if (!isCurrent(context)) return Promise.reject(new Error('Future course context superseded'));
                 return global.fetch(path, {
@@ -160,8 +219,9 @@
             close(context);
             return { availability: 'unavailable', source: 'http-config-unavailable' };
         }
-        state.classId = String(classId);
-        state.courseIds = courseIds;
+        state.classId = classId == null ? '' : String(classId);
+        state.courseIds = courseScope.courseIds;
+        state.courseClassIds = courseScope.courseClassIds;
         const snapshot = await manifest.refresh();
         if (!isCurrent(context)) return { availability: 'unavailable', source: 'superseded' };
         rerenderIfActive();
@@ -170,14 +230,17 @@
 
     async function configure(classId, coursePayload) {
         const user = currentStudent();
-        if (!classId || !user) {
+        if (!user) {
             close();
-            return { availability: 'unavailable', source: user ? 'class-context-unavailable' : 'identity-required' };
+            return { availability: 'unavailable', source: 'identity-required' };
         }
         const context = beginContext();
         state.userId = String(user.id);
         try {
-            return await configureForContext(context, classId, coursePayload);
+            const adapter = ensureProjectionAdapter();
+            if (adapter && typeof adapter.then === 'function') await adapter;
+            if (!isCurrent(context)) return { availability: 'unavailable', source: 'superseded' };
+            return await configureForContext(context, classId, coursePayload, classId == null ? [] : coursePayload);
         } catch (error) {
             if (isCurrent(context)) close(context);
             return { availability: 'unavailable', source: 'course-context-unavailable' };
@@ -190,23 +253,35 @@
         const context = beginContext();
         state.userId = userId;
         try {
+            const adapter = ensureProjectionAdapter();
+            if (adapter && typeof adapter.then === 'function') await adapter;
+            if (!isCurrent(context)) return { availability: 'unavailable', source: 'superseded' };
             const classes = normalizeList(await requestSameOriginJson('/api/classes', {
                 params: { mine: true }, signal: context.signal
             }));
             if (!isCurrent(context)) return { availability: 'unavailable', source: 'superseded' };
-            if (classes.length !== 1) {
+            let selectedClass = classes.length === 1 ? classes[0] : null;
+            if (classes.length > 1) {
+                const scope = global.AstraStudentScopeSelection;
+                const remembered = scope && typeof scope.read === 'function' ? scope.read(user) : null;
+                selectedClass = classes.find((item) => String(entityId(item)) === String(remembered && remembered.class_id || '')) || null;
+            }
+            if (classes.length > 1 && !selectedClass) {
                 close(context);
                 return { availability: 'unavailable', source: 'class-selection-required' };
             }
-            const classId = entityId(classes[0]);
-            if (!classId) {
+            const classId = selectedClass ? entityId(selectedClass) : null;
+            if (selectedClass && !classId) {
                 close(context);
                 return { availability: 'unavailable', source: 'class-context-unavailable' };
             }
-            const courses = await requestSameOriginJson('/api/courses', {
-                params: { class_id: classId }, signal: context.signal
-            });
-            return configureForContext(context, classId, courses);
+            const [courses, classCourses] = await Promise.all([
+                requestSameOriginJson('/api/courses', { signal: context.signal }),
+                classId == null
+                    ? Promise.resolve([])
+                    : requestSameOriginJson('/api/courses', { params: { class_id: classId }, signal: context.signal })
+            ]);
+            return configureForContext(context, classId, courses, classCourses);
         } catch (error) {
             if (isCurrent(context)) close(context);
             return { availability: 'unavailable', source: 'course-context-unavailable' };
@@ -257,7 +332,7 @@
                     : 'publication_context_unavailable');
         }
         if (
-            String(binding.class_id) !== String(state.classId)
+            String(binding.class_id) !== String(state.courseClassIds && state.courseClassIds[mapping.course_key])
             || String(binding.course_id) !== String(state.courseIds && state.courseIds[mapping.course_key])
         ) return learningEvidenceUnavailable('cancelled');
         return Object.freeze({
@@ -289,7 +364,7 @@
         buildCourseIdMap,
         resolveLearningEvidence,
         sameLearningEvidenceAuthority,
-        snapshot: () => Object.freeze({ classId: state.classId, courseIds: state.courseIds, userId: state.userId, generation: state.generation })
+        snapshot: () => Object.freeze({ classId: state.classId, courseIds: state.courseIds, courseClassIds: state.courseClassIds, userId: state.userId, generation: state.generation })
     });
     global.FutureGalaxyPublicationContext = api;
 

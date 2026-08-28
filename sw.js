@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astra-static-v20260828v864RoleWorkbenchHarmonyP0';
+const CACHE_NAME = 'astra-static-v20260828v866StudentProjectionP0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -22,7 +22,7 @@ const APP_SHELL = [
   './shared/css/responsive.css?v=20260716v7427RoleWorkflowGateP0',
   './pages/planets/planets.css?v=20260824v816ExperimentRestoreP2',
   './pages/planets/planets.js?v=20260828v864RoleWorkbenchHarmonyP0',
-  './pages/engineering/engineering.css?v=20260824v816ExperimentRestoreP2', './pages/frontier/frontier-manifest.js?v=20260825v834Show04P0', './pages/engineering/engineering-page.js?v=20260825v834Show04P0', './pages/engineering/bridge-truss.js?v=20260824v816ExperimentRestoreP2', './pages/engineering/robot-arm-ik/styles.css?v=20260825v834Show04P0', './pages/engineering/robot-arm-ik/index.js?v=20260825v834Show04P0',
+  './pages/engineering/engineering.css?v=20260824v816ExperimentRestoreP2', './pages/frontier/frontier-manifest.js?v=20260825v834Show04P0', './shared/js/frontier-course-publication-adapter.js?v=20260828v866StudentProjectionP0', './pages/engineering/engineering-page.js?v=20260825v834Show04P0', './pages/engineering/bridge-truss.js?v=20260824v816ExperimentRestoreP2', './pages/engineering/robot-arm-ik/styles.css?v=20260825v834Show04P0', './pages/engineering/robot-arm-ik/index.js?v=20260825v834Show04P0',
 ];
 
 self.addEventListener('install', (event) => {

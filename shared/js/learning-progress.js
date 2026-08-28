@@ -5,9 +5,18 @@
 const LearningProgress = {
     _KEY: 'englab-progress',
     _data: null, // { visited: { "function-graph": timestamp, ... } }
+    _catalogueHandler: null,
 
     init() {
         this._load();
+        if (!this._catalogueHandler) {
+            this._catalogueHandler = () => {
+                // ModuleSelector also rebuilds its catalogue surfaces on this
+                // event. Render after that synchronous rebuild has completed.
+                setTimeout(() => this._renderAll(), 0);
+            };
+            window.addEventListener('astra:student-catalogue-ready', this._catalogueHandler);
+        }
         // Render badges & bars whenever a subject page becomes visible
         this._renderAll();
     },
@@ -31,7 +40,19 @@ const LearningProgress = {
     },
 
     getSubjectProgress(page) {
-        const exps = (CONFIG.experiments[page] || []).filter(e => e.variant !== 'upcoming');
+        const session = window.AstraApplicationSession;
+        const user = session && typeof session.getUser === 'function' ? session.getUser() : null;
+        const catalogue = window.AstraStudentCourseCatalogue;
+        const exps = (CONFIG.experiments[page] || []).filter(e => {
+            if (e.variant === 'upcoming') return false;
+            if (!user || user.role !== 'student') return true;
+            if (!catalogue || typeof catalogue.allowsActivity !== 'function') return false;
+            try {
+                return catalogue.allowsActivity(page, e.id) === true;
+            } catch (error) {
+                return false;
+            }
+        });
         const total = exps.length;
         const visited = exps.filter(e => this.isVisited(e.id)).length;
         return { visited, total, percent: total ? Math.round(visited / total * 100) : 0 };

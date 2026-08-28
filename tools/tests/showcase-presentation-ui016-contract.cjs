@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..', '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const generation = '20260828v864RoleWorkbenchHarmonyP0';
+const serviceWorkerGeneration = '20260828v866StudentProjectionP0';
 const roleHome = read('shared/js/role-home-client.js');
 const authUi = read('shared/js/auth-ui.js');
 const student = read('pages/student/student.js');
@@ -59,7 +60,7 @@ assert.match(teacherContent, /完成方式调整为/);
 assert.match(registry, new RegExp(`ROLE_RESOURCE_VERSION = '${generation}'`));
 assert.match(registry, new RegExp(`TEACHER_RESOURCE_VERSION = '${generation}'`));
 assert.match(registry, new RegExp(`ADMIN_RESOURCE_VERSION = '${generation}'`));
-assert.match(serviceWorker, new RegExp(`astra-static-v${generation}`));
+assert.match(serviceWorker, new RegExp(`astra-static-v${serviceWorkerGeneration}`));
 assert.match(html, new RegExp(`app-session\\.js\\?v=${generation}`));
 assert.match(html, new RegExp(`auth-ui\\.js\\?v=${generation}`));
 

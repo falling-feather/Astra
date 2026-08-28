@@ -408,7 +408,6 @@ function initHeadingChars() {
 const TaglineTyper = {
     phrases: [
         '星序 Astra · 多星系可视化学习平台',
-        '工科试验室 · 90 个交互实验',
         'Visualize. Interact. Understand.',
         '数学 · 物理 · 化学 · 算法 · 生物',
         '从抽象到直觉，从公式到画面'

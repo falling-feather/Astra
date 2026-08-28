@@ -57,6 +57,7 @@ assert.match(guard, /has_pending_teacher_application/);
 assert.match(guard, /request\.method in \{"GET", "HEAD", "OPTIONS"\}/);
 
 const generation = '20260828v864RoleWorkbenchHarmonyP0';
+const serviceWorkerGeneration = '20260828v866StudentProjectionP0';
 for (const source of [html, registry, main, serviceWorker]) {
   assert.match(source, new RegExp(generation), 'FE-037 assets must expose the same cache generation');
 }
@@ -65,6 +66,6 @@ assert.match(registry, /ADMIN_RESOURCE_VERSION = '20260828v864RoleWorkbenchHarmo
 assert.match(html, new RegExp(`auth-ui\\.css\\?v=${generation}`));
 assert.match(html, new RegExp(`app-session\\.js\\?v=${generation}`));
 assert.match(html, new RegExp(`planets\\.js\\?v=${generation}`));
-assert.match(serviceWorker, new RegExp(`astra-static-v${generation}`));
+assert.match(serviceWorker, new RegExp(`astra-static-v${serviceWorkerGeneration}`));
 
 console.log('teacher-application-fe037-contract: ok');

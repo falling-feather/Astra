@@ -14,7 +14,8 @@ const courseKeys = [
 const courses = courseKeys.map((course_key, index) => ({
   id: index + 101,
   galaxy_key: 'future-galaxy',
-  course_key
+  subject_key: course_key,
+  course_key: `course-${index + 101}`
 }));
 
 const listeners = new Map();
@@ -42,14 +43,15 @@ global.FrontierCourseManifest = {
   courses: courseKeys.map((course_key) => ({ course_key })),
   configureHttp(config) {
     configurations.push(config);
-    const valid = Boolean(config && config.course_ids && config.class_id !== undefined && typeof config.fetcher === 'function');
+    const valid = Boolean(config && config.course_ids && config.course_class_ids && config.class_id !== undefined && typeof config.fetcher === 'function');
     activeConfig = valid ? config : null;
     manifestAvailability = 'unavailable';
     return valid;
   },
   async refresh() {
     if (!activeConfig) return { availability: 'unavailable' };
-    await activeConfig.fetcher(`/api/courses/${activeConfig.course_ids['earth-space']}/units?class_id=${activeConfig.class_id}`, { credentials: 'same-origin' });
+    const classId = activeConfig.course_class_ids['earth-space'];
+    await activeConfig.fetcher(`/api/courses/${activeConfig.course_ids['earth-space']}/units${classId == null ? '' : `?class_id=${classId}`}`, { credentials: 'same-origin' });
     manifestAvailability = 'available';
     return { availability: 'available', source: 'http-cache' };
   }
@@ -60,11 +62,15 @@ global.fetch = async (url, options = {}) => {
     if (scenario === 'classes-pending') return new Promise((resolve) => { pendingClassResponse = resolve; });
     if (scenario === 'multi') return response([{ id: 7 }, { id: 8 }]);
     if (scenario === 'classes-fail') return response({}, false);
+    if (scenario === 'direct') return response([]);
     return response([{ id: 7 }]);
   }
-  if (String(url).startsWith('/api/courses?')) {
+  if (String(url) === '/api/courses' || String(url).startsWith('/api/courses?')) {
     if (scenario === 'courses-fail') return response({}, false);
-    return response(scenario === 'missing-course' ? courses.slice(0, -1) : courses);
+    if (scenario === 'mixed') {
+      return response(String(url).includes('class_id=7') ? courses.slice(0, 1) : [courses[0], courses[1]]);
+    }
+    return response(scenario === 'missing-course' ? courses.slice(0, -1) : scenario === 'direct' ? courses.slice(0, 1) : courses);
   }
   if (String(url).startsWith('/api/courses/')) return response([]);
   throw new Error(`Unexpected request ${url}`);
@@ -88,16 +94,19 @@ async function run() {
   assert.equal(pendingResult.availability, 'available', 'one resolved class may open only after its course map and unit refresh');
 
   scenario = 'single';
+  fetchCalls.length = 0;
   listeners.get('astra:session-ready')({ detail: { user: { id: 11, role: 'student' } } });
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
 
   const singleConfig = configurations.at(-1);
   assert.equal(singleConfig.class_id, 7, 'one class may become the automatic authority context');
-  assert.deepEqual(singleConfig.course_ids, Object.fromEntries(courses.map((course) => [course.course_key, course.id])));
+  assert.deepEqual(singleConfig.course_ids, Object.fromEntries(courses.map((course) => [course.subject_key, course.id])));
+  assert.deepEqual(singleConfig.course_class_ids, Object.fromEntries(courses.map((course) => [course.subject_key, 7])));
   assert.equal(fetchCalls[0].url, '/api/classes?mine=true');
   assert.equal(fetchCalls[0].options.credentials, 'same-origin');
-  assert.equal(fetchCalls[1].url, '/api/courses?class_id=7');
+  assert.equal(fetchCalls[1].url, '/api/courses');
+  assert.equal(fetchCalls[2].url, '/api/courses?class_id=7');
   const unitFetch = fetchCalls.find((call) => call.url.startsWith('/api/courses/101/units'));
   assert.ok(unitFetch, 'manifest refresh must use the configured course map');
   assert.equal(unitFetch.options.credentials, 'same-origin');
@@ -112,8 +121,21 @@ async function run() {
 
   scenario = 'missing-course';
   const missing = await publication.bootstrap({ id: 11, role: 'student' });
-  assert.equal(missing.source, 'course-map-unavailable');
-  assert.deepEqual(configurations.at(-1), {}, 'an incomplete six-course map must fail closed');
+  assert.equal(missing.source, 'http-cache');
+  assert.equal(Object.keys(configurations.at(-1).course_ids).length, 5, 'a partial Future Galaxy selection must remain usable');
+
+  scenario = 'direct';
+  const direct = await publication.bootstrap({ id: 11, role: 'student' });
+  assert.equal(direct.source, 'http-cache', 'direct course enrollment may render without a homeroom');
+  assert.equal(configurations.at(-1).class_id, null);
+  assert.deepEqual(configurations.at(-1).course_ids, { 'earth-space': 101 });
+  assert.deepEqual(configurations.at(-1).course_class_ids, { 'earth-space': null });
+
+  scenario = 'mixed';
+  const mixed = await publication.bootstrap({ id: 11, role: 'student' });
+  assert.equal(mixed.source, 'http-cache', 'direct Future courses must coexist with an unrelated homeroom');
+  assert.deepEqual(configurations.at(-1).course_ids, { 'earth-space': 101, 'engineering-systems': 102 });
+  assert.deepEqual(configurations.at(-1).course_class_ids, { 'earth-space': 7, 'engineering-systems': null });
 
   scenario = 'courses-fail';
   const failed = await publication.bootstrap({ id: 11, role: 'student' });
@@ -124,8 +146,9 @@ async function run() {
   assert.equal(admin.availability, 'legacy-boundary', 'non-student sessions must not configure student publication context');
 
   assert.doesNotMatch(contextSource, /localStorage|sessionStorage/, 'future class and course context must remain in memory only');
-  assert.match(contextSource, /classes\.length !== 1/, 'multi-class learners require an explicit workbench selection');
+  assert.match(contextSource, /AstraStudentScopeSelection/, 'multi-class learners may reuse an explicit workbench selection');
   assert.match(contextSource, /item\.galaxy_key !== GALAXY_KEY/, 'course IDs must be filtered by Future Galaxy identity');
+  assert.match(contextSource, /item\.subject_key \|\| item\.course_key/, 'teacher-created course instances must map through subject_key');
   assert.match(contextSource, /credentials: 'same-origin'/, 'authority requests must keep same-origin cookies');
   assert.match(studentSource, /window\.FutureGalaxyPublicationContext/, 'the student workbench must delegate class switches to the shared controller');
   assert.doesNotMatch(studentSource, /addEventListener\('astra:session-ready'/, 'the lazy student asset must not own the direct-entry session listener');

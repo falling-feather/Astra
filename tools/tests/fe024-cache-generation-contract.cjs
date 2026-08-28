@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const generation = '20260828v864RoleWorkbenchHarmonyP0';
+const serviceWorkerGeneration = '20260828v866StudentProjectionP0';
 const legacyShellGeneration = '20260824v816ExperimentRestoreP2';
 const showcaseGeneration = '20260824v832Show03P0';
 const show04Generation = '20260825v834Show04P0';
@@ -99,7 +100,11 @@ function testStaticGenerationChain() {
   assert.match(main, new RegExp(`'\\./shared/js/experiment-registry\\.js\\?v=${showcaseGeneration}'`));
   assert.match(main, new RegExp(`'\\./shared/js/module-selector\\.js\\?v=${showcaseGeneration}'`));
   assert.match(main, /serviceWorker\.register\('\.\/sw\.js\?v=' \+ SHELL_RUNTIME_ASSET_VERSION\)/);
-  assert.match(serviceWorker, new RegExp(`const CACHE_NAME = 'astra-static-v${generation}'`));
+  assert.match(serviceWorker, new RegExp(`const CACHE_NAME = 'astra-static-v${serviceWorkerGeneration}'`));
+  assert.match(
+    serviceWorker,
+    new RegExp(`frontier-course-publication-adapter\\.js\\?v=${serviceWorkerGeneration}`),
+  );
   for (const asset of ['app-session', 'router']) {
     assert.match(
       serviceWorker,

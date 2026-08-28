@@ -5,6 +5,7 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '../..');
 const manifestPath = path.join(root, 'codevis/shared/js/course-manifest.js');
+const publicationAdapterPath = path.join(root, 'codevis/shared/js/course-publication-adapter.js');
 const contextPath = path.join(root, 'codevis/shared/js/student-context.js');
 const mainPath = path.join(root, 'codevis/shared/js/main.js');
 const challengePath = path.join(root, 'codevis/pages/course-challenge/course-challenge.js');
@@ -21,7 +22,8 @@ function coursesFor(manifest, classId) {
     return manifest.courses.map((course, index) => ({
         id: classId * 100 + index + 1,
         galaxy_key: manifest.galaxy_key,
-        course_key: course.course_key,
+        subject_key: course.course_key,
+        course_key: `course-${classId}-${index + 1}`,
         title: course.title
     }));
 }
@@ -58,6 +60,7 @@ function createHarness(routes) {
     context.window = context;
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(manifestPath, 'utf8'), context, { filename: manifestPath });
+    vm.runInContext(fs.readFileSync(publicationAdapterPath, 'utf8'), context, { filename: publicationAdapterPath });
     vm.runInContext(fs.readFileSync(contextPath, 'utf8'), context, { filename: contextPath });
     return { context, calls, redirected };
 }
@@ -66,7 +69,10 @@ function standardRoutes(classes) {
     return ({ pathname, options, context }) => {
         if (pathname === '/api/users/me') return { id: 1, role: 'student' };
         if (pathname === '/api/classes') return classes;
-        if (pathname === '/api/courses') return coursesFor(context.CvCourseManifest, Number(options.params.class_id));
+        if (pathname === '/api/courses') {
+            const classId = Number(options.params && options.params.class_id || classes[0] && classes[0].id || 7);
+            return coursesFor(context.CvCourseManifest, classId);
+        }
         const match = pathname.match(/^\/api\/courses\/(\d+)\/units$/);
         if (match) return unitsFor(context.CvCourseManifest, Number(match[1]));
         throw new Error('unexpected path ' + pathname);
@@ -133,7 +139,7 @@ async function main() {
         if (pathname === '/api/courses' && Number(options.params.class_id) === 7) {
             return new Promise((resolve) => { releaseFirst = () => resolve(coursesFor(context.CvCourseManifest, 7)); });
         }
-        if (pathname === '/api/courses') return coursesFor(context.CvCourseManifest, Number(options.params.class_id));
+        if (pathname === '/api/courses') return coursesFor(context.CvCourseManifest, Number(options.params && options.params.class_id || 9));
         const match = pathname.match(/^\/api\/courses\/(\d+)\/units$/);
         if (match) return unitsFor(context.CvCourseManifest, Number(match[1]));
         throw new Error('unexpected path ' + pathname);
@@ -147,16 +153,63 @@ async function main() {
     await firstSwitch;
     assert.equal(racing.context.CvStudentContext.getState().class_id, 8, 'late class responses must not overwrite a newer choice');
 
-    const missing = createHarness(({ pathname, options, context }) => {
+    const partial = createHarness(({ pathname, options, context }) => {
         if (pathname === '/api/users/me') return { id: 1, role: 'student' };
         if (pathname === '/api/classes') return [{ id: 7, name: '一班' }];
-        if (pathname === '/api/courses') return coursesFor(context.CvCourseManifest, Number(options.params.class_id)).slice(0, 5);
-        throw new Error('units must not load for an incomplete mapping');
+        if (pathname === '/api/courses') return coursesFor(context.CvCourseManifest, Number(options.params && options.params.class_id || 7)).slice(0, 5);
+        const match = pathname.match(/^\/api\/courses\/(\d+)\/units$/);
+        if (match) return unitsFor(context.CvCourseManifest, Number(match[1]));
+        throw new Error('unexpected path ' + pathname);
     });
-    assert.equal(await missing.context.CvStudentContext.start(), false);
-    assert.equal(missing.context.CvStudentContext.getState().phase, 'unavailable');
-    assert.equal(missing.context.AstraCodeSpaceStudentContext.resolve(activity), null);
-    assert.equal(missing.context.CvCourseStateAdapter.resolve(activity).status, 'unavailable');
+    assert.equal(await partial.context.CvStudentContext.start(), true);
+    assert.equal(partial.context.CvStudentContext.getState().phase, 'ready');
+    assert.equal(Object.keys(partial.context.CvStudentContext.getState().course_ids).length, 5, 'a class may publish only part of Code Space');
+    assert.equal(partial.calls.filter((call) => /\/units$/.test(call.pathname)).length, 5);
+    const absentActivity = partial.context.CvCourseManifest.getActivity('challenge-submission.public-sample');
+    assert.equal(partial.context.CvCourseStateAdapter.resolve(absentActivity).status, 'hidden', 'an unselected subject stays hidden');
+
+    const direct = createHarness(({ pathname, context }) => {
+        if (pathname === '/api/users/me') return { id: 1, role: 'student' };
+        if (pathname === '/api/classes') return [];
+        if (pathname === '/api/courses') return coursesFor(context.CvCourseManifest, 9).slice(1, 2);
+        const match = pathname.match(/^\/api\/courses\/(\d+)\/units$/);
+        if (match) return unitsFor(context.CvCourseManifest, Number(match[1]));
+        throw new Error('unexpected path ' + pathname);
+    });
+    assert.equal(await direct.context.CvStudentContext.start(), true, 'direct course enrollment may render without a homeroom');
+    assert.equal(direct.context.CvStudentContext.getState().phase, 'ready');
+    assert.equal(direct.context.CvStudentContext.getState().class_id, null);
+    assert.equal(direct.context.CvCourseStateAdapter.resolve(activity).status, 'available');
+    assert.equal(direct.context.AstraCodeSpaceStudentContext.resolve(activity), null, 'formal evidence remains closed without an explicit class authority');
+
+    const mixed = createHarness(({ pathname, options, context }) => {
+        if (pathname === '/api/users/me') return { id: 1, role: 'student' };
+        if (pathname === '/api/classes') return [{ id: 7, name: '一班' }];
+        if (pathname === '/api/courses' && options.params && Number(options.params.class_id) === 7) {
+            return coursesFor(context.CvCourseManifest, 7).slice(0, 1);
+        }
+        if (pathname === '/api/courses') {
+            return [
+                coursesFor(context.CvCourseManifest, 7)[0],
+                coursesFor(context.CvCourseManifest, 9)[1]
+            ];
+        }
+        const match = pathname.match(/^\/api\/courses\/(\d+)\/units$/);
+        if (match) return unitsFor(context.CvCourseManifest, Number(match[1]));
+        throw new Error('unexpected path ' + pathname);
+    });
+    assert.equal(await mixed.context.CvStudentContext.start(), true, 'direct courses must coexist with an unrelated homeroom');
+    const mixedState = mixed.context.CvStudentContext.getState();
+    assert.deepEqual(JSON.parse(JSON.stringify(mixedState.course_class_ids)), {
+        'program-start': 7,
+        'control-flow': null
+    });
+    const classActivity = mixed.context.CvCourseManifest.getActivity('program-start.first-output');
+    assert.equal(mixed.context.AstraCodeSpaceStudentContext.resolve(classActivity).class_id, 7);
+    assert.equal(mixed.context.AstraCodeSpaceStudentContext.resolve(activity), null, 'direct-only Code Space subjects stay preview-only without a class authority');
+    const mixedUnitCalls = mixed.calls.filter((call) => /\/units$/.test(call.pathname));
+    assert.equal(mixedUnitCalls.find((call) => call.pathname.includes('/701/')).options.params.class_id, '7');
+    assert.equal(Object.keys(mixedUnitCalls.find((call) => call.pathname.includes('/902/')).options.params).length, 0);
 
     const unauthorized = createHarness(({ pathname }) => {
         assert.equal(pathname, '/api/users/me');

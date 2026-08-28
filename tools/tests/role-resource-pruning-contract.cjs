@@ -26,7 +26,7 @@ const student = [
     `shared/css/role-workbench-overview.css?v=${overviewVersion}`,
     `shared/js/role-workbench-overview.js?v=${overviewVersion}`,
     `shared/js/role-workbench-bridge.js?v=${overviewVersion}`,
-    `pages/student/student-workbench.js?v=${studentVersion}`
+    `pages/student/student-workbench.js?v=${studentVersion}&patch=20260828v866StudentProjectionP0`
 ];
 const teacher = [
     `pages/teacher/teacher-foundation.css?v=${teacherVersion}`,
@@ -67,7 +67,7 @@ assert.doesNotMatch(html, /<link[^>]+href="pages\/(?:student|teacher|admin)\//);
 const appShell = serviceWorker.match(/const APP_SHELL = \[([\s\S]*?)\n\];/);
 assert.ok(appShell, 'service-worker APP_SHELL must remain inspectable');
 assert.doesNotMatch(appShell[1], roleAssetPattern, 'APP_SHELL must not pre-cache any role resource');
-assert.match(serviceWorker, /astra-static-v20260828v864RoleWorkbenchHarmonyP0/);
+assert.match(serviceWorker, /astra-static-v20260828v866StudentProjectionP0/);
 
 const coreFallback = main.match(/const CORE_HTTP_FALLBACK_ASSETS = \[([\s\S]*?)\n\];/);
 const galaxyFallback = main.match(/const GALAXY_HTTP_FALLBACK_ASSETS = \{([\s\S]*?)\n\};/);

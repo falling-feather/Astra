@@ -17,6 +17,8 @@ const documentListeners = new Map();
 const appended = [];
 let currentUser = { id: 6, role: 'student' };
 let allowedActivities = new Set(['biology.cell-structure']);
+let classIds = [];
+let catalogueRecords = [{ page: 'physics', activity_keys: ['physics.mechanics'], class_ids: [] }];
 
 const context = {
     console,
@@ -72,6 +74,14 @@ const context = {
     AstraStudentCourseCatalogue: {
         allowsActivity(page, moduleId) {
             return allowedActivities.has(`${page}.${moduleId}`);
+        },
+        snapshot() {
+            return {
+                phase: 'ready',
+                role: currentUser && currentUser.role,
+                class_ids: classIds.slice(),
+                records: catalogueRecords.map((record) => ({ ...record, activity_keys: record.activity_keys.slice(), class_ids: record.class_ids.slice() }))
+            };
         }
     }
 };
@@ -93,6 +103,24 @@ assert.deepEqual(
     Array.from(selector._visibleExperiments('biology'), item => item.id),
     ['cell-structure'],
     'only exact-open, non-upcoming activities may enter generated course DOM'
+);
+assert.equal(
+    selector._requiresPublicationGate('physics', 'mechanics'),
+    false,
+    'a direct-enrollment student with an exact-open catalogue unit must not be blocked by a missing administrative class'
+);
+classIds = [1];
+catalogueRecords = [{ page: 'physics', activity_keys: ['physics.mechanics'], class_ids: [1] }];
+assert.equal(
+    selector._requiresPublicationGate('physics', 'mechanics'),
+    true,
+    'a class-bound student must keep the authoritative class publication gate'
+);
+catalogueRecords = [{ page: 'physics', activity_keys: ['physics.mechanics'], class_ids: [] }];
+assert.equal(
+    selector._requiresPublicationGate('physics', 'mechanics'),
+    false,
+    'a direct-only unit must remain open when the student also belongs to an unrelated administrative class'
 );
 
 const pageEl = {

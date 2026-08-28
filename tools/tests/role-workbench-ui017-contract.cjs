@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n?/g, '\n');
 const generation = '20260828v864RoleWorkbenchHarmonyP0';
+const serviceWorkerGeneration = '20260828v866StudentProjectionP0';
 
 const overview = read('shared/js/role-workbench-overview.js');
 const overviewStyles = read('shared/css/role-workbench-overview.css');
@@ -71,7 +72,7 @@ assert.doesNotMatch(adminGovernance, /<span>COURSE #|<dt>Action<\/dt>|<dt>Resour
 assert.doesNotMatch(adminGovernance, /再次点击[^<]+PATCH|正在提交一条课程状态 PATCH/);
 
 assert.match(registry, new RegExp(`ROLE_WORKBENCH_OVERVIEW_VERSION = '${generation}'`));
-assert.match(serviceWorker, new RegExp(`astra-static-v${generation}`));
+assert.match(serviceWorker, new RegExp(`astra-static-v${serviceWorkerGeneration}`));
 
 const context = { window: {}, console, Date, Intl, AbortController, setTimeout, clearTimeout };
 context.window.window = context.window;

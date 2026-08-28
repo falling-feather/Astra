@@ -449,11 +449,22 @@
                     signal: owner.controller.signal
                 }));
                 if (!currentResolve()) return cancelledPublication();
-                const matches = courses.filter(course => course.galaxy_key === 'englab' && course.course_key === 'physics');
-                if (matches.length !== 1) {
+                const matches = courses.filter(course => (
+                    course.galaxy_key === 'englab'
+                    && String(course.subject_key || course.course_key || '') === 'physics'
+                ));
+                let selectedCourse = matches.length === 1 ? matches[0] : null;
+                if (matches.length > 1) {
+                    const scope = global.AstraStudentScopeSelection;
+                    const remembered = scope && typeof scope.read === 'function' ? scope.read(state.user) : null;
+                    if (String(remembered && remembered.class_id || '') === String(resolveClassId)) {
+                        selectedCourse = matches.find(course => id(course.id) === id(remembered && remembered.course_id)) || null;
+                    }
+                }
+                if (!selectedCourse) {
                     return Object.freeze({ available: false, error_code: matches.length ? 'course_scope_ambiguous' : 'course_scope_missing' });
                 }
-                const courseId = id(matches[0].id);
+                const courseId = id(selectedCourse.id);
                 if (!courseId) return unavailablePublication();
                 const units = list(await api().request(`/api/courses/${courseId}/units`, {
                     params: { class_id: resolveClassId },

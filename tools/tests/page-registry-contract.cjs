@@ -47,10 +47,10 @@ assert.equal(registry.galaxyFor('teacher'), 'astra');
 assert.equal(registry.galaxyFor('admin'), 'astra');
 assert.equal(registry.galaxyFor('cosmos'), 'frontier');
 assert.equal(registry.galaxyFor('unknown-page'), 'englab');
-assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?v=20260828v864RoleWorkbenchHarmonyP0');
+assert.equal(registry.scriptFor('student'), 'pages/student/student-workbench.js?v=20260828v864RoleWorkbenchHarmonyP0&patch=20260828v866StudentProjectionP0');
 assert.equal(registry.scriptFor('teacher'), 'pages/teacher/teacher.js?v=20260828v864RoleWorkbenchHarmonyP0');
 assert.equal(registry.scriptFor('engineering'), 'pages/engineering/engineering-page.js?v=20260825v834Show04P0');
-assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260828v864RoleWorkbenchHarmonyP0');
+assert.equal(registry.scriptFor('planets'), 'pages/planets/planets.js?v=20260828v864RoleWorkbenchHarmonyP0&patch=20260828v866StudentProjectionP0');
 assert.equal(registry.scriptFor('admin'), 'pages/admin/admin.js?v=20260828v864RoleWorkbenchHarmonyP0');
 assert.equal(registry.isReady('teacher'), false);
 
