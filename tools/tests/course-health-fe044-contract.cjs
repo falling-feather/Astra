@@ -46,7 +46,7 @@ for (const kind of ['open_course_content', 'open_course_grading', 'open_course_l
 assert.match(bridgeSource, /data-admin-section-button="courses"/);
 assert.match(bridgeSource, /data-admin-course-view="status"/);
 assert.match(bridgeSource, /data-admin-course-select=/);
-assert.match(registry, /ROLE_WORKBENCH_OVERVIEW_VERSION = '20260828v863CourseHealthMatrixP0'/);
+assert.match(registry, /ROLE_WORKBENCH_OVERVIEW_VERSION = '20260828v864RoleWorkbenchHarmonyP0'/);
 
 const context = { window: {}, console, Date, Intl, AbortController, setTimeout, clearTimeout };
 context.window.window = context.window;
@@ -54,7 +54,7 @@ vm.createContext(context);
 vm.runInContext(ownerSource, context, { filename: 'shared/js/role-workbench-overview.js' });
 const contract = context.window.AstraRoleWorkbenchOverview.contract;
 
-assert.equal(contract.VERSION, '20260828v863CourseHealthMatrixP0');
+assert.equal(contract.VERSION, '20260828v864RoleWorkbenchHarmonyP0');
 assert.deepEqual(Array.from(contract.healthStates, (item) => item.key), states);
 
 const makeCourse = (courseId, galaxy, state, action) => ({

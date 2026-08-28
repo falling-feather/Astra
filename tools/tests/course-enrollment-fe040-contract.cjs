@@ -62,7 +62,7 @@ const student = loadOwner(
   'pages/student/student-course-enrollment.js',
   'AstraStudentCourseEnrollment',
 );
-assert.equal(student.VERSION, '20260825v843CourseEnrollmentP0');
+assert.equal(student.VERSION, '20260828v864RoleWorkbenchHarmonyP0');
 assert.equal(student.normalizeCourseCode(' ab-cd 2345 '), 'ABCD2345');
 assert.equal(student.eligibilityLabel('eligible'), '可以申请');
 assert.equal(student.eligibilityLabel('already_enrolled'), '已加入课程');

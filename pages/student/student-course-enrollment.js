@@ -3,8 +3,20 @@
 
     if (global.AstraStudentCourseEnrollment) return;
 
-    const VERSION = '20260825v843CourseEnrollmentP0';
+    const VERSION = '20260828v864RoleWorkbenchHarmonyP0';
     const COURSE_CODE_PATTERN = /^[A-Z0-9]{4,16}$/;
+    const GALAXY_LABELS = Object.freeze({
+        englab: '工科试验室',
+        'code-space': '代码空间',
+        'future-galaxy': '未来星系'
+    });
+    const SUBJECT_LABELS = Object.freeze({
+        mathematics: '数学', physics: '物理', chemistry: '化学', algorithms: '算法', biology: '生物',
+        'program-start': '程序起步', 'control-flow': '控制流程', 'data-functions': '数据与函数',
+        'algorithm-thinking': '算法思维', 'debugging-testing': '调试与测试', 'challenge-submission': '挑战与提交',
+        'earth-space': '地球与宇宙科学', 'engineering-systems': '工程应用', 'data-ai': '数据科学与 AI',
+        'information-technology': '信息技术', 'materials-science': '材料科学', 'humanities-futures': '人文与未来'
+    });
     let session = null;
 
     function normalizeCourseCode(value) {
@@ -52,6 +64,14 @@
             request_pending: '申请待教师审核',
             already_enrolled: '已加入课程'
         })[String(reason || '')] || '状态待确认';
+    }
+
+    function galaxyLabel(key) {
+        return GALAXY_LABELS[String(key || '')] || '其他星系';
+    }
+
+    function subjectLabel(key) {
+        return SUBJECT_LABELS[String(key || '')] || '综合课程';
     }
 
     function mount(root, host) {
@@ -293,7 +313,7 @@
         session.root.innerHTML = `
             <section class="student-course-enrollment" aria-labelledby="student-course-enrollment-title">
                 <header class="student-course-enrollment__header">
-                    <div><span>COURSE ACCESS</span><h2 id="student-course-enrollment-title">加入授课课程</h2><p>输入教师提供的课程码，先查看准入状态，再提交申请。</p></div>
+                    <div><span>课程加入 · COURSE ACCESS</span><h2 id="student-course-enrollment-title">加入授课课程</h2><p>输入教师提供的课程码，先查看准入状态，再提交申请。</p></div>
                     ${session.course ? `<button type="button" data-course-enrollment-action="clear" ${session.busy ? 'disabled' : ''}><i data-lucide="x"></i><span>清空</span></button>` : ''}
                 </header>
                 <form class="student-course-code" data-course-code-form>
@@ -315,7 +335,7 @@
         return `
             <article class="student-course-result" data-state="${escapeAttr(course.eligibility_reason)}">
                 <div class="student-course-result__identity">
-                    <span>${escapeHtml(course.galaxy_key)} / ${escapeHtml(course.subject_key)}</span>
+                    <span>${escapeHtml(galaxyLabel(course.galaxy_key))} · ${escapeHtml(subjectLabel(course.subject_key))}</span>
                     <h3>${escapeHtml(course.title)}</h3>
                     <p>${escapeHtml(course.summary || '教师尚未填写课程简介')}</p>
                     <div>${meta.map(item => `<small>${escapeHtml(item)}</small>`).join('')}</div>

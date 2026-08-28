@@ -27,6 +27,24 @@
         open: '公开申请',
         class_restricted: '限定行政班'
     });
+    const GALAXY_LABELS = Object.freeze({
+        englab: '工科试验室',
+        'code-space': '代码空间',
+        'future-galaxy': '未来星系'
+    });
+    const SUBJECT_LABELS = Object.freeze({
+        mathematics: '数学', physics: '物理', chemistry: '化学', algorithms: '算法', biology: '生物',
+        'program-start': '程序起步', 'control-flow': '控制流程', 'data-functions': '数据与函数',
+        'algorithm-thinking': '算法思维', 'debugging-testing': '调试与测试', 'challenge-submission': '挑战与提交',
+        'earth-space': '地球与宇宙科学', 'engineering-systems': '工程应用', 'data-ai': '数据科学与 AI',
+        'information-technology': '信息技术', 'materials-science': '材料科学', 'humanities-futures': '人文与未来'
+    });
+    const AUDIT_ACTION_LABELS = Object.freeze({
+        'course.status.patch': '课程状态变更'
+    });
+    const AUDIT_RESULT_LABELS = Object.freeze({
+        success: '已成功', failed: '未成功', denied: '已拒绝'
+    });
     const state = {
         host: null,
         context: null,
@@ -691,6 +709,30 @@
         return 'neutral';
     }
 
+    function galaxyLabel(key) {
+        return GALAXY_LABELS[String(key || '')] || '其他星系';
+    }
+
+    function subjectLabel(key) {
+        return SUBJECT_LABELS[String(key || '')] || '教师自建课程';
+    }
+
+    function courseTitle(course) {
+        return String(course && course.title || '').trim() || '未命名课程';
+    }
+
+    function auditActionLabel(value) {
+        return AUDIT_ACTION_LABELS[String(value || '')] || '课程治理操作';
+    }
+
+    function auditResourceLabel(value) {
+        return String(value || '') === 'course' ? '当前课程' : '相关业务对象';
+    }
+
+    function auditResultLabel(value) {
+        return AUDIT_RESULT_LABELS[String(value || '')] || '结果待核对';
+    }
+
     function filteredCourses() {
         const query = state.query.trim().toLowerCase();
         return state.courses.filter((course) => {
@@ -721,6 +763,8 @@
     function reviewValue(key, value) {
         if (key === 'admission_mode') return ADMISSION_LABELS[String(value || '')] || String(value || '未设置');
         if (value === null || value === undefined || value === '') return '未填写';
+        if (key === 'galaxy_key') return galaxyLabel(value);
+        if (key === 'subject_key') return subjectLabel(value);
         const definition = REVIEW_FIELD_DEFINITIONS.find((item) => item.key === key);
         return `${String(value)}${definition && definition.suffix ? definition.suffix : ''}`;
     }
@@ -736,13 +780,13 @@
             ${state.reviews.map((review) => {
                 const revisionId = Number(review.revision.id);
                 const selected = revisionId === Number(state.reviewSelectedId);
-                const title = review.proposed_information.title || `课程 #${review.course_id}`;
+                const title = review.proposed_information.title || '未命名课程';
                 const firstApproval = review.current_information == null;
                 return `
                     <button type="button" role="listitem" class="admin-course-row admin-course-review-row${selected ? ' is-selected' : ''}" data-admin-course-review-select="${revisionId}" aria-pressed="${selected ? 'true' : 'false'}"${mutationBusy() ? ' disabled' : ''}>
                         <span>
                             <strong>${escapeHtml(title)}</strong>
-                            <small>课程 #${Number(review.course_id)} · 版本 ${Number(review.revision.revision_number)} · 学校 #${Number(review.school_id)}</small>
+                            <small>第 ${Number(review.revision.revision_number)} 次信息提交 · ${escapeHtml(formatReviewDate(review.revision.submitted_at))}</small>
                         </span>
                         <span class="admin-status-pill admin-status-pill--${firstApproval ? 'warn' : 'neutral'}">${firstApproval ? '首次审核' : `${review.changed_fields.length} 项变化`}</span>
                         <i data-lucide="chevron-right" aria-hidden="true"></i>
@@ -762,7 +806,7 @@
     function renderAdmissionSet(items, emptyText) {
         if (!Array.isArray(items) || !items.length) return `<span class="admin-course-review-empty-value">${escapeHtml(emptyText)}</span>`;
         return `<div class="admin-course-review-chips">${items.map((item) => `
-            <span><i data-lucide="school"></i>${escapeHtml(item.name || `行政班 #${item.class_id}`)}</span>
+            <span><i data-lucide="school"></i>${escapeHtml(item.name || '未命名行政班')}</span>
         `).join('')}</div>`;
     }
 
@@ -798,7 +842,7 @@
                 ${response && message.decision === 'approved' ? `
                     <dl>
                         <div><dt>课程码</dt><dd><code>${escapeHtml(response.course_code || '--')}</code></dd></div>
-                        <div><dt>内部课程群组</dt><dd>#${Number(response.internal_class_id || 0)}</dd></div>
+                        <div><dt>课程学习容器</dt><dd>${response.internal_class_id ? '已建立' : '待建立'}</dd></div>
                         <div><dt>课程内容</dt><dd>${escapeHtml(response.content_status_label || '暂无已发布内容')}</dd></div>
                     </dl>
                 ` : ''}
@@ -831,9 +875,9 @@
         return `
             ${dialogHeader}
             <div class="admin-course-inspector__heading" tabindex="-1" data-admin-course-title>
-                <span>COURSE #${Number(review.course_id)} · REVISION ${Number(review.revision.revision_number)}</span>
-                <h3>${escapeHtml(review.proposed_information.title || `课程 #${review.course_id}`)}</h3>
-                <p>学校 #${Number(review.school_id)} · 提交于 ${escapeHtml(formatReviewDate(review.revision.submitted_at))}</p>
+                <span>课程信息审核 · 第 ${Number(review.revision.revision_number)} 次提交</span>
+                <h3>${escapeHtml(review.proposed_information.title || '未命名课程')}</h3>
+                <p>${review.current_information ? '运行中课程修改' : '首次课程申请'} · 提交于 ${escapeHtml(formatReviewDate(review.revision.submitted_at))}</p>
             </div>
             <dl class="admin-course-authority admin-course-review-authority">
                 <div><dt>审核类型</dt><dd>${review.current_information ? '运行中课程修改' : '首次课程审核'}</dd></div>
@@ -869,7 +913,7 @@
                             : review.current_information
                                 ? '驳回后原有课程信息继续运行，不受本次修改影响。'
                                 : '驳回后课程继续保持草稿状态，教师可以修改后重新提交。'}</p>
-                        <small>再次点击同一决定才会发送 PATCH；修改说明会使本次确认失效。</small>
+                        <small>再次点击同一决定才会提交审核；修改说明会使本次确认失效。</small>
                     </section>
                 ` : ''}
                 <div class="admin-course-review-actions">
@@ -914,8 +958,8 @@
                 return `
                     <button type="button" role="listitem" class="admin-course-row${selected ? ' is-selected' : ''}" data-admin-course-select="${Number(course.id)}" aria-pressed="${selected ? 'true' : 'false'}"${disabled ? ' disabled' : ''}>
                         <span>
-                            <strong>${escapeHtml(course.title || `课程 #${course.id}`)}</strong>
-                            <small>${escapeHtml(course.galaxy_key || '--')} / ${escapeHtml(course.course_key || '--')}</small>
+                            <strong>${escapeHtml(courseTitle(course))}</strong>
+                            <small>${escapeHtml(galaxyLabel(course.galaxy_key))} · ${escapeHtml(subjectLabel(course.subject_key || course.course_key))}</small>
                         </span>
                         <span class="admin-status-pill admin-status-pill--${statusClass(course.status)}">${escapeHtml(statusLabel(course.status))}</span>
                         ${locked ? '<i data-lucide="lock-keyhole" aria-label="写入已锁定"></i>' : '<i data-lucide="chevron-right" aria-hidden="true"></i>'}
@@ -941,12 +985,12 @@
         if (!audit) return '';
         return `
             <dl class="admin-course-audit-fact" data-admin-course-audit-fact>
-                <div><dt>Action</dt><dd>${escapeHtml(audit.action)}</dd></div>
-                <div><dt>Resource</dt><dd>${escapeHtml(audit.resourceType)} #${escapeHtml(audit.resourceId)}</dd></div>
-                <div><dt>Event result</dt><dd>${escapeHtml(audit.eventResult)}</dd></div>
-                <div><dt>After status</dt><dd>${escapeHtml(statusLabel(audit.afterStatus))}</dd></div>
-                <div><dt>Request ID</dt><dd><code>${escapeHtml(audit.requestId)}</code></dd></div>
-                <div><dt>Created at</dt><dd>${escapeHtml(audit.createdAt || '--')}</dd></div>
+                <div><dt>操作</dt><dd>${escapeHtml(auditActionLabel(audit.action))}</dd></div>
+                <div><dt>对象</dt><dd>${escapeHtml(auditResourceLabel(audit.resourceType))}</dd></div>
+                <div><dt>执行结果</dt><dd>${escapeHtml(auditResultLabel(audit.eventResult))}</dd></div>
+                <div><dt>生效状态</dt><dd>${escapeHtml(statusLabel(audit.afterStatus))}</dd></div>
+                <div><dt>对账编号</dt><dd><code>${escapeHtml(audit.requestId)}</code></dd></div>
+                <div><dt>记录时间</dt><dd>${escapeHtml(formatReviewDate(audit.createdAt))}</dd></div>
             </dl>
         `;
     }
@@ -957,7 +1001,7 @@
         const outcomeCopy = lock.outcome === 'applied'
             ? '已由课程权威状态和精确审计共同确认。'
             : lock.outcome === 'unchanged'
-                ? '课程仍为写入前状态，且精确 Request ID 下没有审计；可人工确认后解锁。'
+                ? '课程仍为变更前状态，且本次对账编号下没有成功记录；可人工确认后解锁。'
                 : lock.outcome === 'mismatch'
                     ? '课程状态或审计与本次请求不一致，必须保持锁定。'
                     : lock.outcome === 'read-failed'
@@ -967,7 +1011,7 @@
             <section class="admin-course-lock" data-admin-course-lock="${escapeHtml(lock.outcome || 'unknown')}" tabindex="-1">
                 <h3><i data-lucide="lock-keyhole"></i>课程写入已锁定</h3>
                 <p>${escapeHtml(outcomeCopy)}</p>
-                <code>Request ID: ${escapeHtml(lock.requestId || '--')}</code>
+                <code>对账编号：${escapeHtml(lock.requestId || '--')}</code>
                 <div>
                     <button type="button" class="admin-icon-button" data-admin-course-reconcile>
                         <i data-lucide="scan-search"></i><span>重新权威对账</span>
@@ -1011,9 +1055,9 @@
         return `
             ${dialogHeader}
             <div class="admin-course-inspector__heading" tabindex="-1" data-admin-course-title>
-                <span>COURSE #${Number(course.id)}</span>
-                <h3>${escapeHtml(course.title || `课程 #${course.id}`)}</h3>
-                <p>${escapeHtml(course.galaxy_key || '--')} / ${escapeHtml(course.course_key || '--')} · 学校 #${escapeHtml(course.school_id || '--')}</p>
+                <span>课程状态治理</span>
+                <h3>${escapeHtml(courseTitle(course))}</h3>
+                <p>${escapeHtml(galaxyLabel(course.galaxy_key))} · ${escapeHtml(subjectLabel(course.subject_key || course.course_key))}</p>
             </div>
             <dl class="admin-course-authority">
                 <div><dt>当前状态</dt><dd><span class="admin-status-pill admin-status-pill--${statusClass(course.status)}">${escapeHtml(statusLabel(course.status))}</span></dd></div>
@@ -1036,7 +1080,7 @@
                             <h4><i data-lucide="shield-alert"></i>影响确认</h4>
                             <p>${escapeHtml(statusLabel(pending.payload.expected_status))} → ${escapeHtml(statusLabel(pending.payload.status))}</p>
                             <p>原因：${escapeHtml(pending.payload.reason)}</p>
-                            <small>再次点击同一按钮才会发送一条 PATCH；修改任一输入都会使本次确认失效。</small>
+                            <small>再次点击同一按钮才会提交一次状态变更；修改任一输入都会使本次确认失效。</small>
                         </section>
                     ` : ''}
                     ${state.editor.message ? `<div class="admin-course-message admin-course-message--${escapeHtml(state.editor.messageType || 'warning')}" role="status" data-admin-course-status tabindex="-1">${escapeHtml(state.editor.message)}</div>` : ''}
@@ -1050,7 +1094,7 @@
                 <section class="admin-course-result admin-course-result--${escapeHtml(result.type || 'info')}" data-admin-course-result tabindex="-1">
                     <h4>${escapeHtml(result.title || '治理结果')}</h4>
                     <p>${result.messageHtml || escapeHtml(result.message || '')}</p>
-                    ${result.requestId ? `<code>Request ID: ${escapeHtml(result.requestId)}</code>` : ''}
+                    ${result.requestId ? `<code>对账编号：${escapeHtml(result.requestId)}</code>` : ''}
                     ${renderImpact(result.impact)}
                     ${renderAuditFact(result.audit)}
                 </section>
@@ -1074,7 +1118,7 @@
                         <h2><i data-lucide="book-open-check"></i>课程治理</h2>
                         <p>${reviewMode
                             ? '核对课程信息、共同教师与准入班级；课程信息审核不等同于课程内容审核。'
-                            : '固定转换矩阵、单次 CAS 与 Request ID 对账；不提供通用课程修改或删除。'}</p>
+                            : '预览课程状态变化和结构影响，二次确认后再执行；此处不修改课程内容。'}</p>
                     </div>
                     <button type="button" class="admin-icon-button admin-icon-button--compact" data-admin-course-refresh aria-label="刷新课程列表"${mutationBusy() ? ' disabled' : ''}>
                         <i data-lucide="refresh-cw"></i>
@@ -1289,7 +1333,7 @@
                 type: 'success',
                 title: payload.status === 'approved' ? '课程信息已批准' : '课程信息已驳回',
                 text: payload.status === 'approved'
-                    ? `课程 #${Number(review.course_id)} 已建立正式课程身份；首个内容版本仍需教师在课程编辑器中明确发布。`
+                    ? `${review.proposed_information.title || '该课程'}已建立正式课程身份；首个内容版本仍需教师在课程编辑器中明确发布。`
                     : review.current_information
                         ? '本次修改已驳回，原有课程信息继续运行。'
                         : '本次申请已驳回，课程保持草稿状态，教师可以修改后再次提交。',
@@ -1298,8 +1342,8 @@
             };
             clearReviewPending();
             notify('success', payload.status === 'approved'
-                ? `课程 #${Number(review.course_id)} 信息已批准。`
-                : `课程 #${Number(review.course_id)} 信息已驳回。`);
+                ? `${review.proposed_information.title || '课程'}信息已批准。`
+                : `${review.proposed_information.title || '课程'}信息已驳回。`);
             if (state.context && typeof state.context.onMutation === 'function') {
                 await state.context.onMutation({
                     courseInformationRevision: response,
@@ -1319,7 +1363,7 @@
                 state.reviewMessage = {
                     type: 'warning',
                     title: '离页时审核结果未知',
-                    text: 'PATCH 已发出但页面已离开；重新进入后请刷新队列核对，系统不会自动重发。'
+                    text: '审核决定已发出但页面已离开；重新进入后请刷新队列核对，系统不会自动提交。'
                 };
             }
             return false;
@@ -1386,7 +1430,7 @@
         if (!operation) return false;
         notifyWriteStateChange();
         if (Number(state.selectedId) === Number(course.id) && state.editor) {
-            state.editor.message = '正在提交一条课程状态 PATCH，并等待结构化回执。';
+            state.editor.message = '正在提交课程状态变更，并等待服务器回执。';
             state.editor.messageType = 'warning';
         }
         render();
@@ -1407,10 +1451,10 @@
                 const lock = mutationLock(course, payload, requestId, 'unknown');
                 state.results.set(Number(course.id), {
                     type: 'warning',
-                    title: transaction.response ? '2xx 回执结构不可信' : '写入结果未知',
+                    title: transaction.response ? '服务器回执无法确认' : '写入结果未知',
                     message: transaction.response
-                        ? '服务器返回 2xx，但课程 ID、学校 ID、目标状态或 impact 不满足冻结结构；写入已锁定并开始权威对账。'
-                        : '系统不会自动重发；正在按课程 ID 与精确 Request ID 回读。',
+                        ? '服务器返回成功状态，但课程身份、目标状态或影响统计无法与本次操作完全对应；写入已锁定并开始权威对账。'
+                        : '系统不会自动重发；正在按当前课程与本次对账编号回读。',
                     requestId
                 });
                 await reconcile(lock);
@@ -1428,8 +1472,8 @@
                     type: 'warning',
                     title: '课程已写入，精确审计未确认',
                     message: transaction.kind === 'audit-read-failed'
-                        ? '2xx 权威回执已确认写入，但精确审计读取失败；课程保持写锁，仅可只读对账。'
-                        : '2xx 权威回执已确认写入，但本次 Request ID 的精确成功审计缺失或不匹配；课程保持写锁，仅可只读对账。',
+                        ? '服务器权威回执已确认写入，但操作审计读取失败；课程保持写锁，仅可只读对账。'
+                        : '服务器权威回执已确认写入，但本次对账编号的成功审计缺失或不匹配；课程保持写锁，仅可只读对账。',
                     requestId
                 });
                 return false;
@@ -1442,7 +1486,7 @@
                 impact: result.impact,
                 audit: auditFact(transaction.audit)
             });
-            notify('success', `课程 #${Number(course.id)} 已更新；Request ID ${requestId}`);
+            notify('success', `${courseTitle(course)}已更新；对账编号 ${requestId}`);
             if (state.context && typeof state.context.onMutation === 'function') {
                 await state.context.onMutation({
                     course: result.course,
@@ -1548,12 +1592,12 @@
                 state.results.set(lock.courseId, {
                     type: 'success',
                     title: lock.writeConfirmed ? '课程状态与精确审计已确认' : '未知结果已权威确认',
-                    message: '课程目标状态与精确 Request ID 审计同时存在；没有重发 PATCH。',
+                    message: '课程目标状态与本次对账审计同时存在；系统没有重复发送状态变更。',
                     requestId: lock.requestId,
                     impact: lock.impact,
                     audit: auditFact(exactAuditEntry(auditPayload, lock))
                 });
-                notify('success', `课程 #${lock.courseId} 已由权威状态与精确审计确认生效。`);
+                notify('success', `${courseTitle(authority)}已由权威状态与精确审计确认生效。`);
                 if (state.context && typeof state.context.onMutation === 'function') {
                     await state.context.onMutation({ course: authority, requestId: lock.requestId, reconciled: true });
                 }
@@ -1840,8 +1884,8 @@
                     type: 'warning',
                     title: lock.writeConfirmed ? '离页时精确审计待确认' : '离页时写入结果未知',
                     message: lock.writeConfirmed
-                        ? '可信 2xx 已固化，精确审计尚未确认；写锁保留，重新进入后只读对账。'
-                        : 'PATCH 发出后页面已离开；写锁保留，重新进入后只做权威对账，不会自动重发。',
+                        ? '可信回执已经保留，操作审计尚未确认；写锁保留，重新进入后只读对账。'
+                        : '状态变更发出后页面已离开；写锁保留，重新进入后只做权威对账，不会自动提交。',
                     requestId: lock.requestId
                 });
             });

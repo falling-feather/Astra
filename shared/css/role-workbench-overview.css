@@ -452,7 +452,7 @@
 }
 
 .role-workbench-cockpit__clear {
-    min-height: 34px !important;
+    min-height: 44px !important;
     padding: 0 10px;
     color: rgba(204, 251, 241, 0.7);
     border: 1px solid rgba(94, 234, 212, 0.16) !important;
@@ -622,7 +622,7 @@
     align-items: center;
     justify-content: center;
     gap: 5px;
-    min-height: 36px !important;
+    min-height: 44px !important;
     padding: 0 10px;
     color: #99f6e4;
     border: 1px solid rgba(94, 234, 212, 0.2) !important;
@@ -648,7 +648,7 @@
     flex: 0 0 auto;
     align-items: center;
     gap: 6px;
-    min-height: 34px;
+    min-height: 44px;
     padding: 0 9px;
     color: rgba(220, 252, 247, 0.66);
     border: 1px solid rgba(134, 239, 222, 0.12) !important;
@@ -1052,6 +1052,62 @@
 
 .role-workbench-row > div {
     min-width: 0;
+}
+
+.role-workbench-row__headline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.role-workbench-row__headline h4 {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.role-workbench-row__status {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    color: #546178;
+    border: 1px solid rgba(84, 97, 120, 0.16);
+    border-radius: 999px;
+    background: rgba(84, 97, 120, 0.08);
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.role-workbench-row__status[data-tone="warning"] {
+    color: #8a4b06;
+    border-color: rgba(217, 119, 6, 0.2);
+    background: rgba(251, 191, 36, 0.13);
+}
+
+.role-workbench-row__status[data-tone="info"] {
+    color: #1d4ed8;
+    border-color: rgba(59, 130, 246, 0.18);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.role-workbench-row__status[data-tone="success"] {
+    color: #047857;
+    border-color: rgba(16, 185, 129, 0.18);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.role-workbench-row__status[data-tone="danger"] {
+    color: #b42318;
+    border-color: rgba(220, 38, 38, 0.18);
+    background: rgba(220, 38, 38, 0.09);
+}
+
+.role-workbench-row__status[data-tone="readonly"] {
+    color: #6b7280;
+    border-color: rgba(107, 114, 128, 0.18);
+    background: rgba(107, 114, 128, 0.09);
 }
 
 .role-workbench-row h4,

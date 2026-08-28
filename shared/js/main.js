@@ -219,10 +219,10 @@ function updateFooterVisibility() {
 window.updateFooterVisibility = updateFooterVisibility;
 
 const ENGLAB_ASSET_VERSION = '20260731v7969StudentUiP0';
-const ROLE_LANDING_ASSET_VERSION = '20260828v863CourseHealthMatrixP0';
+const ROLE_LANDING_ASSET_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
 const SESSION_STYLE_ASSET_VERSION = '20260824v816ExperimentRestoreP2';
-const SHELL_RUNTIME_ASSET_VERSION = '20260828v863CourseHealthMatrixP0';
-const PAGE_REGISTRY_ASSET_VERSION = '20260828v863CourseHealthMatrixP0';
+const SHELL_RUNTIME_ASSET_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
+const PAGE_REGISTRY_ASSET_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
 const BASE_STYLE_ASSET_VERSION = '20260719v758ReleaseAuditP0';
 const CORE_HTTP_FALLBACK_ASSETS = [
     './',

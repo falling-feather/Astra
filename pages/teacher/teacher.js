@@ -1,6 +1,6 @@
 (function () {
     'use strict';
-    const TEACHER_ASSET_VERSION = '20260828v863CourseHealthMatrixP0', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260828v863CourseHealthMatrixP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
+    const TEACHER_ASSET_VERSION = '20260828v864RoleWorkbenchHarmonyP0', TEACHER_COURSE_AUTHORING_ASSET_VERSION = '20260828v864RoleWorkbenchHarmonyP0', API_BASE_STORAGE_KEY = 'astra-teacher-api-base';
     const TEACHER_VIEWS = Object.freeze({ overview: '教学总览', curriculum: '课程节奏', grading: '批改与学情' }); const RELEASE_MODES = Object.freeze(['open', 'locked', 'hidden']);
     const RELEASE_MODE_LABELS = Object.freeze({ open: '开放', locked: '锁定', hidden: '隐藏' }); const GALAXY_LABELS = Object.freeze({ englab: '工科试验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' }); const RELEASE_REASON_LABELS = Object.freeze({ manual_locked: '教师锁定', scheduled: '等待开放时间', prerequisite_incomplete: '前置分块未完成' });
     const CODE_STATUS_LABELS = Object.freeze({
@@ -137,7 +137,7 @@
             renderPanels(); refreshIcons(); console.warn('[TeacherWorkbench] course authoring resource unavailable'); return false;
         }
     }
-    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'teacher', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.user && state.user.role === 'teacher', refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v863CourseHealthMatrixP0').then(invoke).catch(() => false); }
+    function roleWorkbench(command) { const invoke = () => window.AstraRoleWorkbenchBridge[command]({ role: 'teacher', root: state.root, getBaseUrl: () => state.apiBase, isActive: () => state.active && state.user && state.user.role === 'teacher', refreshIcons }); if (window.AstraRoleWorkbenchBridge) return Promise.resolve(invoke()); if (command !== 'refresh') return Promise.resolve(false); return import('../../shared/js/role-workbench-bridge.js?v=20260828v864RoleWorkbenchHarmonyP0').then(invoke).catch(() => false); }
     function bindRuntimeEvents() {
         if (state.runtimeBound) return;
         state.onOnline = () => {
@@ -934,7 +934,7 @@
             <div class="teacher-view teacher-view--curriculum">
                 <header class="teacher-view__header teacher-curriculum-hero">
                     <div>
-                        <span>COURSE ORCHESTRATION · ${escapeHtml(galaxy.code)}</span>
+                        <span>课程编排 · COURSE ORCHESTRATION · ${escapeHtml(galaxy.code)}</span>
                         <h2>课程节奏与学习轨道</h2>
                         <p>同一处编排三个星系的开放顺序、班级进度与代码提交；学生端只呈现服务端确认可见的分块。</p>
                     </div>
@@ -950,7 +950,7 @@
                     <div><span>星系</span><strong>${escapeHtml(galaxy.label)}</strong></div>
                     <i data-lucide="chevron-right"></i>
                     <div><span>课程</span><strong>${escapeHtml(course ? course.title : '尚未选择课程')}</strong></div>
-                    <div class="teacher-orbit-context__key"><code>${escapeHtml(course ? `${course.galaxy_key}/${course.course_key}` : '--')}</code></div>
+                    <div class="teacher-orbit-context__key"><code>${course && classGroup ? '课程与班级范围已同步' : '等待选择完整教学范围'}</code></div>
                 </section>
                 ${!state.selected.classId || !state.selected.courseId
                     ? renderCurriculumEmpty('先选择班级与课程', '顶部教学范围决定发布计划、进度矩阵和代码提交的授权范围。', 'scan-search')

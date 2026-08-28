@@ -5,7 +5,7 @@
 
     const VERSION = '20260825v841CourseAuthoringP0';
     const COURSE_MEMBERSHIP_VERSION = '20260825v843CourseEnrollmentP0';
-    const COURSE_CONTENT_VERSION = '20260828v863CourseHealthMatrixP0';
+    const COURSE_CONTENT_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
     const STEPS = Object.freeze([
         Object.freeze({ id: 1, label: '基本信息' }),
         Object.freeze({ id: 2, label: '共同教师' }),

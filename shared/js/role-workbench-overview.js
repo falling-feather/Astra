@@ -3,25 +3,28 @@
 
     if (global.AstraRoleWorkbenchOverview) return;
 
-    const VERSION = '20260828v863CourseHealthMatrixP0';
+    const VERSION = '20260828v864RoleWorkbenchHarmonyP0';
     const ROLES = new Set(['student', 'teacher', 'admin']);
     const ROLE_META = Object.freeze({
         student: Object.freeze({
-            eyebrow: 'LEARNER HOME',
+            eyebrow: '学生工作台 · LEARNER',
             title: '今天，从这一件事开始',
             description: '课程、作业、续学位置和教师反馈都来自当前账号的权威学习记录。',
+            syncLabel: '课程、任务与学习回执已从当前账号同步',
             icon: 'sparkles'
         }),
         teacher: Object.freeze({
-            eyebrow: 'TEACHING HOME',
+            eyebrow: '教师工作台 · TEACHING',
             title: '先处理最重要的教学事项',
             description: '授课课程、学生申请、共享草稿和待批改任务按当前学校权限统一汇总。',
+            syncLabel: '课程、成员与教学待办已从当前学校同步',
             icon: 'presentation'
         }),
         admin: Object.freeze({
-            eyebrow: 'GOVERNANCE HOME',
+            eyebrow: '管理员工作台 · GOVERNANCE',
             title: '先处理最需要关注的治理事项',
             description: '教师身份、课程信息和组织提醒按真实审核队列统一汇总。',
+            syncLabel: '审核、课程与组织状态已从管理范围同步',
             icon: 'shield-check'
         })
     });
@@ -42,6 +45,9 @@
     });
     const COURSE_STATUS_LABELS = Object.freeze({
         draft: '草稿', published: '已发布', archived: '已归档'
+    });
+    const ORGANIZATION_STATUS_LABELS = Object.freeze({
+        active: '启用中', inactive: '已停用', archived: '已归档'
     });
     const COURSE_HEALTH_STATES = Object.freeze([
         Object.freeze({ key: 'awaiting_first_release', label: '待首发' }),
@@ -269,7 +275,7 @@
                 ${sectionIssuesMarkup(payload.section_errors)}
                 ${role === 'student' ? studentMarkup(payload) : role === 'teacher' ? teacherMarkup(payload) : adminMarkup(payload, viewState)}
                 <footer class="role-workbench-overview__freshness">
-                    <span><i data-lucide="database-zap"></i>读取现有业务事实，没有建立第二套工作台状态</span>
+                    <span><i data-lucide="database-zap"></i>${escapeHtml(meta.syncLabel)}</span>
                     <time datetime="${escapeAttr(payload.generated_at || '')}">${escapeHtml(formatDate(payload.generated_at))}</time>
                 </footer>
             </section>`;
@@ -377,7 +383,7 @@
         ]));
         return `<section class="role-workbench-cockpit" aria-labelledby="admin-teaching-cockpit-title">
             <header class="role-workbench-cockpit__header">
-                <div><span><i data-lucide="orbit"></i>TEACHING OPERATIONS</span><h3 id="admin-teaching-cockpit-title">教学运行驾驶舱</h3><p>把课程、发布、学生学习和批改状态压缩为一个可讲解的权威快照。</p></div>
+                <div><span><i data-lucide="orbit"></i>教学运营 · TEACHING OPERATIONS</span><h3 id="admin-teaching-cockpit-title">教学运行驾驶舱</h3><p>把课程、发布、学生学习和批改状态压缩为一个可讲解的权威快照。</p></div>
                 <div class="role-workbench-cockpit__status"><i data-lucide="radio-tower"></i><span>当前教学网络</span><strong>${count(snapshot.published_courses)} 门课程运行中</strong></div>
             </header>
             <dl class="role-workbench-cockpit__signals">
@@ -500,8 +506,8 @@
         const feedback = item.feedback ? `<q>${escapeHtml(item.feedback)}</q>` : '';
         return `<article class="role-workbench-row" data-state="${escapeAttr(item.state)}">
             <span class="role-workbench-row__icon"><i data-lucide="${pending ? 'clipboard-pen-line' : item.state === 'returned' ? 'message-square-reply' : 'badge-check'}"></i></span>
-            <div><span>${escapeHtml(item.course_title)} · ${escapeHtml(item.unit_title)}</span><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(dueLabel(item.due_at))}${item.score != null ? ` · ${escapeHtml(String(item.score))} 分` : ''}</p>${feedback}</div>
-            ${actionButton({ kind: pending ? 'continue_assignment' : 'open_feedback', section: 'assignments', course_id: item.course_id, course_unit_id: item.course_unit_id, assignment_id: item.assignment_id }, pending ? '去完成' : '看回执', '', 'chevron-right')}
+            <div><span>${escapeHtml(item.course_title)} · ${escapeHtml(item.unit_title)}</span><div class="role-workbench-row__headline"><h4>${escapeHtml(item.title)}</h4>${statusBadge(ASSIGNMENT_STATES[item.state] || '状态待确认', assignmentTone(item.state))}</div><p>${escapeHtml(dueLabel(item.due_at))}${item.score != null ? ` · ${escapeHtml(String(item.score))} 分` : ''}</p>${feedback}</div>
+            ${actionButton({ kind: pending ? 'continue_assignment' : 'open_feedback', section: 'assignments', course_id: item.course_id, course_unit_id: item.course_unit_id, assignment_id: item.assignment_id }, pending ? '完成作业' : '查看反馈', '', 'chevron-right')}
         </article>`;
     }
 
@@ -524,52 +530,64 @@
         return `<article class="role-workbench-card role-workbench-card--course">
             <div class="role-workbench-card__top"><span>${escapeHtml(galaxyLabel(item.galaxy_key))} · ${escapeHtml(subjectLabel(item.subject_key))}</span><b>${escapeHtml(COURSE_STATUS_LABELS[item.status] || item.status || '状态未知')}</b></div>
             <h4>${escapeHtml(item.title)}</h4><p>${item.current_release_number ? `学生当前读取第 ${count(item.current_release_number)} 版` : '还没有正式发布内容'}</p>
-            <footer><small>${count(item.active_student_count)} 名学生 · ${count(item.pending_student_count)} 人待审${item.has_unpublished_changes ? ' · 有未发布修改' : ''}</small>${actionButton({ kind: 'open_teaching_course', section: 'courses', course_id: item.course_id }, '管理', '', 'arrow-right')}</footer>
+            <footer><small>${count(item.active_student_count)} 名学生 · ${count(item.pending_student_count)} 人待审${item.has_unpublished_changes ? ' · 有未发布修改' : ''}</small>${actionButton({ kind: 'open_teaching_course', section: 'courses', course_id: item.course_id }, '管理课程', '', 'arrow-right')}</footer>
         </article>`;
     }
 
     function teacherStudentRequestMarkup(item) {
         return compactQueueItem('user-round-plus', item.student_display_name, `${item.course_title} · ${item.source_class_name}`, formatDate(item.requested_at), {
             kind: 'review_course_join_request', section: 'pending_students', course_id: item.course_id, request_id: item.request_id
-        }, '审批');
+        }, '审批申请', '待审批', 'warning');
     }
 
     function teacherDraftMarkup(item) {
-        return compactQueueItem('file-pen-line', item.course_title, `共享草稿 revision ${count(item.content_draft_revision)}`, item.current_release_number ? `当前第 ${count(item.current_release_number)} 版` : '尚未首发', {
+        return compactQueueItem('file-pen-line', item.course_title, `共享草稿第 ${count(item.content_draft_revision)} 代`, item.current_release_number ? `学生当前读取第 ${count(item.current_release_number)} 版` : '尚未首次发布', {
             kind: 'continue_course_draft', section: 'unpublished_drafts', course_id: item.course_id
-        }, '继续备课');
+        }, '继续备课', '待发布', 'info');
     }
 
     function teacherGradingMarkup(item) {
         return compactQueueItem('clipboard-check', item.assignment_title, `${item.student_display_name} · ${item.course_title}`, formatDate(item.submitted_at), {
             kind: 'grade_submission', section: 'pending_grading', course_id: item.course_id, course_unit_id: item.course_unit_id,
             assignment_id: item.assignment_id, class_id: item.class_id, submission_id: item.submission_id
-        }, '批改');
+        }, '批改作业', '待批改', 'warning');
     }
 
     function adminTeacherApplicationMarkup(item) {
         return compactQueueItem('badge-check', item.display_name, `账号 ${item.username}`, item.message || formatDate(item.submitted_at), {
             kind: 'review_teacher_application', section: 'pending_teacher_applications', request_id: item.application_id
-        }, '审核');
+        }, '审核申请', '待审核', 'warning');
     }
 
     function adminCourseRevisionMarkup(item) {
         return compactQueueItem('book-open-check', item.course_title, `信息修订第 ${count(item.revision_number)} 版`, formatDate(item.submitted_at), {
             kind: 'review_course_information', section: 'pending_course_revisions', course_id: item.course_id, revision_id: item.revision_id
-        }, '审核');
+        }, '审核课程', '待审核', 'warning');
     }
 
     function adminOrganizationAlertMarkup(item) {
-        return compactQueueItem(item.kind === 'school' ? 'landmark' : 'school', item.name, item.kind === 'school' ? '学校状态提醒' : '行政班状态提醒', item.status || '状态未知', {
+        const label = ORGANIZATION_STATUS_LABELS[item.status] || '状态待确认';
+        return compactQueueItem(item.kind === 'school' ? 'landmark' : 'school', item.name, item.kind === 'school' ? '学校状态提醒' : '行政班状态提醒', '需要管理员确认当前组织状态', {
             kind: 'review_organization_alert', section: 'organization_alerts', resource_id: item.resource_id
-        }, '查看');
+        }, '查看组织', label, item.status === 'archived' ? 'readonly' : 'neutral');
     }
 
-    function compactQueueItem(icon, title, meta, detail, action, label) {
+    function compactQueueItem(icon, title, meta, detail, action, label, status, tone) {
         return `<article class="role-workbench-row role-workbench-row--compact">
-            <span class="role-workbench-row__icon"><i data-lucide="${escapeAttr(icon)}"></i></span><div><h4>${escapeHtml(title)}</h4><p>${escapeHtml(meta)}</p><small>${escapeHtml(detail)}</small></div>
+            <span class="role-workbench-row__icon"><i data-lucide="${escapeAttr(icon)}"></i></span><div><div class="role-workbench-row__headline"><h4>${escapeHtml(title)}</h4>${statusBadge(status, tone)}</div><p>${escapeHtml(meta)}</p><small>${escapeHtml(detail)}</small></div>
             ${actionButton(action, label, '', 'chevron-right')}
         </article>`;
+    }
+
+    function statusBadge(label, tone) {
+        return `<span class="role-workbench-row__status" data-tone="${escapeAttr(tone || 'neutral')}">${escapeHtml(label || '状态待确认')}</span>`;
+    }
+
+    function assignmentTone(state) {
+        if (state === 'graded') return 'success';
+        if (state === 'returned') return 'danger';
+        if (state === 'submitted') return 'info';
+        return 'warning';
     }
 
     function secondaryAction(kind, label, icon) {
@@ -637,7 +655,7 @@
     function loadingMarkup(role) {
         const meta = ROLE_META[role];
         return `<section class="role-workbench-overview role-workbench-overview--${escapeAttr(role)} is-loading" data-role="${escapeAttr(role)}" aria-busy="true">
-            <header class="role-workbench-overview__loading-head"><span><i data-lucide="loader-circle"></i>${escapeHtml(meta.eyebrow)}</span><strong>正在整理你的首要事项</strong><p>只读取一次角色工作台聚合，不会改变课程、审核或学习数据。</p></header>
+            <header class="role-workbench-overview__loading-head"><span><i data-lucide="loader-circle"></i>${escapeHtml(meta.eyebrow)}</span><strong>正在整理你的首要事项</strong><p>正在同步当前账号可查看的课程与待办，不会改动任何内容。</p></header>
             <div class="role-workbench-overview__skeleton" aria-hidden="true">${Array.from({ length: 4 }, () => '<span></span>').join('')}</div>
         </section>`;
     }
@@ -647,7 +665,7 @@
             ? global.AstraApiClient.message(error)
             : error && error.message || '工作台读取失败，请稍后重试。';
         return `<section class="role-workbench-overview role-workbench-overview--${escapeAttr(role)} is-error" data-role="${escapeAttr(role)}" role="alert">
-            <div class="role-workbench-overview__error"><span><i data-lucide="cloud-off"></i></span><div><strong>首屏摘要没有完成读取</strong><p>${escapeHtml(message)}</p><small>详情中的既有数据和写入状态没有被概览层改动。</small></div>
+            <div class="role-workbench-overview__error"><span><i data-lucide="cloud-off"></i></span><div><strong>首屏摘要没有完成读取</strong><p>${escapeHtml(message)}</p><small>课程、审核与学习记录没有发生变化。</small></div>
             <button type="button" data-role-workbench-action="retry"><i data-lucide="refresh-cw"></i><span>重试读取</span></button></div>
         </section>`;
     }

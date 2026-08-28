@@ -4,13 +4,13 @@
 
     if (global.AstraPageRegistry) return;
 
-    const ROLE_RESOURCE_VERSION = '20260828v863CourseHealthMatrixP0';
-    const TEACHER_RESOURCE_VERSION = '20260828v863CourseHealthMatrixP0';
+    const ROLE_RESOURCE_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
+    const TEACHER_RESOURCE_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
     const FUTURE_RESOURCE_VERSION = '20260824v816ExperimentRestoreP2';
-    const ADMIN_RESOURCE_VERSION = '20260828v863CourseHealthMatrixP0';
-    const PLANETS_RESOURCE_VERSION = '20260828v863CourseHealthMatrixP0';
+    const ADMIN_RESOURCE_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
+    const PLANETS_RESOURCE_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
     const ABOUT_RESOURCE_VERSION = '20260719re2OfflineP0';
-    const ROLE_WORKBENCH_OVERVIEW_VERSION = '20260828v863CourseHealthMatrixP0';
+    const ROLE_WORKBENCH_OVERVIEW_VERSION = '20260828v864RoleWorkbenchHarmonyP0';
 
     const definePage = (config) => Object.freeze({
         galaxy: config.galaxy || 'englab',
