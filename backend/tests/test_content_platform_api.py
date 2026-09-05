@@ -16,6 +16,7 @@ from app.models import (
     CourseRelease,
     CourseReleaseUnit,
     CourseUnit,
+    CourseUnitClassPlan,
     LearningActivityProjection,
     LearningCompletionRule,
     LearningEvidenceEvent,
@@ -1187,6 +1188,32 @@ def test_workbench_completion_excludes_other_class_projections(client):
         ))
         db.commit()
     _assert_workbench_completion(client, scope, completed=1, percent=100)
+
+
+def test_workbench_completion_excludes_units_removed_from_the_latest_release(client):
+    scope = _completed_workbench_course(client, "metrics_units")
+    saved = _replace_draft(
+        client, scope["owner"]["token"], scope["course_id"],
+        scope["publication"]["next_draft_revision"],
+        _unit_payload(_content("改用新的学习单元。"), activity_key="physics.mechanics"),
+    )
+    assert saved.status_code == 200, saved.json()
+    with get_session_factory(get_settings().database_url)() as db:
+        plans = list(db.scalars(select(CourseUnitClassPlan)).all())
+        assert len(plans) == 2
+        assert len({plan.position for plan in plans}) == 2
+        assert all(plan.position > 0 for plan in plans)
+        old_plan = next(plan for plan in plans if plan.course_unit_id == scope["unit_id"])
+        assert old_plan.position == 1
+        assert old_plan.release_mode == "open"
+    _assert_workbench_completion(client, scope, completed=1, percent=100)
+    published = client.post(
+        f"/api/v1/courses/{scope['course_id']}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": saved.json()["revision"]},
+    )
+    assert published.status_code == 201, published.json()
+    _assert_workbench_completion(client, scope, completed=0, percent=0)
 
 
 def test_workbench_completion_counts_transferred_in_both_role_views(client):

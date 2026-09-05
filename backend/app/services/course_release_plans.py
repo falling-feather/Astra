@@ -75,18 +75,31 @@ def ensure_default_plans_for_course_unit(db: Session, unit: CourseUnit) -> None:
         ).all()
     )
     for course_class in course_classes:
-        existing = db.scalar(
-            select(CourseUnitClassPlan.id).where(
-                CourseUnitClassPlan.course_class_id == course_class.id,
-                CourseUnitClassPlan.course_unit_id == unit.id,
-            )
+        existing = list(db.execute(
+            select(CourseUnitClassPlan.course_unit_id, CourseUnitClassPlan.position)
+            .where(CourseUnitClassPlan.course_class_id == course_class.id)
+        ).all())
+        # A caller may create several units before flushing. Include its pending
+        # plans when reserving slots without changing the transaction boundary.
+        existing.extend(
+            (plan.course_unit_id, plan.position)
+            for plan in db.new
+            if isinstance(plan, CourseUnitClassPlan)
+            and plan.course_class_id == course_class.id
         )
-        if existing is None:
+        if not any(unit_id == unit.id for unit_id, _ in existing):
+            occupied_positions = {position for _, position in existing}
+            # Course draft order and class plan order are independent. Removed
+            # units retain historical plans; do not overwrite their policy or
+            # reuse their unique position when a new draft unit replaces them.
+            position = unit.position
+            if position <= 0 or position in occupied_positions:
+                position = max(occupied_positions, default=0) + 1
             db.add(
                 CourseUnitClassPlan(
                     course_class_id=course_class.id,
                     course_unit_id=unit.id,
-                    position=unit.position,
+                    position=position,
                     release_mode="open",
                 )
             )
