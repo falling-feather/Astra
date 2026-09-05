@@ -23,7 +23,6 @@ from app.models import (
     CourseReleaseUnit,
     CourseUnit,
     CourseUnitClassPlan,
-    LearningActivityProjection,
     LearningResumeProjection,
     School,
     SchoolMembership,
@@ -32,6 +31,7 @@ from app.models import (
     User,
 )
 from app.models.base import utc_now
+from app.services.course_learning_metrics import current_completed_units
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +230,7 @@ def _build_admin_workbench(
 
 
 def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> dict:
+    completions = current_completed_units()
     release_id = (
         select(CourseRelease.id)
         .where(CourseRelease.course_id == Course.id)
@@ -249,11 +250,11 @@ def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> d
         .scalar_subquery()
     )
     completed_count = (
-        select(func.count(func.distinct(LearningActivityProjection.course_unit_id)))
+        select(func.count())
+        .select_from(completions)
         .where(
-            LearningActivityProjection.subject_user_id == student_id,
-            LearningActivityProjection.course_id == Course.id,
-            LearningActivityProjection.status.in_(["completed", "transferred"]),
+            completions.c.student_id == student_id,
+            completions.c.course_id == Course.id,
         )
         .correlate(Course)
         .scalar_subquery()
@@ -909,6 +910,7 @@ def _course_health(
 def _admin_teaching_snapshot(db: Session) -> dict[str, Any]:
     """Read existing teaching facts for the admin showcase; no new state is stored."""
 
+    completions = current_completed_units()
     published_courses = int(
         db.scalar(select(func.count(Course.id)).where(Course.status == "published"))
         or 0
@@ -927,11 +929,7 @@ def _admin_teaching_snapshot(db: Session) -> dict[str, Any]:
     immutable_releases = int(db.scalar(select(func.count(CourseRelease.id))) or 0)
     released_units = int(db.scalar(select(func.count(CourseReleaseUnit.id))) or 0)
     completed_activities = int(
-        db.scalar(
-            select(func.count(LearningActivityProjection.id)).where(
-                LearningActivityProjection.status == "completed"
-            )
-        )
+        db.scalar(select(func.count()).select_from(completions))
         or 0
     )
     pending_grading = int(
@@ -1024,10 +1022,8 @@ def _admin_teaching_snapshot(db: Session) -> dict[str, Any]:
         )
         completed_count = int(
             db.scalar(
-                select(func.count(LearningActivityProjection.id)).where(
-                    LearningActivityProjection.course_id == course.id,
-                    LearningActivityProjection.status == "completed",
-                )
+                select(func.count()).select_from(completions)
+                .where(completions.c.course_id == course.id)
             )
             or 0
         )

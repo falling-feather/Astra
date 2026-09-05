@@ -8,6 +8,7 @@ from app.api.endpoints import submissions as submission_endpoints
 from app.models import (
     Assignment,
     CheckpointAttempt,
+    ClassGroup,
     ContentDraft,
     ContentPageVersion,
     Course,
@@ -1076,3 +1077,124 @@ def test_publication_without_completion_config_rolls_back_all_new_facts(client):
         unit = db.get(CourseUnit, unit_id)
         assert unit is not None
         assert unit.status == "draft"
+
+
+def _completed_workbench_course(client, suffix: str) -> dict:
+    scope = _approved_course_scope(client, suffix)
+    saved = _replace_draft(
+        client, scope["owner"]["token"], scope["course_id"], 0,
+        _unit_payload(_content("工作台统计的真实课程样例。")),
+    )
+    assert saved.status_code == 200, saved.json()
+    scope["unit_id"] = saved.json()["units"][0]["id"]
+    scope["enrollment"] = _enroll_student(
+        client, student=scope["student"], teacher=scope["owner"],
+        course_id=scope["course_id"],
+    )
+    published = client.post(
+        f"/api/v1/courses/{scope['course_id']}/releases",
+        headers=_auth(scope["owner"]["token"]),
+        json={"expected_revision": saved.json()["revision"]},
+    )
+    assert published.status_code == 201, published.json()
+    scope["publication"] = published.json()
+    attempted = client.post(
+        f"/api/v1/courses/{scope['course_id']}/units/{scope['unit_id']}/"
+        "checkpoints/energy-conservation-check/attempts",
+        headers=_auth(scope["student"]["token"]),
+        json={
+            "client_attempt_id": f"metrics-{suffix}",
+            "course_release_id": published.json()["release"]["id"],
+            "selected_choice_ids": ["mechanical"],
+        },
+    )
+    assert attempted.status_code == 201, attempted.json()
+    assert attempted.json()["completed"] is True
+    return scope
+
+
+def _assert_workbench_completion(client, scope: dict, *, completed: int, percent: int):
+    admin = client.get("/api/v1/workbench", headers=_auth(scope["admin"]["token"]))
+    assert admin.status_code == 200, admin.json()
+    snapshot = admin.json()["teaching_snapshot"]
+    pulse = next(row for row in snapshot["course_pulse"] if row["course_id"] == scope["course_id"])
+    assert pulse["completed_activity_count"] == completed
+    assert pulse["progress_percent"] == percent
+    assert snapshot["completed_activities"] == completed
+    student = client.get("/api/v1/workbench", headers=_auth(scope["student"]["token"]))
+    assert student.status_code == 200, student.json()
+    course = next((row for row in student.json()["courses"]["items"] if row["course_id"] == scope["course_id"]), None)
+    if course is not None:
+        assert course["completed_unit_count"] == completed
+
+
+def test_workbench_completion_excludes_departed_students_without_erasing_history(client):
+    scope = _completed_workbench_course(client, "metrics_leave")
+    _enroll_student(
+        client, student=scope["outsider_student"], teacher=scope["owner"],
+        course_id=scope["course_id"],
+    )
+    _assert_workbench_completion(client, scope, completed=1, percent=50)
+    left = client.patch(
+        f"/api/v1/courses/{scope['course_id']}/enrollments/{scope['enrollment']['id']}",
+        headers=_auth(scope["student"]["token"]),
+        json={"status": "left"},
+    )
+    assert left.status_code == 200, left.json()
+    _assert_workbench_completion(client, scope, completed=0, percent=0)
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(select(func.count(LearningActivityProjection.id))) == 1
+
+
+def test_workbench_completion_uses_current_release_rule_and_retains_same_rule_credit(client):
+    scope = _completed_workbench_course(client, "metrics_rule")
+    _assert_workbench_completion(client, scope, completed=1, percent=100)
+    for change_rule, expected in [(False, 1), (True, 0)]:
+        content = _content(f"正文调整，规则变化：{change_rule}")
+        if change_rule:
+            content["courseUnit"]["completion"]["checkpointKey"] = "new-check"
+            content["blocks"][-1]["checkpointKey"] = "new-check"
+        saved = _replace_draft(
+            client, scope["owner"]["token"], scope["course_id"],
+            scope["publication"]["next_draft_revision"],
+            _unit_payload(content, scope["unit_id"]),
+        )
+        assert saved.status_code == 200, saved.json()
+        # Unpublished edits do not change the release the student is following.
+        _assert_workbench_completion(client, scope, completed=1, percent=100)
+        published = client.post(
+            f"/api/v1/courses/{scope['course_id']}/releases",
+            headers=_auth(scope["owner"]["token"]),
+            json={"expected_revision": saved.json()["revision"]},
+        )
+        assert published.status_code == 201, published.json()
+        scope["publication"] = published.json()
+        _assert_workbench_completion(client, scope, completed=expected, percent=expected * 100)
+
+
+def test_workbench_completion_excludes_other_class_projections(client):
+    scope = _completed_workbench_course(client, "metrics_scope")
+    with get_session_factory(get_settings().database_url)() as db:
+        current = db.scalar(select(LearningActivityProjection))
+        other = ClassGroup(school_id=scope["school_id"], name="Other homeroom", kind="homeroom", status="active")
+        db.add(other)
+        db.flush()
+        db.add(LearningActivityProjection(
+            subject_user_id=current.subject_user_id, school_id=current.school_id,
+            class_id=other.id, course_id=current.course_id,
+            course_unit_id=current.course_unit_id, activity_key=current.activity_key,
+            rule_id=current.rule_id, rule_version=current.rule_version, status="completed",
+        ))
+        db.commit()
+    _assert_workbench_completion(client, scope, completed=1, percent=100)
+
+
+def test_workbench_completion_counts_transferred_in_both_role_views(client):
+    scope = _completed_workbench_course(client, "metrics_transferred")
+    with get_session_factory(get_settings().database_url)() as db:
+        current = db.scalar(select(LearningActivityProjection).where(
+            LearningActivityProjection.class_id == scope["internal_class_id"],
+        ))
+        current.status = "transferred"
+        db.commit()
+    _assert_workbench_completion(client, scope, completed=1, percent=100)
