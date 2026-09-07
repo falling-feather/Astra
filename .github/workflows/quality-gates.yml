@@ -68,7 +68,7 @@ jobs:
 
   frontend-contracts:
     name: Frontend · syntax and contracts
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -80,6 +80,17 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Run JavaScript syntax and frontend contracts
         run: npm test
+
+  portal-build:
+    name: Portal · Linux standalone builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: qianduan/package-lock.json
       - name: Install formal frontend dependencies
         run: npm --prefix qianduan ci --ignore-scripts
       - name: Check frontend behavior and build the API client
