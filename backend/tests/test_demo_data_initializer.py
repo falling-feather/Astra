@@ -576,6 +576,27 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
     assert second["course_status"]["status_patch_audits"] == third["course_status"]["status_patch_audits"]
 
 
+@pytest.mark.parametrize("database_url", [
+    "sqlite+pysqlite:////tmp/astra-demo.sqlite3",
+    "sqlite+pysqlite:///C:/Astra/astra-demo.sqlite3",
+    "sqlite+pysqlite:///:memory:",
+])
+def test_initializer_accepts_local_sqlite_paths(local_demo_environment, monkeypatch, database_url):
+    monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
+    initializer_module._validate_local_environment()
+
+
+@pytest.mark.parametrize("database_url", [
+    "sqlite+pysqlite://///server/share/astra.sqlite3",
+    r"sqlite+pysqlite:///\\server\share\astra.sqlite3",
+    "sqlite+pysqlite://server/share/astra.sqlite3",
+])
+def test_initializer_rejects_network_sqlite_paths(local_demo_environment, monkeypatch, database_url):
+    monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
+    with pytest.raises(DemoInitializationError, match="UNC"):
+        initializer_module._validate_local_environment()
+
+
 def test_initializer_rejects_mysql_and_non_local_origin(monkeypatch):
     monkeypatch.setenv("ASTRA_ENVIRONMENT", "development")
     monkeypatch.setenv("ASTRA_ADMIN_BOOTSTRAP_ENABLED", "true")
@@ -594,7 +615,7 @@ def test_initializer_rejects_mysql_and_non_local_origin(monkeypatch):
         asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
 
     monkeypatch.setenv("ASTRA_CORS_ORIGINS", "http://127.0.0.1:9001")
-    monkeypatch.setenv("ASTRA_DATABASE_URL", "sqlite+pysqlite:////server/share/astra.sqlite3")
+    monkeypatch.setenv("ASTRA_DATABASE_URL", "sqlite+pysqlite://///server/share/astra.sqlite3")
     with pytest.raises(DemoInitializationError, match="UNC"):
         asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
 

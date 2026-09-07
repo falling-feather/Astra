@@ -255,7 +255,9 @@ def _validate_local_environment() -> None:
     if len(origins) != 1 or not re.fullmatch(r"http://127\.0\.0\.1:[0-9]{1,5}", origins[0], re.IGNORECASE):
         raise DemoInitializationError("demo initialization requires a 127.0.0.1 local-preview origin")
     parsed = urlsplit(database_url)
-    sqlite_path = parsed.path.replace("\\", "/")
+    # The first slash separates the SQLAlchemy URL from its database name.
+    # Four URL slashes encode a POSIX absolute path; five encode a UNC path.
+    sqlite_path = parsed.path.removeprefix("/").replace("\\", "/")
     if parsed.netloc or sqlite_path.startswith("//"):
         raise DemoInitializationError("demo initialization rejects UNC or remote data directories")
 

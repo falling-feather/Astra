@@ -549,7 +549,9 @@ function assertNoRuntimeSideEffects(invocations, message) {
 }
 
 function normalized(value) {
-  return path.resolve(value).toLowerCase();
+  // Windows runner TEMP can use an 8.3 alias while .NET reports the long path.
+  // Compare the existing executable's canonical path, not its input spelling.
+  return fs.realpathSync.native(value).toLowerCase();
 }
 
 try {
