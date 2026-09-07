@@ -80,6 +80,19 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Run JavaScript syntax and frontend contracts
         run: npm test
+      - name: Install formal frontend dependencies
+        run: npm --prefix qianduan ci --ignore-scripts
+      - name: Check frontend behavior and build the API client
+        run: |
+          npm --prefix qianduan test
+          npm --prefix qianduan run build
+          npm --prefix qianduan run verify:package
+      - name: Build the separated GitHub Pages demo
+        env:
+          VITE_BASE_PATH: /Astra/
+        run: |
+          npm --prefix qianduan run build:demo
+          npm --prefix qianduan run verify:demo
 
   cpp-static-server:
     name: C++ · release build
