@@ -21,6 +21,7 @@
 ## 架构与实现
 
 - 保持 FastAPI 为业务权威入口；Node/C++ 静态服务不承担教学业务。
+- 正式门户在 `qianduan/`，使用 TypeScript/Vite/Three.js；真实 API 与静态演示适配分开。原三个学习空间的权威注册表和求解/渲染代码保留，构建时打包至 `labs/`；不在旧角色页面继续建立第二套正式门户。
 - 区分实验资源、课程内学习单元、课程成员、不可变发布、操作事实与完成评价；不要把同名字段当成同一对象。
 - 优先按业务职责拆分模块。前端视图、请求与状态派生，实验求解与渲染，后端 HTTP 适配、用例服务与查询应有明确边界。
 - 已有框架和模块可以重构；先用一个完整业务切片证明收益，再决定推广。不因模型更换批量换技术栈。
@@ -33,7 +34,7 @@
 
 ## 工作方式
 
-- 2026-09-05 收尾后以根工作区的 `main` 作为统一开发基线。默认单线推进；独立开发分支按任务建立，用户明确要求并行时再组织代理或工作树。
+- 根工作区的 `main` 是完整源码基线，`qianduan` 分支只保存 GitHub Pages 静态演示制品，发布使用 `qianduan/scripts/publish-demo.mjs`，不在制品分支手工改业务代码。默认单线推进；独立开发分支按任务建立，用户明确要求并行时再组织代理或工作树。
 - 先登记任务，再修改对应代码与文档。设计建议、已实现行为和历史证据分开写。
 - 用户已有修改与当前数据需要保留。清理前核对用途、Git 可达性和实际路径，不删除尚有价值的未合入成果。
 - 不把旧失败现场、stash 内容和历史候选自动应用到当前工作区。
@@ -48,6 +49,9 @@
 powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
 npm ci --ignore-scripts
 npm test
+npm --prefix qianduan test
+npm --prefix qianduan run build
+npm --prefix qianduan run verify:package
 .\.venv\Scripts\python.exe -m pytest backend
 git diff --check
 ```
