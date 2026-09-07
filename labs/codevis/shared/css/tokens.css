@@ -1,0 +1,59 @@
+/* ============================================================
+ * Codevis · 赛博蓝设计令牌
+ * 主色：深太空蓝 #0a1929 + 震荡青 #00d4ff
+ * ============================================================ */
+
+:root {
+    /* ─── 背景色阶 ─── */
+    --cv-bg-0: #050b14;          /* 最深，body 背景 */
+    --cv-bg-1: #0a1929;          /* 标准深太空蓝 */
+    --cv-bg-2: #102a43;          /* 卡片/面板 */
+    --cv-bg-3: #1a3a5c;          /* 边框/分割线 */
+    --cv-bg-glass: rgba(10, 25, 41, 0.65); /* 玻璃面板 */
+
+    /* ─── 主色调（震荡青） ─── */
+    --cv-cyan: #00d4ff;
+    --cv-cyan-soft: #38e3ff;
+    --cv-cyan-dim: rgba(0, 212, 255, 0.45);
+    --cv-cyan-ghost: rgba(0, 212, 255, 0.12);
+    --cv-cyan-glow: 0 0 18px rgba(0, 212, 255, 0.55);
+
+    /* ─── 辅色 ─── */
+    --cv-accent-mint: #5eead4;   /* 成功、变量值 */
+    --cv-accent-amber: #fbbf24;  /* 警告、修改标记 */
+    --cv-accent-rose: #f472b6;   /* 错误、对比 */
+    --cv-accent-violet: #a78bfa; /* 第二语言标识 */
+
+    /* ─── 文本 ─── */
+    --cv-text-primary: #e6f4ff;
+    --cv-text-secondary: rgba(230, 244, 255, 0.80);
+    --cv-text-muted: rgba(230, 244, 255, 0.62);
+    --cv-text-code: #c9f7ff;
+
+    /* ─── 边框 ─── */
+    --cv-border: rgba(0, 212, 255, 0.22);
+    --cv-border-strong: rgba(0, 212, 255, 0.45);
+    --cv-border-soft: rgba(120, 180, 220, 0.16);
+
+    /* ─── 字体 ─── */
+    --cv-font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    --cv-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Source Code Pro', monospace;
+
+    /* ─── 节奏 ─── */
+    --cv-radius-sm: 2px;
+    --cv-radius-md: 2px;
+    --cv-radius-lg: 2px;
+    --cv-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --cv-shadow-glow: 0 4px 24px rgba(0, 212, 255, 0.18);
+
+    /* ─── 过渡 ─── */
+    --cv-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --cv-dur-fast: 180ms;
+    --cv-dur-med: 360ms;
+    --cv-dur-slow: 720ms;
+
+    /* ─── 渐变 ─── */
+    --cv-grad-hero: radial-gradient(120% 80% at 20% 0%, rgba(0, 212, 255, 0.18) 0%, transparent 55%),
+                    radial-gradient(80% 60% at 90% 100%, rgba(167, 139, 250, 0.14) 0%, transparent 60%);
+    --cv-grad-button: linear-gradient(135deg, #00d4ff 0%, #00a8ff 100%);
+}

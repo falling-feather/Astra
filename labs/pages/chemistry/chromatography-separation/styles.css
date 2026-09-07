@@ -1,0 +1,521 @@
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation {
+    --cs-cyan: #55e8ff;
+    --cs-gold: #ffcb63;
+    --cs-magenta: #ff6ec7;
+    --cs-mint: #7ee0db;
+    --cs-panel: rgba(6, 17, 22, 0.97);
+    --cs-line: rgba(126, 224, 219, 0.18);
+    display: grid;
+    gap: 18px;
+    width: min(100%, 1320px);
+    margin: 0 auto;
+    padding: clamp(16px, 2.6vw, 30px);
+    color: var(--text-primary, #d8dce6);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__header {
+    display: flex;
+    gap: 18px;
+    align-items: end;
+    justify-content: space-between;
+    padding: 0 2px 12px;
+    border-bottom: 1px solid var(--cs-line);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__header h2,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__header p {
+    margin: 0;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__header h2 {
+    margin-top: 4px;
+    color: #edfffc;
+    font-size: clamp(1.35rem, 2.4vw, 2.15rem);
+    line-height: 1.16;
+    letter-spacing: -0.02em;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__eyebrow {
+    color: var(--cs-mint);
+    font: 600 var(--text-sm, 0.875rem)/1.2 var(--font-mono, monospace);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__subtitle {
+    margin-top: 8px !important;
+    color: rgba(210, 240, 237, 0.64);
+    font-size: var(--text-sm, 0.875rem);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__state {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 6px 11px;
+    border: 1px solid rgba(126, 224, 219, 0.42);
+    border-radius: 999px;
+    color: var(--cs-mint);
+    background: rgba(126, 224, 219, 0.1);
+    font: 600 var(--text-sm, 0.875rem)/18px var(--font-mono, monospace);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(290px, 345px);
+    gap: 16px;
+    align-items: stretch;
+    min-width: 0;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage {
+    position: relative;
+    min-width: 0;
+    height: clamp(460px, 64vh, 690px);
+    overflow: hidden;
+    border: 1px solid rgba(126, 224, 219, 0.22);
+    border-radius: 18px;
+    background: #03090f;
+    box-shadow:
+        inset 0 0 0 1px rgba(126, 224, 219, 0.035),
+        0 20px 56px rgba(0, 0, 0, 0.32);
+    isolation: isolate;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage::before,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage::after {
+    position: absolute;
+    z-index: 1;
+    border-radius: 50%;
+    content: '';
+    pointer-events: none;
+    filter: blur(34px);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage::before {
+    top: -110px;
+    left: -75px;
+    width: 270px;
+    height: 270px;
+    background: rgba(85, 232, 255, 0.07);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage::after {
+    right: -95px;
+    bottom: -125px;
+    width: 310px;
+    height: 310px;
+    background: rgba(255, 110, 199, 0.07);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__canvas {
+    position: relative;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__canvas:active {
+    cursor: ew-resize;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__telemetry {
+    position: absolute;
+    inset: 14px auto auto 14px;
+    z-index: 3;
+    display: grid;
+    gap: 3px;
+    max-width: calc(100% - 28px);
+    padding: 9px 12px 10px;
+    border-left: 2px solid var(--cs-mint);
+    border-radius: 0 8px 8px 0;
+    color: #effffc;
+    background: rgba(3, 13, 19, 0.8);
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(10px);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__telemetry > span {
+    color: rgba(164, 222, 217, 0.68);
+    font: 600 0.66rem/1.2 var(--font-mono, monospace);
+    letter-spacing: 0.1em;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__readout {
+    overflow: hidden;
+    color: #f1fffc;
+    font: 600 clamp(0.72rem, 1.5vw, 0.9rem)/1.35 var(--font-mono, monospace);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics {
+    position: absolute;
+    inset: 14px 14px auto auto;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(82px, 1fr));
+    max-width: min(440px, 54%);
+    overflow: hidden;
+    border: 1px solid rgba(126, 224, 219, 0.17);
+    border-radius: 11px;
+    background: rgba(3, 13, 19, 0.76);
+    backdrop-filter: blur(10px);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 10px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics > div + div {
+    border-left: 1px solid rgba(126, 224, 219, 0.14);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics span {
+    color: rgba(190, 228, 224, 0.58);
+    font-size: 0.66rem;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics output {
+    overflow: hidden;
+    color: #f0fffc;
+    font: 600 0.76rem/1.2 var(--font-mono, monospace);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage-hint {
+    position: absolute;
+    inset: auto auto 15px 16px;
+    z-index: 3;
+    max-width: 42%;
+    margin: 0;
+    color: rgba(215, 240, 237, 0.56);
+    font-size: 0.72rem;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__legend {
+    position: absolute;
+    inset: auto 18px 16px auto;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px 13px;
+    max-width: 48%;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(126, 224, 219, 0.14);
+    border-radius: 9px;
+    color: rgba(225, 247, 244, 0.76);
+    background: rgba(3, 13, 19, 0.74);
+    font-size: 0.72rem;
+    list-style: none;
+    backdrop-filter: blur(8px);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__legend li {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__swatch {
+    width: 10px;
+    height: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 50%;
+    box-shadow: 0 0 9px currentColor;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__swatch[data-tone="a"] {
+    color: var(--cs-cyan);
+    background: var(--cs-cyan);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__swatch[data-tone="b"] {
+    color: var(--cs-gold);
+    background: var(--cs-gold);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__swatch[data-tone="c"] {
+    color: var(--cs-magenta);
+    background: var(--cs-magenta);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--cs-line);
+    border-radius: 16px;
+    background:
+        linear-gradient(165deg, rgba(126, 224, 219, 0.035), transparent 45%),
+        var(--cs-panel);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer > summary {
+    display: none;
+    min-height: 44px;
+    padding: 10px 13px;
+    color: #e6faf7;
+    cursor: pointer;
+    user-select: none;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer > summary::-webkit-details-marker {
+    display: none;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer:not([open]) > .astra-exp--chromatography-separation__drawer-body {
+    display: grid;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer-body {
+    display: grid;
+    align-content: start;
+    gap: 19px;
+    min-height: 100%;
+    padding: 19px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__control-group {
+    display: grid;
+    gap: 9px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__label-row {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__label-row label,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group > span {
+    color: #e5f7f5;
+    font-weight: 650;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__label-row output {
+    color: var(--cs-mint);
+    font: 600 var(--text-sm, 0.875rem)/1.2 var(--font-mono, monospace);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__control-group input[type="range"] {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    accent-color: var(--cs-mint);
+    cursor: pointer;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__control-group input[type="range"]:focus-visible,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__action:focus-visible,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group button:focus-visible {
+    border-radius: 5px;
+    outline: 2px solid var(--cs-mint);
+    outline-offset: 3px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__control-group p {
+    margin: 0;
+    color: rgba(190, 218, 215, 0.62);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group {
+    display: grid;
+    gap: 10px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group > div {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group button,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__action {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 9px 10px;
+    border: 1px solid rgba(126, 224, 219, 0.16);
+    border-radius: 8px;
+    color: #dcefed;
+    background: rgba(126, 224, 219, 0.045);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group button[aria-pressed="true"] {
+    border-color: rgba(126, 224, 219, 0.55);
+    color: #effffc;
+    background: rgba(126, 224, 219, 0.14);
+    box-shadow: inset 0 -2px 0 var(--cs-mint);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__action--primary {
+    border-color: rgba(126, 224, 219, 0.52);
+    color: #f4fffd;
+    background: rgba(126, 224, 219, 0.16);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__preset-group button:hover,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__action:hover:not(:disabled) {
+    border-color: var(--cs-mint);
+    background: rgba(126, 224, 219, 0.2);
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__action:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__notice {
+    margin: auto 0 0;
+    padding: 11px 12px;
+    border-left: 2px solid var(--cs-mint);
+    border-radius: 0 7px 7px 0;
+    color: rgba(197, 225, 222, 0.72);
+    background: rgba(1, 9, 13, 0.66);
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation[data-state="paused"] .astra-exp--chromatography-separation__state,
+#page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation[data-state="reduced-motion"] .astra-exp--chromatography-separation__state {
+    border-color: rgba(255, 203, 99, 0.46);
+    color: var(--cs-gold);
+    background: rgba(255, 203, 99, 0.1);
+}
+
+@media (max-width: 1080px) {
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__workspace {
+        grid-template-columns: minmax(0, 1fr) minmax(270px, 310px);
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics {
+        inset: 74px 14px auto auto;
+        max-width: 58%;
+    }
+}
+
+@media (max-width: 760px) {
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__header {
+        align-items: start;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage {
+        height: clamp(440px, 59vh, 540px);
+        border-radius: 14px;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__telemetry {
+        inset: 10px 10px auto;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics {
+        inset: 68px 10px auto;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        max-width: none;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics > div {
+        padding: 7px 6px;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics span,
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__metrics output {
+        font-size: 0.61rem;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage-hint {
+        display: none;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__legend {
+        inset: auto 10px 10px;
+        justify-content: center;
+        max-width: none;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer > summary {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid transparent;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer[open] > summary {
+        border-bottom-color: var(--cs-line);
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer > summary span:last-child {
+        color: rgba(190, 218, 215, 0.62);
+        font-size: 0.75rem;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__drawer:not([open]) > .astra-exp--chromatography-separation__drawer-body {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__header {
+        display: grid;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__state {
+        justify-self: start;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__subtitle {
+        display: none;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__readout {
+        font-size: 0.67rem;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__actions {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation,
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation * {
+        scroll-behavior: auto;
+        transition-duration: 0.01ms !important;
+        animation: none !important;
+    }
+
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage::before,
+    #page-chemistry [data-module="chromatography-separation"] .astra-exp--chromatography-separation__stage::after {
+        display: none;
+    }
+}

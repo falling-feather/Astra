@@ -1,0 +1,394 @@
+.astra-auth,
+.astra-account {
+    --auth-accent: var(--accent, #7dd3fc);
+    width: min(100%, 920px);
+    margin: 1rem auto 1.5rem;
+    padding: clamp(1rem, 2.5vw, 1.5rem);
+    border: 1px solid rgba(125, 211, 252, 0.2);
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(11, 23, 39, 0.94), rgba(8, 16, 30, 0.88));
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+    color: #e8f5ff;
+}
+
+.astra-auth,
+.astra-auth *,
+.astra-account,
+.astra-account * {
+    box-sizing: border-box;
+}
+
+.astra-auth__intro,
+.astra-account__identity {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.astra-auth__intro > div,
+.astra-account__identity > div,
+.astra-auth__body,
+.astra-auth__form,
+.astra-auth__boundary > div {
+    min-width: 0;
+}
+
+.astra-auth__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    border-radius: 14px;
+    color: var(--auth-accent);
+    background: rgba(125, 211, 252, 0.1);
+    border: 1px solid rgba(125, 211, 252, 0.22);
+}
+
+.astra-auth__icon svg { width: 22px; height: 22px; }
+.astra-auth__eyebrow { display: block; color: var(--auth-accent); font-size: 0.7rem; letter-spacing: 0.14em; }
+.astra-auth h2 { margin: 0.2rem 0 0.35rem; font-size: clamp(1.3rem, 3vw, 1.8rem); }
+.astra-auth p,
+.astra-account em { margin: 0; color: rgba(220, 237, 250, 0.68); font-size: 0.88rem; font-style: normal; line-height: 1.55; }
+.astra-auth p,
+.astra-account em,
+.astra-account span { overflow-wrap: anywhere; }
+
+.astra-auth__tabs {
+    display: flex;
+    gap: 0.4rem;
+    margin: 1.25rem 0 1rem;
+    padding: 0.3rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.astra-auth__tabs button,
+.astra-auth__primary,
+.astra-auth__secondary,
+.astra-sessions button {
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+}
+
+.astra-auth__tabs button { flex: 1; padding: 0.55rem 0.8rem; color: rgba(226, 240, 250, 0.66); }
+.astra-auth__tabs button.is-active { color: #effaff; border-color: rgba(125, 211, 252, 0.22); background: rgba(125, 211, 252, 0.1); }
+.astra-auth__tabs button:focus-visible,
+.astra-auth__primary:focus-visible,
+.astra-auth__secondary:focus-visible,
+.astra-auth input:focus-visible,
+.astra-sessions button:focus-visible { outline: 3px solid rgba(125, 211, 252, 0.45); outline-offset: 2px; }
+
+.astra-auth__form { display: grid; gap: 0.9rem; }
+.astra-auth__form h3 { margin: 0; font-size: 1rem; }
+.astra-auth__form label { display: grid; gap: 0.38rem; }
+.astra-auth__form label > span { color: rgba(225, 240, 252, 0.76); font-size: 0.78rem; }
+.astra-auth__form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid rgba(148, 191, 221, 0.22);
+    border-radius: 11px;
+    color: #f4fbff;
+    background: rgba(4, 12, 24, 0.7);
+    font: inherit;
+}
+
+.astra-auth__primary,
+.astra-auth__secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0.65rem 1rem;
+    text-align: center;
+    white-space: normal;
+}
+
+.astra-auth__primary { color: #03131f; background: linear-gradient(135deg, #7dd3fc, #5eead4); font-weight: 700; }
+.astra-auth__secondary { border-color: rgba(148, 191, 221, 0.24); background: rgba(255, 255, 255, 0.045); }
+.astra-auth button:disabled { opacity: 0.55; cursor: wait; }
+.astra-auth__reset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.astra-auth__reset-grid .astra-auth__form { align-content: start; padding: 1rem; border: 1px solid rgba(148, 191, 221, 0.14); border-radius: 15px; }
+
+.astra-auth__boundary {
+    display: flex;
+    gap: 0.7rem;
+    padding: 0.8rem;
+    border-radius: 12px;
+    color: rgba(231, 245, 255, 0.86);
+    background: rgba(125, 211, 252, 0.07);
+}
+.astra-auth__boundary svg { flex: 0 0 20px; color: var(--auth-accent); }
+.astra-auth__boundary p { margin-top: 0.2rem; }
+.astra-auth__status { margin-top: 0.9rem; padding: 0.7rem 0.8rem; border-radius: 11px; font-size: 0.86rem; }
+.astra-auth__status--success { color: #bbf7d0; background: rgba(34, 197, 94, 0.1); }
+.astra-auth__status--warning { color: #fde68a; background: rgba(245, 158, 11, 0.1); }
+.astra-auth__status--error { color: #fecaca; background: rgba(239, 68, 68, 0.1); }
+
+.astra-account { display: grid; gap: 1rem; }
+.astra-account--mismatch { border-color: rgba(251, 191, 36, 0.28); }
+.astra-account__identity > div { display: grid; gap: 0.2rem; }
+.astra-account__identity strong { font-size: 1.05rem; }
+.astra-account__identity span { color: rgba(220, 237, 250, 0.72); font-size: 0.82rem; }
+.astra-account--mismatch .astra-account__identity em { color: #fde68a; }
+.astra-account__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.astra-sessions { padding-top: 0.9rem; border-top: 1px solid rgba(148, 191, 221, 0.14); }
+.astra-sessions__heading { display: grid; gap: 0.15rem; margin-bottom: 0.7rem; }
+.astra-sessions__heading span { color: rgba(220, 237, 250, 0.62); font-size: 0.78rem; }
+.astra-sessions ul { display: grid; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+.astra-sessions li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem; border: 1px solid rgba(148, 191, 221, 0.12); border-radius: 11px; }
+.astra-sessions li.is-current { border-color: rgba(94, 234, 212, 0.3); }
+.astra-sessions li > div { display: grid; gap: 0.15rem; }
+.astra-sessions li span { color: rgba(220, 237, 250, 0.62); font-size: 0.76rem; }
+.astra-sessions button { min-height: 36px; padding: 0.4rem 0.65rem; color: #fecaca; border-color: rgba(248, 113, 113, 0.25); }
+
+.app-auth-form [data-teacher-application-message][hidden] {
+    display: none !important;
+}
+
+.app-auth-form textarea {
+    width: 100%;
+    min-height: 92px;
+    resize: vertical;
+    border: 1px solid rgba(148, 191, 221, 0.24);
+    border-radius: 10px;
+    padding: 0.72rem 0.8rem;
+    color: #f4fbff;
+    background: rgba(4, 12, 24, 0.76);
+    font: inherit;
+    line-height: 1.55;
+}
+
+.app-auth-form textarea:focus-visible {
+    outline: 2px solid rgba(94, 234, 212, 0.72);
+    outline-offset: 2px;
+}
+
+.teacher-application-banner {
+    position: fixed;
+    top: 88px;
+    right: clamp(14px, 2.5vw, 34px);
+    z-index: 1090;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    width: min(540px, calc(100vw - 28px));
+    border: 1px solid rgba(250, 204, 102, 0.36);
+    border-radius: 14px;
+    padding: 13px 14px 13px 17px;
+    color: #fff4cf;
+    background: rgba(25, 20, 10, 0.94);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(16px);
+}
+
+.teacher-application-banner > div {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.teacher-application-banner strong {
+    font-size: 0.9rem;
+}
+
+.teacher-application-banner span {
+    color: rgba(255, 244, 207, 0.72);
+    font-size: 0.76rem;
+    line-height: 1.55;
+}
+
+.teacher-application-banner button,
+.teacher-application-dialog button {
+    min-height: 42px;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 10px;
+    padding: 0.55rem 0.85rem;
+    color: #eefaff;
+    background: rgba(125, 211, 252, 0.08);
+    cursor: pointer;
+    font: inherit;
+}
+
+.teacher-application-banner button {
+    flex: 0 0 auto;
+    border-color: rgba(250, 204, 102, 0.42);
+    color: #fff2bf;
+}
+
+.teacher-application-dialog {
+    width: min(620px, calc(100vw - 28px));
+    max-height: min(760px, calc(100dvh - 28px));
+    overflow: auto;
+    border: 1px solid rgba(125, 211, 252, 0.24);
+    border-radius: 20px;
+    padding: clamp(20px, 4vw, 34px);
+    color: #eaf6ff;
+    background: linear-gradient(145deg, rgba(10, 24, 40, 0.99), rgba(5, 13, 24, 0.99));
+    box-shadow: 0 34px 100px rgba(0, 0, 0, 0.54);
+}
+
+.teacher-application-dialog::backdrop {
+    background: rgba(1, 5, 12, 0.76);
+    backdrop-filter: blur(5px);
+}
+
+.teacher-application-dialog > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.teacher-application-dialog > header span {
+    color: #67e8d2;
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+}
+
+.teacher-application-dialog h2 {
+    margin: 5px 0 0;
+    font-size: clamp(1.45rem, 4vw, 2rem);
+}
+
+.teacher-application-dialog > header > button {
+    min-width: 42px;
+    padding: 0;
+    font-size: 1.4rem;
+}
+
+.teacher-application-dialog__lead,
+.teacher-application-dialog__empty {
+    margin: 18px 0;
+    color: rgba(220, 237, 250, 0.7);
+    line-height: 1.7;
+}
+
+.teacher-application-dialog__facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.teacher-application-dialog__facts > div,
+.teacher-application-dialog__note {
+    min-width: 0;
+    border: 1px solid rgba(148, 191, 221, 0.16);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.teacher-application-dialog dt,
+.teacher-application-dialog__note span {
+    color: rgba(220, 237, 250, 0.54);
+    font-size: 0.7rem;
+}
+
+.teacher-application-dialog dd,
+.teacher-application-dialog__note p {
+    margin: 5px 0 0;
+    overflow-wrap: anywhere;
+    color: #eef8ff;
+    font-size: 0.84rem;
+    line-height: 1.6;
+}
+
+.teacher-application-dialog__note {
+    margin: 10px 0;
+}
+
+.teacher-application-dialog__form {
+    display: grid;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.teacher-application-dialog__form label {
+    display: grid;
+    gap: 7px;
+    color: rgba(220, 237, 250, 0.72);
+    font-size: 0.78rem;
+}
+
+.teacher-application-dialog__form textarea {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid rgba(148, 191, 221, 0.22);
+    border-radius: 11px;
+    padding: 0.75rem;
+    color: #f4fbff;
+    background: rgba(3, 10, 20, 0.7);
+    font: inherit;
+}
+
+.teacher-application-dialog__form > button {
+    border-color: rgba(94, 234, 212, 0.44);
+    color: #dffff8;
+    background: rgba(26, 150, 132, 0.18);
+}
+
+.teacher-application-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.teacher-application-dialog__feedback {
+    min-height: 1.4rem;
+    margin: 14px 0 0;
+    color: rgba(220, 237, 250, 0.68);
+    font-size: 0.8rem;
+}
+
+.teacher-application-dialog__feedback--success { color: #a7f3d0; }
+.teacher-application-dialog__feedback--error { color: #fecaca; }
+
+.teacher-application-dialog button:disabled,
+.teacher-application-dialog textarea:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+.teacher-application-dialog button:focus-visible,
+.teacher-application-dialog textarea:focus-visible,
+.teacher-application-banner button:focus-visible {
+    outline: 3px solid rgba(94, 234, 212, 0.52);
+    outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+    .astra-auth,
+    .astra-account { margin: 0.7rem 0 1rem; padding: 0.9rem; border-radius: 17px; }
+    .astra-auth__reset-grid { grid-template-columns: 1fr; }
+    .astra-auth__tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+    .astra-auth__tabs button { min-width: 0; padding-inline: 0.45rem; }
+    .astra-account__actions { display: grid; grid-template-columns: 1fr; }
+    .astra-sessions li { align-items: stretch; flex-direction: column; }
+    .astra-sessions button { width: 100%; }
+    .teacher-application-banner {
+        top: 70px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        align-items: stretch;
+        flex-direction: column;
+        gap: 9px;
+    }
+    .teacher-application-banner button { width: 100%; }
+    .teacher-application-dialog { width: 100vw; max-height: 100dvh; border: 0; border-radius: 0; }
+    .teacher-application-dialog__facts { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .astra-auth *, .astra-account *, .teacher-application-banner *, .teacher-application-dialog * { scroll-behavior: auto !important; transition: none !important; }
+}

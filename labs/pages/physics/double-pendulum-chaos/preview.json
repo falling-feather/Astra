@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "subject": "physics",
+  "id": "double-pendulum-chaos",
+  "alt": "青色与洋红双摆从近似重合逐渐分离，并留下两条明显不同的末端轨迹",
+  "poster": {
+    "path": "pages/physics/double-pendulum-chaos/preview.webp",
+    "width": 1600,
+    "height": 900,
+    "bytes": 52396,
+    "sha256": "260044d6ac0e863a8450b1f56f2277d511880d6b402bb35e07a502c828892db9"
+  },
+  "motion": null,
+  "reduced_motion": "poster",
+  "source": {
+    "method": "browser-capture",
+    "route": "#physics/double-pendulum-chaos",
+    "selector": "[data-module=\"double-pendulum-chaos\"] [data-role=\"stage\"]",
+    "viewport": { "width": 1600, "height": 900 },
+    "captured_by": "主开发与物理内容复核角色",
+    "captured_on": "2026-08-24",
+    "rights": "project-original",
+    "source_files": [
+      "pages/physics/double-pendulum-chaos/module.html",
+      "pages/physics/double-pendulum-chaos/index.js",
+      "pages/physics/double-pendulum-chaos/styles.css"
+    ]
+  },
+  "content": {
+    "shows_interaction_result": true,
+    "decorative_only": false,
+    "old_activity_source": false,
+    "embedded_title": false
+  }
+}

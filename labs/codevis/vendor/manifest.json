@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "purpose": "Audited local browser execution assets. Do not replace a source reference with a branch name or CDN URL.",
+  "artifacts": [
+    {
+      "name": "JS-Interpreter",
+      "source_repository": "https://github.com/NeilFraser/JS-Interpreter",
+      "source_commit": "45d00b0c86e48cca1bb3af0f711bc4c0d626c359",
+      "license": "Apache-2.0",
+      "files": [
+        { "path": "js-interpreter/45d00b0c86e48cca1bb3af0f711bc4c0d626c359/acorn.js", "sha256": "2ecde8378b4c3e84a68247f4a9e427fd85baa415213a3cc634fcaf93cc93b684" },
+        { "path": "js-interpreter/45d00b0c86e48cca1bb3af0f711bc4c0d626c359/interpreter.js", "sha256": "dae0f6a0803f73a314576a82e7428fa2a36280886bcc0443f60d3812fc3588a3" },
+        { "path": "js-interpreter/45d00b0c86e48cca1bb3af0f711bc4c0d626c359/LICENSE", "sha256": "25dfb698355886b4972eba97745b4ac85372dab3819f78f3982fc8335c95feaf" }
+      ]
+    },
+    {
+      "name": "Skulpt",
+      "source_repository": "https://github.com/skulpt/skulpt",
+      "version": "1.2.0",
+      "annotated_tag_object": "b71e5ebabea7eef648d6b04916fa7572373684f4",
+      "peeled_commit": "4b86a6f1f3cf684f7e5ca17042fc5d6bd302df60",
+      "npm_tarball": "https://registry.npmjs.org/skulpt/-/skulpt-1.2.0.tgz",
+      "npm_integrity": "sha512-T0cv0sdSOXLlIJTuyXSeYJ3TFdWYSZfX2PcBLpRKrKZ3dTbVQXRMiYudSuko2xzcyMif47DS2ShatCwjCbsSsA==",
+      "license": "Skulpt notice plus bundled CPython/PyPy notices; see LICENSE",
+      "files": [
+        { "path": "skulpt/1.2.0/skulpt.min.js", "sha256": "1a319d8eedf314dba5af2444313e3cf2ac072a335df0f5100277e8f49b64eae9" },
+        { "path": "skulpt/1.2.0/skulpt-stdlib.js", "sha256": "e3ecccbc17c6164d19ed3c5561aaaeb752c38c8efa2d88b62b5fb7a7e1b086a7" },
+        { "path": "skulpt/1.2.0/LICENSE", "sha256": "e407544486b5cff8bdb1faa9930ae5d980fd363d1003d3a032f9915674da0fa9" }
+      ]
+    },
+    {
+      "name": "JSCPP",
+      "package_version": "2.0.9",
+      "source_repository": "https://github.com/felixhao28/JSCPP",
+      "distribution_commit": "76e3534f04abf9c2547aa73ddca275e8935bed38",
+      "license_package": "https://registry.npmjs.org/JSCPP/-/JSCPP-2.0.9.tgz",
+      "npm_integrity": "sha512-ix62BbyR33JfuLS5JN3lrP5WrDFHJMe498TbyEN0vjRgK1pvOREs03YA0rMoj0U2h9EYLSoo9emZMW2rSlFVfQ==",
+      "license": "MIT",
+      "files": [
+        { "path": "jscpp/2.0.9/JSCPP.es5.min.js", "sha256": "e73047b962bd8fa92faf493873b38990b63df876e67dc0a7dfc7c0fc046e7fdd" },
+        { "path": "jscpp/2.0.9/LICENSE", "sha256": "3f9c2349b3ce4f4de297c26f86db51b7f45e1d86ec94d87ed8475b1064df2888" }
+      ]
+    }
+  ]
+}

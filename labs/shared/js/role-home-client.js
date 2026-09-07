@@ -1,0 +1,1150 @@
+(function (global) {
+    'use strict';
+
+    if (global.AstraRoleHomeClient) return;
+
+    const NEXT_ACTIVITY_STATUSES = new Set(['not_started', 'in_progress']);
+    const ROLE_COPY = Object.freeze({
+        student: Object.freeze({ eyebrow: '学习优先级', title: '当前首要学习任务', action: '进入我的学习' }),
+        teacher: Object.freeze({ eyebrow: '教学优先级', title: '当前首要教学事项', action: '进入教学工作台' }),
+        admin: Object.freeze({ eyebrow: '治理优先级', title: '当前首要治理事项', action: '进入全局治理' })
+    });
+    const state = {
+        root: null,
+        host: null,
+        user: null,
+        phase: 'idle',
+        generation: 0,
+        pendingRefreshGeneration: 0,
+        controller: null,
+        classes: [],
+        courses: [],
+        schools: [],
+        selected: { school_id: '', class_id: '', course_id: '' },
+        task: null,
+        issue: null,
+        syncIssue: null,
+        recovery: null,
+        aggregate: null,
+        pending: null,
+        unsubscribe: null,
+        clickHandler: null,
+        changeHandler: null,
+        joinDialog: null,
+        joinSubmitHandler: null,
+        joinCancelHandler: null,
+        joinBusy: false,
+        joinIssue: '',
+        joinUncertainClassId: ''
+    };
+
+    function api() {
+        if (!global.AstraApiClient) throw new Error('AstraApiClient unavailable');
+        return global.AstraApiClient;
+    }
+
+    function evidence() {
+        if (!global.AstraLearningEvidenceClient) throw new Error('AstraLearningEvidenceClient unavailable');
+        return global.AstraLearningEvidenceClient;
+    }
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function list(payload) {
+        if (Array.isArray(payload)) return payload;
+        return payload && Array.isArray(payload.items) ? payload.items : [];
+    }
+
+    function positiveId(value) {
+        const id = Number(value);
+        return Number.isInteger(id) && id > 0 ? id : 0;
+    }
+
+    function begin() {
+        if (state.controller) state.controller.abort();
+        state.controller = new AbortController();
+        state.generation += 1;
+        return {
+            generation: state.generation,
+            controller: state.controller,
+            signal: state.controller.signal
+        };
+    }
+
+    function current(scope) {
+        return Boolean(scope && scope.generation === state.generation && scope.controller === state.controller && !scope.signal.aborted);
+    }
+
+    function resetData() {
+        state.phase = 'loading';
+        state.pendingRefreshGeneration += 1;
+        state.classes = [];
+        state.courses = [];
+        state.schools = [];
+        state.selected = { school_id: '', class_id: '', course_id: '' };
+        state.task = null;
+        state.issue = null;
+        state.syncIssue = null;
+        state.recovery = null;
+        state.aggregate = null;
+        state.pending = null;
+    }
+
+    function normalizedError(error) {
+        return global.AstraLearningEvidenceClient && typeof global.AstraLearningEvidenceClient.normalizeError === 'function'
+            ? global.AstraLearningEvidenceClient.normalizeError(error)
+            : error;
+    }
+
+    function issue(code, message) {
+        state.issue = Object.freeze({ code, message });
+    }
+
+    function rememberedStudentScope() {
+        const owner = global.AstraStudentScopeSelection;
+        if (!owner || typeof owner.read !== 'function' || !state.user) {
+            return { class_id: 0, course_id: 0 };
+        }
+        return owner.read(state.user) || { class_id: 0, course_id: 0 };
+    }
+
+    function rememberStudentScope(classId, courseId) {
+        const owner = global.AstraStudentScopeSelection;
+        if (!owner || typeof owner.update !== 'function' || !state.user) return;
+        owner.update(state.user, classId, courseId);
+    }
+
+    function evidenceAuthorityIssue(change) {
+        if (!change || change.type !== 'authority-cleared') return null;
+        return Object.freeze({
+            code: 'identity_required',
+            message: '登录身份或角色已变化；请重新登录后再核对首要任务与未同步状态。'
+        });
+    }
+
+    function classLabel(item) {
+        return [item && (item.name || item.title || `班级 ${item.id}`), item && item.grade, item && item.term]
+            .filter(Boolean).join(' · ');
+    }
+
+    function courseLabel(item) {
+        return item && (item.title || item.name || item.course_key || `课程 ${item.id}`);
+    }
+
+    function schoolLabel(item) {
+        return item && (item.name || item.title || `学校 ${item.id}`);
+    }
+
+    function optionMarkup(items, selected, labeler, placeholder) {
+        const hasSelection = Boolean(String(selected || '').trim());
+        const options = [`<option value=""${hasSelection ? ' disabled' : ' selected'}>${escapeHtml(placeholder)}</option>`];
+        items.forEach(item => {
+            const id = String(item.id);
+            options.push(`<option value="${escapeHtml(id)}"${String(selected) === id ? ' selected' : ''}>${escapeHtml(labeler(item))}</option>`);
+        });
+        return options.join('');
+    }
+
+    function assignmentTask(item) {
+        if (!item) return null;
+        const assignment = item.assignment && typeof item.assignment === 'object' ? item.assignment : item;
+        const due = assignment.due_at || assignment.deadline || item.due_at || '';
+        const dueAt = due ? new Date(due) : null;
+        const dueValid = Boolean(dueAt && Number.isFinite(dueAt.getTime()));
+        const submitted = Boolean(submissionOf(item));
+        const blocked = item.read_only || item.can_submit === false;
+        const overdue = Boolean(!submitted && !blocked && dueValid && dueAt.getTime() < Date.now());
+        return Object.freeze({
+            code: submitted ? '作业已提交' : blocked ? '作业暂不可提交' : overdue ? '作业已逾期' : '作业进行中',
+            title: assignment.title || assignment.name || '待完成作业',
+            detail: !due ? '无截止时间' : dueValid
+                ? `${overdue ? '已逾期 · 截止' : '截止'} ${dueAt.toLocaleString('zh-CN')}`
+                : '截止时间格式异常，请进入工作区核对。',
+            meta: submitted ? '该任务已有权威提交记录，可在工作区查看结果。' : blocked ? '当前任务已锁定或不可提交，请在工作区查看原因。' : '任务事实来自当前班级与课程的权威作业列表。',
+            href: '#student',
+            action: '进入我的学习核对'
+        });
+    }
+
+    function submissionOf(item) {
+        return item && (item.submission || item.latest_submission || item.submitted_at);
+    }
+
+    function assignmentDue(item) {
+        const assignment = item && item.assignment && typeof item.assignment === 'object' ? item.assignment : item;
+        const value = assignment && (assignment.due_at || assignment.deadline) || item && item.due_at;
+        const time = value ? new Date(value).getTime() : Number.POSITIVE_INFINITY;
+        return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+    }
+
+    function primaryAssignment(items) {
+        const active = items.filter(item => !submissionOf(item) && item.can_submit !== false && !item.read_only);
+        active.sort((left, right) => assignmentDue(left) - assignmentDue(right)
+            || positiveId((left.assignment || left).id) - positiveId((right.assignment || right).id));
+        return active[0] || null;
+    }
+
+    function recoveryTask(response, units, course) {
+        const resume = response && response.resume;
+        if (!resume) return null;
+        const activity = list(response.activities).find(item => (
+            item.course_unit_id === resume.course_unit_id
+            && item.activity_key === resume.activity_key
+            && item.rule_version === resume.rule_version
+        ));
+        if (!activity || !NEXT_ACTIVITY_STATUSES.has(activity.status)) return null;
+        const unit = list(units).find(item => (
+            positiveId(item && item.id) === resume.course_unit_id
+            && item.activity_key === resume.activity_key
+        ));
+        const catalog = global.AstraLearningActivityCatalog;
+        const mapping = catalog && course && typeof catalog.resolve === 'function'
+            ? catalog.resolve(course.galaxy_key, resume.activity_key)
+            : null;
+        const href = mapping
+            && mapping.subject_key === (course.subject_key || course.course_key)
+            && typeof catalog.recoveryHref === 'function'
+            ? catalog.recoveryHref(mapping, unit)
+            : '';
+        if (!unit || !href) return null;
+        return Object.freeze({
+            code: '继续上次学习',
+            title: unit.title || courseLabel(course),
+            detail: '仅恢复当前明确班级与课程中的权威学习位置。',
+            meta: `最近一次有效学习记录：${new Date(resume.last_occurred_at).toLocaleString('zh-CN')}`,
+            href,
+            action: '继续本课程'
+        });
+    }
+
+    function primaryOpenUnit(items, recovery) {
+        const projections = list(recovery && recovery.activities);
+        return items
+            .filter(item => (
+                item
+                && item.effective_release_state === 'open'
+                && item.status !== 'archived'
+                && positiveId(item.id)
+            ))
+            .filter(item => {
+                const activity = projections.find(projection => (
+                    Number(projection.course_unit_id) === Number(item.id)
+                    && projection.activity_key === item.activity_key
+                ));
+                return !activity || NEXT_ACTIVITY_STATUSES.has(activity.status);
+            })
+            .slice()
+            .sort((left, right) => Number(left.position || Number.MAX_SAFE_INTEGER) - Number(right.position || Number.MAX_SAFE_INTEGER)
+                || positiveId(left.id) - positiveId(right.id))[0] || null;
+    }
+
+    function openUnitTask(unit, course) {
+        if (!unit || !course) return null;
+        const catalog = global.AstraLearningActivityCatalog;
+        const mapping = catalog && typeof catalog.resolve === 'function'
+            ? catalog.resolve(course.galaxy_key, unit.activity_key)
+            : null;
+        const href = mapping
+            && mapping.subject_key === (course.subject_key || course.course_key)
+            && typeof catalog.recoveryHref === 'function'
+            ? catalog.recoveryHref(mapping, unit)
+            : '';
+        if (!href) return null;
+        return Object.freeze({
+            code: '当前课程单元',
+            title: unit.title || courseLabel(course),
+            detail: '当前班级与课程发布计划中的首个开放单元。',
+            meta: `当前单元已开放 · ${courseLabel(course)}`,
+            href,
+            action: '开始学习'
+        });
+    }
+
+    async function loadStudent(scope) {
+        const classes = list(await api().request('/api/classes', {
+            params: { mine: true },
+            signal: scope.signal
+        }));
+        if (!current(scope)) return;
+        state.classes = classes;
+        if (!classes.length) {
+            try {
+                const workbench = await api().request('/api/v1/workbench', { signal: scope.signal });
+                if (!current(scope)) return;
+                if (!workbench || workbench.role !== 'student' || !workbench.primary_action) {
+                    throw new Error('invalid student workbench');
+                }
+                const courses = list(workbench.courses);
+                state.aggregate = workbench;
+                state.task = Object.freeze({
+                    code: courses.length ? '授课课程已就绪' : '可以加入课程',
+                    title: workbench.primary_action.label || (courses.length ? '进入我的授课课程' : '加入一门授课课程'),
+                    detail: courses.length
+                        ? '行政班不是课程学习的前置条件；你可以直接从学生工作台继续已加入的课程。'
+                        : '你暂未关联行政班，仍可进入学生工作台并使用课程码申请公开课程。',
+                    meta: courses.length
+                        ? `${courses.length} 门有效课程 · 行政班未关联`
+                        : '课程准入与行政班身份分别管理',
+                    href: '#student',
+                    action: '进入我的学习'
+                });
+                state.phase = 'ready';
+            } catch (error) {
+                if (!current(scope)) return;
+                state.phase = 'empty';
+                issue('class_scope_missing', '暂未读取到可用班级或课程；你可以输入教师提供的班级代码后重试。');
+            }
+            return;
+        }
+        const remembered = rememberedStudentScope();
+        const rememberedClass = classes.find(item => positiveId(item && item.id) === positiveId(remembered.class_id));
+        if (rememberedClass) {
+            state.selected.class_id = String(rememberedClass.id);
+            await loadStudentClass(scope, rememberedClass.id);
+            return;
+        }
+        if (classes.length === 1) {
+            state.selected.class_id = String(classes[0].id);
+            await loadStudentClass(scope, classes[0].id);
+            return;
+        }
+        state.phase = 'scope-required';
+        issue('class_selection_required', '你有多个班级，请先明确选择本次学习班级。');
+    }
+
+    async function loadStudentClass(scope, classId) {
+        const courses = list(await api().request('/api/courses', {
+            params: { class_id: classId },
+            signal: scope.signal
+        }));
+        if (!current(scope)) return;
+        state.courses = courses;
+        state.selected.course_id = '';
+        state.task = null;
+        state.recovery = null;
+        if (!courses.length) {
+            rememberStudentScope(classId, 0);
+            state.phase = 'empty';
+            issue('course_scope_missing', '当前班级尚未发布可用课程，请联系教师。');
+            return;
+        }
+        const remembered = rememberedStudentScope();
+        const rememberedCourse = positiveId(remembered.class_id) === positiveId(classId)
+            ? courses.find(item => positiveId(item && item.id) === positiveId(remembered.course_id))
+            : null;
+        const preferredCourse = rememberedCourse || courses[0];
+        state.selected.course_id = String(preferredCourse.id);
+        rememberStudentScope(classId, preferredCourse.id);
+        await loadStudentScope(scope, classId, preferredCourse.id);
+    }
+
+    async function loadStudentScope(scope, classId, courseId) {
+        rememberStudentScope(classId, courseId);
+        state.phase = 'loading';
+        state.issue = null;
+        const pendingRefreshGeneration = ++state.pendingRefreshGeneration;
+        const [assignmentsResult, recoveryResult, pendingResult, unitsResult] = await Promise.allSettled([
+            api().request('/api/assignments/me', {
+                params: { class_id: classId, course_id: courseId, filter: 'active', limit: 200, offset: 0 },
+                signal: scope.signal
+            }),
+            evidence().recovery({ class_id: classId, course_id: courseId }, { signal: scope.signal }),
+            evidence().pendingSummary(),
+            api().request(`/api/courses/${courseId}/units`, {
+                params: { class_id: classId },
+                signal: scope.signal
+            })
+        ]);
+        if (!current(scope)) return;
+        if (pendingRefreshGeneration === state.pendingRefreshGeneration) {
+            if (pendingResult.status === 'fulfilled') {
+                state.pending = pendingResult.value;
+                state.syncIssue = null;
+            } else {
+                state.syncIssue = Object.freeze({
+                    code: 'sync_state_unavailable',
+                    message: '未同步证据数量暂时无法读取；页面不会把未知状态显示为已同步。'
+                });
+            }
+        }
+        if (assignmentsResult.status !== 'fulfilled') {
+            state.task = null;
+            issue('assignment_source_unavailable', '权威作业列表暂时无法读取，无法安全判断当前首要学习任务；请重试。');
+            state.phase = 'empty';
+            return;
+        }
+        if (recoveryResult.status === 'fulfilled') {
+            state.recovery = recoveryResult.value;
+        } else {
+            const error = normalizedError(recoveryResult.reason);
+            issue(error.code || 'recovery_unavailable', error.code === 'rule_binding_missing'
+                ? '当前课程尚未绑定学习证据规则；教师完成发布后即可记录与恢复。'
+                : '当前课程的权威恢复投影暂不可用，请稍后重试。');
+        }
+        const assignments = assignmentsResult.status === 'fulfilled' ? list(assignmentsResult.value) : [];
+        const units = recoveryResult.status === 'fulfilled' && unitsResult.status === 'fulfilled'
+            ? list(unitsResult.value)
+            : [];
+        const course = state.courses.find(item => positiveId(item.id) === courseId) || null;
+        const assignment = assignmentTask(primaryAssignment(assignments));
+        const recovery = assignment ? null : recoveryTask(state.recovery, units, course);
+        if (!assignment && state.recovery && state.recovery.resume && !recovery) {
+            state.task = null;
+            issue('recovery_route_unavailable', '服务端续学位置无法与当前发布单元和安全深链对应；请进入“我的学习”核对，不会回退到其他课程。');
+        } else {
+            state.task = assignment || recovery || openUnitTask(primaryOpenUnit(units, state.recovery), course);
+        }
+        if (
+            !state.task
+            && recoveryResult.status === 'fulfilled'
+            && unitsResult.status !== 'fulfilled'
+        ) {
+            issue('course_units_unavailable', '课程发布单元暂时无法读取，无法确认下一项开放学习；请重试。');
+        }
+        if (!state.task && !state.issue) issue('no_authoritative_task', '当前明确作用域内没有待办任务或可恢复位置。');
+        state.phase = state.task ? 'ready' : 'empty';
+    }
+
+    async function loadTeacher(scope) {
+        const schools = list(await api().request('/api/schools', { signal: scope.signal }));
+        if (!current(scope)) return;
+        state.schools = schools;
+        if (!schools.length) {
+            state.phase = 'empty';
+            issue('school_scope_missing', '当前账号没有可管理学校，请联系管理员分配教学范围。');
+            return;
+        }
+        if (schools.length === 1) {
+            state.selected.school_id = String(schools[0].id);
+            await loadTeacherSchool(scope, schools[0].id);
+            return;
+        }
+        state.phase = 'scope-required';
+        issue('school_selection_required', '你有多个学校范围，请先明确选择本次教学学校。');
+    }
+
+    async function loadTeacherSchool(scope, schoolId) {
+        const classesResult = await api().request('/api/classes', {
+            params: { school_id: schoolId, mine: true },
+            signal: scope.signal
+        });
+        if (!current(scope)) return;
+        state.classes = list(classesResult);
+        state.courses = [];
+        state.selected.class_id = state.classes.length === 1 ? String(state.classes[0].id) : '';
+        state.selected.course_id = '';
+        if (!state.classes.length) {
+            state.phase = 'empty';
+            issue('class_scope_missing', '当前学校尚无可教学班级；请先在教学工作台建立或加入班级。');
+            return;
+        }
+        if (!state.selected.class_id) {
+            state.phase = 'scope-required';
+            issue('teaching_scope_selection_required', '请明确选择本人任教班级后查看挂接课程。');
+            return;
+        }
+        await loadTeacherClass(scope, state.selected.class_id);
+    }
+
+    async function loadTeacherClass(scope, classId) {
+        const courses = list(await api().request('/api/courses', {
+            params: { class_id: classId },
+            signal: scope.signal
+        }));
+        if (!current(scope)) return;
+        state.courses = courses;
+        state.selected.course_id = courses.length === 1 ? String(courses[0].id) : '';
+        if (!courses.length) {
+            state.phase = 'empty';
+            issue('course_scope_missing', '当前任教班级尚未挂接课程，请先在教学工作台完成课程挂接。');
+            return;
+        }
+        if (!state.selected.course_id) {
+            state.phase = 'scope-required';
+            issue('course_selection_required', '当前班级挂接了多个课程，请明确选择本次教学课程。');
+            return;
+        }
+        await loadTeacherScope(scope, classId, state.selected.course_id);
+    }
+
+    async function loadTeacherScope(scope, classId, courseId) {
+        state.phase = 'loading';
+        state.issue = null;
+        const [aggregateResult, reviewResult] = await Promise.allSettled([
+            evidence().teacherAggregate({ class_id: classId, course_id: courseId }, { signal: scope.signal }),
+            api().request('/api/admin/submissions/pending', {
+                params: { class_id: classId, course_id: courseId, limit: 1, offset: 0 },
+                signal: scope.signal
+            })
+        ]);
+        if (!current(scope)) return;
+        if (aggregateResult.status === 'fulfilled') state.aggregate = aggregateResult.value;
+        else {
+            const error = normalizedError(aggregateResult.reason);
+            issue(error.code || 'aggregate_unavailable', error.code === 'rule_binding_missing'
+                ? '当前课程尚未绑定学习证据规则；请在既有课程发布流程中完成规则配置。'
+                : '当前教学范围的权威学习汇总暂不可用。');
+        }
+        if (reviewResult.status !== 'fulfilled') {
+            state.task = null;
+            issue('review_source_unavailable', '权威待处理提交列表暂时无法读取，无法安全判断当前首要教学事项；请重试。');
+            state.phase = 'empty';
+            return;
+        }
+        const review = list(reviewResult.value)[0] || null;
+        state.task = review ? Object.freeze({
+            code: '有提交待处理',
+            title: review.assignment_title || review.title || '有一项提交等待处理',
+            detail: '该事项来自当前明确班级与课程的待处理提交列表。',
+            meta: state.aggregate ? `权威汇总更新时间 ${new Date(state.aggregate.generated_at).toLocaleTimeString('zh-CN')}` : '学习证据汇总暂不可用。',
+            href: '#teacher',
+            action: '处理教学事项'
+        }) : state.aggregate ? Object.freeze({
+            code: '课程学习概况',
+            title: '查看当前课程学习证据汇总',
+            detail: `当前作用域包含 ${Number(state.aggregate.active_students || 0)} 名活跃学习者。`,
+            meta: `权威汇总更新时间 ${new Date(state.aggregate.generated_at).toLocaleTimeString('zh-CN')}`,
+            href: '#teacher',
+            action: '进入教学工作台'
+        }) : null;
+        if (!state.task && !state.issue) issue('no_teaching_task', '当前明确教学范围内没有待处理事项。');
+        state.phase = state.task ? 'ready' : 'empty';
+    }
+
+    function adminCourseTask(payload) {
+        const priority = { draft: 0, archived: 1 };
+        const course = list(payload)
+            .filter(item => Object.prototype.hasOwnProperty.call(priority, String(item && item.status || '')))
+            .sort((left, right) => priority[left.status] - priority[right.status]
+                || positiveId(left.id) - positiveId(right.id))[0];
+        if (!course) return null;
+        const archived = course.status === 'archived';
+        return Object.freeze({
+            code: archived ? '课程已归档' : '课程待完善',
+            title: course.title || course.course_key || '未命名课程',
+            detail: archived
+                ? '该课程处于已归档状态，需要管理员决定是否恢复为草稿后重新复核。'
+                : '该课程仍为草稿，需要管理员核对后决定发布或归档。',
+            meta: `${course.galaxy_key || '未标注星系'} · ${archived ? '等待恢复决定' : '等待治理决定'}`,
+            href: '#admin',
+            action: '进入课程治理'
+        });
+    }
+
+    const ADMIN_BUSINESS_AUDITS = new Set([
+        'admin.user.update:user',
+        'admin.user.password_reset:user',
+        'school.create:school',
+        'admin.school.update:school',
+        'admin.school.archive:school',
+        'admin.school.restore:school',
+        'class.create:class',
+        'admin.class.update:class',
+        'admin.class.archive:class',
+        'admin.class.restore:class',
+        'class.join.request.create:class_join_request',
+        'class.join.request.approve:class_join_request',
+        'class.join.request.reject:class_join_request',
+        'class.join:class_membership',
+        'class.teacher.transfer:class_membership',
+        'class.student.transfer:class_membership',
+        'class.member.status.update:class_membership',
+        'class.student.batch_import:class_membership_batch',
+        'class.member.status.batch_update:class_membership_batch',
+        'course.status.patch:course'
+    ]);
+    const ADMIN_AUDIT_PAGE_LIMIT = 25;
+    const ADMIN_AUDIT_PAGE_CAP = 4;
+    const ADMIN_AUDIT_RECORD_CAP = ADMIN_AUDIT_PAGE_LIMIT * ADMIN_AUDIT_PAGE_CAP;
+
+    function adminAuthorityError(message) {
+        const error = new Error(message);
+        error.code = 'admin_home_authority_invalid';
+        return error;
+    }
+
+    function nonemptyText(value) {
+        return typeof value === 'string' && Boolean(value.trim());
+    }
+
+    function adminPositiveId(value) {
+        return typeof value === 'number' && Number.isInteger(value) && value > 0;
+    }
+
+    function adminNullableScalar(value) {
+        return value === null
+            || typeof value === 'string'
+            || (typeof value === 'number' && Number.isFinite(value));
+    }
+
+    function validateAdminPage(payload, expected, itemValid) {
+        if (!payload || typeof payload !== 'object' || !Array.isArray(payload.items)) {
+            throw adminAuthorityError(`${expected.label}分页响应结构无效`);
+        }
+        const metadata = ['total', 'limit', 'offset'];
+        if (metadata.some((key) => !Number.isInteger(payload[key]) || payload[key] < 0)
+            || payload.limit !== expected.limit
+            || payload.offset !== expected.offset
+            || payload.items.length > payload.limit
+            || payload.offset > payload.total
+            || payload.offset + payload.items.length > payload.total
+            || (payload.offset < payload.total && payload.items.length === 0)
+            || !payload.items.every(itemValid)) {
+            throw adminAuthorityError(`${expected.label}分页响应结构无效`);
+        }
+        return payload;
+    }
+
+    function validatePendingJoinPage(payload) {
+        return validateAdminPage(payload, { label: '待审加入', limit: 1, offset: 0 }, (item) => (
+            adminPositiveId(item && item.id)
+            && adminPositiveId(item && item.school_id)
+            && adminPositiveId(item && item.class_id)
+            && adminPositiveId(item && item.user_id)
+            && adminPositiveId(item && item.requested_by_user_id)
+            && nonemptyText(item.class_name)
+            && ['student', 'teacher'].includes(item.role)
+            && item.status === 'pending'
+        ));
+    }
+
+    function validateAdminCourses(payload) {
+        if (!Array.isArray(payload) || !payload.every((item) => (
+            adminPositiveId(item && item.id)
+            && adminPositiveId(item && item.school_id)
+            && adminPositiveId(item && item.creator_user_id)
+            && ['draft', 'published', 'archived'].includes(item.status)
+            && nonemptyText(item.galaxy_key)
+            && nonemptyText(item.course_key)
+            && nonemptyText(item.title)
+        ))) {
+            throw adminAuthorityError('课程治理列表响应结构无效');
+        }
+        return payload;
+    }
+
+    function validateAdminAuditPage(payload, offset) {
+        return validateAdminPage(payload, {
+            label: '近期业务审计',
+            limit: ADMIN_AUDIT_PAGE_LIMIT,
+            offset
+        }, (item) => (
+            adminPositiveId(item && item.id)
+            && nonemptyText(item.action)
+            && nonemptyText(item.resource)
+            && nonemptyText(item.resource_type)
+            && adminNullableScalar(item.resource_id)
+            && adminNullableScalar(item.request_id)
+        ));
+    }
+
+    function assertAdminAuthorityCurrent(signal, guard) {
+        if ((signal && signal.aborted) || (typeof guard === 'function' && !guard())) {
+            const error = new Error('管理员首页权威读取已失效');
+            error.name = 'AbortError';
+            throw error;
+        }
+    }
+
+    function isBusinessAudit(item) {
+        const action = nonemptyText(item && item.action) ? item.action.trim() : '';
+        const resourceType = nonemptyText(item && item.resource_type) ? item.resource_type.trim() : '';
+        return ADMIN_BUSINESS_AUDITS.has(`${action}:${resourceType}`);
+    }
+
+    function adminAuditTask(payload) {
+        const audit = list(payload).find(isBusinessAudit);
+        if (!audit) return null;
+        return Object.freeze({
+            code: '近期治理记录',
+            title: '检查最近一次治理变更',
+            detail: '最近一项课程或组织变更已写入审计记录。',
+            meta: '可在管理员工作台查看变更对象、结果与时间。',
+            href: '#admin',
+            action: '进入审计治理'
+        });
+    }
+
+    async function readRecentBusinessAudits(request, signal, guard) {
+        let offset = 0;
+        let total = null;
+        const business = [];
+        for (let pageIndex = 0; pageIndex < ADMIN_AUDIT_PAGE_CAP; pageIndex += 1) {
+            assertAdminAuthorityCurrent(signal, guard);
+            const payload = validateAdminAuditPage(await request('/api/admin/audit-logs', {
+                params: { limit: ADMIN_AUDIT_PAGE_LIMIT, offset },
+                signal
+            }), offset);
+            assertAdminAuthorityCurrent(signal, guard);
+            if (total === null) total = payload.total;
+            else if (payload.total !== total) throw adminAuthorityError('近期业务审计分页总量在读取期间发生变化');
+            business.push(...payload.items.filter(isBusinessAudit));
+            if (business.length >= 3 || offset + payload.items.length >= total) return business.slice(0, 3);
+            offset += payload.items.length;
+            if (offset >= ADMIN_AUDIT_RECORD_CAP) break;
+        }
+        if (total !== null && offset < total) throw adminAuthorityError('近期业务审计超过有界读取上限，无法安全判断');
+        return business.slice(0, 3);
+    }
+
+    async function resolveAdminTask(request, signal, guard) {
+        const pendingPayload = validatePendingJoinPage(await request('/api/admin/class-join-requests', {
+            params: { status: 'pending', limit: 1, offset: 0 },
+            signal
+        }));
+        assertAdminAuthorityCurrent(signal, guard);
+        const pending = pendingPayload.items[0];
+        if (pending) {
+            return Object.freeze({
+                code: '有申请待审核',
+                title: `处理 ${pending.class_name} 的加入申请`,
+                detail: '该事项来自权威治理队列；申请人明细仅在治理工作区显示。',
+                meta: `${pending.role === 'teacher' ? '教师' : '学生'} · 等待管理员审核`,
+                href: '#admin',
+                action: '进入人员治理'
+            });
+        }
+
+        const courseTask = adminCourseTask(validateAdminCourses(await request('/api/courses', { signal })));
+        assertAdminAuthorityCurrent(signal, guard);
+        if (courseTask) return courseTask;
+        return adminAuditTask(await readRecentBusinessAudits(request, signal, guard));
+    }
+
+    async function loadAdmin(scope) {
+        const task = await resolveAdminTask(
+            (path, options) => api().request(path, options),
+            scope.signal,
+            () => current(scope)
+        );
+        if (!current(scope)) return;
+        state.task = task;
+        if (!state.task) issue('no_governance_task', '当前没有待审加入、需治理课程或可显示的近期业务审计。');
+        state.phase = state.task ? 'ready' : 'empty';
+    }
+
+    function changeMatchesSelectedScope(change) {
+        const scope = change && (change.projection || change);
+        const classId = positiveId(state.selected.class_id);
+        const courseId = positiveId(state.selected.course_id);
+        return Boolean(
+            scope
+            && classId
+            && courseId
+            && Number(scope.class_id) === classId
+            && Number(scope.course_id) === courseId
+        );
+    }
+
+    async function refreshPendingSummaryOnly() {
+        if (!state.user) return false;
+        const generation = state.generation;
+        const user = state.user;
+        const refreshGeneration = ++state.pendingRefreshGeneration;
+        try {
+            const pending = await evidence().pendingSummary();
+            if (
+                generation !== state.generation
+                || user !== state.user
+                || refreshGeneration !== state.pendingRefreshGeneration
+            ) return false;
+            state.pending = pending;
+            state.syncIssue = null;
+        } catch (_) {
+            if (
+                generation !== state.generation
+                || user !== state.user
+                || refreshGeneration !== state.pendingRefreshGeneration
+            ) return false;
+            state.syncIssue = Object.freeze({
+                code: 'sync_state_unavailable',
+                message: '未同步证据数量暂时无法读取；已保留上次计数，请重试核对。'
+            });
+        }
+        render();
+        return true;
+    }
+
+    async function refreshSelectedEvidenceScope(change) {
+        if (
+            !state.user
+            || !['student', 'teacher'].includes(state.user.role)
+            || !changeMatchesSelectedScope(change)
+        ) return false;
+        const classId = positiveId(state.selected.class_id);
+        const courseId = positiveId(state.selected.course_id);
+        const scope = begin();
+        state.phase = 'loading';
+        state.issue = null;
+        state.task = null;
+        if (state.user.role === 'student') {
+            state.recovery = null;
+        } else {
+            state.aggregate = null;
+        }
+        render();
+        try {
+            if (state.user.role === 'student') await loadStudentScope(scope, classId, courseId);
+            else await loadTeacherScope(scope, classId, courseId);
+        } catch (error) {
+            if (!current(scope) || api().isCancelled && api().isCancelled(error)) return false;
+            const normalized = normalizedError(error);
+            state.phase = 'error';
+            issue(normalized.code || 'role_home_scope_refresh_failed', '当前明确作用域暂时无法刷新，请检查网络后重试。');
+        }
+        if (current(scope)) render();
+        return current(scope);
+    }
+
+    async function load() {
+        if (!state.user) return;
+        const scope = begin();
+        resetData();
+        render();
+        try {
+            if (state.user.role === 'student') await loadStudent(scope);
+            else if (state.user.role === 'teacher') await loadTeacher(scope);
+            else if (state.user.role === 'admin') await loadAdmin(scope);
+            else issue('role_not_supported', '当前身份没有星序任务首页。');
+        } catch (error) {
+            if (!current(scope) || api().isCancelled && api().isCancelled(error)) return;
+            const normalized = normalizedError(error);
+            state.phase = 'error';
+            issue(normalized.code || 'role_home_unavailable', '首要任务暂时无法加载，请检查网络后重试。');
+        }
+        if (current(scope)) render();
+    }
+
+    async function choose(field, value) {
+        const id = positiveId(value);
+        if (!id || !state.user) return;
+        const scope = begin();
+        state.selected[field] = String(id);
+        state.issue = null;
+        state.task = null;
+        state.phase = 'loading';
+        render();
+        try {
+            if (state.user.role === 'student' && field === 'class_id') await loadStudentClass(scope, id);
+            else if (state.user.role === 'student' && field === 'course_id') {
+                await loadStudentScope(scope, positiveId(state.selected.class_id), id);
+            } else if (state.user.role === 'teacher' && field === 'school_id') {
+                await loadTeacherSchool(scope, id);
+            } else if (state.user.role === 'teacher' && field === 'class_id') {
+                await loadTeacherClass(scope, id);
+            } else if (state.user.role === 'teacher' && field === 'course_id') {
+                const classId = positiveId(state.selected.class_id);
+                const courseId = positiveId(state.selected.course_id);
+                if (classId && courseId) await loadTeacherScope(scope, classId, courseId);
+                else {
+                    state.phase = 'scope-required';
+                    issue('teaching_scope_selection_required', '请同时明确班级与课程。');
+                }
+            }
+        } catch (error) {
+            if (!current(scope) || api().isCancelled && api().isCancelled(error)) return;
+            state.phase = 'error';
+            issue('scope_unavailable', '所选作用域暂不可用，请刷新后重试。');
+        }
+        if (current(scope)) render();
+    }
+
+    function controlsMarkup() {
+        const controls = [];
+        if (state.user && state.user.role === 'teacher' && state.schools.length) {
+            controls.push(`<label><span>学校</span><select data-role-home-scope="school_id">${optionMarkup(state.schools, state.selected.school_id, schoolLabel, '请选择学校')}</select></label>`);
+        }
+        if (state.classes.length) {
+            controls.push(`<label><span>班级</span><select data-role-home-scope="class_id">${optionMarkup(state.classes, state.selected.class_id, classLabel, '请选择班级')}</select></label>`);
+        }
+        if (state.courses.length) {
+            controls.push(`<label><span>课程</span><select data-role-home-scope="course_id">${optionMarkup(state.courses, state.selected.course_id, courseLabel, '请选择课程')}</select></label>`);
+        }
+        return controls.length ? `<div class="planets-priority__scope" aria-label="明确任务作用域">${controls.join('')}</div>` : '';
+    }
+
+    function taskMarkup() {
+        if (state.phase === 'loading') {
+            return '<div class="planets-priority__empty" role="status">正在读取当前身份的权威首要任务…</div>';
+        }
+        if (state.task) {
+            return `<article class="planets-priority__task">
+                <span>${escapeHtml(state.task.code)}</span>
+                <h3>${escapeHtml(state.task.title)}</h3>
+                <p>${escapeHtml(state.task.detail)}</p>
+                <small>${escapeHtml(state.task.meta)}</small>
+                <a href="${escapeHtml(state.task.href)}">${escapeHtml(state.task.action)} <b aria-hidden="true">→</b></a>
+            </article>`;
+        }
+        return state.issue ? '' : '<div class="planets-priority__empty"><strong>当前没有待办事项</strong><p>你所在的课程范围内暂时没有需要继续处理的内容。</p><button type="button" data-role-home-retry>重新加载</button></div>';
+    }
+
+    function issueMarkup() {
+        if (!state.issue) return '';
+        return `<div class="planets-priority__issue" role="status"><strong>信息暂时无法读取</strong><p>${escapeHtml(state.issue.message)}</p><button type="button" data-role-home-retry>重新核对</button></div>`;
+    }
+
+    function removeJoinPrompt() {
+        const dialog = state.joinDialog;
+        if (!dialog) return;
+        if (state.joinSubmitHandler) dialog.removeEventListener('submit', state.joinSubmitHandler);
+        if (state.joinCancelHandler) dialog.removeEventListener('cancel', state.joinCancelHandler);
+        try {
+            if (dialog.open && typeof dialog.close === 'function') dialog.close();
+        } catch (error) {}
+        dialog.remove();
+        state.joinDialog = null;
+        state.joinSubmitHandler = null;
+        state.joinCancelHandler = null;
+        state.joinBusy = false;
+        state.joinIssue = '';
+        state.joinUncertainClassId = '';
+    }
+
+    function joinPromptMarkup() {
+        const status = state.joinIssue
+            ? `<p class="student-class-join-dialog__status" role="status">${escapeHtml(state.joinIssue)}</p>`
+            : '<p class="student-class-join-dialog__status">加入成功后，系统才会读取本班已发布课程与学习任务。</p>';
+        return `
+            <form method="dialog" data-role-home-join-form>
+                <span class="student-class-join-dialog__eyebrow">LEARNER ONBOARDING</span>
+                <h2>先加入班级</h2>
+                <p>请输入教师提供的班级代码或数字 ID。</p>
+                <label>
+                    <span>班级代码 / ID</span>
+                    <input name="class_id" inputmode="numeric" pattern="[0-9]+" min="1" autocomplete="off" required${state.joinBusy || state.joinUncertainClassId ? ' disabled' : ''}>
+                </label>
+                ${status}
+                <div>
+                    <button type="submit"${state.joinBusy || state.joinUncertainClassId ? ' disabled' : ''}>${state.joinBusy ? '正在加入…' : state.joinUncertainClassId ? '等待权威对账' : '加入班级'}</button>
+                </div>
+            </form>`;
+    }
+
+    async function submitJoinPrompt(form) {
+        if (state.joinBusy || state.joinUncertainClassId || !state.user || state.user.role !== 'student') return;
+        const classId = positiveId(new FormData(form).get('class_id'));
+        if (!classId) {
+            state.joinIssue = '请输入有效的数字班级 ID。';
+            syncJoinPrompt();
+            return;
+        }
+        state.joinBusy = true;
+        state.joinIssue = '';
+        syncJoinPrompt();
+        let confirmed = false;
+        try {
+            await api().request(`/api/classes/${classId}/join`, {
+                method: 'POST',
+                body: { role: 'student' }
+            });
+            const classes = list(await api().request('/api/classes', { params: { mine: true } }));
+            confirmed = classes.some((item) => positiveId(item && item.id) === classId);
+            if (!confirmed) {
+                state.joinUncertainClassId = String(classId);
+                state.joinIssue = '加入请求已送达，但权威班级列表尚未确认；系统不会重复发送。';
+            }
+        } catch (error) {
+            const ambiguous = typeof api().isAmbiguousMutation === 'function' && api().isAmbiguousMutation(error);
+            if (ambiguous) {
+                state.joinUncertainClassId = String(classId);
+                try {
+                    const classes = list(await api().request('/api/classes', { params: { mine: true } }));
+                    confirmed = classes.some((item) => positiveId(item && item.id) === classId);
+                } catch (readError) {}
+                if (!confirmed) state.joinIssue = '加入结果暂未确认；系统没有自动重试，请稍后重新登录核对。';
+            } else {
+                state.joinIssue = typeof api().message === 'function'
+                    ? api().message(error)
+                    : '加入班级失败，请核对代码后重试。';
+            }
+        } finally {
+            state.joinBusy = false;
+        }
+        if (confirmed) {
+            removeJoinPrompt();
+            global.dispatchEvent(new CustomEvent('astra:class-membership-changed', {
+                detail: { class_id: classId }
+            }));
+            load();
+            return;
+        }
+        syncJoinPrompt();
+    }
+
+    function syncJoinPrompt() {
+        const shouldShow = Boolean(
+            state.user
+            && state.user.role === 'student'
+            && state.issue
+            && state.issue.code === 'class_scope_missing'
+        );
+        if (!shouldShow) {
+            if (state.joinDialog) removeJoinPrompt();
+            return;
+        }
+        let dialog = state.joinDialog;
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.className = 'student-class-join-dialog';
+            dialog.setAttribute('aria-labelledby', 'student-class-join-title');
+            state.joinSubmitHandler = (event) => {
+                const form = event.target;
+                if (!(form instanceof HTMLFormElement) || !form.matches('[data-role-home-join-form]')) return;
+                event.preventDefault();
+                submitJoinPrompt(form);
+            };
+            state.joinCancelHandler = (event) => {
+                event.preventDefault();
+                requestAnimationFrame(() => dialog.querySelector('input:not(:disabled)')?.focus());
+            };
+            dialog.addEventListener('submit', state.joinSubmitHandler);
+            dialog.addEventListener('cancel', state.joinCancelHandler);
+            document.body.appendChild(dialog);
+            state.joinDialog = dialog;
+        }
+        dialog.innerHTML = joinPromptMarkup().replace('<h2>', '<h2 id="student-class-join-title">');
+        if (!dialog.open) {
+            try {
+                if (typeof dialog.showModal === 'function') dialog.showModal();
+                else dialog.setAttribute('open', '');
+            } catch (error) {
+                dialog.setAttribute('open', '');
+            }
+            requestAnimationFrame(() => dialog.querySelector('input:not(:disabled)')?.focus());
+        }
+    }
+
+    function render() {
+        if (!state.host || !state.user) return;
+        const copy = ROLE_COPY[state.user.role] || ROLE_COPY.student;
+        const sync = state.syncIssue
+            ? `<div class="planets-priority__issue" role="status"><strong>${escapeHtml(state.syncIssue.code)}</strong><p>${escapeHtml(state.syncIssue.message)}</p><button type="button" data-role-home-pending-retry>重新核对</button></div>`
+            : '';
+        const pending = state.pending && Number(state.pending.count || 0) > 0
+            ? `<p class="planets-priority__pending">有 ${Number(state.pending.count)} 条学习证据尚未同步；联网后会自动使用原事件编号对账。</p>`
+            : '';
+        state.host.innerHTML = `<div class="planets-section-heading"><h2>${escapeHtml(copy.title)}</h2><span>${escapeHtml(copy.eyebrow)}</span></div>${controlsMarkup()}${pending}${sync}${issueMarkup()}${taskMarkup()}`;
+        syncJoinPrompt();
+    }
+
+    function mount(root, user) {
+        destroy();
+        state.root = root instanceof Element ? root : document.getElementById('page-planets');
+        if (!state.root) return false;
+        const intro = state.root.querySelector('.planets-intro');
+        const host = document.createElement('section');
+        host.className = 'planets-priority';
+        host.dataset.astraRoleHome = 'true';
+        host.setAttribute('aria-label', '当前身份首要任务');
+        if (intro && intro.parentNode) intro.insertAdjacentElement('afterend', host);
+        else state.root.querySelector('.planets-main')?.prepend(host);
+        state.host = host;
+        state.user = user || null;
+        state.clickHandler = event => {
+            const pendingRetry = event.target instanceof Element && event.target.closest('[data-role-home-pending-retry]');
+            if (pendingRetry) {
+                refreshPendingSummaryOnly();
+                return;
+            }
+            const retry = event.target instanceof Element && event.target.closest('[data-role-home-retry]');
+            if (retry) {
+                const classId = positiveId(state.selected.class_id);
+                const courseId = positiveId(state.selected.course_id);
+                if (classId && courseId && state.user && ['student', 'teacher'].includes(state.user.role)) {
+                    refreshSelectedEvidenceScope({ class_id: classId, course_id: courseId });
+                } else {
+                    load();
+                }
+            }
+        };
+        state.changeHandler = event => {
+            const select = event.target instanceof Element && event.target.closest('[data-role-home-scope]');
+            if (select) choose(select.dataset.roleHomeScope, select.value);
+        };
+        host.addEventListener('click', state.clickHandler);
+        host.addEventListener('change', state.changeHandler);
+        state.unsubscribe = evidence().subscribe(change => {
+            const authorityIssue = evidenceAuthorityIssue(change);
+            if (authorityIssue) {
+                if (state.controller) state.controller.abort();
+                state.controller = null;
+                state.generation += 1;
+                resetData();
+                state.phase = 'blocked';
+                state.issue = authorityIssue;
+                render();
+                return;
+            }
+            if (change && change.type === 'identity-configured') {
+                load();
+                return;
+            }
+            if (['confirmed', 'local-pending', 'syncing', 'manual-intervention'].includes(change.type)) {
+                if (changeMatchesSelectedScope(change)) refreshSelectedEvidenceScope(change);
+                else refreshPendingSummaryOnly();
+            }
+        });
+        load();
+        return true;
+    }
+
+    function setUser(user) {
+        if (!state.host || !user) return false;
+        if (state.user && String(state.user.id) === String(user.id) && state.user.role === user.role) return true;
+        state.user = user;
+        load();
+        return true;
+    }
+
+    function destroy() {
+        if (state.controller) state.controller.abort();
+        state.controller = null;
+        state.generation += 1;
+        if (state.unsubscribe) state.unsubscribe();
+        if (state.host && state.clickHandler) state.host.removeEventListener('click', state.clickHandler);
+        if (state.host && state.changeHandler) state.host.removeEventListener('change', state.changeHandler);
+        if (state.host && state.host.isConnected) state.host.remove();
+        state.root = null;
+        state.host = null;
+        state.user = null;
+        state.unsubscribe = null;
+        state.clickHandler = null;
+        state.changeHandler = null;
+        removeJoinPrompt();
+        resetData();
+        state.phase = 'idle';
+    }
+
+    global.AstraRoleHomeClient = Object.freeze({
+        mount,
+        setUser,
+        load,
+        choose,
+        destroy,
+        contract: Object.freeze({
+            adminCourseTask,
+            adminAuditTask,
+            isBusinessAudit,
+            validatePendingJoinPage,
+            validateAdminCourses,
+            validateAdminAuditPage,
+            readRecentBusinessAudits,
+            resolveAdminTask
+        }),
+        snapshot: () => Object.freeze({
+            phase: state.phase,
+            role: state.user && state.user.role || '',
+            scope: Object.freeze(Object.assign({}, state.selected)),
+            issue: state.issue,
+            task: state.task
+        })
+    });
+})(window);

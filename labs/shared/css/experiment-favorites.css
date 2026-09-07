@@ -1,0 +1,84 @@
+/* ===== Experiment Favorites ===== */
+
+/* ── FAB heart button ── */
+.favorite-fab {
+    position: fixed;
+    bottom: 150px;
+    right: 24px;
+    /* v4.2.43 z-index 9060 高于 fab-scrim 9050 */
+    z-index: 9060;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid rgba(244, 114, 182, 0.25);
+    border-radius: 50%;
+    color: rgba(244, 114, 182, 0.7);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: favorite-fab-pulse 3s ease-in-out infinite;
+    animation-delay: 1s;
+}
+@keyframes favorite-fab-pulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(244, 114, 182, 0.0); }
+    50%      { box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 14px 2px rgba(244, 114, 182, 0.25); }
+}
+.favorite-fab:hover {
+    background: var(--surface-4, #24273a);
+    border-color: var(--accent-pink, #f472b6);
+    color: var(--accent-pink, #f472b6);
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(244, 114, 182, 0.4);
+    animation: none;
+}
+.favorite-fab--active {
+    color: var(--accent-pink, #f472b6);
+    border-color: var(--accent-pink, #f472b6);
+}
+.favorite-fab--active:hover {
+    color: var(--accent-pink, #f472b6);
+}
+
+/* 点击水波 ripple（v4.2.16） */
+.favorite-fab.is-rippling::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: rgba(244, 114, 182, 0.45);
+    pointer-events: none;
+    animation: fab-ripple-pink 0.55s ease-out forwards;
+}
+@keyframes fab-ripple-pink {
+    0%   { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+/* v4.2.18：tooltip 边框跟随粉色 */
+.favorite-fab[data-tip]::after {
+    border-color: rgba(244, 114, 182, 0.55);
+    color: rgba(252, 207, 232, 0.95);
+}
+
+/* ── Gallery card heart indicator ── */
+.module-card__fav {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: var(--accent-pink, #f472b6);
+    opacity: 0.85;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .favorite-fab {
+        bottom: 140px;
+        right: 16px;
+        width: 36px;
+        height: 36px;
+    }
+}

@@ -1,0 +1,462 @@
+/* ===== Humanities Text Visualization ===== */
+
+.humanities-page {
+    --frontier-accent: #7ed7c1;
+    --frontier-accent-rgb: 126, 215, 193;
+}
+
+.humanities-page .frontier-hero {
+    display: grid !important;
+}
+
+.humanities-page .frontier-hero__label--humanities {
+    color: #7ed7c1;
+}
+
+.humanities-page .frontier-hero__canvas {
+    opacity: 0.96;
+}
+
+.humanities-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-8) var(--space-16);
+}
+
+.humanities-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1.06fr) minmax(280px, 0.94fr);
+    gap: var(--space-5);
+    margin-bottom: var(--space-8);
+}
+
+.humanities-overview__copy,
+.humanities-overview__metric,
+.humanities-evidence-chain,
+.humanities-lab,
+.humanities-interpretation,
+.humanities-reference {
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-default);
+    background: linear-gradient(180deg, rgba(126,215,193,0.045), rgba(224,181,106,0.014)), var(--surface-1);
+}
+
+.humanities-overview__copy {
+    padding: var(--space-6);
+}
+
+.humanities-overview__copy h2,
+.humanities-evidence-chain__header h2,
+.humanities-interpretation__header h2,
+.humanities-reference h2 {
+    margin: 0 0 var(--space-3);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    line-height: 1.2;
+}
+
+.humanities-overview__copy p,
+.humanities-evidence-chain__header p,
+.humanities-evidence-card p,
+.humanities-interpretation__header p,
+.humanities-interpretation__item p,
+.humanities-reference p,
+.humanities-note p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.humanities-overview__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.humanities-overview__metric {
+    min-height: 116px;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.humanities-overview__metric span,
+.humanities-evidence-card span,
+.humanities-lab__eyebrow,
+.humanities-interpretation__eyebrow,
+.humanities-interpretation__item span,
+.humanities-reference__eyebrow,
+.humanities-panel__label {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.humanities-overview__metric strong {
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    line-height: 1.25;
+}
+
+.humanities-evidence-chain {
+    padding: var(--space-5);
+    margin-bottom: var(--space-8);
+}
+
+.humanities-evidence-chain__header {
+    max-width: 900px;
+    margin-bottom: var(--space-5);
+}
+
+.humanities-evidence-chain__grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.humanities-evidence-card {
+    position: relative;
+    min-height: 234px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.012)),
+        rgba(255,255,255,0.018);
+    overflow: hidden;
+}
+
+.humanities-evidence-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(180deg, #7ed7c1, #e0b56a 54%, #8aa7ff);
+    opacity: 0.84;
+}
+
+.humanities-evidence-card span {
+    display: inline-block;
+    margin-bottom: var(--space-4);
+    color: rgba(126,215,193,0.96);
+}
+
+.humanities-evidence-card h3 {
+    margin: 0 0 var(--space-3);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    line-height: 1.35;
+}
+
+.humanities-evidence-card p {
+    font-size: var(--text-sm);
+}
+
+.humanities-lab {
+    padding: var(--space-5);
+    margin-bottom: var(--space-8);
+}
+
+.humanities-lab__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+}
+
+.humanities-lab__header h2 {
+    margin: var(--space-2) 0 var(--space-2);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+}
+
+.humanities-lab__header p {
+    max-width: 740px;
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+
+.humanities-lab__badge {
+    flex: 0 0 auto;
+    border: 1px solid rgba(126,215,193,0.35);
+    border-radius: var(--radius-default);
+    padding: 8px 10px;
+    color: #7ed7c1;
+    background: rgba(126,215,193,0.075);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+}
+
+.humanities-workbench {
+    display: grid;
+    grid-template-columns: minmax(280px, 342px) minmax(0, 1fr);
+    gap: var(--space-5);
+}
+
+.humanities-controls,
+.humanities-canvas-wrap,
+.humanities-info {
+    min-width: 0;
+}
+
+.humanities-controls,
+.humanities-info {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.humanities-control {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background: rgba(255,255,255,0.018);
+}
+
+.humanities-control label {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.humanities-control strong {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+.humanities-samples,
+.humanities-modes,
+.humanities-focus-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.humanities-samples button,
+.humanities-modes button,
+.humanities-focus-list button {
+    min-height: 38px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color var(--duration-normal), color var(--duration-normal), background var(--duration-normal);
+}
+
+.humanities-samples button:hover,
+.humanities-samples button.is-active,
+.humanities-modes button:hover,
+.humanities-modes button.is-active,
+.humanities-focus-list button:hover,
+.humanities-focus-list button.is-active {
+    color: var(--text-primary);
+    border-color: rgba(126,215,193,0.5);
+    background: rgba(126,215,193,0.09);
+}
+
+.humanities-focus-list button {
+    min-height: 34px;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+}
+
+.humanities-canvas-wrap {
+    min-height: 560px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    background:
+        radial-gradient(circle at 16% 16%, rgba(126,215,193,0.12), transparent 30%),
+        radial-gradient(circle at 82% 18%, rgba(224,181,106,0.10), transparent 32%),
+        rgba(0,0,0,0.14);
+    overflow: hidden;
+}
+
+#humanities-canvas {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    min-height: 560px;
+}
+
+.humanities-info {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.humanities-panel {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background: rgba(255,255,255,0.018);
+}
+
+.humanities-panel strong {
+    display: block;
+    margin-top: var(--space-2);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    line-height: 1.35;
+}
+
+.humanities-panel p {
+    margin: var(--space-2) 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+}
+
+.humanities-note {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: var(--space-3);
+    align-items: start;
+    margin-top: var(--space-5);
+    padding: var(--space-4);
+    border-left: 3px solid #7ed7c1;
+    background: rgba(126,215,193,0.055);
+}
+
+.humanities-note i {
+    width: 20px;
+    height: 20px;
+    color: #7ed7c1;
+}
+
+.humanities-reference {
+    padding: var(--space-6);
+}
+
+.humanities-interpretation {
+    padding: var(--space-6);
+    margin-bottom: var(--space-8);
+}
+
+.humanities-interpretation__header {
+    max-width: 760px;
+    margin-bottom: var(--space-5);
+}
+
+.humanities-interpretation__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.humanities-interpretation__item {
+    min-height: 220px;
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    background: rgba(255,255,255,0.018);
+}
+
+.humanities-interpretation__item span {
+    color: #7ed7c1;
+}
+
+.humanities-interpretation__item h3 {
+    margin: var(--space-3) 0 var(--space-2);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    line-height: 1.35;
+}
+
+.humanities-interpretation__item p {
+    font-size: var(--text-sm);
+}
+
+.humanities-reference__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.humanities-reference__links a {
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    padding: 7px 10px;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.025);
+    font-size: var(--text-xs);
+    text-decoration: none;
+}
+
+.humanities-reference__links a:hover,
+.humanities-reference__links a:focus-visible {
+    color: var(--text-primary);
+    border-color: rgba(126,215,193,0.45);
+}
+
+@media (max-width: 980px) {
+    .humanities-overview,
+    .humanities-workbench {
+        grid-template-columns: 1fr;
+    }
+
+    .humanities-info {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .humanities-evidence-chain__grid,
+    .humanities-interpretation__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .humanities-shell {
+        padding: var(--space-5) var(--space-4) var(--space-10);
+    }
+
+    .humanities-overview__metrics,
+    .humanities-info,
+    .humanities-evidence-chain__grid,
+    .humanities-samples,
+    .humanities-modes,
+    .humanities-focus-list {
+        grid-template-columns: 1fr;
+    }
+
+    .humanities-lab,
+    .humanities-evidence-chain {
+        padding: var(--space-4);
+    }
+
+    .humanities-lab__header {
+        flex-direction: column;
+    }
+
+    .humanities-canvas-wrap,
+    #humanities-canvas {
+        min-height: 430px;
+    }
+
+    .humanities-interpretation {
+        padding: var(--space-4);
+    }
+
+    .humanities-interpretation__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .humanities-interpretation__item {
+        min-height: auto;
+    }
+}

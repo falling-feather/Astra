@@ -1,0 +1,283 @@
+/* ===== Responsive ===== */
+
+/* ── Swipe-back indicator (E-02) ── */
+.swipe-back-indicator {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateX(-40px) translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface-2, rgba(30,41,59,.85));
+    border: 1px solid var(--border, rgba(100,116,139,.3));
+    color: var(--text-secondary, #94a3b8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity .15s ease, transform .15s ease;
+    pointer-events: none;
+    z-index: 10000;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+}
+
+/* ── Zoom modal touch-action hint (E-02) ── */
+.physics-zoom-modal__host,
+.biology-zoom-modal__host {
+    touch-action: none;  /* Let JS handle all gestures inside zoom modal */
+}
+
+/* ── Touch-device overrides ── */
+@media (hover: none) and (pointer: coarse) {
+    /* Satellite: show labels always on touch */
+    .satellite-label-container {
+        opacity: 1 !important;
+    }
+
+    /* Larger tap targets for nav */
+    .nav-item {
+        min-height: 44px;
+        min-width: 44px;
+        justify-content: center;
+    }
+
+    /* Back-to-top larger for thumb */
+    .back-to-top {
+        width: 48px;
+        height: 48px;
+    }
+}
+
+/* ── Tablet ── */
+@media (max-width: 1024px) {
+    .demo-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .footer-container {
+        grid-template-columns: 1fr;
+        gap: var(--space-8);
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+    .navbar:not(.navbar--frontier) .nav-container {
+        padding-right: 0;
+        gap: var(--space-2);
+    }
+
+    .navbar:not(.navbar--frontier) .nav-logo--englab {
+        flex: 0 0 auto;
+    }
+
+    .navbar:not(.navbar--frontier) .nav-menu--englab {
+        max-width: calc(100vw - 148px);
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        padding-right: var(--space-4);
+    }
+
+    .navbar:not(.navbar--frontier) .nav-menu--englab::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+    /* Nav – icon-only, 44px touch targets */
+    .desktop-only { display: none; }
+    .nav-item span { display: none; }
+    .nav-item {
+        padding: var(--space-3);
+        min-height: 44px;
+        min-width: 44px;
+        justify-content: center;
+    }
+    .nav-item i {
+        width: 20px;
+        height: 20px;
+    }
+    .nav-container {
+        padding: 0 var(--space-4);
+        height: 52px;
+    }
+    .navbar--frontier .nav-container {
+        padding-right: 0;
+        gap: var(--space-2);
+    }
+    .navbar--frontier .nav-logo--frontier {
+        flex: 0 0 auto;
+    }
+    .navbar--frontier .nav-menu--frontier {
+        max-width: calc(100vw - 76px);
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        padding-right: var(--space-4);
+    }
+    .navbar--frontier .nav-menu--frontier::-webkit-scrollbar {
+        display: none;
+    }
+    .navbar--frontier .nav-menu--frontier .nav-item {
+        flex: 0 0 44px;
+    }
+    .navbar:not(.navbar--frontier) .nav-container {
+        padding-right: 0;
+        gap: var(--space-2);
+    }
+    .navbar:not(.navbar--frontier) .nav-logo--englab {
+        flex: 0 0 auto;
+    }
+    .navbar:not(.navbar--frontier) .nav-menu--englab {
+        max-width: calc(100vw - 76px);
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        padding-right: var(--space-4);
+    }
+    .navbar:not(.navbar--frontier) .nav-menu--englab::-webkit-scrollbar {
+        display: none;
+    }
+    .navbar:not(.navbar--frontier) .nav-menu--englab .nav-item {
+        flex: 0 0 44px;
+    }
+
+    /* Page heroes */
+    .page-hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: var(--space-8) var(--space-5) var(--space-6);
+        gap: var(--space-4);
+    }
+
+    .page-hero__visual {
+        min-height: 104px;
+        order: 0;
+    }
+
+    .page-hero__canvas {
+        max-width: min(128px, 40vw);
+        opacity: 0.52;
+    }
+
+    .page-hero__title {
+        font-size: var(--text-2xl);
+    }
+
+    /* Content */
+    .content-section {
+        padding: var(--space-6) var(--space-4);
+    }
+
+    .demo-section {
+        padding: var(--space-6);
+    }
+
+    .experiments-section {
+        padding: var(--space-6) var(--space-4);
+    }
+
+    /* Home orbit system – shrink for mobile viewport (v7.0) */
+    .orbit-path-1 { width: 330px; height: 200px; }
+    .orbit-path-2 { width: 400px; height: 238px; }
+    .orbit-path-3 { width: 480px; height: 286px; }
+    .orbit-path-4 { width: 430px; height: 258px; }
+    .orbit-path-5 { width: 370px; height: 222px; }
+    .main-star { width: 150px; height: 150px; }
+    .satellite { width: 52px; height: 52px; }
+    .satellite-label-container { bottom: -48px; width: 122px; }
+    .satellite-label { font-size: 0.75rem; }
+    .satellite-desc { display: none; }
+    .home-tagline p { font-size: 0.78rem; letter-spacing: 0.08em; }
+    /* Sort controls */
+    .sort-toolbar {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .speed-control {
+        width: 100%;
+    }
+
+    /* Footer */
+    .footer-links {
+        flex-direction: column;
+        gap: var(--space-6);
+    }
+
+    .site-footer {
+        padding: var(--space-10) 0 var(--space-6);
+    }
+
+    .footer-container {
+        padding: 0 var(--space-4);
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        text-align: center;
+        gap: var(--space-3);
+    }
+
+    /* Back to top */
+    .back-to-top {
+        bottom: var(--space-4);
+        right: var(--space-4);
+    }
+}
+
+/* ── Small phones ── */
+@media (max-width: 480px) {
+    .orbit-path-1 { width: 260px; height: 160px; }
+    .orbit-path-2 { width: 315px; height: 190px; }
+    .orbit-path-3 { width: 380px; height: 228px; }
+    .orbit-path-4 { width: 340px; height: 204px; }
+    .orbit-path-5 { width: 290px; height: 176px; }
+    .main-star { width: 126px; height: 126px; }
+    .satellite { width: 42px; height: 42px; }
+    .satellite-icon i { width: 1.15rem; height: 1.15rem; }
+    .satellite-label-container { bottom: -42px; width: 96px; }
+    .satellite-label { font-size: 0.68rem; letter-spacing: 0.04em; }
+    .satellite-progress { font-size: 0.56rem; }
+    .home-tagline p { font-size: 0.68rem; }
+    .page-hero {
+        padding: var(--space-6) var(--space-4) var(--space-5);
+    }
+
+    .page-hero__visual {
+        min-height: 104px;
+    }
+
+    .page-hero__canvas {
+        max-width: min(128px, 40vw);
+    }
+
+    .page-hero__title {
+        font-size: var(--text-xl);
+    }
+
+    .page-hero__desc {
+        font-size: var(--text-sm);
+    }
+
+    /* Demo sections tighter on small phones */
+    .demo-section {
+        padding: var(--space-4);
+    }
+
+    /* Algorithms sort bars responsive */
+    .sort-element {
+        min-width: 28px;
+        font-size: var(--text-xs);
+    }
+}

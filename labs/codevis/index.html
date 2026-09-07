@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="星序 Astra 的代码学习空间：从预测、运行和追踪开始，逐步修正并完成公开样例预检。" />
+    <title>代码空间 · 星序 Astra</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="shared/css/tokens.css?v=759r3" />
+    <link rel="stylesheet" href="shared/css/base.css?v=759r3" />
+    <link rel="stylesheet" href="shared/css/navbar.css?v=759r3" />
+    <link rel="stylesheet" href="shared/css/layout.css?v=759r3" />
+    <link rel="stylesheet" href="pages/code-trace/code-trace.css?v=759r3" />
+    <link rel="stylesheet" href="pages/course-catalog/course-space.css?v=759r3" />
+<meta name="astra-resource-explorer" content="public"></head>
+<body>
+    <div class="cv-app">
+        <nav class="cv-navbar" aria-label="代码空间导航">
+            <a href="#catalog" class="cv-navbar__brand" aria-label="代码空间课程目录">
+                <span class="cv-navbar__brand-dot" aria-hidden="true"></span>
+                <span class="cv-navbar__brand-text">ASTRA <em>/</em> 代码空间</span>
+            </a>
+            <div id="cv-class-context" class="cv-navbar__context" hidden>
+                <label for="cv-class-select">当前班级</label>
+                <select id="cv-class-select" aria-describedby="cv-class-status"></select>
+                <span id="cv-class-status" role="status" aria-live="polite"></span>
+            </div>
+            <div class="cv-navbar__links">
+                <a href="#catalog" class="cv-nav-item" data-page="catalog">课程目录</a>
+                <a href="#trace" class="cv-nav-item" data-page="trace">执行追踪</a>
+                <a href="../index.html#planets" class="cv-nav-item cv-nav-external">返回星序总览</a>
+            </div>
+        </nav>
+
+        <main class="cv-main">
+            <section id="cv-page-catalog" class="cv-page" aria-label="课程目录"><div id="course-catalog-root"></div></section>
+            <section id="cv-page-lesson" class="cv-page" aria-label="子课程"><div id="course-lesson-root"></div></section>
+            <section id="cv-page-challenge" class="cv-page" aria-label="可执行挑战"><div id="course-challenge-root"></div></section>
+
+            <section id="cv-page-trace" class="cv-page" aria-label="多语言执行追踪">
+                <div class="cv-container">
+                    <header class="cv-section__header">
+                        <p class="course-eyebrow">工具 / 执行追踪</p>
+                        <h1 class="cv-section__title">多语言执行追踪</h1>
+                        <p class="cv-section__desc">选择语言或编辑一段代码，逐步观察当前行、变量、数组与输出。</p>
+                    </header>
+                    <div id="code-trace-root" class="code-trace-root">
+                        <div id="code-trace-intro" class="code-trace-intro" hidden>
+                            <div class="code-trace-intro__steps"><span class="code-trace-intro__step"><b>1</b>选择语言</span><span class="code-trace-intro__arrow">→</span><span class="code-trace-intro__step"><b>2</b>编辑代码</span><span class="code-trace-intro__arrow">→</span><span class="code-trace-intro__step"><b>3</b>运行并逐步观察</span></div>
+                            <button type="button" id="code-trace-intro-dismiss" class="code-trace-intro__close" aria-label="关闭引导">知道了</button>
+                        </div>
+                        <div class="code-trace-controls">
+                            <div class="code-trace-group" data-group="run"><span class="code-trace-group__label">运行</span>
+                                <label class="code-trace-field"><span>语言</span><select id="code-trace-lang" aria-label="选择语言"><option value="demo" selected>演示预设</option><option value="javascript">JavaScript</option><option value="python">Python</option><option value="cpp">C++</option><option value="c">C</option></select></label>
+                                <label class="code-trace-field" id="code-trace-sample-field"><span>示例</span><select id="code-trace-sample" aria-label="选择代码示例"><option value="bubble">冒泡排序</option><option value="binsearch">二分查找</option><option value="fib">斐波那契递归</option></select></label>
+                                <button type="button" id="code-trace-run" class="cv-btn cv-btn--primary cv-btn--sm" hidden>运行追踪</button>
+                            </div>
+                            <span class="code-trace-divider" aria-hidden="true"></span>
+                            <div class="code-trace-group" data-group="nav"><span class="code-trace-group__label">导航</span><button type="button" id="code-trace-prev" class="cv-btn cv-btn--sm">上一步</button><button type="button" id="code-trace-play" class="cv-btn cv-btn--primary cv-btn--sm" aria-pressed="false">播放</button><button type="button" id="code-trace-next" class="cv-btn cv-btn--sm">下一步</button></div>
+                            <span class="code-trace-divider" aria-hidden="true"></span>
+                            <div class="code-trace-group" data-group="setting"><span class="code-trace-group__label">设置</span><label class="code-trace-field"><span>速度</span><select id="code-trace-speed" aria-label="播放速度"><option value="900">慢</option><option value="450" selected>正常</option><option value="200">快</option></select></label></div>
+                        </div>
+                        <div id="code-trace-editor-wrap" class="code-trace-editor" hidden>
+                            <div class="code-trace-editor__header"><span class="code-trace-editor__title">编辑代码</span><span class="code-trace-editor__actions"><button type="button" id="code-trace-copy" class="cv-btn cv-btn--sm">复制</button><button type="button" id="code-trace-reset" class="cv-btn cv-btn--sm">重置示例</button></span></div>
+                            <textarea id="code-trace-editor" class="code-trace-editor__textarea" spellcheck="false" aria-label="代码编辑区"></textarea><div id="code-trace-status" class="code-trace-status"></div>
+                        </div>
+                        <div class="code-trace-grid">
+                            <div class="code-trace-panel code-trace-panel--code"><div class="code-trace-panel__title">源代码 / 当前行</div><pre id="code-trace-source" class="code-trace-source" aria-live="polite"></pre></div>
+                            <div class="code-trace-panel code-trace-panel--vars"><button type="button" class="code-trace-panel__title code-trace-panel__toggle" data-target="code-trace-vars" aria-controls="code-trace-vars" aria-expanded="true">变量 / 本步变化</button><div id="code-trace-vars" class="code-trace-vars code-trace-collapsible"></div></div>
+                            <div class="code-trace-panel code-trace-panel--array"><button type="button" class="code-trace-panel__title code-trace-panel__toggle" data-target="code-trace-array" aria-controls="code-trace-array" aria-expanded="true">数组 / 栈</button><div id="code-trace-array" class="code-trace-array code-trace-collapsible"></div></div>
+                            <div class="code-trace-panel code-trace-panel--stdout"><div class="code-trace-panel__title">标准输出</div><pre id="code-trace-stdout" class="code-trace-stdout"></pre></div>
+                        </div>
+                        <div class="code-trace-seek"><div class="code-trace-seek__track"><div id="code-trace-timeline" class="code-trace-timeline" aria-label="关键步骤时间轴"></div><input type="range" id="code-trace-seek" min="0" max="0" value="0" step="1" aria-label="跳转步骤" /></div><span id="code-trace-step-label" class="code-trace-step-label">0 / 0</span></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="cv-footer">
+            <div class="cv-container cv-footer__grid">
+                <div class="cv-footer__brand"><div class="cv-footer__logo"><span class="cv-footer__logo-dot" aria-hidden="true"></span><span>代码空间</span></div><p class="cv-footer__desc">星序 Astra 的代码学习空间，从现象、预测与可观察轨迹开始练习。</p></div>
+                <div class="cv-footer__col"><h4>工科试验室</h4><a href="../index.html#mathematics">数学可视化</a><a href="../index.html#physics">物理演示</a><a href="../index.html#chemistry">化学实验</a><a href="../index.html#algorithms">算法可视化</a><a href="../index.html#biology">生物实验</a></div>
+                <div class="cv-footer__col"><h4>关于</h4><a href="../index.html#planets">返回星序总览</a><a href="../index.html#license">开源协议</a><a href="../index.html#changelog">更新日志</a></div>
+                <div class="cv-footer__bottom"><span>&copy; 2026 代码空间 · 星序 Astra</span><p class="cv-footer__running">Made by Falling-feather.</p></div>
+            </div>
+        </footer>
+    </div>
+    <script src="../shared/js/api-client.js"></script>
+    <script src="shared/js/router.js?v=759r3"></script>
+    <script src="shared/js/course-manifest.js?v=759r3"></script>
+    <script src="shared/js/course-publication-adapter.js?v=759r3"></script>
+    
+    <script src="shared/js/submission-adapter.js?v=759r3"></script>
+    <script src="shared/js/runtime-loader.js?v=759r3"></script>
+    <script src="shared/js/runtime.js?v=759r3"></script>
+    <script src="shared/js/runtimes/runtime-js.js?v=759r3"></script>
+    <script src="shared/js/runtimes/runtime-py.js?v=759r3"></script>
+    <script src="shared/js/runtimes/runtime-cpp.js?v=759r3"></script>
+    <script src="pages/course-catalog/course-catalog.js?v=759r3"></script>
+    <script src="pages/course-challenge/course-challenge.js?v=759r3"></script>
+    <script src="pages/code-trace/code-trace.js?v=759r3"></script>
+    <script src="shared/js/main.js?v=759r3"></script>
+</body>
+</html>

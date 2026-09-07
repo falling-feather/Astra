@@ -1,0 +1,3 @@
+/* Teaching management belongs to the new portal; this shell only explores public resources. */
+[data-page="student"],[data-page="teacher"],[data-page="admin"],.auth-ui-entry,.astra-auth-entry { display:none!important; }
+.astra-evidence-panel,.astra-evidence-surface { display:none!important; }

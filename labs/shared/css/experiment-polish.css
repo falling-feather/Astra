@@ -1,0 +1,103 @@
+/* ===== Experiment UI polish =====
+ * Late, scoped overrides for experiment controls. This keeps the existing
+ * subject layouts intact while smoothing button rhythm, labels, and form text.
+ */
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section {
+    --experiment-control-height: 34px;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(
+    .viz-controls,
+    .demo-controls-panel,
+    [class$="-controls"],
+    [id$="-controls"]
+) {
+    row-gap: 10px;
+    column-gap: 12px;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section button:not(.physics-zoom-btn):not(.biology-zoom-btn):not(.ac-pause-btn) {
+    min-height: var(--experiment-control-height);
+    padding-block: 6px;
+    padding-inline: 12px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    line-height: 1.25;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(.btn-primary, .btn-secondary, .btn, .btn--ghost) {
+    min-height: var(--experiment-control-height);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(
+    input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea
+) {
+    min-height: var(--experiment-control-height);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(label, .control-label, .calc-param-group, .geo-param, .ac-label, .grav-param, .mc-label, .cp-label) {
+    line-height: 1.45;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(code, kbd, .mono-val, [class$="-val"]) {
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+}
+
+:is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(
+    .calc-edu,
+    .geo-edu,
+    .optics-info,
+    .wave-info,
+    .ac-info,
+    .grav-info,
+    .neur-info,
+    .imm-info,
+    .mc-edu,
+    .cp-edu
+) {
+    line-height: 1.7;
+}
+
+@media (max-width: 768px) {
+    :is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section {
+        --experiment-control-height: 38px;
+    }
+
+    :is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section button:not(.physics-zoom-btn):not(.biology-zoom-btn):not(.ac-pause-btn) {
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    :is(#page-mathematics, #page-physics, #page-chemistry, #page-algorithms, #page-biology) .demo-section :is(
+        .calc-mode-btns,
+        .geo-mode-btns,
+        .rel-mode-btns,
+        .ac-mode-btns,
+        .grav-mode-btns,
+        .fc-mode-btns,
+        .mc-mode-btns,
+        .cp-mode-btns,
+        .eco-mode-btns,
+        .neural-mode-btns,
+        .immune-mode-btns,
+        .genexp-mode-btns,
+        .strmatch-algo-btns
+    ) {
+        flex-wrap: wrap;
+    }
+}

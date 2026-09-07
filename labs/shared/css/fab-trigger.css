@@ -1,0 +1,507 @@
+/**
+ * FAB 折叠触发器样式（v4.2.19）
+ * 主控按钮位于右下 bottom 24px；展开时另外 4 个 FAB 错峰飞入。
+ */
+
+/* v4.2.27：菜单展开时半透明遮罩 */
+.fab-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 10, 18, 0.45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 9050;
+}
+.fab-scrim--visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* v4.3.0：FAB 折叠菜单改为垂直堆叠，弧线/锚点/微粒等装饰统一隐藏，避免 tooltip 与按钮重叠造成的视觉混乱 */
+.fab-trace { display: none !important; }
+.fab-trace-anchors { display: none !important; }
+
+/* v4.2.32：fan-out 弧形轨迹（仅桌面端） */
+/* v4.2.36：状态化（展开常驻 + 走马灯微粒沿弧线运动） */
+.fab-trace {
+    position: fixed;
+    width: 250px;
+    height: 250px;
+    bottom: -83px;
+    right: -83px;
+    z-index: 9098;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.45s ease;
+}
+.fab-trace svg { width: 100%; height: 100%; overflow: visible; }
+.fab-trace .fab-trace-line {
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 4px rgba(0, 255, 213, 0.45));
+    stroke-dasharray: 200;
+    stroke-dashoffset: 200;
+    transition: stroke-dashoffset 0.6s ease-out;
+}
+.fab-trace .fab-trace-particle {
+    filter: drop-shadow(0 0 4px rgba(0, 255, 213, 0.95));
+    opacity: 0;
+    transition: opacity 0.3s ease 0.2s;
+}
+.fab-trace .fab-trace-particle--alt {
+    filter: drop-shadow(0 0 4px rgba(167, 139, 250, 0.9));
+}
+/* v4.2.41：4 个静默定位锚点（弧线角度对应 4 FAB） */
+.fab-trace .fab-trace-anchors circle {
+    filter: drop-shadow(0 0 3px rgba(0, 255, 213, 0.6));
+    opacity: 0;
+    transition: opacity 0.4s ease 0.15s;
+}
+body[data-fab-expanded="true"] .fab-trace .fab-trace-anchors circle { opacity: 0.9; }
+
+/* v4.2.42：锚点呼吸动画（柔和 2.4s ease-in-out 透明度 0.6↔0.95） */
+@keyframes fab-trace-anchor-breath {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 0.95; }
+}
+body[data-fab-expanded="true"] .fab-trace .fab-trace-anchors circle {
+    animation: fab-trace-anchor-breath 2.4s ease-in-out 0.45s infinite;
+}
+body[data-fab-expanded="true"] .fab-trace .fab-trace-anchors circle:nth-child(2) { animation-delay: 0.75s; }
+body[data-fab-expanded="true"] .fab-trace .fab-trace-anchors circle:nth-child(3) { animation-delay: 1.05s; }
+body[data-fab-expanded="true"] .fab-trace .fab-trace-anchors circle:nth-child(4) { animation-delay: 1.35s; }
+body[data-fab-expanded="true"] .fab-trace { opacity: 1; }
+body[data-fab-expanded="true"] .fab-trace .fab-trace-line { stroke-dashoffset: 0; }
+body[data-fab-expanded="true"] .fab-trace .fab-trace-particle { opacity: 1; }
+body[data-fab-expanded="false"] .fab-trace .fab-trace-line { transition: stroke-dashoffset 0.5s ease-in; }
+
+@media (max-width: 768px) {
+    .fab-trace { display: none; }
+}
+
+.fab-trigger {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid rgba(58, 169, 255, 0.3);
+    border-radius: 50%;
+    color: rgba(58, 169, 255, 0.8);
+    cursor: pointer;
+    z-index: 9100;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    animation: fab-trigger-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes fab-trigger-pulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(58, 169, 255, 0); }
+    50%      { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 14px 2px rgba(58, 169, 255, 0.22); }
+}
+
+.fab-trigger:hover {
+    background: var(--surface-4, #24273a);
+    border-color: #3aa9ff;
+    color: #3aa9ff;
+    transform: scale(1.08);
+    box-shadow: 0 4px 18px rgba(58, 169, 255, 0.35);
+    animation: none;
+}
+
+.fab-trigger--open {
+    animation: none;
+}
+
+/* v4.2.39：展开后主控按钮轻微上浮 3px，强化"推出"状态 */
+.fab-trigger {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                border-color 0.25s ease,
+                color 0.25s ease,
+                box-shadow 0.25s ease;
+}
+.fab-trigger--open {
+    transform: translateY(-3px);
+}
+.fab-trigger--open:hover {
+    transform: translateY(-3px) scale(1.08);
+}
+
+/* v4.2.25：首次出现 bounce 提示动画（每会话仅一次） */
+.fab-trigger--bouncing {
+    animation: fab-trigger-pulse 3.2s ease-in-out infinite, fab-trigger-bounce 1.4s ease-out;
+}
+@keyframes fab-trigger-bounce {
+    0%   { transform: translateY(0) scale(1); }
+    20%  { transform: translateY(-12px) scale(1.06); }
+    40%  { transform: translateY(0) scale(1); }
+    55%  { transform: translateY(-6px) scale(1.03); }
+    75%  { transform: translateY(0) scale(1); }
+    100% { transform: translateY(0) scale(1); }
+}
+
+/* v4.2.26：点击 ripple 水波（蓝色 v4.3.0） */
+.fab-trigger.is-rippling::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: rgba(58, 169, 255, 0.45);
+    pointer-events: none;
+    animation: fab-trigger-ripple 0.55s ease-out forwards;
+}
+@keyframes fab-trigger-ripple {
+    0%   { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* v4.2.29：菜单展开瞬间主控 FAB 周围蓝色光环扩散（v4.3.0） */
+.fab-trigger-halo {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid rgba(58, 169, 255, 0.7);
+    pointer-events: none;
+    z-index: 9099;
+    animation: fab-trigger-halo 0.6s ease-out forwards;
+}
+@keyframes fab-trigger-halo {
+    0%   { transform: scale(1);   opacity: 0.85; border-width: 2px; }
+    100% { transform: scale(2.0); opacity: 0;    border-width: 1px; }
+}
+@media (max-width: 768px) {
+    .fab-trigger-halo {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        width: 44px;
+        height: 44px;
+    }
+}
+
+.fab-trigger i {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fab-trigger--open i {
+    transform: rotate(90deg);
+}
+
+/* v4.2.34：图标双层叠加，展开时 menu 淡出 + close 淡入 */
+.fab-trigger { position: fixed; }
+.fab-trigger .fab-trigger-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+}
+.fab-trigger .fab-trigger-icon--menu  { opacity: 1; transform: rotate(0deg) scale(1); }
+.fab-trigger .fab-trigger-icon--close { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+.fab-trigger--open .fab-trigger-icon--menu  { opacity: 0; transform: rotate(90deg)  scale(0.6); }
+.fab-trigger--open .fab-trigger-icon--close { opacity: 1; transform: rotate(0deg)   scale(1); }
+
+/* v4.2.38：主控按钮 badge（右上角小圆点，数字 4 提示可用按钮数） */
+.fab-trigger .fab-trigger-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #f472b6, #a78bfa);
+    color: #fff;
+    font-size: 10px;
+    line-height: 16px;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    transform: scale(1);
+    transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1;
+}
+.fab-trigger--open .fab-trigger-badge {
+    opacity: 0;
+    transform: scale(0.4);
+}
+
+/* tooltip 沿用通用样式（HUD 蓝 v4.3.0） */
+.fab-trigger[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    padding: 5px 10px;
+    background: rgba(20, 23, 35, 0.95);
+    color: rgba(212, 232, 255, 0.95);
+    border: 1px solid rgba(58, 169, 255, 0.55);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 9101;
+}
+.fab-trigger[data-tip]:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+
+/* ── 折叠/展开状态：控制 4 个功能 FAB 的可见性 ── */
+/* v5.0：移除 theme-fab；剩 4 个：导出 / 返回顶部 / 收藏 / 帮助 */
+body[data-fab-expanded="false"] .experiment-guide-help-btn,
+body[data-fab-expanded="false"] .favorite-fab,
+body[data-fab-expanded="false"] .back-to-top-fab,
+body[data-fab-expanded="false"] .experiment-export-btn {
+    opacity: 0 !important;
+    transform: translateY(20px) scale(0.5) !important;
+    pointer-events: none !important;
+    animation: none !important;
+}
+
+body[data-fab-expanded="true"] .experiment-guide-help-btn,
+body[data-fab-expanded="true"] .favorite-fab,
+body[data-fab-expanded="true"] .back-to-top-fab,
+body[data-fab-expanded="true"] .experiment-export-btn {
+    z-index: 9060;
+    transition: opacity 0.28s ease,
+                transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+                bottom 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+                right 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 错峰飞入：从下到上依次出现（4 项） */
+body[data-fab-expanded="true"] .experiment-guide-help-btn { transition-delay: 0.00s; }
+body[data-fab-expanded="true"] .favorite-fab               { transition-delay: 0.05s; }
+body[data-fab-expanded="true"] .back-to-top-fab            { transition-delay: 0.10s; }
+body[data-fab-expanded="true"] .experiment-export-btn      { transition-delay: 0.15s; }
+
+/* v5.0：垂直堆叠布局（4 个功能 FAB，主控在最底） */
+body[data-fab-expanded="true"] .experiment-export-btn {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 24px !important;
+}
+body[data-fab-expanded="true"] .back-to-top-fab {
+    bottom: calc(124px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 22px !important;
+}
+body[data-fab-expanded="true"] .favorite-fab {
+    bottom: calc(176px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 22px !important;
+}
+body[data-fab-expanded="true"] .experiment-guide-help-btn {
+    bottom: calc(228px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 22px !important;
+}
+
+/* v5.0：tooltip 在展开时一律放在按钮左侧 */
+body[data-fab-expanded="true"] .favorite-fab[data-tip]::after,
+body[data-fab-expanded="true"] .experiment-guide-help-btn[data-tip]::after,
+body[data-fab-expanded="true"] .back-to-top-fab[data-tip]::after,
+body[data-fab-expanded="true"] .experiment-export-btn[data-tip]::after {
+    display: block !important;
+    right: calc(100% + 12px) !important;
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translateY(-50%) translateX(0) !important;
+    opacity: 1 !important;
+    z-index: 9101;
+}
+body[data-fab-expanded="true"] .experiment-guide-help-btn[data-tip]::after { transition-delay: 0.05s; }
+body[data-fab-expanded="true"] .favorite-fab[data-tip]::after              { transition-delay: 0.10s; }
+body[data-fab-expanded="true"] .back-to-top-fab[data-tip]::after           { transition-delay: 0.15s; }
+body[data-fab-expanded="true"] .experiment-export-btn[data-tip]::after     { transition-delay: 0.20s; }
+
+/* 键盘聚焦环统一蓝色 */
+.fab-trigger:focus-visible,
+.favorite-fab:focus-visible,
+.back-to-top-fab:focus-visible,
+.experiment-guide-help-btn:focus-visible,
+.experiment-export-btn:focus-visible {
+    outline: 2px solid #3aa9ff;
+    outline-offset: 3px;
+}
+
+/* 收起时反向错峰（远端先归位 → 近端最后） */
+body[data-fab-collapsing="true"] .experiment-export-btn      { transition-delay: 0.00s; }
+body[data-fab-collapsing="true"] .back-to-top-fab            { transition-delay: 0.05s; }
+body[data-fab-collapsing="true"] .favorite-fab               { transition-delay: 0.10s; }
+body[data-fab-collapsing="true"] .experiment-guide-help-btn  { transition-delay: 0.15s; }
+
+@media (max-width: 768px) {
+    .fab-trigger {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        width: 44px;
+        height: 44px;
+    }
+    .fab-trigger i { width: 18px; height: 18px; }
+    .fab-trigger .fab-trigger-icon { width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+    .fab-trigger[data-tip]::after { display: none; }
+
+    /* v5.0：移动端 4 个 FAB 间距收紧 */
+    body[data-fab-expanded="true"] .experiment-export-btn {
+        bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+        right: 18px !important;
+    }
+    body[data-fab-expanded="true"] .back-to-top-fab {
+        bottom: calc(106px + env(safe-area-inset-bottom, 0px)) !important;
+        right: 18px !important;
+    }
+    body[data-fab-expanded="true"] .favorite-fab {
+        bottom: calc(152px + env(safe-area-inset-bottom, 0px)) !important;
+        right: 18px !important;
+    }
+    body[data-fab-expanded="true"] .experiment-guide-help-btn {
+        bottom: calc(198px + env(safe-area-inset-bottom, 0px)) !important;
+        right: 18px !important;
+    }
+}
+
+/*
+ * FE-012：力学页的核心控制区必须始终拥有真实命中空间。
+ * 该页将 FAB 作为非模态工具列呈现，因此不渲染全屏 scrim；页面现有的
+ * document click owner 仍负责收起菜单，且不会以透明层截获实验控件。
+ */
+body:has(#page-physics.active [data-module="mechanics"].module-active) .fab-scrim {
+    display: none;
+}
+
+/*
+ * 模块侧栏是当前页面的导航模态层。打开时，全部 mechanics 浮动工具统一
+ * 降到 backdrop(99) 与 sidebar(100) 之下，避免主 FAB 或导出菜单截获
+ * 侧栏首尾项目；toggle(101) 仍由导航 owner 保持可关闭。
+ */
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .fab-trigger,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .fab-trigger-halo,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .fab-trace,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .experiment-guide-help-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .favorite-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .back-to-top-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .experiment-export-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active):has(#sidebar-physics.open)
+    .experiment-export-menu {
+    z-index: 98 !important;
+}
+
+body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-guide-help-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active) .favorite-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active) .back-to-top-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .experiment-guide-help-btn,
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .favorite-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .back-to-top-fab,
+body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="false"]
+    .experiment-export-btn {
+    transform: translateY(12px) scale(1) !important;
+}
+
+@media (max-width: 768px) {
+    /*
+     * 390px 目标视口中，四个功能 FAB 与主触发器占据左侧连续工具列，
+     * 右侧为力学放大按钮保留独立的 44px 命中区。所有坐标均纳入 safe area。
+     */
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .fab-trigger,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .fab-trigger-halo {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        left: calc(224px + env(safe-area-inset-left, 0px));
+        right: auto;
+        width: 44px;
+        height: 44px;
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-guide-help-btn,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .favorite-fab,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .back-to-top-fab,
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-btn {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+        right: auto !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-guide-help-btn {
+        left: calc(16px + env(safe-area-inset-left, 0px));
+    }
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .favorite-fab {
+        left: calc(68px + env(safe-area-inset-left, 0px));
+    }
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .back-to-top-fab {
+        left: calc(120px + env(safe-area-inset-left, 0px));
+    }
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-btn {
+        left: calc(172px + env(safe-area-inset-left, 0px));
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active)
+        [data-fab-expanded="true"] [data-tip]::after,
+    body:has(#page-physics.active [data-module="mechanics"].module-active)[data-fab-expanded="true"]
+        [data-tip]::after {
+        display: none !important;
+    }
+
+    body:has(#page-physics.active [data-module="mechanics"].module-active) .experiment-export-menu {
+        top: calc(120px + env(safe-area-inset-top, 0px));
+        bottom: auto;
+        left: calc(16px + env(safe-area-inset-left, 0px));
+        right: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fab-scrim,
+    .fab-trigger,
+    .fab-trigger.is-rippling::before,
+    .experiment-guide-help-btn.is-rippling::before,
+    .favorite-fab.is-rippling::before,
+    .back-to-top-fab.is-rippling::before,
+    .fab-trigger-halo,
+    .fab-trigger .fab-trigger-icon,
+    body[data-fab-expanded] .experiment-guide-help-btn,
+    body[data-fab-expanded] .favorite-fab,
+    body[data-fab-expanded] .back-to-top-fab,
+    body[data-fab-expanded] .experiment-export-btn {
+        animation: none !important;
+        transition-duration: 0.01ms !important;
+        transition-delay: 0s !important;
+    }
+}

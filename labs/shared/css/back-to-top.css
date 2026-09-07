@@ -1,0 +1,103 @@
+/**
+ * 返回顶部 FAB 样式（v4.2.17）
+ * 紫色主调，位于主题 FAB 上方（bottom 290px 桌面 / 280px 移动端）
+ */
+
+.back-to-top-fab {
+    position: fixed;
+    bottom: calc(290px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+    border-radius: 50%;
+    color: rgba(167, 139, 250, 0.7);
+    cursor: pointer;
+    z-index: 9060;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: back-to-top-pulse 3s ease-in-out infinite;
+    animation-delay: 1.5s;
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.back-to-top-fab--visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.back-to-top-fab i {
+    width: 16px;
+    height: 16px;
+}
+
+.back-to-top-fab:hover {
+    background: var(--surface-4, #24273a);
+    border-color: #a78bfa;
+    color: #a78bfa;
+    transform: translateY(0) scale(1.08);
+    box-shadow: 0 4px 16px rgba(167, 139, 250, 0.4);
+    animation: none;
+}
+
+@keyframes back-to-top-pulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(167, 139, 250, 0.0); }
+    50%      { box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 14px 2px rgba(167, 139, 250, 0.28); }
+}
+
+/* tooltip 气泡（沿用通用样式） */
+.back-to-top-fab[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    padding: 5px 10px;
+    background: rgba(20, 23, 35, 0.95);
+    color: rgba(220, 210, 255, 0.95);
+    border: 1px solid rgba(167, 139, 250, 0.55);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 9001;
+}
+.back-to-top-fab[data-tip]:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+
+/* ripple 水波 */
+.back-to-top-fab.is-rippling::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: rgba(167, 139, 250, 0.45);
+    pointer-events: none;
+    animation: fab-ripple-purple 0.55s ease-out forwards;
+}
+@keyframes fab-ripple-purple {
+    0%   { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+@media (max-width: 768px) {
+    .back-to-top-fab {
+        bottom: calc(280px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        width: 36px;
+        height: 36px;
+    }
+    .back-to-top-fab i { width: 14px; height: 14px; }
+    .back-to-top-fab[data-tip]::after { display: none; }
+}

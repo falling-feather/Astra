@@ -1,0 +1,89 @@
+<section class="content-section" data-module="double-pendulum-chaos" aria-labelledby="double-pendulum-chaos-title">
+    <div class="astra-exp astra-exp--double-pendulum-chaos" data-state="running" data-preset="chaotic">
+        <header class="astra-exp--double-pendulum-chaos__header">
+            <div>
+                <p class="astra-exp--double-pendulum-chaos__eyebrow">Physics · Chaos Lab</p>
+                <h2 id="double-pendulum-chaos-title">双摆混沌：初值差的放大</h2>
+                <p class="astra-exp--double-pendulum-chaos__subtitle">两组确定性双摆，只改变一个极小初角。</p>
+            </div>
+            <output class="astra-exp--double-pendulum-chaos__state" data-role="state" aria-live="polite">运行中</output>
+        </header>
+
+        <div class="astra-exp--double-pendulum-chaos__workspace">
+            <div class="astra-exp--double-pendulum-chaos__stage" data-role="stage">
+                <canvas
+                    class="astra-exp--double-pendulum-chaos__canvas"
+                    data-role="canvas"
+                    role="img"
+                    aria-label="两组近初值双摆的运动、末端轨迹与相空间对照"
+                ></canvas>
+
+                <div class="astra-exp--double-pendulum-chaos__telemetry" aria-label="双摆实时读数">
+                    <span>INITIAL GAP / 初值差</span>
+                    <output class="astra-exp--double-pendulum-chaos__readout" data-role="readout" aria-live="polite">主参数 50 · Δθ 1.03° · t 0.0 s</output>
+                </div>
+
+                <div class="astra-exp--double-pendulum-chaos__metrics" aria-label="关键模型读数">
+                    <div><span>末端分离</span><output data-role="separation">0.000 m</output></div>
+                    <div><span>能量误差</span><output data-role="energy">0.0000%</output></div>
+                    <div><span>模型时间</span><output data-role="time">0.0 s</output></div>
+                </div>
+
+                <p class="astra-exp--double-pendulum-chaos__stage-hint" data-role="stage-hint">拖动任一末端摆球，可从当前姿态重新释放</p>
+
+                <ul class="astra-exp--double-pendulum-chaos__legend" data-role="legend" aria-label="画面图例">
+                    <li><span class="astra-exp--double-pendulum-chaos__swatch" data-tone="primary" aria-hidden="true"></span><span>基准双摆 A</span></li>
+                    <li><span class="astra-exp--double-pendulum-chaos__swatch" data-tone="secondary" aria-hidden="true"></span><span>近初值双摆 B</span></li>
+                </ul>
+            </div>
+
+            <details class="astra-exp--double-pendulum-chaos__drawer" data-role="control-drawer" open>
+                <summary><span>参数与控制</span><span aria-hidden="true">展开 / 收起</span></summary>
+
+                <div class="astra-exp--double-pendulum-chaos__drawer-body">
+                    <div class="astra-exp--double-pendulum-chaos__control-group">
+                        <div class="astra-exp--double-pendulum-chaos__label-row">
+                            <label for="double-pendulum-chaos-parameter">初始角差</label>
+                            <output for="double-pendulum-chaos-parameter" data-role="parameter-value">50 · 1.03°</output>
+                        </div>
+                        <input id="double-pendulum-chaos-parameter" data-control="parameter" type="range" min="0" max="100" value="50" aria-describedby="double-pendulum-chaos-parameter-hint">
+                        <p id="double-pendulum-chaos-parameter-hint">只改变 B 的第二杆初角，其他初值完全相同。</p>
+                    </div>
+
+                    <div class="astra-exp--double-pendulum-chaos__control-grid">
+                        <div class="astra-exp--double-pendulum-chaos__control-group">
+                            <div class="astra-exp--double-pendulum-chaos__label-row">
+                                <label for="double-pendulum-chaos-damping">阻尼</label>
+                                <output for="double-pendulum-chaos-damping" data-role="damping-value">0.000 s⁻¹</output>
+                            </div>
+                            <input id="double-pendulum-chaos-damping" data-control="damping" type="range" min="0" max="0.06" step="0.005" value="0">
+                        </div>
+                        <div class="astra-exp--double-pendulum-chaos__control-group">
+                            <div class="astra-exp--double-pendulum-chaos__label-row">
+                                <label for="double-pendulum-chaos-speed">时间倍率</label>
+                                <output for="double-pendulum-chaos-speed" data-role="speed-value">1.25×</output>
+                            </div>
+                            <input id="double-pendulum-chaos-speed" data-control="speed" type="range" min="0.5" max="2" step="0.25" value="1.25">
+                        </div>
+                    </div>
+
+                    <div class="astra-exp--double-pendulum-chaos__preset-group" aria-label="初始姿态">
+                        <span>初始姿态</span>
+                        <div>
+                            <button type="button" data-preset="calm">低能</button>
+                            <button type="button" data-preset="balanced">翻转</button>
+                            <button type="button" data-preset="chaotic" aria-pressed="true">混沌</button>
+                        </div>
+                    </div>
+
+                    <div class="astra-exp--double-pendulum-chaos__actions" role="group" aria-label="播放控制">
+                        <button class="astra-exp--double-pendulum-chaos__action astra-exp--double-pendulum-chaos__action--primary" type="button" data-action="toggle" aria-pressed="false">暂停模拟</button>
+                        <button class="astra-exp--double-pendulum-chaos__action" type="button" data-action="reset">恢复初始</button>
+                    </div>
+
+                    <p class="astra-exp--double-pendulum-chaos__notice" data-role="notice" data-tone="info" role="status" aria-live="polite">两组双摆同步释放，轨迹差异会逐步放大。</p>
+                </div>
+            </details>
+        </div>
+    </div>
+</section>

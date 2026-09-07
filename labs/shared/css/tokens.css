@@ -1,0 +1,126 @@
+/* ===== Design Tokens ===== */
+/* Local system font stacks keep the one-click site independent from font CDNs. */
+
+:root {
+    /* ── Surfaces (dark) ── */
+    --surface-0: #08090e;
+    --surface-1: #0e1019;
+    --surface-2: #151822;
+    --surface-3: #1c1f2e;
+    --surface-4: #24273a;
+
+    /* ── Borders ── */
+    --border-subtle: rgba(255,255,255,0.04);
+    --border-default: rgba(255,255,255,0.07);
+    --border-hover: rgba(255,255,255,0.12);
+    --border-accent: rgba(91,141,206,0.2);
+
+    /* ── Accents (muted, desaturated) ── */
+    --accent-blue: #5b8dce;
+    --accent-purple: #8b6fc0;
+    --accent-green: #4d9e7e;
+    --accent-orange: #c4793a;
+    --accent-red: #b85450;
+    --accent-cyan: #4fa8a3;
+    --accent-teal: #3a9e8f;
+
+    /* wash variants (very low opacity fills) */
+    --accent-blue-wash: rgba(91,141,206,0.08);
+    --accent-purple-wash: rgba(139,111,192,0.08);
+    --accent-green-wash: rgba(77,158,126,0.08);
+    --accent-orange-wash: rgba(196,121,58,0.08);
+    --accent-teal-wash: rgba(58,158,143,0.08);
+
+    /* ── Text ── */
+    --text-primary: #d8dce6;
+    --text-secondary: #8a90a0;
+    --text-tertiary: #5a5f70;
+    --text-accent: var(--accent-blue);
+
+    /* ── Navbar background ── */
+    --navbar-bg: rgba(8,9,14,0.75);
+
+    /* ── Shadows (neutral, not colored) ── */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.15);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2);
+    --shadow-glow-blue: 0 0 20px rgba(91,141,206,0.12);
+    --shadow-glow-purple: 0 0 20px rgba(139,111,192,0.12);
+    --shadow-glow-green: 0 0 20px rgba(77,158,126,0.12);
+    --shadow-glow-orange: 0 0 20px rgba(196,121,58,0.12);
+
+    /* ── Noise overlay opacity ── */
+    --noise-opacity: 0.035;
+
+    /* ── Typography ── */
+    --font-display: 'Noto Sans SC', 'Inter', system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    --font-sans: 'Inter', 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    --font-body: 'Inter', 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+
+    /* fluid type scale */
+    --text-xs: clamp(0.7rem, 0.65rem + 0.25vw, 0.8rem);
+    --text-sm: clamp(0.8rem, 0.75rem + 0.25vw, 0.875rem);
+    --text-base: clamp(0.875rem, 0.825rem + 0.25vw, 1rem);
+    --text-lg: clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem);
+    --text-xl: clamp(1.3rem, 1.1rem + 0.8vw, 1.75rem);
+    --text-2xl: clamp(1.6rem, 1.2rem + 1.4vw, 2.5rem);
+    --text-3xl: clamp(2rem, 1.4rem + 2vw, 3.2rem);
+    --text-4xl: clamp(2.5rem, 1.6rem + 2.8vw, 4rem);
+
+    /* ── Spacing ── */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+    --space-20: 5rem;
+    --space-24: 6rem;
+
+    /* ── Radius (deliberately small) ── */
+    --radius-sm: 2px;
+    --radius-default: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+
+    /* ── Easings ── */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* ── Transition durations ── */
+    --duration-fast: 0.15s;
+    --duration-normal: 0.25s;
+    --duration-slow: 0.4s;
+}
+
+/* ── X-03 (removed): light theme has been deprecated, dark-only ── */
+
+/* ── Noise / Grain overlay ── */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: var(--noise-opacity, 0.035);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+}
+
+/* ── Theme transition (applied after first paint) ── */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+/* ── v5.0：亮色主题已移除 ── */
