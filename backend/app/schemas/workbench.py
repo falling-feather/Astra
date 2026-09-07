@@ -40,6 +40,8 @@ class StudentCourseSummary(BaseModel):
     galaxy_key: str
     subject_key: str
     schedule_text: str | None = None
+    summary: str | None = None
+    teacher_display_name: str | None = None
     current_release_id: int | None = None
     current_release_number: int | None = None
     published_unit_count: int = Field(ge=0)

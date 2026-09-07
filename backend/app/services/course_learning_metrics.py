@@ -20,6 +20,8 @@ from app.models import (
     LearningRuleClassBinding,
 )
 
+from app.services.learning_evidence_access import effective_rule_binding_statement
+
 
 def current_course_releases() -> Subquery:
     """Select one immutable release per course without loading entire packages."""
@@ -57,6 +59,12 @@ def current_completed_units() -> Subquery:
     `transferred` is a successful outcome, consistently with student progress.
     """
     release = current_course_releases()
+    effective_pin_id = (
+        effective_rule_binding_statement(CourseClass.id, CourseClass.plan_version)
+        .with_only_columns(LearningRuleClassBinding.id)
+        .correlate(CourseClass)
+        .scalar_subquery()
+    )
     projection = LearningActivityProjection
     return (
         select(
@@ -104,7 +112,7 @@ def current_completed_units() -> Subquery:
             LearningRuleClassBinding,
             and_(
                 LearningRuleClassBinding.course_class_id == CourseClass.id,
-                LearningRuleClassBinding.plan_version == CourseClass.plan_version,
+                LearningRuleClassBinding.id == effective_pin_id,
                 LearningRuleClassBinding.rule_id == projection.rule_id,
                 LearningRuleClassBinding.rule_version == projection.rule_version,
             ),

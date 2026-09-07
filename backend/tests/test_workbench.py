@@ -265,6 +265,8 @@ def test_student_workbench_reconciles_course_assignment_and_submission_truth(
     assert first.status_code == 200, first.json()
     body = first.json()
     assert body["courses"]["total"] == 2
+    assert body["courses"]["items"][0]["teacher_display_name"] == "Workbench Student Teacher"
+    assert "summary" in body["courses"]["items"][0]
     assert body["courses"]["next_offset"] == 1
     assert body["assignments"]["total"] == 2
     assert body["assignments"]["items"][0]["assignment_id"] == pending_assignment_id

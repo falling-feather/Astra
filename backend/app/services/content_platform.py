@@ -45,7 +45,11 @@ from app.services.course_completion import (
     CourseCompletionError,
     prepare_completion_rule_for_release,
 )
-from app.services.course_release_plans import ensure_default_plans_for_course_unit
+from app.services.course_release_plans import (
+    ensure_default_plans_for_course_unit,
+    plan_response_items,
+    resolve_student_course_class,
+)
 
 COURSE_RELEASE_SCHEMA_VERSION = "astra-course-release-v2"
 SHARED_DRAFT_ACTIVE_KEY = "shared"
@@ -261,7 +265,10 @@ def get_course_release(
         raise ContentPlatformError(
             404, "course_release_not_found", "Course release not found"
         )
-    return _course_release_read(db, release, include_answers=include_answers)
+    return _course_release_read(
+        db, release, include_answers=include_answers,
+        student=actor if not include_answers else None,
+    )
 
 
 def create_course_release(
@@ -526,7 +533,10 @@ def get_current_course_release(
         )
     return {
         "binding": _binding_read(binding),
-        "release": _course_release_read(db, release, include_answers=include_answers),
+        "release": _course_release_read(
+            db, release, include_answers=include_answers,
+            student=actor if not include_answers else None,
+        ),
     }
 
 
@@ -861,6 +871,7 @@ def _course_release_read(
     release: CourseRelease,
     *,
     include_answers: bool,
+    student: User | None = None,
 ) -> dict[str, Any]:
     rows = list(
         db.scalars(
@@ -869,9 +880,36 @@ def _course_release_read(
             .order_by(CourseReleaseUnit.position, CourseReleaseUnit.id)
         ).all()
     )
+    access_by_unit = None
+    if student is not None:
+        course = get_course(db, release.course_id)
+        course_class = _internal_course_class(db, course.id, locking_read=False)
+        class_group = resolve_student_course_class(
+            db, student_id=student.id, course_id=course.id,
+            class_id=course_class.class_id,
+            detail="Course publication requires active teaching scope",
+        )
+        access_by_unit = {
+            item["course_unit_id"]: item
+            for item in plan_response_items(
+                db, course=course, class_group=class_group,
+                course_class=course_class, student_id=student.id,
+            )
+        }
+    # A release is read in one batch; querying each content version scales with unit count.
+    versions = {
+        version.id: version
+        for version in db.scalars(select(ContentPageVersion).where(
+            ContentPageVersion.id.in_({row.content_page_version_id for row in rows})
+        )).all()
+    }
     units: list[dict[str, Any]] = []
     for row in rows:
-        version = db.get(ContentPageVersion, row.content_page_version_id)
+        access = access_by_unit.get(row.source_course_unit_id) if access_by_unit is not None else None
+        if access_by_unit is not None and access is None:
+            continue
+        locked = access is not None and access["effective_release_state"] == "locked"
+        version = versions.get(row.content_page_version_id)
         if version is None:
             raise ContentPlatformError(
                 409,
@@ -881,6 +919,12 @@ def _course_release_read(
         content = deepcopy(version.schema_json)
         if not include_answers:
             content = _public_content_page(content)
+        if locked:
+            # Keep the navigation title, never the unopened body or media references.
+            content = {
+                **content, "summary": "此单元尚未开放。", "courseUnit": None,
+                "blocks": [{"blockId": "access-status", "type": "rich-text", "markdown": "此单元尚未开放，请查看教师安排或先完成前置单元。"}],
+            }
         units.append(
             {
                 "id": row.id,
@@ -891,8 +935,10 @@ def _course_release_read(
                 "content_slug": row.content_slug,
                 "content_page_version_id": row.content_page_version_id,
                 "content_schema_sha256": row.content_schema_sha256,
-                "media_snapshot": deepcopy(row.media_snapshot_json or []),
+                "media_snapshot": [] if locked else deepcopy(row.media_snapshot_json or []),
                 "content": content,
+                "access_state": "locked" if locked else "open",
+                "lock_reasons": access["lock_reasons"] if access else [],
             }
         )
     return {

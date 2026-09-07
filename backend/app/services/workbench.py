@@ -280,6 +280,7 @@ def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> d
         .limit(limit)
         .offset(offset)
     ).all()
+    creators = dict(db.execute(select(User.id, User.display_name).where(User.id.in_({row[0].creator_user_id for row in rows}))).all()) if rows else {}
     items = [
         {
             "course_id": course.id,
@@ -288,6 +289,8 @@ def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> d
             "galaxy_key": course.galaxy_key,
             "subject_key": course.subject_key,
             "schedule_text": course.schedule_text,
+            "summary": course.summary,
+            "teacher_display_name": creators.get(course.creator_user_id),
             "current_release_id": current_release_id,
             "current_release_number": current_release_number,
             "published_unit_count": int(published_units or 0),

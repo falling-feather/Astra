@@ -71,6 +71,7 @@ from app.models.school import (
 )
 from app.models.teacher_application import TeacherApplication
 from app.models.user import AuthSession, LoginAttempt, PasswordResetToken, User
+from app.models.user_note import UserNote
 
 __all__ = [
     "AdminAlertOutboxDispatchPlan",
@@ -132,5 +133,6 @@ __all__ = [
     "Submission",
     "TeacherApplication",
     "User",
+    "UserNote",
     "UserKnowledgeSnapshot",
 ]

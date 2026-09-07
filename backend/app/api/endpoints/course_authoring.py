@@ -12,6 +12,7 @@ from app.schemas.course_authoring import (
     CourseInformationRevisionReview,
     CourseInformationRevisionReviewPage,
     CourseInformationRevisionReviewRead,
+    CourseInformationDraftUpdate,
 )
 from app.schemas.course_enrollment import (
     CourseAdmissionDiscoveryRead,
@@ -289,6 +290,11 @@ def submit_course_information_revision(
         revision_id=revision_id,
         request=request,
     )
+
+
+@router.patch("/courses/{course_id}/information-revisions/{revision_id}", response_model=CourseDraftRead)
+def update_course_information_draft(course_id: int, revision_id: int, payload: CourseInformationDraftUpdate, request: Request, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return course_authoring_service.update_information_draft(db, actor=current_user, course_id=course_id, revision_id=revision_id, payload=payload, request=request)
 
 
 @router.get(

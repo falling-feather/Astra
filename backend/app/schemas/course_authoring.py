@@ -75,6 +75,10 @@ class CourseTeacherRead(BaseModel):
     is_creator: bool
 
 
+class CourseInformationDraftUpdate(CourseDraftCreate):
+    expected_revision: int = Field(ge=1)
+
+
 class CourseAdmissionClassRead(BaseModel):
     class_id: int
     name: str
@@ -108,6 +112,7 @@ class CourseInformationRevisionRead(BaseModel):
     id: int
     course_id: int
     revision_number: int
+    edit_revision: int
     information_snapshot: dict[str, Any]
     teacher_ids_snapshot: list[int]
     status: str

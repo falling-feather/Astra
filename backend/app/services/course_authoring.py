@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastapi import HTTPException, Request
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -18,7 +18,7 @@ from app.models import (
     User,
 )
 from app.models.base import utc_now
-from app.schemas.course_authoring import CourseDraftCreate
+from app.schemas.course_authoring import CourseDraftCreate, CourseInformationDraftUpdate
 from app.services.access_control import (
     get_course,
     lock_active_school_for_write,
@@ -28,6 +28,14 @@ from app.services.access_control import (
     teacher_school_ids,
 )
 from app.services.audit import record_audit_log
+
+
+def _require_available_title(db: Session, school_id: int, title: str, exclude_course_id: int | None = None) -> None:
+    statement = select(Course.id).where(Course.school_id == school_id, Course.title == title)
+    if exclude_course_id is not None:
+        statement = statement.where(Course.id != exclude_course_id)
+    if db.scalar(statement) is not None:
+        raise HTTPException(status_code=409, detail="Course already exists in this school")
 
 
 def create_course_draft(
@@ -41,14 +49,7 @@ def create_course_draft(
     if actor.id in payload.collaborator_user_ids:
         raise HTTPException(status_code=422, detail="Course creator must not be selected as co-teacher")
 
-    existing_title = db.scalar(
-        select(Course.id).where(
-            Course.school_id == payload.school_id,
-            Course.title == payload.title,
-        )
-    )
-    if existing_title is not None:
-        raise HTTPException(status_code=409, detail="Course already exists in this school")
+    _require_available_title(db, payload.school_id, payload.title)
 
     collaborators = _load_eligible_collaborators(
         db,
@@ -290,15 +291,7 @@ def create_information_revision(
             detail="Course already has an editable or pending information revision",
         )
 
-    duplicate_title = db.scalar(
-        select(Course.id).where(
-            Course.school_id == course.school_id,
-            Course.title == payload.title,
-            Course.id != course.id,
-        )
-    )
-    if duplicate_title is not None:
-        raise HTTPException(status_code=409, detail="Course already exists in this school")
+    _require_available_title(db, course.school_id, payload.title, course.id)
 
     collaborators = _load_eligible_collaborators(
         db,
@@ -348,6 +341,43 @@ def create_information_revision(
     )
     db.commit()
     db.refresh(course)
+    db.refresh(revision)
+    return build_course_draft_read(db, course, revision=revision)
+
+
+def update_information_draft(
+    db: Session,
+    *,
+    actor: User,
+    course_id: int,
+    revision_id: int,
+    payload: CourseInformationDraftUpdate,
+    request: Request | None = None,
+) -> dict:
+    course = db.scalar(select(Course).where(Course.id == course_id).with_for_update().execution_options(populate_existing=True))
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    _require_course_authoring_access(db, actor=actor, course=course, locking_read=True)
+    revision = db.scalar(select(CourseInformationRevision).where(CourseInformationRevision.id == revision_id, CourseInformationRevision.course_id == course_id).with_for_update().execution_options(populate_existing=True))
+    if revision is None:
+        raise HTTPException(status_code=404, detail="Course information revision not found")
+    if course.status == "archived" or revision.status != "draft":
+        raise HTTPException(status_code=409, detail="Only an information draft can be edited")
+    if payload.expected_revision != revision.edit_revision:
+        raise HTTPException(status_code=409, detail="Course information draft changed; reload before saving")
+    if payload.school_id != course.school_id or course.creator_user_id in payload.collaborator_user_ids:
+        raise HTTPException(status_code=422, detail="Course school or creator cannot be changed")
+    _require_available_title(db, course.school_id, payload.title, course.id)
+    collaborators = _load_eligible_collaborators(db, school_id=course.school_id, user_ids=payload.collaborator_user_ids)
+    _load_admission_classes(db, school_id=course.school_id, class_ids=payload.admission_class_ids)
+    before = revision.information_snapshot
+    after = _information_snapshot(payload)
+    result = db.execute(update(CourseInformationRevision).where(CourseInformationRevision.id == revision_id, CourseInformationRevision.status == "draft", CourseInformationRevision.edit_revision == payload.expected_revision).values(information_snapshot=after, teacher_ids_snapshot=[course.creator_user_id, *sorted(user.id for user in collaborators)], updated_at=utc_now(), edit_revision=payload.expected_revision + 1))
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Course information draft changed; reload before saving")
+    record_audit_log(db, actor=actor, action="course.information_revision.edit", resource_type="course_information_revision", resource_id=revision.id, school_id=course.school_id, request=request, snapshot={"before": before, "after": after})
+    db.commit()
     db.refresh(revision)
     return build_course_draft_read(db, course, revision=revision)
 

@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.browser_origin import rejects_cookie_mutation
 from app.core.http_requests import is_api_path, request_id_from_header
 from app.core.request_validation import register_request_validation_handler
 from app.db.session import get_session_factory, init_db
@@ -62,7 +63,10 @@ def create_app() -> FastAPI:
         request.state.request_id = request_id
         is_api = is_api_path(request.url.path, settings.api_prefix)
         try:
-            response = await call_next(request)
+            if is_api and rejects_cookie_mutation(request, settings.session_cookie_name, cors_origins):
+                response = JSONResponse(status_code=403, content={"detail": "Untrusted browser origin"})
+            else:
+                response = await call_next(request)
         except Exception as exc:
             if not is_api:
                 raise

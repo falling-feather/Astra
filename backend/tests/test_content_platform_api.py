@@ -1114,6 +1114,37 @@ def _completed_workbench_course(client, suffix: str) -> dict:
     return scope
 
 
+def test_student_release_reads_obey_opening_policy_without_rewriting_history(client):
+    scope = _completed_workbench_course(client, "read_policy")
+    course_id = scope["course_id"]
+    release_id = scope["publication"]["release"]["id"]
+    plan_url = f"/api/courses/{course_id}/classes/{scope['internal_class_id']}/release-plan"
+    urls = [f"/api/v1/courses/{course_id}/releases/current", f"/api/v1/courses/{course_id}/releases/{release_id}"]
+    for mode in ["locked", "hidden", "open"]:
+        plan = client.get(plan_url, headers=_auth(scope["owner"]["token"])).json()
+        items = [{key: item[key] for key in ["course_unit_id", "position", "release_mode", "open_at", "prerequisite_unit_id"]} for item in plan["items"]]
+        items[0]["release_mode"] = mode
+        changed = client.patch(plan_url, headers=_auth(scope["owner"]["token"]), json={"expected_version": plan["plan_version"], "items": items})
+        assert changed.status_code == 200, changed.json()
+        for url in urls:
+            read = client.get(url, headers=_auth(scope["student"]["token"]))
+            assert read.status_code == 200, read.json()
+            release = read.json().get("release", read.json())
+            if mode == "hidden":
+                assert release["units"] == []
+            else:
+                unit = release["units"][0]
+                assert unit["access_state"] == mode
+                from app.schemas.content_v2 import ContentPageV2
+                assert ("工作台统计的真实课程样例。" in str(unit["content"])) == (mode == "open")
+                if mode == "locked":
+                    ContentPageV2.model_validate(unit["content"])
+                    assert unit["media_snapshot"] == []
+        teacher = client.get(urls[1], headers=_auth(scope["owner"]["token"])).json()
+        assert teacher["units"][0]["content"]["blocks"]
+    _assert_workbench_completion(client, scope, completed=1, percent=100)
+
+
 def _assert_workbench_completion(client, scope: dict, *, completed: int, percent: int):
     admin = client.get("/api/v1/workbench", headers=_auth(scope["admin"]["token"]))
     assert admin.status_code == 200, admin.json()

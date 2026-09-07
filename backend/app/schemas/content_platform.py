@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -81,6 +81,8 @@ class CourseReleaseUnitRead(PlatformDto):
     content_schema_sha256: str
     media_snapshot: list[dict[str, Any]] = Field(default_factory=list)
     content: dict[str, Any]
+    access_state: Literal["open", "locked"] = "open"
+    lock_reasons: list[str] = Field(default_factory=list)
 
 
 class CourseReleaseRead(PlatformDto):

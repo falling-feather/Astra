@@ -41,6 +41,7 @@ class CourseInformationRevision(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    edit_revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True, nullable=False)
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
     information_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)

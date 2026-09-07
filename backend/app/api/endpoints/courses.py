@@ -777,11 +777,11 @@ def get_course_release_plan(
         raise HTTPException(status_code=404, detail="Class not found")
     if class_group.school_id != course.school_id:
         raise HTTPException(status_code=422, detail="Class does not belong to course school")
-    require_class_teacher_or_admin(
-        db,
-        current_user,
-        class_group,
-        detail="Course release plan requires class teacher scope",
+    if current_user.role not in {"teacher", "admin"}:
+        raise HTTPException(status_code=403, detail="Course release plan requires teacher scope")
+    require_course_class_assignment_scope(
+        db, current_user, course, class_group,
+        detail="Course release plan requires teaching authority",
     )
     course_class = get_course_class_or_404(db, course.id, class_group.id)
     return CourseReleasePlanRead(
@@ -814,11 +814,11 @@ def patch_course_release_plan(
         raise HTTPException(status_code=404, detail="Class not found")
     if class_group.school_id != course.school_id:
         raise HTTPException(status_code=422, detail="Class does not belong to course school")
-    require_class_teacher_or_admin(
-        db,
-        current_user,
-        class_group,
-        detail="Course release plan requires class teacher scope",
+    if current_user.role not in {"teacher", "admin"}:
+        raise HTTPException(status_code=403, detail="Course release plan requires teacher scope")
+    require_course_class_assignment_scope(
+        db, current_user, course, class_group,
+        detail="Course release plan requires teaching authority",
     )
     lock_active_class_for_write(db, class_group.id)
     course_class = db.scalar(

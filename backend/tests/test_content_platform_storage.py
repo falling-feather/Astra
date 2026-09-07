@@ -75,7 +75,7 @@ def test_0057_empty_sqlite_upgrade_downgrade_reupgrade(tmp_path, monkeypatch):
     try:
         command.upgrade(config, "head")
         script = ScriptDirectory.from_config(config)
-        assert script.get_heads() == ["20260825_0058"]
+        assert len(script.get_heads()) == 1
         inspector = inspect(engine)
         assert "checkpoint_attempts" in inspector.get_table_names()
         assert PUBLICATION_TABLES.issubset(inspector.get_table_names())
@@ -109,7 +109,7 @@ def test_0057_empty_sqlite_upgrade_downgrade_reupgrade(tmp_path, monkeypatch):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                    == "20260825_0058"
+                    == script.get_current_head()
             )
     finally:
         engine.dispose()
