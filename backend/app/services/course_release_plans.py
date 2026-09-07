@@ -162,11 +162,13 @@ def effective_unit_access(
     now: datetime | None = None,
     completed_unit_ids: set[int] | None = None,
     school_active: bool | None = None,
+    content_is_published: bool | None = None,
 ) -> EffectiveUnitAccess:
     """Return the authoritative presentation/action state for one class-unit pair."""
     if plan.release_mode == "hidden":
         return EffectiveUnitAccess("hidden")
-    if course.status != "published" or unit.status != "published":
+    published = unit.status == "published" if content_is_published is None else content_is_published
+    if course.status != "published" or not published:
         return EffectiveUnitAccess("hidden")
     if class_group.status != "active":
         return EffectiveUnitAccess("locked", ("organization_inactive",))
@@ -288,6 +290,7 @@ def plan_response_items(
     class_group: ClassGroup,
     course_class: CourseClass,
     student_id: int | None,
+    published_unit_ids: set[int] | None = None,
 ) -> list[dict]:
     items: list[dict] = []
     plan_rows = get_plan_rows(db, course_class)
@@ -312,6 +315,7 @@ def plan_response_items(
             student_id=student_id,
             completed_unit_ids=completed_unit_ids,
             school_active=active_school,
+            content_is_published=(unit.id in published_unit_ids) if published_unit_ids is not None else None,
         )
         if student_id is not None and access.state == "hidden":
             continue

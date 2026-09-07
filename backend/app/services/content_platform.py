@@ -8,7 +8,7 @@ from copy import deepcopy
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -133,6 +133,13 @@ def replace_course_draft(
             f"Draft unit does not belong to this course: {unknown_ids[0]}",
         )
 
+    for item in payload.units:
+        existing = existing_by_id.get(item.id)
+        if existing is not None and existing.activity_key != item.activity_key:
+            raise ContentPlatformError(422, "course_unit_identity_immutable", "已保存单元的学习身份不可更换，请新增单元并保留原记录。")
+    current_release_id = select(CourseRelease.id).where(CourseRelease.course_id == course.id).order_by(CourseRelease.release_number.desc()).limit(1).scalar_subquery()
+    published_ids = set(db.scalars(select(CourseReleaseUnit.source_course_unit_id).where(CourseReleaseUnit.course_release_id == current_release_id)))
+
     # Free the position uniqueness slots before an atomic reorder.
     for unit in existing_units:
         unit.position = -(1_000_000 + unit.id)
@@ -183,7 +190,8 @@ def replace_course_draft(
 
     removed_units = [unit for unit in existing_units if unit.id not in retained_ids]
     for unit in removed_units:
-        unit.status = "archived"
+        # Withdrawing a draft must not revoke its current published identity.
+        unit.status = "published" if unit.id in published_ids else "archived"
         draft = _active_shared_draft(db, unit.id, locking_read=True)
         if draft is not None:
             draft.status = "withdrawn"
@@ -312,6 +320,7 @@ def create_course_release(
             .where(
                 CourseUnit.course_id == course.id,
                 CourseUnit.status != "archived",
+                _current_draft_member(),
             )
             .order_by(CourseUnit.position, CourseUnit.id)
             .with_for_update()
@@ -442,6 +451,11 @@ def create_course_release(
         .limit(1)
         .with_for_update()
     )
+    db.execute(update(CourseUnit).where(
+        CourseUnit.course_id == course.id,
+        CourseUnit.id.not_in([spec["unit"].id for spec in specs]),
+        CourseUnit.status == "published",
+    ).values(status="archived"))
     binding = CourseClassReleaseBinding(
         course_class_id=course_class.id,
         course_release_id=release.id,
@@ -540,6 +554,14 @@ def get_current_course_release(
     }
 
 
+def _current_draft_member():
+    history = select(ContentDraft.id).where(ContentDraft.course_unit_id == CourseUnit.id)
+    return or_(
+        ~exists(history),
+        exists(history.where(ContentDraft.active_key == SHARED_DRAFT_ACTIVE_KEY)),
+    )
+
+
 def _shared_draft_read(db: Session, course: Course) -> dict[str, Any]:
     units = list(
         db.scalars(
@@ -547,6 +569,7 @@ def _shared_draft_read(db: Session, course: Course) -> dict[str, Any]:
             .where(
                 CourseUnit.course_id == course.id,
                 CourseUnit.status != "archived",
+                _current_draft_member(),
             )
             .order_by(CourseUnit.position, CourseUnit.id)
         ).all()
@@ -894,6 +917,7 @@ def _course_release_read(
             for item in plan_response_items(
                 db, course=course, class_group=class_group,
                 course_class=course_class, student_id=student.id,
+                published_unit_ids={row.source_course_unit_id for row in rows},
             )
         }
     # A release is read in one batch; querying each content version scales with unit count.

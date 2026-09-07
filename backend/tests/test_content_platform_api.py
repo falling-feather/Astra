@@ -1256,3 +1256,35 @@ def test_workbench_completion_counts_transferred_in_both_role_views(client):
         current.status = "transferred"
         db.commit()
     _assert_workbench_completion(client, scope, completed=1, percent=100)
+
+
+def test_draft_removal_does_not_withdraw_current_release_and_history_can_be_restored(client):
+    scope = _completed_workbench_course(client, "draft_visibility")
+    course_id, old_unit = scope["course_id"], scope["unit_id"]
+    old_release = scope["publication"]["release"]
+    saved = _replace_draft(client, scope["owner"]["token"], course_id,
+        scope["publication"]["next_draft_revision"],
+        _unit_payload(_content("新的备课内容"), activity_key="physics.mechanics"))
+    assert saved.status_code == 200, saved.json()
+    assert [unit["activity_key"] for unit in saved.json()["units"]] == ["physics.mechanics"]
+    current = client.get(f"/api/v1/courses/{course_id}/releases/current", headers=_auth(scope["student"]["token"]))
+    assert [unit["source_course_unit_id"] for unit in current.json()["release"]["units"]] == [old_unit]
+    attempt = client.post(f"/api/v1/courses/{course_id}/units/{old_unit}/checkpoints/energy-conservation-check/attempts", headers=_auth(scope["student"]["token"]), json={"client_attempt_id": "draft-removal-still-current", "course_release_id": old_release["id"], "selected_choice_ids": ["mechanical"]})
+    assert attempt.status_code == 201, attempt.json()
+    published = client.post(f"/api/v1/courses/{course_id}/releases", headers=_auth(scope["owner"]["token"]), json={"expected_revision": saved.json()["revision"]})
+    assert published.status_code == 201, published.json()
+    assert [unit["activity_key"] for unit in published.json()["release"]["units"]] == ["physics.mechanics"]
+    historic = client.get(f"/api/v1/courses/{course_id}/releases/{old_release['id']}", headers=_auth(scope["student"]["token"]))
+    assert [unit["source_course_unit_id"] for unit in historic.json()["units"]] == [old_unit]
+    original = old_release["units"][0]
+    restored = _replace_draft(client, scope["owner"]["token"], course_id, published.json()["next_draft_revision"], {"id":old_unit,"activity_key":original["activity_key"],"title":original["title"],"position":1,"content":original["content"]})
+    assert restored.status_code == 200, restored.json()
+    assert restored.json()["units"][0]["id"] == old_unit
+
+
+def test_saved_learning_activity_identity_cannot_be_reassigned(client):
+    scope = _completed_workbench_course(client, "stable_activity")
+    original = scope["publication"]["release"]["units"][0]
+    changed = _replace_draft(client, scope["owner"]["token"], scope["course_id"], scope["publication"]["next_draft_revision"], {"id":scope["unit_id"],"activity_key":"physics.mechanics","title":"更换身份","position":1,"content":original["content"]})
+    assert changed.status_code == 422, changed.json()
+    assert changed.json()["detail"]["code"] == "course_unit_identity_immutable"
