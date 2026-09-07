@@ -4,6 +4,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
 
+// This fixture enters 09:00 China time and asserts the transmitted 01:00 UTC.
+// Set its clock explicitly instead of inheriting the runner's local timezone.
+process.env.TZ = 'Asia/Shanghai';
+
 const root = path.resolve(__dirname, '../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const teacherSource = read('pages/teacher/teacher.js');
