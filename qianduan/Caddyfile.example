@@ -1,0 +1,11 @@
+# Optional separated deployment: serve only the compiled API-mode frontend.
+# Start the business API on 127.0.0.1:8000 and set ASTRA_FRONTEND_ROOT to qianduan/dist.
+:8080 {
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+    handle {
+        root * {$ASTRA_FRONTEND_ROOT}
+        file_server
+    }
+}

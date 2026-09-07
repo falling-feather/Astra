@@ -42,8 +42,10 @@ LOCAL_PREVIEW_HEAD = """    <meta name="astra-local-preview" content="same-origi
 def create_local_preview_app(
     project_root: Path | None = None,
     instance_id: str | None = None,
+    frontend_root: Path | None = None,
 ) -> FastAPI:
     root = (project_root or PROJECT_ROOT).resolve()
+    frontend = (frontend_root or root / "qianduan" / "dist").resolve()
     preview_instance_id = (
         instance_id
         or os.environ.get("ASTRA_LOCAL_PREVIEW_INSTANCE_ID")
@@ -56,15 +58,19 @@ def create_local_preview_app(
         "X-Astra-Local-Preview": "1",
         "X-Astra-Local-Instance": preview_instance_id,
     }
-    index_source = (root / "index.html").read_text(encoding="utf-8")
-    if "</head>" not in index_source:
-        raise RuntimeError("index.html is missing its closing head element")
-    local_index_source = index_source.replace("</head>", f"{LOCAL_PREVIEW_HEAD}</head>", 1)
     application = create_app()
 
     @application.get("/", include_in_schema=False)
     @application.get("/index.html", include_in_schema=False)
     def local_index(request: Request) -> Response:
+        index = frontend / "index.html"
+        if not index.is_file():
+            return HTMLResponse(
+                "<h1>星序前端尚未构建</h1><p>请先运行 npm --prefix qianduan run build，再启动本地服务。</p>",
+                status_code=503, headers=preview_headers,
+            )
+        index_source = index.read_text(encoding="utf-8")
+        local_index_source = index_source.replace("</head>", f"{LOCAL_PREVIEW_HEAD}</head>", 1)
         query_items = list(request.query_params.multi_items())
         same_origin_items = [(key, value) for key, value in query_items if key != "apiBase"]
         if len(same_origin_items) != len(query_items):
@@ -84,7 +90,7 @@ def create_local_preview_app(
     @application.get("/sw.js", include_in_schema=False)
     def local_service_worker() -> FileResponse:
         return FileResponse(
-            root / "sw.js",
+            root / "qianduan" / "public" / "sw.js",
             media_type="application/javascript",
             headers={
                 "Cache-Control": "no-cache",
@@ -96,6 +102,21 @@ def create_local_preview_app(
     @application.get("/LICENSE.md", include_in_schema=False)
     def local_license() -> FileResponse:
         return FileResponse(root / "LICENSE.md", media_type="text/markdown")
+
+    @application.get("/favicon.svg", include_in_schema=False)
+    def local_favicon() -> FileResponse:
+        return FileResponse(root / "qianduan" / "public" / "favicon.svg")
+
+    @application.get("/favicon.ico", include_in_schema=False)
+    def compatible_favicon() -> FileResponse:
+        return FileResponse(root / "UI" / "favicon.ico")
+
+    for route in ("assets", "labs"):
+        directory = frontend / route
+        application.mount(
+            f"/{route}", StaticFiles(directory=directory, html=route == "labs", check_dir=False),
+            name=f"portal-{route}",
+        )
 
     for route, relative_directory in PUBLIC_MOUNTS:
         directory = root / relative_directory

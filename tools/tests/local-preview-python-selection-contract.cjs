@@ -154,6 +154,8 @@ const fakeSourcePath = path.join(tempRoot, 'FakePython.cs');
 const fakePython = path.join(fakeBin, 'python.exe');
 const nonApplication = path.join(tempRoot, 'not-an-application.ps1');
 fs.mkdirSync(fakeBin, { recursive: true });
+// This contract isolates Python selection. Frontend builds have their own Vite/packaging gates.
+fs.writeFileSync(path.join(fakeBin, 'npm.cmd'), '@echo off\r\nexit /b 0\r\n');
 fs.writeFileSync(nonApplication, 'exit 0\r\n', 'utf8');
 
 const fakeRuntimeSource = String.raw`using System;

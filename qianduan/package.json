@@ -5,14 +5,24 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/package-resources.mjs",
+    "build:demo": "tsc --noEmit && vite build --mode demo && node scripts/package-resources.mjs --demo",
+    "dev:demo": "vite --host 127.0.0.1 --mode demo",
+    "preview:demo": "vite preview --host 127.0.0.1 --outDir dist-demo",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:demo": "node scripts/verify-package.mjs --demo",
+    "publish:demo": "node scripts/publish-demo.mjs --push",
     "preview": "vite preview --host 127.0.0.1",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
-  "dependencies": { "three": "0.185.1" },
+  "dependencies": {
+    "marked": "12.0.0",
+    "three": "0.185.1"
+  },
   "devDependencies": {
     "@types/three": "0.185.4",
+    "prettier": "3.9.6",
     "typescript": "7.0.2",
     "vite": "8.2.2"
   }

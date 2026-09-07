@@ -619,7 +619,6 @@ $env:ASTRA_ALERT_DELIVERY_ENABLED = "false"
 $env:ASTRA_CONTENT_SCRIPT_ALLOWED_HOSTS = ""
 $env:ASTRA_PASSWORD_RESET_RETURN_TOKEN_FOR_DEV = "true"
 $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "false"
-            $env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "false"
 $env:ASTRA_ADMIN_BOOTSTRAP_TOKEN = ""
 $env:ASTRA_BACKGROUND_TASK_WORKER_ENABLED = "false"
 $env:ASTRA_BACKGROUND_TASK_WORKER_CONTENT_SCAN_ENABLED = "false"
@@ -628,6 +627,19 @@ $env:ASTRA_KNOWLEDGE_SNAPSHOT_SCHEDULER_ENABLED = "false"
 $env:ASTRA_KNOWLEDGE_SNAPSHOT_SCHEDULER_RUN_ON_START = "false"
 $env:ASTRA_CONTENT_SCRIPT_REMOTE_DRIFT_SCHEDULER_ENABLED = "false"
 $env:ASTRA_CONTENT_SCRIPT_REMOTE_DRIFT_SCHEDULER_RUN_ON_START = "false"
+
+Push-Location (Join-Path $RepoRoot "qianduan")
+try {
+    # npm's PowerShell shim reads newer InvocationInfo properties under strict mode.
+    # Invoke the Windows application entry so Windows PowerShell 5.1 also works.
+    $FrontendNpm = Resolve-ExecutableApplication -CommandOrPath "npm.cmd" -Description "Node/npm"
+    if (-not $SkipDependencyInstall) {
+        & $FrontendNpm ci --ignore-scripts
+        if ($LASTEXITCODE -ne 0) { throw "Frontend dependency installation failed" }
+    }
+    & $FrontendNpm run build
+    if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
+} finally { Pop-Location }
 
 Push-Location $BackendRoot
 try {
@@ -650,7 +662,6 @@ try {
                 display_name = $displayName
             } | ConvertTo-Json -Compress
             $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "true"
-        $env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "true"
             $previousOutputEncoding = $OutputEncoding
             try {
                 $OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -671,11 +682,13 @@ try {
     if ($InitializeDemoData) {
         Write-Host "Initializing the local synthetic demo through the authoritative API..." -ForegroundColor Cyan
         $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "true"
+        $env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "true"
         try {
             & $RuntimePython -X utf8 -m scripts.initialize_demo_data --confirm-local-preview
             if ($LASTEXITCODE -ne 0) { throw "Demo data initialization failed" }
         } finally {
             $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "false"
+            $env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "false"
         }
     }
 

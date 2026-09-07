@@ -160,7 +160,7 @@ const Router = {
     _guardParsedRoute(parsed) {
         const route = parsed || { page: 'planets', moduleId: null, anchorId: null };
         const session = window.AstraApplicationSession;
-        if (!session || typeof session.guardPage !== 'function') return route;
+        if (!session || typeof session.guardPage !== 'function') return window.AstraResourceExplorer?.guardRoute(route) || route;
         const allowedPage = session.guardPage(route.page);
         if (allowedPage === route.page) return window.AstraStudentCourseCatalogue && typeof window.AstraStudentCourseCatalogue.guardRoute === 'function' ? window.AstraStudentCourseCatalogue.guardRoute(route, this.coursePages, this.frontierPages) : route;
         const guarded = { page: allowedPage, moduleId: null, anchorId: null };

@@ -1,77 +1,134 @@
-import type { Course, DemoSession, LearningGateway, LearningTask } from '../domain/models';
-import { addDays, dateKey } from '../domain/calendar';
+import type { LearningGateway, Note, Session } from '../domain/models';
+import type { Role } from '../portal/contracts';
+import activities from 'virtual:astra-catalog';
+import { createSchoolDemo } from './school-demo';
+import { presentCourse } from './course-presentation';
+import { ApiError } from './http-client';
 
 const SESSION_KEY = 'astra.qianduan.demo-session';
 
-export const DEMO_COURSES: Course[] = [
-  { id: 'functions', title: '函数与变化', subject: '数学', teacher: '陈老师', color: '#70d5e4', secondary: '#193f75', schedule: { weekday: 0, start: '09:00', end: '10:30', room: '思学楼 A201' }, completed: 4, lessons: 12, description: '从一条曲线出发，理解变化背后的秩序。', chapters: ['观察函数的形状', '参数如何改变曲线', '从变化率走向导数'] },
-  { id: 'mechanics', title: '力与运动', subject: '物理', teacher: '林老师', color: '#b7b9ea', secondary: '#44436e', schedule: { weekday: 2, start: '09:00', end: '10:30', room: '理学楼 B203' }, completed: 2, lessons: 10, description: '让看不见的力，在一次次实验中变得清晰。', chapters: ['运动的语言', '力的合成与分解', '寻找能量的去向'] },
-  { id: 'decisions', title: '概率与决策', subject: '数学', teacher: '苏老师', color: '#ba9ce7', secondary: '#574375', schedule: { weekday: 4, start: '10:45', end: '12:00', room: '思学楼 A305' }, completed: 1, lessons: 8, description: '在不确定的世界里，练习有依据地作出选择。', chapters: ['随机并不意味着无序', '理解收益与风险', '合作与竞争的选择'] },
-  { id: 'algorithms', title: '算法入门', subject: '代码', teacher: '周老师', color: '#78ccb3', secondary: '#235749', schedule: { weekday: 1, start: '10:45', end: '12:00', room: '信息楼 C302' }, completed: 3, lessons: 12, description: '把复杂的问题，拆成能够一步步理解的过程。', chapters: ['从问题到步骤', '看见数据的流动', '比较不同解法'] },
-  { id: 'life', title: '生命系统', subject: '生物', teacher: '许老师', color: '#d7b57a', secondary: '#80603f', schedule: { weekday: 3, start: '14:00', end: '15:30', room: '理学楼 B105' }, completed: 0, lessons: 9, description: '从微小的细胞，走近彼此联系的生命世界。', chapters: ['细胞中的协作', '信息如何传递', '系统与环境'] },
-  { id: 'chemistry', title: '化学反应', subject: '化学', teacher: '叶老师', color: '#83b6e1', secondary: '#315175', schedule: { weekday: 4, start: '14:00', end: '15:30', room: '实验楼 D206' }, completed: 2, lessons: 10, description: '在微观粒子的相遇中，发现物质变化的秘密。', chapters: ['粒子的相遇', '反应快慢的秘密', '观察可逆变化'] },
-];
-
-function cleanName(name: string): string {
-  const result = name.trim().slice(0, 24);
-  if (!result) throw new Error('请输入你的账号或昵称。');
-  return result;
-}
-
-/** Only a presentation session is stored. No password, token, or learning body. */
 export function createDemoGateway(): LearningGateway {
-  let session: DemoSession | null = null;
-  const done = new Set<string>();
+  let session: Session | null = null;
+  const noteStore = new Map<Role, Note[]>();
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    const saved: unknown = raw ? JSON.parse(raw) : null;
-    if (saved && typeof saved === 'object' && 'source' in saved && saved.source === 'demo' && 'displayName' in saved && typeof saved.displayName === 'string') {
-      session = { displayName: cleanName(saved.displayName), kind: 'kind' in saved && saved.kind === 'guest' ? 'guest' : 'member', source: 'demo' };
-    }
-  } catch { /* Private browsing can deny storage; memory still supports the flow. */ }
-
-  function save(value: DemoSession | null): void {
+    const saved = raw ? JSON.parse(raw) : null;
+    if (saved?.source === 'demo' && typeof saved.displayName === 'string')
+      session = {
+        displayName: saved.displayName.slice(0, 120),
+        role: ['student', 'teacher', 'admin'].includes(saved.role) ? saved.role : 'student',
+        source: 'demo',
+        kind: 'guest',
+        userId: saved.role === 'teacher' ? 1 : saved.role === 'admin' ? 3 : 2,
+      };
+  } catch {
+    /* Storage can be unavailable; the demonstration still runs in memory. */
+  }
+  const role = (): Role => session?.role || 'student';
+  const school = createSchoolDemo(role, activities);
+  function save(value: Session | null) {
     session = value;
     try {
       if (value) sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
       else sessionStorage.removeItem(SESSION_KEY);
-    } catch { /* Keep the current in-memory session. */ }
+    } catch {
+      /* No credentials or learning bodies are persisted. */
+    }
   }
-
+  function notes() {
+    let result = noteStore.get(role());
+    if (!result) {
+      result = [];
+      noteStore.set(role(), result);
+    }
+    return result;
+  }
+  const enter = async (selected: Role = 'student') => {
+    const value: Session = {
+      displayName: selected === 'teacher' ? '陈老师' : selected === 'admin' ? '学校管理员' : '星序同学',
+      role: selected,
+      kind: 'guest',
+      source: 'demo',
+      userId: selected === 'teacher' ? 1 : selected === 'admin' ? 3 : 2,
+    };
+    save(value);
+    return { ...value };
+  };
   return {
-    async getSession() { return session ? { ...session } : null; },
+    mode: 'demo',
+    school,
+    async getSession() {
+      return session ? { ...session } : null;
+    },
     async signIn(name, password) {
-      if (password.length < 4) throw new Error('演示密码至少填写 4 个字符。');
-      const value: DemoSession = { displayName: cleanName(name), kind: 'member', source: 'demo' };
-      done.clear();
+      if (!name.trim() || !password) throw new ApiError('请填写演示账号和密码。');
+      const value = await enter('student');
+      value.displayName = name.trim().slice(0, 120);
       save(value);
       return { ...value };
     },
-    async enterAsGuest() {
-      const value: DemoSession = { displayName: '星序同学', kind: 'guest', source: 'demo' };
-      done.clear();
-      save(value);
-      return { ...value };
+    enterAsGuest: enter,
+    async register() {
+      throw new ApiError('静态演示不创建真实账号，请选择演示身份。');
     },
-    async signOut() { done.clear(); save(null); },
+    async signOut() {
+      save(null);
+    },
     async updateDisplayName(name) {
-      if (!session) throw new Error('请先进入星序。');
-      save({ ...session, displayName: cleanName(name) });
+      if (!session || !name.trim()) throw new ApiError('请填写显示名称。');
+      save({ ...session, displayName: name.trim().slice(0, 120) });
       return { ...session! };
     },
-    async getCourses() { return structuredClone(DEMO_COURSES); },
-    async getTasks() {
-      const now = new Date();
-      const tasks: LearningTask[] = [
-        { id: 'task-curves', courseId: 'functions', title: '寻找曲线中的变化规律', description: '观察三组函数图像，记下参数变化时你发现的规律。', due: `${dateKey(addDays(now, 1))}T20:00:00`, completed: done.has('task-curves') },
-        { id: 'task-force', courseId: 'mechanics', title: '完成一次力的合成实验', description: '调整两组力的方向与大小，比较你的预测和实验结果。', due: `${dateKey(addDays(now, 2))}T18:00:00`, completed: done.has('task-force') },
-        { id: 'task-trace', courseId: 'algorithms', title: '追踪一次排序的过程', description: '从六个数字开始，解释每一步交换为什么发生。', due: `${dateKey(addDays(now, 4))}T21:00:00`, completed: done.has('task-trace') },
-      ];
-      return tasks;
+    async getCourses() {
+      const result = await school.workbench();
+      return (result.courses?.items || []).map(presentCourse);
     },
-    async completeTask(id) {
-      if (!['task-curves', 'task-force', 'task-trace'].includes(id)) throw new Error('没有找到这项任务。');
-      done.add(id);
+    async getTasks() {
+      if (role() !== 'student') return [];
+      const result = await school.studentAssignments('active');
+      return result.items.map((item) => ({
+        id: `${item.assignment.id}:${item.class.id}`,
+        assignmentId: item.assignment.id,
+        classId: item.class.id,
+        courseId: String(item.course.id),
+        title: item.assignment.title,
+        description: item.assignment.description || '',
+        due: item.assignment.due_at || '',
+        completed: Boolean(item.submission && item.submission.status !== 'returned'),
+      }));
+    },
+    async getNotes(offset = 0) {
+      return structuredClone(notes().slice(offset, offset + 50));
+    },
+    async createNote() {
+      const note: Note = {
+        id: crypto.randomUUID(),
+        title: '未命名笔记',
+        content: '',
+        revision: 1,
+        modified: new Date().toISOString().slice(0, 10),
+      };
+      notes().unshift(note);
+      return { ...note };
+    },
+    async saveNote(note) {
+      const existing = notes().find((item) => item.id === note.id);
+      if (!existing) throw new ApiError('笔记不存在。', 404);
+      if (existing.revision !== note.revision) throw new ApiError('笔记已变化，请重新读取。', 409);
+      Object.assign(existing, {
+        ...note,
+        title: note.title.trim() || '未命名笔记',
+        revision: existing.revision! + 1,
+        modified: new Date().toISOString().slice(0, 10),
+      });
+      return { ...existing };
+    },
+    async deleteNote(note) {
+      const list = notes(),
+        index = list.findIndex((item) => item.id === note.id);
+      if (index < 0) throw new ApiError('笔记不存在。', 404);
+      if (list[index].revision !== note.revision) throw new ApiError('笔记已变化，请重新读取。', 409);
+      list.splice(index, 1);
     },
   };
 }

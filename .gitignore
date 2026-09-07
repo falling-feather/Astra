@@ -1,6 +1,7 @@
 # Build outputs
 server/build/
 dist/
+dist-demo/
 node_modules/
 __pycache__/
 *.py[cod]

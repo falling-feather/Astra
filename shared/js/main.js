@@ -469,6 +469,7 @@ function registerServiceWorker() {
 // Launch immediately — DOM is ready (sync script at bottom of body).
 // Do NOT use DOMContentLoaded: deferred experiment scripts would delay it.
 (async function bootstrapApplication() {
+    if (window.AstraResourceExplorer?.start(initApp)) return;
     if (!window.AstraApplicationSession) {
         console.error('[App] session coordinator is unavailable');
         return;

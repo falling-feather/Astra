@@ -1,4 +1,6 @@
-export type WorkspaceView = 'overview' | 'courses' | 'classes' | 'notes' | 'account';
+import type { Role, SchoolGateway, TeacherApplication } from '../portal/contracts';
+export type WorkspaceView =
+  'overview' | 'courses' | 'classes' | 'notes' | 'account' | 'assignments' | 'teaching' | 'course';
 export type Destination = 'manage' | 'lab' | 'code' | 'future';
 export type View = WorkspaceView | Destination;
 export type Phase = 'intro' | 'welcome' | 'login' | 'workspace';
@@ -25,6 +27,10 @@ export interface Course {
   lessons: number;
   description: string;
   chapters: string[];
+  backendId?: number;
+  galaxyKey?: string;
+  subjectKey?: string;
+  scheduleText?: string;
 }
 
 export interface LearningTask {
@@ -34,6 +40,8 @@ export interface LearningTask {
   description: string;
   due: string;
   completed: boolean;
+  assignmentId?: number;
+  classId?: number;
 }
 
 export interface Note {
@@ -41,21 +49,29 @@ export interface Note {
   title: string;
   content: string;
   modified: string;
+  revision?: number;
 }
 
-/** A future HTTP adapter implements this boundary; views do not own transport. */
+/** Cookie API and explicit demonstration adapters share this view-facing boundary. */
 export interface LearningGateway {
+  readonly mode: 'demo' | 'api';
+  readonly school: SchoolGateway;
   getSession(): Promise<Session | null>;
   signIn(name: string, password: string): Promise<Session>;
-  enterAsGuest(): Promise<Session>;
+  enterAsGuest(role?: Role): Promise<Session>;
+  register(name: string, displayName: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   updateDisplayName(name: string): Promise<Session>;
   getCourses(): Promise<Course[]>;
   getTasks(): Promise<LearningTask[]>;
-  completeTask(id: string): Promise<void>;
+  getNotes(offset?: number): Promise<Note[]>;
+  createNote(): Promise<Note>;
+  saveNote(note: Note): Promise<Note>;
+  deleteNote(note: Note): Promise<void>;
 }
 
 export interface AppState {
+  teacherApplication?: TeacherApplication | null;
   phase: Phase;
   view: View;
   session: Session | null;
@@ -69,4 +85,9 @@ export interface AppState {
   notes: Note[];
   activeNote: string;
   reducedMotion: boolean;
+  noteDirty?: boolean;
+  moreNotes?: boolean;
+  openCourseId?: number;
+  openAssignmentId?: number;
+  openAssignmentClassId?: number;
 }
