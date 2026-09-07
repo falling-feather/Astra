@@ -604,6 +604,7 @@ if (-not (Test-Path -LiteralPath $saltPath -PathType Leaf)) {
 }
 
 $env:ASTRA_ENVIRONMENT = "development"
+$env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "false"
 $env:ASTRA_API_PREFIX = "/api"
 $env:ASTRA_LOCAL_PREVIEW_INSTANCE_ID = $instanceId
 $env:ASTRA_DATABASE_URL = "sqlite+pysqlite:///$databaseUrlPath"
@@ -618,6 +619,7 @@ $env:ASTRA_ALERT_DELIVERY_ENABLED = "false"
 $env:ASTRA_CONTENT_SCRIPT_ALLOWED_HOSTS = ""
 $env:ASTRA_PASSWORD_RESET_RETURN_TOKEN_FOR_DEV = "true"
 $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "false"
+            $env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "false"
 $env:ASTRA_ADMIN_BOOTSTRAP_TOKEN = ""
 $env:ASTRA_BACKGROUND_TASK_WORKER_ENABLED = "false"
 $env:ASTRA_BACKGROUND_TASK_WORKER_CONTENT_SCAN_ENABLED = "false"
@@ -648,6 +650,7 @@ try {
                 display_name = $displayName
             } | ConvertTo-Json -Compress
             $env:ASTRA_ADMIN_BOOTSTRAP_ENABLED = "true"
+        $env:ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP = "true"
             $previousOutputEncoding = $OutputEncoding
             try {
                 $OutputEncoding = [Text.UTF8Encoding]::new($false)

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from app.core.config import get_settings
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -195,6 +196,8 @@ def join_class(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ClassMembership:
+    if current_user.role != "admin" and not get_settings().legacy_local_bootstrap_allowed:
+        raise HTTPException(status_code=403, detail="请提交加入班级申请，由教师或管理员确认。")
     role = normalize_class_role(payload.role)
     if role == "teacher":
         acquire_security_control_lock(db, ADMIN_AUTHORITY_LOCK)

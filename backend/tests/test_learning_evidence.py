@@ -1695,6 +1695,7 @@ def test_be018_sqlite_file_independent_connections_reconcile_exact_replay(
     database_url = f"sqlite+pysqlite:///{database_path.as_posix()}"
     monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
     monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     get_settings.cache_clear()
     reset_database_state()
     try:

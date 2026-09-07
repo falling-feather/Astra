@@ -70,6 +70,7 @@ def local_demo_environment(monkeypatch):
     monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
     monkeypatch.setenv("ASTRA_ENVIRONMENT", "development")
     monkeypatch.setenv("ASTRA_ADMIN_BOOTSTRAP_ENABLED", "true")
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     monkeypatch.setenv("ASTRA_LOCAL_PREVIEW_INSTANCE_ID", "demo-test-instance")
     monkeypatch.setenv("ASTRA_CORS_ORIGINS", "http://127.0.0.1:9001")
     get_settings.cache_clear()
@@ -578,6 +579,7 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
 def test_initializer_rejects_mysql_and_non_local_origin(monkeypatch):
     monkeypatch.setenv("ASTRA_ENVIRONMENT", "development")
     monkeypatch.setenv("ASTRA_ADMIN_BOOTSTRAP_ENABLED", "true")
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     monkeypatch.setenv("ASTRA_LOCAL_PREVIEW_INSTANCE_ID", "demo-test-instance")
     monkeypatch.setenv("ASTRA_CORS_ORIGINS", "http://127.0.0.1:9001")
     monkeypatch.setenv("ASTRA_DATABASE_URL", "mysql+pymysql://demo:demo@localhost/astra")

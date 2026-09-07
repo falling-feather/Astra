@@ -498,6 +498,7 @@ def test_concurrent_exact_submission_replay_creates_one_submission_and_attempt(t
     database_url = f"sqlite+pysqlite:///{(tmp_path / 'code-double-click.db').as_posix()}"
     monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
     monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     get_settings.cache_clear()
     reset_database_state()
     try:

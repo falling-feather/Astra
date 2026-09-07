@@ -26,40 +26,15 @@ from app.schemas.auth import (
 from app.services.audit import record_audit_log
 from app.services.request_metadata import request_client_ip_hash, request_device_label, request_user_agent
 from app.services.text import require_trimmed_text
-from app.services.users import find_user_by_normalized_username, require_normalized_username
+from app.services.users import find_user_by_normalized_username, require_normalized_username, register_user
 
 
 router = APIRouter()
-REGISTER_ROLES = {"teacher", "student"}
 
 
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> User:
-    username = require_normalized_username(payload.username, min_length=3)
-    display_name = require_trimmed_text(payload.display_name, "Display name is required")
-    role = payload.role.strip().lower()
-    if role not in REGISTER_ROLES:
-        raise HTTPException(status_code=422, detail="Unsupported registration role")
-    _enforce_password_strength(payload.password, username)
-    existing = find_user_by_normalized_username(db, username)
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="Username already exists")
-
-    user = User(
-        username=username,
-        normalized_username=username,
-        display_name=display_name,
-        role=role,
-        password_hash=hash_password(payload.password),
-    )
-    db.add(user)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Username already exists")
-    db.refresh(user)
-    return user
+    return register_user(db, payload)
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -370,12 +345,6 @@ def revoke_session(
     if is_current:
         response.delete_cookie(get_settings().session_cookie_name)
     return AuthSessionRevokeResponse(revoked_session_id=auth_session.id, is_current=is_current)
-
-
-def _enforce_password_strength(password: str, username: str) -> None:
-    errors = password_strength_errors(password, username=username)
-    if errors:
-        raise HTTPException(status_code=422, detail={"password": errors})
 
 
 def _get_login_attempt(db: Session, username: str) -> LoginAttempt:

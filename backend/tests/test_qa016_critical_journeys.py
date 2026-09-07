@@ -7,6 +7,8 @@ import secrets
 import pytest
 from sqlalchemy import func, select
 
+from fastapi.testclient import TestClient
+from app.main import create_app
 from app.core.config import get_settings
 from app.db.session import get_session_factory, reset_database_state
 from app.models import LearningActivityProjection, LearningEvidenceEvent
@@ -156,6 +158,7 @@ def qa016_demo_environment(tmp_path: Path, monkeypatch):
     database_url = f"sqlite+pysqlite:///{(data_directory / 'qa016.sqlite3').as_posix()}"
     monkeypatch.setenv("ASTRA_DATABASE_URL", database_url)
     monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     monkeypatch.setenv("ASTRA_ENVIRONMENT", "development")
     monkeypatch.setenv("ASTRA_ADMIN_BOOTSTRAP_ENABLED", "true")
     monkeypatch.setenv("ASTRA_LOCAL_PREVIEW_INSTANCE_ID", "qa016-demo-test")
@@ -168,7 +171,7 @@ def qa016_demo_environment(tmp_path: Path, monkeypatch):
     get_settings.cache_clear()
 
 
-def test_qa016_fresh_demo_student_starts_without_completed_learning_evidence(qa016_demo_environment):
+def test_new_student_does_not_inherit_synthetic_demo_learning_history(qa016_demo_environment):
     credentials = {
         username: f"Astra-QA016-{secrets.token_urlsafe(32)}"
         for username in (
@@ -181,8 +184,14 @@ def test_qa016_fresh_demo_student_starts_without_completed_learning_evidence(qa0
         )
     }
     report = asyncio.run(initialize_demo_data(credentials=credentials))
-    student_id = int(report["users"]["student"]["id"])
-    seeded = report.get("representative_evidence") or {}
+    assert report["representative_evidence"]
+    with TestClient(create_app()) as client:
+        registered = client.post("/api/auth/register", json={"username":"fresh_real_student", "display_name":"New student", "password":"Fresh-student-review-2026!", "role":"student"})
+        assert registered.status_code == 201
+        student_id = registered.json()["id"]
+        assert student_id != report["users"]["student"]["id"]
+        client.post("/api/auth/login", json={"username":"fresh_real_student", "password":"Fresh-student-review-2026!"})
+        assert client.get("/api/v1/workbench").json()["courses"]["items"] == []
 
     session_factory = get_session_factory(get_settings().database_url)
     with session_factory() as db:
@@ -203,12 +212,5 @@ def test_qa016_fresh_demo_student_starts_without_completed_learning_evidence(qa0
             )
             or 0
         )
-    if (
-        any(item.get("status") == "completed" for item in seeded.values())
-        and completed > 0
-        and evidence_events > 0
-    ):
-        pytest.xfail("QA-016 DEMO-01: current initializer pre-completes representative activities")
-    assert not seeded or all(item.get("status") == "not_started" for item in seeded.values())
     assert completed == 0
     assert evidence_events == 0

@@ -91,6 +91,7 @@ def mysql_url() -> str:
 
 @pytest.fixture()
 def mysql_client(mysql_url: str, monkeypatch):
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     bootstrap_token = os.environ.get("ASTRA_TEST_ADMIN_BOOTSTRAP_TOKEN", "").strip()
     assert bootstrap_token
     monkeypatch.setenv("ASTRA_DATABASE_URL", mysql_url)

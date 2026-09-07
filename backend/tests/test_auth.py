@@ -290,7 +290,7 @@ def test_login_sets_secure_cookie_flags_in_production(client, monkeypatch):
             "username": "prod_cookie_owner",
             "password": "secret123",
             "display_name": "Production Cookie Owner",
-            "role": "teacher",
+            "role": "student",
         },
     )
     assert register.status_code == 201
@@ -1290,7 +1290,7 @@ def test_password_reset_request_in_production_does_not_return_token(client, monk
             "username": "production_reset_owner",
             "password": "secret123",
             "display_name": "Production Reset Owner",
-            "role": "teacher",
+            "role": "student",
         },
     )
     assert register.status_code == 201

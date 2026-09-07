@@ -8,6 +8,9 @@ from app.main import create_app
 
 @pytest.fixture()
 def client(monkeypatch):
+    # Existing low-level fixtures exercise legacy provisioning explicitly.
+    # Public registration/organization authority has dedicated default-mode tests.
+    monkeypatch.setenv("ASTRA_ALLOW_LEGACY_LOCAL_BOOTSTRAP", "true")
     monkeypatch.setenv("ASTRA_DATABASE_URL", "sqlite+pysqlite:///:memory:")
     monkeypatch.setenv("ASTRA_AUTO_CREATE_TABLES", "true")
     get_settings.cache_clear()

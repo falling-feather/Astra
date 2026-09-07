@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import ClassGroup, School, SchoolMembership, User
 from app.schemas.school import ClassRead, SchoolCreate, SchoolRead
@@ -47,6 +48,8 @@ def create_school(
         detail="Only active admins or teachers can create schools",
         status_code=403,
     )
+    if current_user.role != "admin" and not get_settings().legacy_local_bootstrap_allowed:
+        raise HTTPException(status_code=403, detail="学校由管理员创建，教师请申请加入已有学校的班级。")
     name = require_trimmed_text(payload.name, "School name is required")
     existing = db.scalar(select(School).where(School.name == name))
     if existing is not None:

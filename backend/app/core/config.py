@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     api_cache_control: Literal["no-store"] = "no-store"
     auto_create_tables: bool = False
+    allow_legacy_local_bootstrap: bool = False
     session_cookie_name: str = "astra_session"
     session_days: int = 7
     session_last_seen_update_seconds: int = Field(default=300, ge=0)
@@ -134,6 +135,10 @@ class Settings(BaseSettings):
     @property
     def is_production_like(self) -> bool:
         return not self.is_local_development
+
+    @property
+    def legacy_local_bootstrap_allowed(self) -> bool:
+        return self.is_local_development and self.allow_legacy_local_bootstrap
 
     def validate_runtime_security(self) -> None:
         # Force credentialed CORS parsing before middleware is installed.
