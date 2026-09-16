@@ -5,7 +5,7 @@
     "task_id": "ARCH-003",
     "version_token": "V8.0.0",
     "frozen_at_revision": "aec0587f643190e2c435ff88945d4f9066dd5316",
-    "document": "doc/02-子文档/24-V7.6全栈模块边界契约.md",
+    "document": "doc/01-开发者手册.md",
     "decision_vocabulary": {
       "direct_absorb": "直接吸收",
       "reimplement": "重新实现",
@@ -13,7 +13,7 @@
       "unusable": "不可用"
     },
     "allowed_write_paths": [
-      "doc/02-子文档/24-V7.6全栈模块边界契约.md",
+      "doc/01-开发者手册.md",
       "tools/architecture/v76-module-boundaries.json",
       "tools/tests/architecture-boundary-contract.cjs"
     ]
@@ -36,7 +36,7 @@
       "tools/architecture/v76-module-boundaries.json",
       "tools/tests/architecture-boundary-contract.cjs",
       "tools/tests/learning-activity-runtime-contract.cjs",
-      "doc/02-子文档/24-V7.6全栈模块边界契约.md"
+      "doc/01-开发者手册.md"
     ],
     "runtime_identity_fields": [
       "class_id",
@@ -200,7 +200,7 @@
       "tools/tests/architecture-boundary-contract.cjs",
       "tools/tests/learning-activity-runtime-contract.cjs",
       "tools/tests/learning-activity-recovery-contract.cjs",
-      "doc/02-子文档/24-V7.6全栈模块边界契约.md"
+      "doc/01-开发者手册.md"
     ],
     "cursor_contract": {
       "command_learner_cursor": "run.sequence",

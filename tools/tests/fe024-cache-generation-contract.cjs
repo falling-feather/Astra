@@ -10,7 +10,6 @@ const serviceWorkerGeneration = '20260828v866StudentProjectionP0';
 const legacyShellGeneration = '20260824v816ExperimentRestoreP2';
 const showcaseGeneration = '20260824v832Show03P0';
 const show04Generation = '20260825v834Show04P0';
-const v834Generation = '20260813v834ShowcaseLayoutP0';
 const moduleGeneration = showcaseGeneration;
 const studentGeneration = generation;
 const teacherGeneration = '20260828v864RoleWorkbenchHarmonyP0';
@@ -27,8 +26,6 @@ const frontierLearning = read('shared/js/frontier-learning.js');
 const studentLearningEvidence = read('shared/js/student-learning-evidence.js');
 const main = read('shared/js/main.js');
 const serviceWorker = read('sw.js');
-const developerDoc = read('doc/01-开发者手册.md');
-const frontendDoc = read('doc/08-前端页面实现索引.md');
 
 class FakeResource {
   constructor(tagName) {
@@ -117,18 +114,7 @@ function testStaticGenerationChain() {
     [legacyShellGeneration, showcaseGeneration].includes(experimentRegistryShellVersion),
     'service-worker experiment registry must stay on an explicitly reviewed generation',
   );
-  for (const document of [developerDoc, frontendDoc]) {
-    assert.match(document, new RegExp(v834Generation));
-    assert.match(document, /app-session[\s\S]*loader[\s\S]*(?:queue|client)[\s\S]*(?:catalog|activity)/);
-    assert.match(document, /ARCH-004/);
-    const v834EvidenceLine = document
-      .split(/\r?\n/)
-      .find((line) => line.includes('V8.0.34') && line.includes(v834Generation));
-    assert.ok(v834EvidenceLine, 'V8.0.34 documentation must identify the exact V834 cache generation');
-    assert.match(v834EvidenceLine, /QA-023/);
-    assert.match(v834EvidenceLine, /V832[\s\S]*V833[\s\S]*V834/);
-    assert.match(v834EvidenceLine, /待同 revision 复验/);
-  }
+  // Historical QA wording is archived in Git; executable cache propagation stays tested here.
   for (const asset of ['page-registry', 'main']) {
     assert.match(serviceWorker, new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`));
   }

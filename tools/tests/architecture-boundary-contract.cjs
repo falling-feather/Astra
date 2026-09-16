@@ -160,7 +160,7 @@ const architectureContract = manifest.architecture_contract;
 const activityRuntimeContract = manifest.activity_runtime_contract;
 const activityRecoveryContract = manifest.activity_runtime_recovery_contract;
 const learningActivityContract = manifest.learning_activity_contract;
-const contractDocument = read(architectureContract.document);
+assert.ok(fs.existsSync(path.join(root, architectureContract.document)), 'current architecture document must exist');
 
 assert.equal(manifest.schema_version, 'astra-architecture-boundaries-v2');
 assert.match(manifest.baseline_revision, /^[0-9a-f]{40}$/);
@@ -174,7 +174,7 @@ assert.deepEqual(Object.keys(architectureContract.decision_vocabulary), [
   'unusable',
 ]);
 assert.deepEqual(architectureContract.allowed_write_paths, [
-  'doc/02-子文档/24-V7.6全栈模块边界契约.md',
+  'doc/01-开发者手册.md',
   'tools/architecture/v76-module-boundaries.json',
   'tools/tests/architecture-boundary-contract.cjs',
 ]);
@@ -197,7 +197,7 @@ assert.deepEqual(activityRuntimeContract.allowed_write_paths, [
   'tools/architecture/v76-module-boundaries.json',
   'tools/tests/architecture-boundary-contract.cjs',
   'tools/tests/learning-activity-runtime-contract.cjs',
-  'doc/02-子文档/24-V7.6全栈模块边界契约.md',
+  'doc/01-开发者手册.md',
 ]);
 assert.deepEqual(activityRuntimeContract.runtime_identity_fields, [
   'class_id',
@@ -327,7 +327,7 @@ assert.deepEqual(activityRecoveryContract.allowed_write_paths, [
   'tools/tests/architecture-boundary-contract.cjs',
   'tools/tests/learning-activity-runtime-contract.cjs',
   'tools/tests/learning-activity-recovery-contract.cjs',
-  'doc/02-子文档/24-V7.6全栈模块边界契约.md',
+  'doc/01-开发者手册.md',
 ]);
 assert.deepEqual(activityRecoveryContract.cursor_contract, {
   command_learner_cursor: 'run.sequence',
@@ -530,95 +530,8 @@ for (const fixtureKind of activityRuntimeContract.reference_adapter_kinds) {
   );
 }
 
-for (const token of [
-  architectureContract.task_id,
-  architectureContract.version_token,
-  architectureContract.frozen_at_revision,
-  ...Object.values(architectureContract.decision_vocabulary),
-]) {
-  assert.ok(contractDocument.includes(token), `architecture document must contain ${token}`);
-}
-for (const token of [
-  activityRuntimeContract.task_id,
-  activityRuntimeContract.version_token,
-  activityRuntimeContract.baseline_revision,
-  activityRuntimeContract.schema_version,
-  activityRuntimeContract.recovery_schema_version,
-  activityRuntimeContract.event_envelope_schema_version,
-  activityRuntimeContract.provenance_schema_version,
-  ...activityRuntimeContract.runtime_identity_fields,
-  activityRuntimeContract.caller_abort_code,
-  activityRuntimeContract.dispose_code,
-  ...Object.keys(activityRuntimeContract.required_injected_ports),
-  ...activityRuntimeContract.manual_resolution_actions,
-  ...activityRuntimeContract.raw_source_kinds,
-]) {
-  const tick = String.fromCharCode(96);
-  assert.ok(
-    contractDocument.includes(tick + token + tick),
-    'architecture document must explain ARCH-004 token ' + token,
-  );
-}
-for (const token of [
-  activityRecoveryContract.task_id,
-  activityRecoveryContract.version_token,
-  activityRecoveryContract.baseline_revision,
-  activityRecoveryContract.recovery_schema_version,
-  activityRecoveryContract.evidence_sidecar_schema_version,
-  activityRecoveryContract.cursor_contract.command_learner_cursor,
-  activityRecoveryContract.cursor_contract.server_cursor,
-  ...activityRecoveryContract.cursor_contract.confirmed_receipt_fields,
-  activityRecoveryContract.cursor_ownership.domain_snapshot,
-  activityRecoveryContract.cursor_ownership.projection,
-]) {
-  const tick = String.fromCharCode(96);
-  assert.ok(
-    contractDocument.includes(tick + token + tick),
-    'architecture document must explain ARCH-005 token ' + token,
-  );
-}
-const arch004Document = contractDocument.slice(contractDocument.indexOf('## 17. ARCH-004'));
-assert.ok(arch004Document.length > 0, 'architecture document must contain the ARCH-004 section');
-for (const phrase of [
-  'subgraph Ports["五个显式注入端口"]',
-  'ready --> interacting: predict() / observe()',
-  'Kernel->>Adapter: restore(frozen prepared input, signal)',
-  'subgraph RawBoundary["共同 raw 来源边界（本片不证明真实性）"]',
-  'prepare/return',
-  'runtime Promise 成功后 commit',
-  '必须由 `Promise.all` 并发启动',
-  '每个 port promise 必须在自己的 chain 内立即执行 `authorityResult` / `releaseResult` 语义校验',
-  '网络时延和 p95 均为 **NOT-RUN**',
-  '`manifest-whitespace-fail-closed`',
-  'manifest 的 `release.scope_fields` 必须唯一且精确包含',
-  '每个 source sequence 必须严格早于 derived sequence',
-]) {
-  assert.ok(arch004Document.includes(phrase), `ARCH-004 layered analysis must contain ${phrase}`);
-}
-assert.ok(
-  arch004Document.includes('`' + activityRuntimeContract.adapter_effect_contract.atomicity_scope + '`')
-    && arch004Document.includes('`' + activityRuntimeContract.adapter_effect_contract.negative_fixture + '`'),
-  'architecture document must freeze the adapter atomicity scope and its negative fixture',
-);
-for (const heading of ['**当前能证明**', '**当前不能证明**', '**后续接入点**']) {
-  assert.ok(
-    arch004Document.split(heading).length - 1 >= 4,
-    `each ARCH-004 layered diagram must explain ${heading}`,
-  );
-}
-const arch005Document = contractDocument.slice(contractDocument.indexOf('## 18. ARCH-005'));
-assert.ok(arch005Document.length > 0, 'architecture document must contain the ARCH-005 section');
-for (const phrase of [
-  'learner 1/2 → server-derived server 3 → next learner 3',
-  '禁止把两类游标重新合并成一个序号算法',
-  '同一 IndexedDB 事务',
-  '页面、真实 IndexedDB、Browser 与后端联调均为 **NOT-RUN**',
-  'snapshot sidecar 缺失、字段漂移或 cursor 漂移',
-  '页面只在 runtime Promise 成功后提交',
-]) {
-  assert.ok(arch005Document.includes(phrase), `ARCH-005 contract must contain ${phrase}`);
-}
-
+// DOC-007 retires duplicated historical prose, not the machine/runtime contracts above.
+// Document links are checked separately; legacy QA wording must not freeze the current manual.
 for (const relativePath of Object.values(manifest.current_learning_architecture)) {
   if (typeof relativePath !== 'string' || !relativePath.includes('/')) continue;
   assert.ok(fs.existsSync(path.join(root, relativePath)), `current architecture path is missing: ${relativePath}`);
@@ -686,17 +599,6 @@ for (const [team, boundary] of Object.entries(learningActivityContract.team_boun
   assert.ok(boundary.may_own.length > 0, `${team} must have an owned surface`);
   assert.ok(boundary.must_not.length > 0, `${team} must have a forbidden surface`);
 }
-for (const token of [
-  ...learningActivityContract.identity_fields,
-  ...learningActivityContract.manifest_required_sections,
-  ...learningActivityContract.runtime_methods,
-  ...learningActivityContract.runtime_states,
-  ...learningActivityContract.projection_states,
-  ...learningActivityContract.ports.map((port) => port.id),
-]) {
-  assert.ok(contractDocument.includes(`\`${token}\``), `architecture document must explain ${token}`);
-}
-
 const noTouchPaths = [
   ...manifest.v8_first_wave_no_touch.legacy_shell_paths,
   ...manifest.v8_first_wave_no_touch.legacy_role_paths,
@@ -708,7 +610,6 @@ for (const relativePath of noTouchPaths) {
     Object.hasOwn(manifest.legacy_line_ceilings, relativePath),
     `first-wave no-touch path must also be guarded by a legacy ceiling: ${relativePath}`,
   );
-  assert.ok(contractDocument.includes(`\`${relativePath}\``), `architecture document must list no-touch path ${relativePath}`);
 }
 
 const candidateAudit = manifest.legacy_candidate_audit.candidates;
@@ -744,8 +645,6 @@ for (const candidate of candidateAudit) {
     assert.equal(candidate.id, 'c003');
     assert.equal(candidate.snapshot_kind, 'git_metadata_only');
   }
-  assert.ok(contractDocument.includes(`\`${candidate.id}\``), `architecture document must list ${candidate.id}`);
-  assert.ok(contractDocument.includes(candidate.fingerprint), `architecture document must contain ${candidate.id} fingerprint`);
 }
 assert.deepEqual(
   candidateAudit.filter((candidate) => candidate.overall_decision === 'direct_absorb').map((candidate) => candidate.id),

@@ -9,7 +9,7 @@
 | 本机完整版本 | `npm run build` | `dist/` | 真实 Cookie 账号与 FastAPI，默认 `/api` |
 | 静态展示 | `npm run build:demo` | `dist-demo/` | 三角色内存演示，刷新后重置 |
 
-Node 版本取仓库根目录的 `.node-version`。从仓库根目录运行 `powershell -ExecutionPolicy Bypass -File .\astra-local.ps1`，脚本构建正式前端、迁移数据库并在 `http://127.0.0.1:9001/` 提供完整版本。首次创建演示账号可使用 `-InitializeDemoData`；这只操作指定的本机数据目录。
+实际运行先核对 [04 环境约束](../doc/04-部署指南.md#1-运行方式与环境)；仓库 Node 锁定与当前 Windows 递归复制要求尚需对齐。从仓库根目录运行 `powershell -ExecutionPolicy Bypass -File .\astra-local.ps1`，脚本构建正式前端、迁移数据库并在 `http://127.0.0.1:9001/` 提供完整版本。首次创建演示账号可使用 `-InitializeDemoData`；这只操作指定的本机数据目录。
 
 独立浏览静态效果：
 
