@@ -11,8 +11,36 @@ from app.schemas.learning_history import LearningHistoryPage, LearningResumeRead
 from app.schemas.learning_history import AssignmentAttemptCommand, AssignmentAttemptRead, AssignmentGradeCommand, AssignmentGradeRead, AssignmentHistoryRead
 from app.schemas.learning_history import AssignmentOpenCommand, AssignmentWorkspaceRead
 from app.services import assignment_history
+from app.services import activity_contexts, learning_activity_runtime
+from app.schemas.learning_history import ContextActivityConfigRead
+from app.schemas.learning_evidence import LearningActivityAuthorityRead, LearningActivityReleaseRead, LearningActivityRuntimeEventCreate, LearningActivityRuntimeIdentity, LearningActivityRuntimeReceipt, LearningActivityRuntimeScope, LearningActivityServerRecoveryRead
 
 router = APIRouter()
+
+
+@router.get("/learning-contexts/{context_key}/activity-runtime", response_model=ContextActivityConfigRead)
+def activity_config(context_key: str, actor=Depends(get_current_user), db: Session = Depends(get_db)):
+    return service_call(db, activity_contexts.runtime_config, actor=actor, context_key=context_key)
+
+
+@router.post("/learning-contexts/{context_key}/activity-runtime/authority", response_model=LearningActivityAuthorityRead)
+def activity_authority(context_key: str, payload: LearningActivityRuntimeIdentity, actor=Depends(get_current_user), db: Session = Depends(get_db)):
+    return service_call(db, learning_activity_runtime.learning_activity_authority, actor=actor, context_key=context_key, identity=payload)
+
+
+@router.post("/learning-contexts/{context_key}/activity-runtime/release", response_model=LearningActivityReleaseRead)
+def activity_release(context_key: str, payload: LearningActivityRuntimeScope, actor=Depends(get_current_user), db: Session = Depends(get_db)):
+    return service_call(db, learning_activity_runtime.learning_activity_release, actor=actor, context_key=context_key, scope=payload)
+
+
+@router.post("/learning-contexts/{context_key}/activity-runtime/events", response_model=LearningActivityRuntimeReceipt, status_code=201)
+def activity_event(context_key: str, payload: LearningActivityRuntimeEventCreate, actor=Depends(get_current_user), db: Session = Depends(get_db)):
+    return service_call(db, learning_activity_runtime.append_learning_activity_event, actor=actor, context_key=context_key, payload=payload)
+
+
+@router.post("/learning-contexts/{context_key}/activity-runtime/recovery", response_model=LearningActivityServerRecoveryRead)
+def activity_recovery(context_key: str, payload: LearningActivityRuntimeIdentity, actor=Depends(get_current_user), db: Session = Depends(get_db)):
+    return service_call(db, learning_activity_runtime.learning_activity_server_recovery, actor=actor, context_key=context_key, identity=payload)
 
 
 @router.post("/learning-contexts", response_model=LearningContextRead, status_code=201)

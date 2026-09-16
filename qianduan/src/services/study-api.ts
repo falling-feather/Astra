@@ -21,5 +21,8 @@ export function createStudyApi(client: HttpClient): StudyGateway {
     submit: (id, body) => post(`/assignments/${id}/attempts`, body),
     grade: (id, body) => post(`/assignment-attempts/${id}/grades`, body),
     submissionHistory: (id, offset = 0) => get(`/submissions/${id}/history?offset=${offset}&limit=20`),
+    activityConfig: (key) => get(`/learning-contexts/${encodeURIComponent(key)}/activity-runtime`),
+    activityEvent: (key, body) => post(`/learning-contexts/${encodeURIComponent(key)}/activity-runtime/events`, body),
+    activityRecovery: (key, body) => post(`/learning-contexts/${encodeURIComponent(key)}/activity-runtime/recovery`, body),
   };
 }

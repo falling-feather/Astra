@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.learning_evidence_contract import as_utc, canonical_sha256
-from app.models import Assignment, ClassGroup, ClassMembership, ContentPageVersion, Course, CourseCandidate, CourseClass, CourseEnrollment, CourseRelease, CourseReleaseUnit, CourseUnit, CourseUnitClassPlan, LearningCompletionRule, LearningContext, User
+from app.models import Assignment, ClassGroup, ClassMembership, ContentPageVersion, Course, CourseCandidate, CourseClass, CourseEnrollment, CourseRelease, CourseReleaseUnit, CourseUnit, CourseUnitClassPlan, LearningCompletionRule, LearningContext, LearningResource, LearningResourceVersion, School, User
 from app.schemas.learning_history import LearningContextStart
 from app.services.access_control import get_course, lock_course_for_write, lock_scope_eligible_user
 from app.services.content_platform import _canonical_sha256, _internal_course_class, _public_content_page
@@ -24,6 +24,9 @@ def formal_scope(db: Session, *, actor: User, course_id: int, unit_id: int, rele
     if write:
         lock_scope_eligible_user(db, actor.id, "student", detail="学生身份已变化", status_code=403)
         db.execute(update(Course).where(Course.id == course.id).values(updated_at=Course.updated_at))
+    school = db.get(School, course.school_id)
+    if school is None or school.status != "active":
+        raise HTTPException(status_code=403, detail="学校当前未开放")
     if course.status != "published":
         raise HTTPException(status_code=403, detail="课程当前未开放")
     enrolled = db.scalar(select(CourseEnrollment.id).where(CourseEnrollment.course_id == course_id, CourseEnrollment.student_id == actor.id, CourseEnrollment.status == "active"))
@@ -96,8 +99,11 @@ def start_context(db: Session, *, actor: User, payload: LearningContextStart, co
         if current is None or current.id != payload.expected_release_id:
             raise HTTPException(status_code=409, detail="课程已有新版本，请重新进入；已开始的学习可通过原记录继续")
         resource_ids = [block["resourceVersionId"] for block in scope["version"].schema_json["blocks"] if block["type"] == "resource"]
-        resource_id = payload.resource_version_id or next(iter(resource_ids), None)
-        if resource_id is not None and resource_id not in resource_ids:
+        official_keys = {block["simulationKey"] for block in scope["version"].schema_json["blocks"] if block["type"] == "official-simulation"}
+        legacy_version = db.scalar(select(LearningResourceVersion).join(LearningResource, LearningResource.id == LearningResourceVersion.resource_id).where(LearningResource.resource_key.in_(official_keys)).order_by(LearningResourceVersion.version_number.desc(), LearningResourceVersion.id).limit(1)) if official_keys else None
+        allowed_ids = set(resource_ids) | ({legacy_version.id} if legacy_version else set())
+        resource_id = payload.resource_version_id or next(iter(resource_ids), legacy_version.id if legacy_version else None)
+        if resource_id is not None and resource_id not in allowed_ids:
             raise HTTPException(status_code=422, detail="资源不属于该学习单元的发布版")
         assignment = frozen_assignment(db, scope, payload.assignment_id) if payload.assignment_id else None
         identity = context_identity(scope, resource_id, assignment)

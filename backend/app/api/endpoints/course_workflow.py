@@ -13,6 +13,7 @@ from app.services import course_drafts_v2 as drafts
 from app.services.course_workflow_support import read_operation
 from app.services.content_platform import ContentPlatformError
 from app.services.course_completion import CourseCompletionError
+from app.core.learning_evidence_contract import LearningEvidenceError
 from app.schemas import course_workflow as dto
 from app.services import course_candidates as candidates, course_reviews_v2 as reviews, course_publications_v2 as publications
 
@@ -30,6 +31,9 @@ def service_call(db: Session, operation: Callable[..., Any], **kwargs):
     except (ContentPlatformError, CourseCompletionError) as error:
         db.rollback()
         raise HTTPException(status_code=error.status_code, detail={"code": error.code, "message": error.message}) from error
+    except LearningEvidenceError as error:
+        db.rollback()
+        raise HTTPException(status_code=error.status_code, detail={"code": error.code, "message": error.detail}) from error
     except IntegrityError as error:
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "workflow_write_conflict", "message": "数据已变化或操作已提交，请重新读取并保留原请求编号"}) from error

@@ -88,8 +88,9 @@ def _builtin_descriptors() -> list[dict]:
         "provenance": {"kind": "system-preset", "source_revision": snapshot["source_revision"], "activity_key": item["key"]},
     } for item in items]
     descriptors.extend(json.loads((CATALOGUE_ROOT / "templates.v1.json").read_text(encoding="utf-8"))["templates"])
+    descriptors.extend(json.loads((CATALOGUE_ROOT / "resource-updates.v1.json").read_text(encoding="utf-8"))["resources"])
     descriptors.extend(_bundle_descriptors(capabilities))
-    if len({item["key"] for item in descriptors}) != len(descriptors):
+    if len({(item["key"], item.get("version_number", 1)) for item in descriptors}) != len(descriptors):
         raise RuntimeError("Resource identities collide across registered spaces")
     return descriptors
 
@@ -109,21 +110,23 @@ def install_system_resources(db: Session, *, actor: User, request: Request | Non
             elif (resource.space_key, resource.subject_key, resource.kind) != (descriptor["space"], descriptor["subject"], descriptor["kind"]):
                 raise HTTPException(status_code=409, detail="系统资源身份与已有记录不一致，不能覆盖")
         db.flush()
-        stored = {version.resource_id: version for version in db.scalars(select(LearningResourceVersion).where(LearningResourceVersion.version_number == 1)).all()}
+        stored = {(version.resource_id, version.version_number): version for version in db.scalars(select(LearningResourceVersion)).all()}
         installed = 0
         for descriptor in descriptors:
             resource = existing[descriptor["key"]]
             digest = canonical_digest(descriptor)
-            if resource.id in stored:
-                if stored[resource.id].content_sha256 != digest:
-                    raise HTTPException(status_code=409, detail="系统资源 v1 已存在且内容不同，须新增版本")
+            version_number = descriptor.get("version_number", 1)
+            identity = (resource.id, version_number)
+            if identity in stored:
+                if stored[identity].content_sha256 != digest:
+                    raise HTTPException(status_code=409, detail=f"系统资源 v{version_number} 已存在且内容不同，须新增版本")
                 continue
-            db.add(LearningResourceVersion(resource_id=resource.id, version_number=1, title=descriptor["title"], renderer=descriptor["renderer"], definition_json=descriptor["definition"], capabilities_json=descriptor["capabilities"], provenance_json=descriptor["provenance"], content_sha256=digest))
+            db.add(LearningResourceVersion(resource_id=resource.id, version_number=version_number, title=descriptor["title"], renderer=descriptor["renderer"], definition_json=descriptor["definition"], capabilities_json=descriptor["capabilities"], provenance_json=descriptor["provenance"], content_sha256=digest))
             installed += 1
         if installed:
-            record_audit_log(db, actor=actor, action="resource.catalogue.install", resource_type="system-resource", resource_id="builtin", request=request, event_result="success", snapshot={"installed_versions": installed, "catalogue_size": len(descriptors)})
+            record_audit_log(db, actor=actor, action="resource.catalogue.install", resource_type="system-resource", resource_id="builtin", request=request, event_result="success", snapshot={"installed_versions": installed, "catalogue_size": len({item["key"] for item in descriptors})})
         db.commit()
-        return {"installed_versions": installed, "catalogue_size": len(descriptors)}
+        return {"installed_versions": installed, "catalogue_size": len({item["key"] for item in descriptors})}
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="另一项初始化已写入资源，请重新读取目录后再操作") from exc

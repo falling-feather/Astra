@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 from app.schemas.content_platform import CheckpointAttemptCreate, CheckpointAttemptRead, PlatformDto
 from app.schemas.course_workflow import WorkflowCommand
 from app.schemas.learning_resources import ResourceVersionRead
+from app.schemas.learning_evidence import LearningActivityRuntimeScope, LearningActivitySubjectIdentity
 
 
 class LearningContextStart(WorkflowCommand):
@@ -213,3 +214,34 @@ class LearningResumeRead(PlatformDto):
     unit_title: str
     created_at: datetime
     is_current: bool
+
+
+class ContextActivityControlRead(PlatformDto):
+    key: str
+    label: str
+    value: float
+    minimum: float
+    maximum: float
+    step: float
+    selector: str | None = None
+
+
+class ContextActivityBlockRead(PlatformDto):
+    block_id: str
+    resource_version_id: int
+    adapter: Literal["function-parameters-v1", "numeric-controls-v1"]
+    entry: str | None
+    controls: list[ContextActivityControlRead]
+
+
+class ContextActivityConfigRead(PlatformDto):
+    context_key: str
+    scope: LearningActivityRuntimeScope
+    subject_identity: LearningActivitySubjectIdentity
+    manifest_version: str
+    content_version: str
+    event_schema_version: int
+    rule_version: int
+    generation: str
+    state_schema_version: str
+    blocks: list[ContextActivityBlockRead]

@@ -1,0 +1,193 @@
+{
+  "schema_version": "astra-resource-updates-v1",
+  "resources": [
+    {
+      "key": "template.function-graph",
+      "space": "englab",
+      "subject": "mathematics",
+      "kind": "template",
+      "title": "可配置函数图像",
+      "renderer": "function-graph-v1",
+      "definition": {
+        "configuration": {
+          "formula": "a*x^2+b",
+          "parameters": [
+            {
+              "key": "a",
+              "label": "二次项系数",
+              "value": 1,
+              "minimum": -3,
+              "maximum": 3,
+              "step": 0.1
+            },
+            {
+              "key": "b",
+              "label": "上下移动",
+              "value": 0,
+              "minimum": -5,
+              "maximum": 5,
+              "step": 0.5
+            }
+          ],
+          "x_min": -5,
+          "x_max": 5,
+          "y_min": -10,
+          "y_max": 10,
+          "samples": 121
+        }
+      },
+      "capabilities": {
+        "operation_recording": true,
+        "completion_modes": [
+          "experiment_operation",
+          "checkpoint_passed",
+          "assignment_reviewed",
+          "assignment_accepted"
+        ],
+        "runtime_pin": "template-v1",
+        "configurable": true,
+        "observation_adapter": "function-parameters-v1"
+      },
+      "provenance": {
+        "kind": "system-template",
+        "model": "受限算术表达式采样；无定义或超出运算界限的位置以断点表示",
+        "observation": "仅记录发布版允许的参数变化；观察不等同于掌握判断"
+      },
+      "version_number": 2
+    },
+    {
+      "key": "physics.mechanics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "恢复系数与反弹高度",
+      "kind": "activity",
+      "version_number": 2,
+      "renderer": "legacy",
+      "definition": {
+        "entry": "labs/index.html#physics/mechanics",
+        "configuration": {}
+      },
+      "capabilities": {
+        "operation_recording": true,
+        "runtime_pin": "legacy-compatibility",
+        "observation_adapter": "numeric-controls-v1",
+        "completion_modes": [
+          "experiment_operation",
+          "checkpoint_passed",
+          "assignment_reviewed",
+          "assignment_accepted"
+        ],
+        "controls": [
+          {
+            "key": "gravity",
+            "label": "重力加速度",
+            "selector": "#gravity-slider",
+            "minimum": 0,
+            "maximum": 2000,
+            "step": 50,
+            "value": 980
+          },
+          {
+            "key": "restitution",
+            "label": "弹性系数百分比",
+            "selector": "#restitution-slider",
+            "minimum": 0,
+            "maximum": 100,
+            "step": 5,
+            "value": 75
+          },
+          {
+            "key": "friction",
+            "label": "摩擦系数百分比",
+            "selector": "#friction-slider",
+            "minimum": 0,
+            "maximum": 100,
+            "step": 5,
+            "value": 10
+          },
+          {
+            "key": "radius",
+            "label": "小球半径",
+            "selector": "#radius-slider",
+            "minimum": 8,
+            "maximum": 40,
+            "step": 2,
+            "value": 16
+          }
+        ]
+      },
+      "provenance": {
+        "kind": "system-preset",
+        "activity_key": "physics.mechanics",
+        "observation": "原求解器保持不变；绑定真实参数控件，只保存操作观察，不声称恢复全部运动状态"
+      }
+    },
+    {
+      "key": "physics.mechanics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "恢复系数与反弹高度",
+      "kind": "activity",
+      "version_number": 3,
+      "renderer": "legacy",
+      "definition": {
+        "entry": "labs/index.html#physics/mechanics",
+        "configuration": {}
+      },
+      "capabilities": {
+        "operation_recording": true,
+        "runtime_pin": "legacy-compatibility",
+        "observation_adapter": "numeric-controls-v1",
+        "completion_modes": [
+          "experiment_operation",
+          "checkpoint_passed",
+          "assignment_reviewed",
+          "assignment_accepted"
+        ],
+        "controls": [
+          {
+            "key": "gravity",
+            "label": "重力加速度",
+            "selector": "#gravity-slider",
+            "minimum": 0,
+            "maximum": 2000,
+            "step": 10,
+            "value": 980
+          },
+          {
+            "key": "restitution",
+            "label": "弹性系数百分比",
+            "selector": "#restitution-slider",
+            "minimum": 0,
+            "maximum": 100,
+            "step": 5,
+            "value": 75
+          },
+          {
+            "key": "friction",
+            "label": "摩擦系数百分比",
+            "selector": "#friction-slider",
+            "minimum": 0,
+            "maximum": 100,
+            "step": 5,
+            "value": 10
+          },
+          {
+            "key": "radius",
+            "label": "小球半径",
+            "selector": "#radius-slider",
+            "minimum": 8,
+            "maximum": 40,
+            "step": 2,
+            "value": 16
+          }
+        ]
+      },
+      "provenance": {
+        "kind": "system-preset",
+        "activity_key": "physics.mechanics",
+        "observation": "默认重力980与滑杆步长保持一致；仅保存已声明参数的操作观察，不恢复全部运动状态"
+      }
+    }
+  ]
+}

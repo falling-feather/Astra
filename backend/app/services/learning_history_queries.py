@@ -2,11 +2,11 @@
 from copy import deepcopy
 
 from fastapi import HTTPException
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.core.learning_evidence_contract import as_utc
-from app.models import AssignmentAttempt, AssignmentGrade, CheckpointAttempt, ClassGroup, ClassMembership, ContentPageVersion, Course, CourseClass, CourseEnrollment, CourseRelease, CourseReleaseUnit, LearningContext, LearningResult, School
+from app.models import AssignmentAttempt, AssignmentGrade, CheckpointAttempt, ClassGroup, ClassMembership, ContentPageVersion, Course, CourseClass, CourseEnrollment, CourseRelease, CourseReleaseUnit, LearningContext, LearningEvidenceEvent, LearningResourceVersion, LearningResult, School
 from app.services.course_workflow_support import authoring_course
 from app.services.course_snapshots import latest_release
 from app.services.learning_results import pinned_completed_units, result_credits, valid_result_condition
@@ -43,9 +43,15 @@ def result_history(db: Session, *, actor, course_id: int, student_id: int | None
     checkpoints = {item.id: item for item in db.scalars(select(CheckpointAttempt).where(CheckpointAttempt.id.in_({row.checkpoint_attempt_id for row in rows if row.checkpoint_attempt_id})))}
     grades = {item.id: item for item in db.scalars(select(AssignmentGrade).where(AssignmentGrade.id.in_({row.assignment_grade_id for row in rows if row.assignment_grade_id})))}
     attempts = {item.id: item for item in db.scalars(select(AssignmentAttempt).where(AssignmentAttempt.id.in_({grade.attempt_id for grade in grades.values()})))}
-    versions = {item.id: item for item in db.scalars(select(ContentPageVersion).where(ContentPageVersion.id.in_({item.content_page_version_id for item in checkpoints.values()})))}
     releases = {item.id: item for item in db.scalars(select(CourseRelease).where(CourseRelease.id.in_({row.course_release_id for row in rows if row.course_release_id})))}
-    unit_titles = {(release_id, unit_id): title for release_id, unit_id, title in db.execute(select(CourseReleaseUnit.course_release_id, CourseReleaseUnit.source_course_unit_id, CourseReleaseUnit.title_snapshot).where(CourseReleaseUnit.course_release_id.in_(releases)))}
+    frozen_units = list(db.scalars(select(CourseReleaseUnit).where(tuple_(CourseReleaseUnit.course_release_id, CourseReleaseUnit.source_course_unit_id).in_({(row.course_release_id, row.course_unit_id) for row in rows if row.course_release_id}))))
+    unit_titles = {(unit.course_release_id, unit.source_course_unit_id): unit.title_snapshot for unit in frozen_units}
+    content_ids = {(unit.course_release_id, unit.source_course_unit_id): unit.content_page_version_id for unit in frozen_units}
+    versions = {item.id: item for item in db.scalars(select(ContentPageVersion).where(ContentPageVersion.id.in_(set(content_ids.values()) | {item.content_page_version_id for item in checkpoints.values()})))}
+    events = {event.id: event for event in db.scalars(select(LearningEvidenceEvent).where(LearningEvidenceEvent.id.in_({row.evidence_event_id for row in rows if row.evidence_event_id})))}
+    contexts = {context.id: context for context in db.scalars(select(LearningContext).where(LearningContext.id.in_({row.context_id for row in rows if row.context_id})))}
+    resource_ids = {block["resourceVersionId"] for version in versions.values() for block in version.schema_json["blocks"] if block["type"] == "resource"} | {context.resource_version_id for context in contexts.values() if context.resource_version_id}
+    resources = {resource.id: resource for resource in db.scalars(select(LearningResourceVersion).where(LearningResourceVersion.id.in_(resource_ids)))}
     current = latest_release(db, course_id)
     credit = result_credits()
     current_ids = set(db.scalars(select(credit.c.result_id).where(credit.c.release_id == current.id, credit.c.result_id.in_(ids)))) if current else set()
@@ -63,6 +69,22 @@ def result_history(db: Session, *, actor, course_id: int, student_id: int | None
             attempt = attempts[grade.attempt_id]
             legacy = attempt.assignment_snapshot_json.get("definition_origin") == "migration_current_state"
             item.update(kind="assignment", title=f"旧作业 {attempt.assignment_id}" if legacy else attempt.assignment_snapshot_json.get("title") or item["title"], score=grade.score, max_score=grade.max_score, feedback=grade.feedback, feedback_retained=grade.feedback_retained, response=deepcopy(attempt.content_json), prompt=None if legacy else attempt.assignment_snapshot_json.get("description"))
+        elif row.evidence_event_id:
+            event = events[row.evidence_event_id]
+            if event.event_type == "attempted" and event.evidence_json.get("operation") == "parameter-change":
+                observation = event.evidence_json.get("cursor") or {}
+                version = versions.get(content_ids.get((row.course_release_id, row.course_unit_id)))
+                block = next((block for block in version.schema_json["blocks"] if block["blockId"] == observation.get("block_id")), {}) if version else {}
+                context = contexts.get(row.context_id)
+                resource_id = block.get("resourceVersionId") or (context.resource_version_id if context else None)
+                resource = resources.get(resource_id)
+                controls = (block.get("configuration") or {}).get("parameters", []) or (resource.capabilities_json.get("controls", []) if resource else [])
+                control = next((control for control in controls if control["key"] == observation.get("parameter")), {})
+                item.update(response={"参数": control.get("label") or observation.get("parameter"), "数值": observation.get("value")}, prompt=f"允许范围：{control['minimum']} 至 {control['maximum']}。这是操作观察，不单独表示掌握程度。" if control else "这是原发布版中的操作观察。")
+            elif event.event_type in {"completed", "transferred"}:
+                item.update(response={"认定": "已按原发布版的操作要求完成"})
+            else:
+                item.update(response={"记录": "开始本次观察" if event.event_type == "started" else "已保存学习事实"})
         items.append(item)
     completed = []
     if current and student_id is not None and allowed:

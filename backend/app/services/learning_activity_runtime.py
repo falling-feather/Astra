@@ -49,6 +49,7 @@ from app.models import (
     User,
 )
 from app.models.base import utc_now
+from app.services import activity_contexts
 from app.models.learning_evidence import (
     CURRENT_EVENT_SCHEMA_VERSION,
     LearningActivityRuntime,
@@ -88,8 +89,10 @@ def learning_activity_authority(
     *,
     actor: User,
     identity: LearningActivityRuntimeIdentity,
+    context_key: str | None = None,
 ) -> dict:
-    runtime_scope = _activity_runtime_read_scope(
+    _assert_activity_subject(actor, identity)
+    runtime_scope = activity_contexts.pinned_scope(db, actor=actor, context_key=context_key, coordinates=identity, versions=identity) if context_key else _activity_runtime_read_scope(
         db,
         actor=actor,
         identity=identity,
@@ -99,6 +102,7 @@ def learning_activity_authority(
         subject_user_id=actor.id,
         identity=identity,
     )
+    activity_contexts.assert_runtime_context(runtime, runtime_scope)
     if runtime is not None:
         _assert_activity_runtime_identity(
             runtime,
@@ -121,15 +125,16 @@ def learning_activity_release(
     *,
     actor: User,
     scope: LearningActivityRuntimeScope,
+    context_key: str | None = None,
 ) -> dict:
-    release_scope = _activity_release_scope(
+    release_scope = activity_contexts.pinned_scope(db, actor=actor, context_key=context_key, coordinates=scope) if context_key else _activity_release_scope(
         db,
         actor=actor,
         scope=scope,
     )
     return {
         "scope": scope.model_dump(mode="python"),
-        "state": release_scope["access"].state,
+        "state": "open" if context_key else release_scope["access"].state,
         "revision": _activity_release_revision(db, release_scope),
     }
 
@@ -139,6 +144,7 @@ def append_learning_activity_event(
     *,
     actor: User,
     payload: LearningActivityRuntimeEventCreate,
+    context_key: str | None = None,
 ) -> dict:
     with learning_evidence_write_gate(db.get_bind().dialect.name):
         _ensure_sqlite_outer_transaction(db)
@@ -147,6 +153,7 @@ def append_learning_activity_event(
                 db,
                 actor=actor,
                 payload=payload,
+                context_key=context_key,
             )
         except Exception:
             # The app middleware converts unexpected API exceptions to 500.
@@ -163,6 +170,7 @@ def _append_learning_activity_event_locked(
     *,
     actor: User,
     payload: LearningActivityRuntimeEventCreate,
+    context_key: str | None = None,
 ) -> dict:
     command = payload.command
     if actor.role != "student":
@@ -196,7 +204,7 @@ def _append_learning_activity_event_locked(
         producer_type="learner",
         payload=sidecar_json,
     )
-    locked_scope = lock_learner_evidence_scope(
+    locked_scope = activity_contexts.pinned_scope(db, actor=actor, context_key=context_key, coordinates=command.scope, versions=command.versions, write=True) if context_key else lock_learner_evidence_scope(
         db,
         subject=actor,
         class_id=command.scope.class_id,
@@ -216,6 +224,11 @@ def _append_learning_activity_event_locked(
         locked_scope,
         subject_user_id=actor.id,
     )
+    activity_contexts.assert_runtime_context(_activity_runtime_by_command(db, subject_user_id=actor.id, payload=payload, locking_read=True), locked_scope)
+    if context_key and payload.snapshot.state_schema_version != activity_contexts.STATE_SCHEMA:
+        _fail(409, "activity_state_schema_incompatible", "State schema does not match the pinned runtime protocol")
+    if context_key:
+        activity_contexts.validate_observation(db, locked_scope, payload)
     replay = _activity_runtime_replay_receipt(
         db,
         actor=actor,
@@ -243,6 +256,7 @@ def _append_learning_activity_event_locked(
             )
         now = utc_now()
         runtime = LearningActivityRuntime(
+            learning_context_id=locked_scope["learning_context"].id if context_key else None,
             subject_user_id=actor.id,
             subject_identity_kind="learner",
             subject_identity_id=str(actor.id),
@@ -277,6 +291,7 @@ def _append_learning_activity_event_locked(
             payload=payload,
         )
 
+    activity_contexts.assert_runtime_context(runtime, locked_scope)
     _assert_activity_runtime_subject(runtime, actor=actor)
     _assert_activity_runtime_command(runtime, payload=payload)
     if runtime.authority_revision != current_authority_revision:
@@ -375,8 +390,9 @@ def _append_learning_activity_event_locked(
         locking_read=True,
         activity_runtime_id=runtime.id,
     )
+    recorded = [event]
     if decision is not None and not decision.already_derived:
-        append_rule_derived_event(
+        derived = append_rule_derived_event(
             db,
             actor_user_id=actor.id,
             source_event=event,
@@ -385,6 +401,9 @@ def _append_learning_activity_event_locked(
             locking_read=True,
             activity_runtime=runtime,
         )
+        recorded.append(derived)
+    if context_key:
+        activity_contexts.record_runtime_results(db, scope=locked_scope, events=recorded)
     rebuild_activity_projection(
         db,
         scope=projection_scope,
@@ -401,9 +420,10 @@ def learning_activity_server_recovery(
     *,
     actor: User,
     identity: LearningActivityRuntimeIdentity,
+    context_key: str | None = None,
 ) -> dict:
     _assert_activity_subject(actor, identity)
-    locked_scope = lock_learner_evidence_scope(
+    locked_scope = activity_contexts.pinned_scope(db, actor=actor, context_key=context_key, coordinates=identity, versions=identity, write=True) if context_key else lock_learner_evidence_scope(
         db,
         subject=actor,
         class_id=identity.class_id,
@@ -429,6 +449,9 @@ def learning_activity_server_recovery(
         identity=identity,
         locking_read=True,
     )
+    activity_contexts.assert_runtime_context(runtime, locked_scope)
+    if runtime is None and context_key:
+        return _activity_empty_server_recovery(identity, authority_revision=current_authority_revision, release_revision=current_release_revision)
     if runtime is None:
         legacy_count = int(
             db.scalar(
@@ -740,6 +763,8 @@ def _activity_authority_revision(
     actor: User,
     runtime_scope: dict,
 ) -> str:
+    if runtime_scope.get("learning_context"):
+        return activity_contexts.authority_revision(db, actor, runtime_scope)
     class_group = runtime_scope["class_group"]
     course = runtime_scope["course"]
     course_class = runtime_scope["course_class"]
@@ -789,6 +814,8 @@ def _activity_release_revision(
     *,
     subject_user_id: int | None = None,
 ) -> str:
+    if release_scope.get("learning_context"):
+        return activity_contexts.release_revision(release_scope)
     course = release_scope["course"]
     class_group = release_scope["class_group"]
     course_class = release_scope["course_class"]

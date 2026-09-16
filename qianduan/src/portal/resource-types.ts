@@ -11,6 +11,8 @@ export interface ResourceGateway {
 }
 
 export interface TemplateSeed {
+  kind?: 'template' | 'activity';
+  version_number?: number;
   key: string;
   space: string;
   subject: string;

@@ -3,6 +3,9 @@
   margin: 0 auto;
   padding: 8px 4px 40px;
 }
+.portal-view [hidden] {
+  display: none !important;
+}
 .portal-heading {
   display: flex;
   align-items: flex-start;

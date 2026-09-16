@@ -12,7 +12,7 @@ export function createResourceDemo(role: () => Role, activities: Activity[], tem
   }));
   resources.push(...templates.map((item, index): ResourceVersionRead => ({
     id: activities.length + index + 1, resource_key: item.key, space_key: item.space, subject_key: item.subject,
-    kind: 'template', version_number: 1, title: item.title, renderer: item.renderer,
+    kind: item.kind || 'template', version_number: item.version_number || 1, title: item.title, renderer: item.renderer,
     definition: structuredClone(item.definition), capabilities: structuredClone(item.capabilities),
     provenance: { ...item.provenance, mode: 'static-demonstration' }, content_sha256: 'demo',
   })));
@@ -23,14 +23,16 @@ export function createResourceDemo(role: () => Role, activities: Activity[], tem
   };
   return {
     async list(space, kind, offset = 0) {
-      const list = resources.filter((item) => (!space || item.space_key === space) && (!kind || item.kind === kind)).sort((a, b) => b.kind.localeCompare(a.kind) || a.resource_key.localeCompare(b.resource_key));
+      const latest = new Map<string, ResourceVersionRead>();
+      for (const item of resources) if (!latest.has(item.resource_key) || latest.get(item.resource_key)!.version_number < item.version_number) latest.set(item.resource_key, item);
+      const list = [...latest.values()].filter((item) => (!space || item.space_key === space) && (!kind || item.kind === kind)).sort((a, b) => b.kind.localeCompare(a.kind) || a.resource_key.localeCompare(b.resource_key));
       return { items: structuredClone(list.slice(offset, offset + 24)), total: list.length, limit: 24, offset, next_offset: offset + 24 < list.length ? offset + 24 : null };
     },
     version,
     async preview(id, config) { return previewTemplate(await version(id), config); },
     async install() {
       if (role() !== 'admin') throw new ApiError('只有管理员可以载入系统资源。', 403);
-      return { installed_versions: 0, catalogue_size: resources.length };
+      return { installed_versions: 0, catalogue_size: new Set(resources.map((item) => item.resource_key)).size };
     },
   };
 }

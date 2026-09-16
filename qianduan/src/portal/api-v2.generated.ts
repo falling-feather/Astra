@@ -191,6 +191,37 @@ export type ContentPageV2 = {
   courseUnit?: CourseUnitRefV2 | null;
 };
 
+export type ContextActivityBlockRead = {
+  block_id: string;
+  resource_version_id: number;
+  adapter: "function-parameters-v1" | "numeric-controls-v1";
+  entry: string | null;
+  controls: Array<ContextActivityControlRead>;
+};
+
+export type ContextActivityConfigRead = {
+  context_key: string;
+  scope: LearningActivityRuntimeScope;
+  subject_identity: LearningActivitySubjectIdentity;
+  manifest_version: string;
+  content_version: string;
+  event_schema_version: number;
+  rule_version: number;
+  generation: string;
+  state_schema_version: string;
+  blocks: Array<ContextActivityBlockRead>;
+};
+
+export type ContextActivityControlRead = {
+  key: string;
+  label: string;
+  value: number;
+  minimum: number;
+  maximum: number;
+  step: number;
+  selector?: string | null;
+};
+
 export type ContextCheckpointAnswer = {
   client_attempt_id: string;
   selected_choice_ids?: Array<string>;
@@ -522,6 +553,176 @@ export type HeroBlock = {
   summary: string;
   eyebrow?: string | null;
   badges?: Array<string>;
+};
+
+export type LearningActivityAuthorityRead = {
+  authorized: true;
+  identity: LearningActivityRuntimeIdentity;
+  revision: string;
+};
+
+export type LearningActivityCompletionWitnessRead = {
+  identity: LearningActivityRuntimeIdentity;
+  projection_state: "completed" | "transferred";
+  rule_version: number;
+  applied_through_server_sequence: number;
+  derived_server_event_id: string;
+  derived_server_sequence: number;
+  source_client_event_ids: Array<string>;
+};
+
+export type LearningActivityInitialSnapshotRequirementRead = {
+  source: "owner-adapter-canonical-initial-snapshot";
+  state_schema_version_source: "manifest.content.state_schema_version";
+  applied_through_learner_sequence?: 0;
+  server_domain_state_verified?: false;
+};
+
+export type LearningActivityRecoveryFreshnessRead = {
+  status: "current";
+  authority_revision: string;
+  release_revision: string;
+};
+
+export type LearningActivityReleaseRead = {
+  scope: LearningActivityRuntimeScope;
+  state: "hidden" | "locked" | "open";
+  revision: string;
+};
+
+export type LearningActivityRuntimeCommand = {
+  schema_version: "astra-learning-activity-event-v1";
+  scope: LearningActivityRuntimeScope;
+  run: LearningActivityRuntimeRun;
+  versions: LearningActivityRuntimeVersions;
+  client_event_id: string;
+  event_type: "started" | "predicted" | "attempted" | "corrected" | "explained";
+  evidence?: Record<string, unknown>;
+  occurred_at: string;
+};
+
+export type LearningActivityRuntimeEventCreate = {
+  schema_version: "astra-learning-activity-evidence-sidecar-v1";
+  command: LearningActivityRuntimeCommand;
+  snapshot: LearningActivityRuntimeSnapshotWrite;
+};
+
+export type LearningActivityRuntimeIdentity = {
+  class_id: number;
+  course_id: number;
+  course_unit_id: number;
+  activity_key: string;
+  subject_identity: LearningActivitySubjectIdentity;
+  run_id: string;
+  group_id: string;
+  manifest_version: string;
+  content_version: string;
+  event_schema_version: number;
+  rule_version: number;
+  generation: string;
+};
+
+export type LearningActivityRuntimeReceipt = {
+  status: "confirmed" | "reconciled" | "local-pending" | "manual-intervention";
+  client_event_id: string;
+  event_type: "started" | "predicted" | "attempted" | "corrected" | "explained";
+  run_id: string;
+  group_id: string;
+  learner_sequence: number;
+  server_sequence?: number | null;
+  server_last_sequence?: number | null;
+  server_event_id?: string | null;
+};
+
+export type LearningActivityRuntimeRun = {
+  run_id: string;
+  group_id: string;
+  sequence: number;
+};
+
+export type LearningActivityRuntimeScope = {
+  class_id: number;
+  course_id: number;
+  course_unit_id: number;
+  activity_key: string;
+};
+
+export type LearningActivityRuntimeSnapshotWrite = {
+  state_schema_version: string;
+  applied_through_learner_sequence: number;
+  data?: Record<string, unknown>;
+};
+
+export type LearningActivityRuntimeVersions = {
+  manifest_version: string;
+  content_version: string;
+  event_schema_version: number;
+  rule_version: number;
+  generation: string;
+};
+
+export type LearningActivityServerDerivedEventRead = {
+  identity: LearningActivityRuntimeIdentity;
+  server_sequence: number;
+  server_event_id: string;
+  learner_sequence?: null;
+  event_type: "completed" | "transferred";
+  producer: "server";
+  occurred_at: string;
+  evidence: Record<string, unknown>;
+};
+
+export type LearningActivityServerHistoryRead = {
+  identity: LearningActivityRuntimeIdentity;
+  complete_history: true;
+  event_count: number;
+  events: Array<LearningActivityServerLearnerEventRead | LearningActivityServerDerivedEventRead>;
+  projection: LearningActivityServerProjectionRead;
+  snapshot: LearningActivityServerSnapshotRead | null;
+};
+
+export type LearningActivityServerLearnerEventRead = {
+  identity: LearningActivityRuntimeIdentity;
+  server_sequence: number;
+  server_event_id: string;
+  learner_sequence: number;
+  event_type: "started" | "predicted" | "attempted" | "corrected" | "explained";
+  producer: "learner";
+  occurred_at: string;
+  sidecar: LearningActivityRuntimeEventCreate;
+};
+
+export type LearningActivityServerProjectionRead = {
+  state: "not_started" | "in_progress" | "completed" | "transferred";
+  applied_through_server_sequence: number;
+  completion_witness?: LearningActivityCompletionWitnessRead | null;
+};
+
+export type LearningActivityServerRecoveryRead = {
+  schema_version: "astra-learning-activity-server-recovery-v2";
+  consumer_schema_version: "astra-learning-activity-recovery-v2";
+  exact_available: boolean;
+  manual_intervention_required: boolean;
+  reason?: string | null;
+  snapshot_id?: string | null;
+  captured_at: string;
+  identity: LearningActivityRuntimeIdentity;
+  freshness?: LearningActivityRecoveryFreshnessRead | null;
+  server?: LearningActivityServerHistoryRead | null;
+  initial_snapshot_requirement?: LearningActivityInitialSnapshotRequirementRead | null;
+  client_pending_status?: "unknown";
+};
+
+export type LearningActivityServerSnapshotRead = {
+  identity: LearningActivityRuntimeIdentity;
+  state_schema_version: string;
+  applied_through_learner_sequence: number;
+  data: Record<string, unknown>;
+};
+
+export type LearningActivitySubjectIdentity = {
+  kind: "learner";
+  id: string;
 };
 
 export type LearningContextRead = {

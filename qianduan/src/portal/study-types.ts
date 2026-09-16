@@ -17,4 +17,7 @@ export interface StudyGateway {
   submit(id: number, input: D.AssignmentAttemptCommand): Promise<D.AssignmentAttemptRead>;
   grade(attempt: number, input: D.AssignmentGradeCommand): Promise<D.AssignmentGradeRead>;
   submissionHistory(id: number, offset?: number): Promise<D.AssignmentHistoryRead>;
+  activityConfig(key: string): Promise<D.ContextActivityConfigRead>;
+  activityEvent(key: string, input: D.LearningActivityRuntimeEventCreate): Promise<D.LearningActivityRuntimeReceipt>;
+  activityRecovery(key: string, input: D.LearningActivityRuntimeIdentity): Promise<D.LearningActivityServerRecoveryRead>;
 }

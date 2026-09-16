@@ -1537,6 +1537,10 @@ def _lock_learner_scope(
     assignment_id: int | None,
 ) -> dict:
     course = _lock_course_evidence_anchor(db, course_id)
+    from app.models import CourseRelease
+    result_contract = db.scalar(select(CourseRelease.result_contract_version).where(CourseRelease.course_id == course_id).order_by(CourseRelease.release_number.desc()).limit(1))
+    if result_contract == 2:
+        _fail(409, "learning_context_required", "Open the published learning context before recording activity facts")
     class_group = get_class(db, class_id)
     if class_group.school_id != course.school_id:
         _fail(422, "scope_mismatch", "Class does not belong to course school")

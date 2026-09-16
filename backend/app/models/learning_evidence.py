@@ -644,6 +644,7 @@ def _protect_activity_runtime_update(_mapper, _connection, target) -> None:
     state = sa_inspect(target)
     immutable_fields = (
         "id",
+        "learning_context_id",
         "subject_user_id",
         "subject_identity_kind",
         "subject_identity_id",

@@ -22,6 +22,7 @@ from app.schemas.content_v2 import (
     CheckpointBlock,
     ContentPageV2,
     OfficialSimulationBlock,
+    ResourceBlock,
 )
 from app.schemas.learning_evidence import CompletionActivityRule
 from app.services.learning_evidence_access import effective_rule_binding
@@ -196,6 +197,8 @@ def _completion_activity_definition(
             and block.simulationKey == unit.activity_key
             for block in content.blocks
         )
+        from app.services.learning_resources import get_resource_version
+        has_activity = has_activity or any(isinstance(block, ResourceBlock) and get_resource_version(db, block.resourceVersionId)["capabilities"].get("operation_recording") is True for block in content.blocks)
         if not has_activity:
             _fail(
                 422,

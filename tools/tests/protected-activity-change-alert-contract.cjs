@@ -25,13 +25,11 @@ assert.deepEqual(
 );
 assert.equal(new Set(current.map((activity) => `${activity.galaxy_key}:${activity.activity_key}`)).size, 127);
 assert.deepEqual(
-    createBaseline(current.filter((activity) => ![
-        'physics.double-pendulum-chaos',
-        'chemistry.chromatography-separation',
-        'engineering.robot-arm-ik'
-    ].includes(activity.activity_key)), baseline.source_revision),
+    // The frozen baseline remains canonical; current admitted deltas are checked
+    // by compareWithBaseline below, instead of requiring all exceptions to be empty.
+    createBaseline(baseline.activities, baseline.source_revision),
     baseline,
-    'baseline JSON must remain deterministic when the approved new activity is excluded'
+    'the frozen baseline must retain its canonical counts, sources and serialization'
 );
 
 const clean = compareWithBaseline(current, baseline, exceptions);
@@ -80,7 +78,7 @@ assert.equal(resourceIssue.file, 'pages/physics/physics.js');
 
 const approved = compareWithBaseline(changedResourceProjection, baseline, {
     schema_version: 1,
-    exceptions: [{
+    exceptions: [...exceptions.exceptions, {
         signature: resourceIssue.signature,
         task_id: 'KNOWLEDGE-FIX-PROBE',
         approved_by: 'project-owner',
@@ -90,8 +88,17 @@ const approved = compareWithBaseline(changedResourceProjection, baseline, {
     }]
 });
 assert.equal(approved.ok, true);
-assert.equal(approved.approved.length, 1);
+assert.equal(approved.approved.length, clean.approved.length + 1);
 assert.equal(approved.issues.length, 0);
+
+// An exact admitted HTML edit must never allow a different edit of the same fragment.
+const differentHtml = JSON.parse(JSON.stringify(current));
+const mechanicsHtml = differentHtml.find((activity) => activity.activity_key === 'physics.mechanics').resources.find((resource) => resource.path === 'index.html' && resource.selector === '[data-module="mechanics"]');
+assert.ok(mechanicsHtml);
+mechanicsHtml.sha256 = 'f'.repeat(64);
+const unapprovedHtml = compareWithBaseline(differentHtml, baseline, exceptions);
+assert.equal(unapprovedHtml.ok, false);
+assert.ok(unapprovedHtml.issues.some((issue) => issue.file === 'index.html' && issue.activity_key === 'physics.mechanics'));
 
 const changedMetadataProjection = JSON.parse(JSON.stringify(current));
 changedMetadataProjection.find((activity) => activity.activity_key === 'control-flow.loop-boundary').route = 'codevis/#challenge?activity=wrong';

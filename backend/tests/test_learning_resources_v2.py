@@ -19,7 +19,7 @@ def test_catalogue_installation_is_admin_only_idempotent_and_preview_does_not_cr
     assert client.get("/api/v2/resources", headers=student).json()["total"] == 0
     installed = client.post("/api/v2/resources/install-system", headers=admin)
     assert installed.status_code == 200, installed.json()
-    assert installed.json() == {"installed_versions": 129, "catalogue_size": 129}
+    assert installed.json() == {"installed_versions": 132, "catalogue_size": 129}
     assert client.post("/api/v2/resources/install-system", headers=admin).json()["installed_versions"] == 0
     catalogue = client.get("/api/v2/resources?kind=template", headers=teacher).json()
     assert catalogue["total"] == 2
@@ -32,7 +32,7 @@ def test_catalogue_installation_is_admin_only_idempotent_and_preview_does_not_cr
     assert preview.json()["view"]["points"][0] == {"x": -5, "y": 25}
     assert client.get(f"/api/v2/resources/versions/{graph['id']}", headers=teacher).json() == graph
     with get_session_factory(get_settings().database_url)() as db:
-        assert db.scalar(select(func.count(LearningResourceVersion.id))) == 129
+        assert db.scalar(select(func.count(LearningResourceVersion.id))) == 132
     assert client.get("/api/v1/workbench", headers=student).json()["courses"]["items"] == []
 
 
@@ -75,7 +75,7 @@ def test_registered_frontend_bundle_joins_the_resource_catalogue_without_a_new_b
     from shutil import copyfile
     catalogue = tmp_path / "backend" / "app" / "catalogue"
     catalogue.mkdir(parents=True)
-    for name in ("learning-spaces.v1.json", "system-resources.v1.json", "templates.v1.json"):
+    for name in ("learning-spaces.v1.json", "system-resources.v1.json", "templates.v1.json", "resource-updates.v1.json"):
         copyfile(service.CATALOGUE_ROOT / name, catalogue / name)
     manifest = json.loads((catalogue / "learning-spaces.v1.json").read_text(encoding="utf-8"))
     manifest["spaces"].append({"key": "archives", "view": "space:archives", "title": "档案测试空间", "entry": "labs/spaces/archives/index.html", "kind": "bundle", "accent": "#c8b899"})
@@ -88,7 +88,7 @@ def test_registered_frontend_bundle_joins_the_resource_catalogue_without_a_new_b
     monkeypatch.setattr(service, "CATALOGUE_ROOT", catalogue)
     descriptors = service._builtin_descriptors()
     added = next(item for item in descriptors if item["key"] == "archives.evidence")
-    assert len(descriptors) == 130
+    assert len(descriptors) == 133
     assert added["definition"]["entry"] == "labs/spaces/archives/index.html#evidence"
     assert added["capabilities"]["operation_recording"] is False
     activities["activities"][0]["entry"] = "%2e%2e/secret.html"

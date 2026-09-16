@@ -25,5 +25,7 @@ export function loadLearningSpaces(root) {
 }
 
 export function loadTemplateSeeds(root) {
-  return JSON.parse(fs.readFileSync(path.join(root, 'backend/app/catalogue/templates.v1.json'), 'utf8')).templates;
+  const initial = JSON.parse(fs.readFileSync(path.join(root, 'backend/app/catalogue/templates.v1.json'), 'utf8')).templates;
+  const updates = JSON.parse(fs.readFileSync(path.join(root, 'backend/app/catalogue/resource-updates.v1.json'), 'utf8')).resources;
+  return [...initial, ...updates];
 }

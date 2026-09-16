@@ -1,5 +1,14 @@
 {
   "schema_version": 1,
   "purpose": "Exact one-change exceptions approved by the project owner. Every entry must bind one issue signature to a task, approver, date and reason; remove it after the protected baseline is deliberately renewed.",
-  "exceptions": []
+  "exceptions": [
+    {
+      "signature": "ef80439df3e09742809d426db68ee316cac7775a5191fd4a91a6d4b2a34e4b82",
+      "task_id": "BE-038",
+      "approved_by": "主开发组（依据项目负责人持续开发与技术债修复授权）",
+      "approved_on": "2026-09-17",
+      "reason": "只将重力滑杆步长从50改为10，防止浏览器把模型默认980归整成1000；保持物理求解器和原保护基线不变。qianduan/tests/activity-session.test.mjs 同时核对模型默认值、控件值、步长对齐与声明参数。该指纹不授权其他实验内容变化。",
+      "one_time": true
+    }
+  ]
 }

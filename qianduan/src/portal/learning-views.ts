@@ -10,10 +10,8 @@ export function renderLearningBlock(block: T.Block, activities: T.Activity[]): s
     return `<section class="lesson-block"><h3>${e(block.title || '学习内容')}</h3><div class="lesson-prose">${markdown(block.markdown || '')}</div></section>`;
   if (block.type === 'learning-task')
     return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.prompt)}</p>${block.outcomes?.length ? `<ul>${block.outcomes.map((value) => `<li>${e(value)}</li>`).join('')}</ul>` : ''}${block.steps?.length ? `<ol>${block.steps.map((value) => `<li>${e(value)}</li>`).join('')}</ol>` : ''}</section>`;
-  if (block.type === 'official-simulation') {
-    const activity = activities.find((item) => item.key === block.simulationKey);
-    return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.instructions)}</p>${activity ? button('打开交互实验 →', 'open-activity', `data-key="${e(activity.key)}"`) : '<p>该实验暂不可用。</p>'}</section>`;
-  }
+  if (block.type === 'official-simulation')
+    return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.instructions)}</p><div data-course-resource="${e(block.blockId)}">正在读取实验入口…</div></section>`;
   if (block.type === 'sources')
     return `<section class="lesson-block"><h3>${e(block.title || '参考资料')}</h3>${(block.items || []).map((item) => (/^https?:\/\//.test(item.url) ? `<p><a href="${e(item.url)}" target="_blank" rel="noopener noreferrer">${e(item.label)}</a></p>` : '')).join('')}</section>`;
   if (block.type === 'resource')

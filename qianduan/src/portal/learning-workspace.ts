@@ -34,6 +34,14 @@ export class LearningWorkspace extends WorkflowView {
   ) {
     super(root, options.notify);
   }
+  canLeave(): boolean {
+    if (this.player?.hasPending() && !confirm('操作记录尚未确认，离开会丢失未发送的记录。确定离开吗？'))
+      return false;
+    return super.canLeave();
+  }
+  hasChanges(): boolean {
+    return super.hasChanges() || Boolean(this.player?.hasPending());
+  }
   mount(): void {
     void this.run(() => this.load());
   }
@@ -106,7 +114,12 @@ export class LearningWorkspace extends WorkflowView {
       `<div class="portal-section-heading"><div><h1>${e(context?.course_title || this.release?.title)}</h1><p>正在学习第 ${context?.release_number || this.release?.release_number} 个发布版本</p></div><div class="portal-actions">${button('学习记录', 'history')}${button('读取当前版本', 'current')}</div></div>${context?.newer_release_available ? '<p class="portal-note">你正在继续先前打开的版本。旧结果会保留，是否计入当前版本取决于教师的补做安排。</p>' : ''}<div class="portal-editor"><aside class="portal-unit-list">${this.release?.units.map((unit, index) => button(unit.title, 'unit', `data-index="${index}" aria-current="${unit.source_course_unit_id === context?.course_unit_id ? 'step' : 'false'}"`)).join('')}</aside><article class="portal-lesson">${pinned ? `<h2>${e(pinned.unit.title)}</h2>${pinned.unit.content.blocks.map((block) => renderLearningBlock(block, this.options.activities)).join('')}` : empty('这个单元尚未开放，请先完成前置学习或查看教师安排。')}</article></div>`,
     );
     if (pinned) {
-      this.player = new CoursePlayer(this.root, this.resources, this.workflow, pinned.release, pinned.unit);
+      this.player = new CoursePlayer(this.root, this.resources, this.workflow, pinned.release, pinned.unit, {
+        api: this.api,
+        context: this.context!,
+        activities: this.options.activities,
+        changed: this.options.changed,
+      });
       this.player.mount();
     }
     this.dirty = false;
@@ -132,7 +145,7 @@ export class LearningWorkspace extends WorkflowView {
         page.items
           .map(
             (row) =>
-              `<details><summary>${e(row.title)} · ${row.source_release_number ? `第 ${row.source_release_number} 版` : '旧记录未绑定版本'} · ${row.current_credit ? (row.recognized ? '旧结果已被当前版认可' : '计入当前版完成') : row.valid ? (row.source_release_id === page.current_release_id ? '本版评价（不作为单元完成条件）' : '保留为历史结果') : '已有后续评价或更正'}</summary><p class="portal-note">${when(row.occurred_at)}</p>${row.prompt ? `<p>${e(row.prompt)}</p>` : ''}${row.choices.length ? `<ul>${row.choices.map((choice) => `<li>${e(choice.label)}</li>`).join('')}</ul>` : ''}<div class="submission-answer">${e(
+              `<details><summary>${e(row.title)} · ${row.source_release_number ? `第 ${row.source_release_number} 版` : '旧记录未绑定版本'} · ${row.current_credit ? (row.recognized ? '旧结果已被当前版认可' : '计入当前版完成') : row.valid ? (row.source_release_id === page.current_release_id ? (row.kind === 'activity' ? '本版操作记录' : '本版评价（不作为单元完成条件）') : '保留为历史结果') : '已有后续评价或更正'}</summary><p class="portal-note">${when(row.occurred_at)}</p>${row.prompt ? `<p>${e(row.prompt)}</p>` : ''}${row.choices.length ? `<ul>${row.choices.map((choice) => `<li>${e(choice.label)}</li>`).join('')}</ul>` : ''}<div class="submission-answer">${e(
                 Object.values(row.response)
                   .map((value) =>
                     Array.isArray(value)
@@ -154,6 +167,7 @@ export class LearningWorkspace extends WorkflowView {
   }
   protected async click(target: HTMLElement): Promise<void> {
     const action = target.dataset.flow;
+    if (this.player?.hasPending()) throw new Error('操作记录尚未确认，请先等待保存或重试原操作。');
     if (action === 'unit') {
       if (this.allowReload()) {
         this.selected = Number(target.dataset.index);

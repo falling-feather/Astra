@@ -35,6 +35,7 @@ export function createStudyDemo(
     gradeId?: number;
   })[] = [];
   const receipts = new Map<string, { hash: string; result: unknown }>();
+  const runs = new Map<string, { context: string; sequence: number; serverSequence: number; completed: boolean }>();
   const userId = () => (role() === 'student' ? 2 : role() === 'teacher' ? 1 : 3);
   const requireRole = (...allowed: T.Role[]) => {
     if (!allowed.includes(role())) throw new ApiError('当前演示身份不能执行此操作。', 403);
@@ -484,6 +485,50 @@ export function createStudyDemo(
         refresh(attempt.course_id, attempt.course_unit_id);
         return grade;
       });
+    },
+    async activityConfig(key) {
+      requireRole('student');
+      const context = contextAccess(key), unit = releaseFor(context)?.units.find((item) => item.source_course_unit_id === context.course_unit_id);
+      if (!unit || context.mode !== 'formal') throw new ApiError('正式运行需要课程学习入口。', 403);
+      const blocks: D.ContextActivityBlockRead[] = [];
+      for (const block of unit.content.blocks) {
+        if (block.type !== 'resource' || !block.resourceVersionId) continue;
+        const version = await resources.version(block.resourceVersionId), caps = version.capabilities;
+        if (caps.operation_recording !== true) continue;
+        const adapter = caps.observation_adapter;
+        if (adapter !== 'function-parameters-v1' && adapter !== 'numeric-controls-v1') continue;
+        const controls = adapter === 'function-parameters-v1' ? (block.configuration as { parameters?: D.ContextActivityControlRead[] })?.parameters || [] : caps.controls as D.ContextActivityControlRead[];
+        blocks.push({ block_id: block.blockId, resource_version_id: version.id, adapter, entry: typeof version.definition.entry === 'string' ? version.definition.entry : null, controls: copy(controls) });
+      }
+      return { context_key: key, scope: { class_id: context.class_id!, course_id: context.course_id!, course_unit_id: context.course_unit_id!, activity_key: context.activity_key! }, subject_identity: { kind: 'learner', id: String(userId()) }, manifest_version: 'astra-context-activity-v1', content_version: context.content_schema_sha256!, event_schema_version: 1, rule_version: 1, generation: key, state_schema_version: 'astra-observation-state-v1', blocks };
+    },
+    async activityEvent(key, body) {
+      requireRole('student'); const context = contextAccess(key), config = await api.activityConfig(key);
+      return write('activity-event', body.command.client_event_id, { key, body }, async () => {
+        const command = body.command, identity = `${command.run.run_id}:${command.run.group_id}`, old = runs.get(identity);
+        if (stableJson(command.scope) !== stableJson(config.scope) || command.versions.generation !== key || command.versions.content_version !== config.content_version || old && old.context !== key) throw new ApiError('运行与原学习版本不一致。', 409);
+        if (command.run.sequence !== (old?.sequence || 0) + 1 || body.snapshot.applied_through_learner_sequence !== command.run.sequence) throw new ApiError('操作序号已变化，请使用原编号重试。', 409);
+        const observation = command.evidence?.cursor as { block_id: string; parameter: string; value: number } | undefined;
+        if (command.event_type === 'attempted') {
+          const control = config.blocks.find((block) => block.block_id === observation?.block_id)?.controls.find((item) => item.key === observation?.parameter);
+          if (!control || !Number.isFinite(observation?.value) || observation!.value < control.minimum || observation!.value > control.maximum || stableJson(body.snapshot.data?.last_observation) !== stableJson(observation)) throw new ApiError('参数观察超出该发布允许范围。', 422);
+        } else if (command.event_type !== 'started' || body.snapshot.data?.last_observation !== null) throw new ApiError('此演示运行只记录参数观察。', 422);
+        const runtime = old || { context: key, sequence: 0, serverSequence: 0, completed: false };
+        runtime.sequence = command.run.sequence; runtime.serverSequence++;
+        const serverSequence = runtime.serverSequence;
+        const unit = releaseFor(context)!.units.find((item) => item.source_course_unit_id === context.course_unit_id)!;
+        const complete = command.event_type === 'attempted' && unit.content.courseUnit?.completion?.preset === 'experiment_operation' && !runtime.completed;
+        if (complete) { runtime.completed = true; runtime.serverSequence++; }
+        const resultId = store.nextId();
+        results.push({ result_id: resultId, student_id: userId(), course_unit_id: context.course_unit_id!, title: unit.title, kind: 'activity', source_release_id: context.course_release_id, source_release_number: context.release_number, current_credit: false, recognized: false, valid: true, is_correct: null, score: null, max_score: null, feedback: null, feedback_retained: true, response: observation ? { parameter: observation.parameter, value: observation.value } : { state: '开始记录' }, prompt: null, choices: [], occurred_at: command.occurred_at, provenance: 'static-demonstration', courseId: context.course_id!, complete });
+        runs.set(identity, runtime); refresh(context.course_id!, context.course_unit_id!);
+        return { status: 'confirmed', client_event_id: command.client_event_id, event_type: command.event_type, run_id: command.run.run_id, group_id: command.run.group_id, learner_sequence: command.run.sequence, server_sequence: serverSequence, server_last_sequence: runtime.serverSequence, server_event_id: `demo-event:${resultId}` };
+      });
+    },
+    async activityRecovery(key, identity) {
+      contextAccess(key);
+      // The static site deliberately has no durable server-side run recovery.
+      return { schema_version: 'astra-learning-activity-server-recovery-v2', consumer_schema_version: 'astra-learning-activity-recovery-v2', exact_available: false, manual_intervention_required: false, reason: 'static_demonstration_has_no_durable_recovery', captured_at: now(), identity, client_pending_status: 'unknown' };
     },
     async submissionHistory(id, offset = 0) {
       const head = store.submissions.find((item) => item.id === id);
