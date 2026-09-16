@@ -24,7 +24,7 @@ Python 使用 3.12+。安装消费 requirements.lock，requirements.txt 仅作�
 | [core/config.py](app/core/config.py) | 环境、认证、存储和外部能力配置原件 |
 | [schemas](app/schemas/)、[models](app/models/) | DTO 与持久化模型 |
 | [services](app/services/) | 授权、业务事务、查询、学习结果与后台任务 |
-| [alembic/versions](alembic/versions/) | 数据库迁移，当前 head 为 `20260908_0060` |
+| [alembic/versions](alembic/versions/) | 数据库迁移，当前 head 为 `20260916_0061` |
 | [tests](tests/) | 权限、并发、迁移和业务回归 |
 | [scripts](scripts/) | 初始化、依赖锁、运维与验证工具；参数按实际 `--help` 使用 |
 

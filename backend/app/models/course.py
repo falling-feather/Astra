@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -42,6 +43,9 @@ class Course(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     school_id: Mapped[int] = mapped_column(ForeignKey("schools.id"), index=True, nullable=False)
     creator_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    family_id: Mapped[int | None] = mapped_column(ForeignKey("course_families.id"), index=True, nullable=True)
+    source_course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id"), nullable=True)
+    source_release_id: Mapped[int | None] = mapped_column(ForeignKey("course_releases.id", use_alter=True, name="fk_courses_source_release"), nullable=True)
     galaxy_key: Mapped[str] = mapped_column(String(32), nullable=False)
     subject_key: Mapped[str] = mapped_column(String(96), default="general", nullable=False)
     course_key: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -62,6 +66,7 @@ class Course(TimestampMixin, Base):
         nullable=True,
     )
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
+    content_draft_revision: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 class CourseClass(TimestampMixin, Base):
     __tablename__ = "course_classes"
@@ -91,11 +96,15 @@ class CourseUnit(TimestampMixin, Base):
         UniqueConstraint("course_id", "position", name="uq_course_units_course_position"),
         UniqueConstraint("course_id", "content_slug", name="uq_course_units_course_content_slug"),
         UniqueConstraint("course_id", "activity_key", name="uq_course_units_course_activity_key"),
+        UniqueConstraint("course_id", "origin_key", name="uq_course_units_course_origin"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True, nullable=False)
     activity_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    origin_key: Mapped[str] = mapped_column(String(120), default=lambda: str(uuid4()), nullable=False)
+    block_origins_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    resource_version_id: Mapped[int | None] = mapped_column(ForeignKey("learning_resource_versions.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     content_slug: Mapped[str | None] = mapped_column(String(180), nullable=True)

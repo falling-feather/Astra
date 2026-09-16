@@ -72,8 +72,15 @@ from app.models.school import (
 from app.models.teacher_application import TeacherApplication
 from app.models.user import AuthSession, LoginAttempt, PasswordResetToken, User
 from app.models.user_note import UserNote
+from app.models.learning_resource import LearningResource, LearningResourceVersion
+from app.models.course_workflow import (
+    CourseFamily, CourseRevision, CourseChangeBatch, CourseCandidate,
+    CourseReviewItem, CoursePublicationOperation,
+)
 
 __all__ = [
+    "LearningResource", "LearningResourceVersion", "CourseFamily", "CourseRevision",
+    "CourseChangeBatch", "CourseCandidate", "CourseReviewItem", "CoursePublicationOperation",
     "AdminAlertOutboxDispatchPlan",
     "AdminAlertOutboxEntry",
     "Assignment",

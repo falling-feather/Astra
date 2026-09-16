@@ -13,7 +13,9 @@ def test_status_repair_keeps_withdrawn_drafts_and_published_learning_records(tmp
     config = _migration_config(url, monkeypatch)
     engine = create_engine(url)
     try:
-        command.upgrade(config, "20260907_0059")
+        # Build the fixture with current ORM columns, then reconstruct the older
+        # stored state before exercising the repair migration again.
+        command.upgrade(config, "head")
         with TestClient(create_app()) as client:
             scope = _completed_workbench_course(client, "repair_status")
             unit_id, course_id = scope["unit_id"], scope["course_id"]
@@ -21,13 +23,14 @@ def test_status_repair_keeps_withdrawn_drafts_and_published_learning_records(tmp
                 connection.execute(text("UPDATE course_units SET status='archived' WHERE id=:id"), {"id": unit_id})
                 connection.execute(text("UPDATE content_drafts SET status='withdrawn', active_key=NULL WHERE course_unit_id=:id"), {"id": unit_id})
                 evidence_count = connection.execute(text("SELECT COUNT(*) FROM learning_evidence_events")).scalar_one()
-            command.upgrade(config, "20260908_0060")
+            command.downgrade(config, "20260907_0059")
+            command.upgrade(config, "head")
             draft = client.get(f"/api/v1/courses/{course_id}/draft", headers=_auth(scope["owner"]["token"]))
             assert draft.status_code == 200 and draft.json()["units"] == []
             current = client.get(f"/api/v1/courses/{course_id}/releases/current", headers=_auth(scope["student"]["token"]))
             assert current.status_code == 200
             assert current.json()["release"]["units"][0]["source_course_unit_id"] == unit_id
-            for target, expected in [("20260907_0059", "archived"), ("20260908_0060", "published")]:
+            for target, expected in [("20260907_0059", "archived"), ("head", "published")]:
                 if expected == "archived":
                     command.downgrade(config, target)
                 else:

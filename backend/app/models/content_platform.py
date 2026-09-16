@@ -23,21 +23,16 @@ from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, utc_now
-from app.models.course import Course
 
 
 def _publication_datetime_type():
     return DateTime(timezone=True).with_variant(mysql.DATETIME(fsp=6), "mysql")
 
 
-# ``course.py`` is a frozen legacy surface. The V8.4 publication owner attaches
-# its aggregate revision here so the old module does not gain a second concern.
-Course.content_draft_revision = mapped_column(Integer, default=0, nullable=False)
-
-
 class CourseRelease(Base):
     __tablename__ = "course_releases"
     __table_args__ = (
+        UniqueConstraint("candidate_id", name="uq_course_releases_candidate_id"),
         UniqueConstraint(
             "course_id", "release_number", name="uq_course_releases_course_number"
         ),
@@ -57,6 +52,10 @@ class CourseRelease(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     course_id: Mapped[int] = mapped_column(
         ForeignKey("courses.id"), index=True, nullable=False
+    )
+    candidate_id: Mapped[int | None] = mapped_column(
+        ForeignKey("course_candidates.id", use_alter=True, name="fk_course_releases_candidate"),
+        nullable=True,
     )
     release_number: Mapped[int] = mapped_column(Integer, nullable=False)
     draft_revision: Mapped[int] = mapped_column(Integer, nullable=False)
