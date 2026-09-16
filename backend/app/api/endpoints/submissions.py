@@ -1,26 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db
-from app.models import (
-    Assignment,
-    AssignmentClassPolicy,
-    ClassGroup,
-    ClassMembership,
-    Course,
-    CourseClass,
-    CourseUnit,
-    CourseUnitClassPlan,
-    LearningEvent,
-    PointLedger,
-    School,
-    Submission,
-    User,
-)
-from app.models.base import utc_now
+from app.models import Assignment, AssignmentClassPolicy, ClassGroup, ClassMembership, Course, CourseClass, CourseUnit, CourseUnitClassPlan, School, Submission, User
 from app.schemas.course import (
     AssignmentRead,
     AssignmentReviewRead,
@@ -35,45 +19,17 @@ from app.schemas.course import (
     SubmissionRead,
 )
 from app.schemas.school import ClassRead
-from app.services.audit import record_audit_log
 from app.services.assignment_policies import (
     build_effective_assignment_policy,
     effective_assignment_payload,
     resolve_assignment_class_policy,
 )
-from app.services.access_control import (
-    course_attached_to_class,
-    get_class,
-    lock_active_class_for_write,
-    require_class_teacher_or_admin,
-    require_course_editor_or_admin,
-    require_course_scope,
-    require_course_visible,
-    require_school_role,
-    require_student_unit_published,
-    teacher_class_ids,
-)
-from app.services.course_completion import (
-    CourseCompletionError,
-    append_assignment_review_completion,
-)
-from app.services.points import (
-    assignment_grade_point_total,
-    points_for_assignment_score,
-)
+from app.services.access_control import course_attached_to_class, get_class, require_class_teacher_or_admin, require_course_editor_or_admin, require_course_scope, require_course_visible, require_school_role, require_student_unit_published, teacher_class_ids
 from app.services.learning_evidence_access import (
     authoritative_prerequisite_unit_ids_by_scope,
 )
 from app.services.pagination import list_legacy_scalars, paged_endpoint_url
-from app.services.course_release_plans import (
-    effective_unit_access,
-    get_course_class_or_404,
-    get_plan_for_unit,
-    require_student_unit_open,
-)
-from app.services.course_release_write_gate import (
-    require_student_unit_open_for_write,
-)
+from app.services.course_release_plans import effective_unit_access, get_course_class_or_404, get_plan_for_unit
 
 
 router = APIRouter()
@@ -270,111 +226,9 @@ def create_submission(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Submission:
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Only students can submit assignments")
-    assignment, unit, course = _resolve_assignment(db, assignment_id)
-    require_course_visible(db, current_user, course.id)
-    require_student_unit_published(current_user, unit)
-    class_group = _require_active_user_class(db, current_user.id, payload.class_id)
-    if class_group.school_id != course.school_id:
-        raise HTTPException(status_code=422, detail="Class does not belong to assignment school")
-    if not course_attached_to_class(db, course.id, class_group.id):
-        raise HTTPException(status_code=403, detail="Course is not attached to this class")
-    class_group = require_student_unit_open_for_write(
-        db,
-        course=course,
-        class_group=class_group,
-        unit=unit,
-        student_id=current_user.id,
-    )
-    effective = resolve_assignment_class_policy(
-        db,
-        assignment,
-        class_group.id,
-        locking_read=True,
-    )
-    if assignment.unit_id != unit.id:
-        raise HTTPException(
-            status_code=409,
-            detail="Assignment scope changed during submission",
-        )
-    if not effective.assigned:
-        raise HTTPException(status_code=403, detail="Assignment is not assigned to this class")
-    if effective.status != "active":
-        raise HTTPException(status_code=409, detail="Assignment is not active")
-    existing = db.scalar(
-        select(Submission).where(
-            Submission.assignment_id == assignment.id,
-            Submission.student_id == current_user.id,
-            Submission.class_id == class_group.id,
-        )
-    )
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="Assignment already submitted")
-
-    now = utc_now()
-    submission = Submission(
-        assignment_id=assignment.id,
-        student_id=current_user.id,
-        class_id=class_group.id,
-        content=payload.content,
-        status="submitted",
-        submitted_at=now,
-    )
-    try:
-        db.add(submission)
-        db.flush()
-        db.add(
-            LearningEvent(
-                user_id=current_user.id,
-                school_id=course.school_id,
-                class_id=class_group.id,
-                course_id=course.id,
-                unit_id=unit.id,
-                assignment_id=assignment.id,
-                event_type="submit",
-                payload={"submission_id": submission.id},
-                occurred_at=now,
-            )
-        )
-        record_audit_log(
-            db,
-            actor=current_user,
-            action="submission.create",
-            resource_type="submission",
-            resource_id=submission.id,
-            school_id=course.school_id,
-            class_id=class_group.id,
-            event_result="success",
-            request=request,
-            snapshot={
-                "after": {
-                    "assignment_id": assignment.id,
-                    "student_id": current_user.id,
-                    "class_id": class_group.id,
-                    "course_id": course.id,
-                    "unit_id": unit.id,
-                    "status": submission.status,
-                    "assignment_policy_source": effective.policy_source,
-                    "content_keys": sorted(payload.content.keys()),
-                }
-            },
-        )
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        conflict = db.scalar(
-            select(Submission.id).where(
-                Submission.assignment_id == assignment.id,
-                Submission.student_id == current_user.id,
-                Submission.class_id == class_group.id,
-            )
-        )
-        if conflict is not None:
-            raise HTTPException(status_code=409, detail="Assignment already submitted") from exc
-        raise
-    db.refresh(submission)
-    return submission
+    from app.api.endpoints.course_workflow import service_call
+    from app.services.assignment_history import legacy_submit
+    return service_call(db, legacy_submit, actor=current_user, assignment_id=assignment_id, payload=payload, request=request)
 
 
 @router.get("/assignments/{assignment_id}/review", response_model=AssignmentReviewRead)
@@ -610,118 +464,9 @@ def grade_submission(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Submission:
-    submission_scope = db.get(Submission, submission_id)
-    if submission_scope is None:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    assignment_id = submission_scope.assignment_id
-    class_id = submission_scope.class_id
-    assignment, unit, course = _resolve_assignment(db, assignment_id)
-    require_school_role(db, current_user, course.school_id, {"admin", "teacher"})
-    class_group = get_class(db, class_id)
-    if class_group.kind == "course_cohort":
-        require_course_editor_or_admin(
-            db,
-            current_user,
-            course,
-            detail="Course submission grading requires an active course teacher",
-        )
-    else:
-        require_class_teacher_or_admin(
-            db,
-            current_user,
-            class_group,
-            detail="Submission grading requires class teacher scope",
-        )
-    class_group = lock_active_class_for_write(db, class_group.id)
-    submission = db.scalar(
-        select(Submission)
-        .where(Submission.id == submission_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if submission is None:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    if submission.assignment_id != assignment_id or submission.class_id != class_group.id:
-        raise HTTPException(status_code=409, detail="Submission scope changed during grading")
-    if payload.score > assignment.max_score:
-        raise HTTPException(status_code=422, detail="Score cannot exceed assignment max_score")
-
-    previous_snapshot = {
-        "status": submission.status,
-        "score": submission.score,
-        "feedback": submission.feedback,
-        "graded_by_user_id": submission.graded_by_user_id,
-    }
-    previous_score = submission.score or 0
-    previous_points = assignment_grade_point_total(db, submission.id)
-    effective = resolve_assignment_class_policy(db, assignment, class_group.id)
-    point_rule = effective.point_rule
-    submission.score = payload.score
-    submission.feedback = (payload.feedback or "").strip() or None
-    submission.status = payload.status
-    submission.graded_by_user_id = current_user.id
-    submission.graded_at = utc_now()
-
-    score_delta = payload.score - previous_score
-    next_points = points_for_assignment_score(payload.score, point_rule)
-    point_delta = next_points - previous_points
-    if point_delta:
-        db.add(
-            PointLedger(
-                user_id=submission.student_id,
-                school_id=course.school_id,
-                class_id=submission.class_id,
-                assignment_id=assignment.id,
-                submission_id=submission.id,
-                delta=point_delta,
-                reason="assignment_grade",
-                note=submission.feedback,
-                created_by_user_id=current_user.id,
-            )
-        )
-    try:
-        append_assignment_review_completion(
-            db,
-            actor=current_user,
-            course=course,
-            unit=unit,
-            assignment=assignment,
-            submission=submission,
-            class_group=class_group,
-        )
-    except CourseCompletionError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": exc.message},
-        ) from exc
-    next_snapshot = {
-        "status": submission.status,
-        "score": submission.score,
-        "feedback": submission.feedback,
-        "graded_by_user_id": submission.graded_by_user_id,
-        "assignment_id": assignment.id,
-        "student_id": submission.student_id,
-        "score_delta": score_delta,
-        "point_delta": point_delta,
-        "point_rule": point_rule,
-        "point_rule_source": effective.point_rule_source,
-    }
-    record_audit_log(
-        db,
-        actor=current_user,
-        action="submission.grade",
-        resource_type="submission",
-        resource_id=submission.id,
-        school_id=course.school_id,
-        class_id=submission.class_id,
-        event_result="success",
-        request=request,
-        snapshot={"before": previous_snapshot, "after": next_snapshot},
-    )
-    db.commit()
-    db.refresh(submission)
-    return submission
+    from app.api.endpoints.course_workflow import service_call
+    from app.services.assignment_history import legacy_grade
+    return service_call(db, legacy_grade, actor=current_user, submission_id=submission_id, payload=payload, request=request)
 
 
 def _require_active_user_class(db: Session, user_id: int, class_id: int) -> ClassGroup:
@@ -770,7 +515,7 @@ def _assignment_submit_block_reason(
         return "assignment_archived"
     if assignment_status != "active":
         return "assignment_not_active"
-    if submission is not None:
+    if submission is not None and submission.status != "returned":
         return "already_submitted"
     return None
 

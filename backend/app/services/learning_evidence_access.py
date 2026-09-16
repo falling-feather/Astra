@@ -13,10 +13,15 @@ from collections.abc import Iterable
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.services.learning_results import ActivityProgressView
 
 from app.models import (
     Course,
     CourseClass,
+    CourseRelease,
     CourseUnit,
     CourseUnitClassPlan,
     LegacyAccessEntitlement,
@@ -185,11 +190,15 @@ def authoritative_activity_projections_by_subjects(
     class_id: int,
     course_id: int,
     locking_read: bool = False,
-) -> dict[tuple[int, int], LearningActivityProjection]:
+) -> dict[tuple[int, int], LearningActivityProjection | ActivityProgressView]:
     """Return current-pin activity projections keyed by (subject, unit)."""
     subject_ids = set(subject_user_ids)
     if not subject_ids:
         return {}
+    release = db.scalar(select(CourseRelease).where(CourseRelease.course_id == course_id).order_by(CourseRelease.release_number.desc()).limit(1))
+    if release is not None and release.result_contract_version == 2:
+        from app.services.learning_results import progress_views
+        return progress_views(db, release=release, subjects=subject_ids, class_id=class_id)
     course_class_statement = select(CourseClass).where(
         CourseClass.class_id == class_id,
         CourseClass.course_id == course_id,
@@ -284,6 +293,9 @@ def prerequisite_access_unit_ids_by_subjects(
     for (subject_user_id, course_unit_id), projection in projections.items():
         if projection.status in COMPLETED_PROJECTION_STATUSES:
             result[subject_user_id].add(course_unit_id)
+    release = db.scalar(select(CourseRelease).where(CourseRelease.course_id == course_id).order_by(CourseRelease.release_number.desc()).limit(1))
+    if release is not None and release.result_contract_version == 2:
+        return result
     legacy = legacy_access_unit_ids_by_subjects(
         db,
         subject_user_ids=subject_ids,
@@ -397,6 +409,19 @@ def authoritative_prerequisite_unit_ids_by_scope(
         scope = (int(legacy_class_id), int(legacy_course_id))
         if scope in result:
             result[scope].add(int(prerequisite_unit_id))
+    from app.services.course_learning_metrics import current_course_releases
+    from app.services.learning_results import result_credits
+    latest = current_course_releases()
+    versioned = {row.course_id: row.release_id for row in db.execute(select(latest).where(latest.c.course_id.in_(course_ids), latest.c.result_contract_version == 2))}
+    for scope in result:
+        if scope[1] in versioned:
+            result[scope] = set()
+    if versioned:
+        credit = result_credits()
+        for row in db.execute(select(credit).where(credit.c.release_id.in_(versioned.values()), credit.c.student_id == subject_user_id, credit.c.class_id.in_(class_ids))):
+            scope = (row.class_id, row.course_id)
+            if scope in result and versioned.get(row.course_id) == row.release_id:
+                result[scope].add(row.course_unit_id)
     return result
 
 
@@ -539,8 +564,12 @@ def authoritative_projection_counts(
         )
         in eligible_scopes
     ]
-    completed = sum(
-        projection.status in COMPLETED_PROJECTION_STATUSES
-        for projection in projections
-    )
-    return len(eligible_scopes), int(completed)
+    from app.services.course_learning_metrics import current_course_releases
+    from app.services.learning_results import result_credits
+    latest = current_course_releases()
+    versioned = {row.course_id: row.release_id for row in db.execute(select(latest).where(latest.c.course_id.in_({scope[1] for scope in eligible_scopes}), latest.c.result_contract_version == 2))}
+    completed = {(projection.class_id, projection.course_id, projection.course_unit_id) for projection in projections if projection.status in COMPLETED_PROJECTION_STATUSES and projection.course_id not in versioned}
+    if versioned:
+        credit = result_credits()
+        completed.update((row.class_id, row.course_id, row.course_unit_id) for row in db.execute(select(credit).where(credit.c.release_id.in_(versioned.values()), credit.c.student_id == subject_user_id, credit.c.class_id.in_(selected_class_ids))) if versioned.get(row.course_id) == row.release_id)
+    return len(eligible_scopes), sum((scope[0], scope[1], scope[2]) in completed for scope in eligible_scopes)

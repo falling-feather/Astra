@@ -53,13 +53,10 @@ export function createSchoolApi(client: HttpClient): T.SchoolGateway {
     createAssignment: (id, unit, input) => post(`/courses/${id}/units/${unit}/assignments`, input),
     studentAssignments: (filter, offset = 0) =>
       get(`/assignments/me?filter=${encodeURIComponent(filter)}&offset=${offset}&limit=50`),
-    submitAssignment: (id, class_id, answer) =>
-      post(`/assignments/${id}/submissions`, { class_id, content: { answer } }),
     submissions: (id, classId, offset = 0) =>
       get(
         `/assignments/${id}/submissions/page?limit=100&offset=${offset}${classId ? `&class_id=${classId}` : ''}`,
       ),
-    grade: (id, score, feedback, status) => patch(`/submissions/${id}/grade`, { score, feedback, status }),
     releasePlan: (course, group) => get(`/courses/${course}/classes/${group}/release-plan`),
     saveReleasePlan: (plan) =>
       patch(`/courses/${plan.course_id}/classes/${plan.class_id}/release-plan`, {
@@ -84,7 +81,6 @@ export function createSchoolApi(client: HttpClient): T.SchoolGateway {
       patch(`/v1/admin/course-information-revisions/${id}`, { status, note }),
     adminUsers: (offset = 0) => get(`/admin/users?limit=100&offset=${offset}`),
     updateUser: (id, value) => patch(`/admin/users/${id}`, value),
-    checkpoint: (course, unit, key, payload) =>
-      post(`/v1/courses/${course}/units/${unit}/checkpoints/${encodeURIComponent(key)}/attempts`, payload),
+
   };
 }

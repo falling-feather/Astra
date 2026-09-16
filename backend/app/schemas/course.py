@@ -286,12 +286,18 @@ class LearningEventPage(BaseModel):
 class SubmissionCreate(BaseModel):
     class_id: int
     content: dict[str, Any] = Field(default_factory=dict)
+    context_key: str | None = None
+    client_request_id: str | None = None
+    expected_submission_revision: int | None = Field(default=None, ge=0)
 
 
 class SubmissionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    revision: int = 1
+    current_attempt_id: int | None = None
+    current_grade_revision: int = 0
     assignment_id: int
     student_id: int
     class_id: int | None = None
@@ -347,6 +353,9 @@ class SubmissionGrade(BaseModel):
     score: int = Field(ge=0, le=1000)
     feedback: str | None = Field(default=None, max_length=4000)
     status: SubmissionGradeStatus = "graded"
+    client_request_id: str | None = None
+    expected_submission_revision: int | None = Field(default=None, ge=1)
+    expected_grade_revision: int | None = Field(default=None, ge=0)
 
 
 class PointLedgerRead(BaseModel):

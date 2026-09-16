@@ -69,7 +69,7 @@ def freeze_dependencies(db: Session, course: Course, snapshot: dict) -> dict:
                     raise HTTPException(status_code=422, detail=f"{unit['title']} 的资源没有操作记录能力，请使用检查点或作业评阅")
             elif block["type"] == "media":
                 media[block["assetKey"]] = media_snapshot(reference_media(db, course, block["assetKey"], block["mediaType"]))
-        if completion["preset"] == "assignment_reviewed":
+        if completion["preset"] in {"assignment_reviewed", "assignment_accepted"}:
             assignment = db.get(Assignment, completion["assignmentId"])
             if assignment is None or assignment.unit_id != unit["id"] or assignment.status != "active":
                 raise HTTPException(status_code=422, detail=f"{unit['title']} 的完成作业不存在或不属于当前单元")

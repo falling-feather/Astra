@@ -5,6 +5,7 @@ import { createSchoolDemo } from './school-demo';
 import { presentCourse } from './course-presentation';
 import { ApiError } from './http-client';
 import { createResourceDemo } from './resource-demo';
+import { createStudyDemo } from './study-demo';
 import { createWorkflowDemo } from './workflow-demo';
 import type { TemplateSeed } from '../portal/resource-types';
 
@@ -63,6 +64,7 @@ export function createDemoGateway(templates: TemplateSeed[] = []): LearningGatew
     mode: 'demo',
     resources,
     workflow,
+    study: createStudyDemo(role, school.teaching, school, resources),
     school,
     async getSession() {
       return session ? { ...session } : null;

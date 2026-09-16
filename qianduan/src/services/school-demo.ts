@@ -11,6 +11,10 @@ const page = <V>(items: V[], offset = 0, limit = 50): T.Page<V> => ({
 });
 
 export interface DemoTeachingStore {
+  assignments: T.Assignment[];
+  submissions: T.Submission[];
+  resultPolicies: Map<number, Record<string, "keep" | "redo">>;
+  setResult(courseId: number, unitId: number, completed: boolean): void;
   courses: T.CourseInfo[];
   drafts: Map<number, T.SharedDraft>;
   releases: Map<number, T.Release[]>;
@@ -49,6 +53,7 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
   const unitRecords = new Map<number, { courseId: number; unit: T.DraftUnit }>();
   const plans = new Map<string, T.ReleasePlan>();
   const completed = new Set<string>();
+  const resultPolicies = new Map<number, Record<string, "keep" | "redo">>();
   const assignments: T.Assignment[] = [];
   const submissions: T.Submission[] = [];
   const joins: T.JoinRequest[] = [];
@@ -251,7 +256,8 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
         ]
       : [];
   const teaching: DemoTeachingStore = {
-    courses, drafts, releases: releaseHistory,
+    courses, drafts, releases: releaseHistory, assignments, submissions, resultPolicies,
+    setResult(courseId, unitId, value) { const key = `${courseId}:${unitId}`; if (value) completed.add(key); else completed.delete(key); },
     nextId: () => ++counter,
     create(input) {
       const course = buildCourse(++counter, input, 'draft');
@@ -272,13 +278,14 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
     },
     resetResult: (courseId, unitId) => { completed.delete(`${courseId}:${unitId}`); },
     checkpoint() {
-      const saved = { courses: copy(courses), drafts: copy(drafts), releases: copy(releaseHistory), units: copy(unitRecords), completed: copy(completed) };
+      const saved = { courses: copy(courses), drafts: copy(drafts), releases: copy(releaseHistory), units: copy(unitRecords), completed: copy(completed), policies: copy(resultPolicies) };
       return () => {
         courses.splice(0, courses.length, ...saved.courses);
         drafts.clear(); saved.drafts.forEach((value, key) => drafts.set(key, value));
         releaseHistory.clear(); saved.releases.forEach((value, key) => releaseHistory.set(key, value));
         unitRecords.clear(); saved.units.forEach((value, key) => unitRecords.set(key, value));
         completed.clear(); saved.completed.forEach((value) => completed.add(value));
+        resultPolicies.clear(); saved.policies.forEach((value, key) => resultPolicies.set(key, value));
       };
     },
   };
@@ -645,26 +652,6 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
       if (filter === 'active') items = items.filter((item) => item.assignment.status === 'active');
       return page(items, offset);
     },
-    async submitAssignment(id, class_id, answer) {
-      requireRole('student');
-      const row = studentRows().find((item) => item.assignment.id === id);
-      if (!row || row.class.id !== class_id) throw new ApiError('没有找到本班的作业。', 404);
-      if (!row.can_submit) throw new ApiError('当前提交不可修改。', 409);
-      const item: T.Submission = {
-        id: ++counter,
-        assignment_id: id,
-        student_id: 2,
-        class_id,
-        content: { answer },
-        status: 'submitted',
-        score: null,
-        feedback: null,
-        submitted_at: new Date().toISOString(),
-        graded_at: null,
-      };
-      submissions.push(item);
-      return copy(item);
-    },
     async submissions(id, classId, offset = 0) {
       requireRole('teacher', 'admin');
       return page(
@@ -674,15 +661,6 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
         offset,
         100,
       );
-    },
-    async grade(id, score, feedback, status) {
-      requireRole('teacher', 'admin');
-      const item = submissions.find((item) => item.id === id);
-      if (!item) throw new ApiError('没有找到提交。', 404);
-      const assignment = assignments.find((a) => a.id === item.assignment_id)!;
-      if (score > assignment.max_score) throw new ApiError('分数不能超过满分。', 422);
-      Object.assign(item, { score, feedback, status, graded_at: new Date().toISOString() });
-      return copy(item);
     },
     async releasePlan(course_id, class_id) {
       const key = `${course_id}:${class_id}`;
@@ -784,22 +762,6 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
       Object.assign(user, patch);
       return copy(user);
     },
-    async checkpoint(courseId, unitId, key, payload) {
-      requireRole('student');
-      const release = releaseHistory.get(courseId)?.find((item) => item.id === payload.course_release_id);
-      const block = release?.units
-        .find((unit) => unit.source_course_unit_id === unitId)
-        ?.content.blocks.find((item) => item.checkpointKey === key);
-      if (!block) throw new ApiError('检查点版本不可用。', 409);
-      const is_correct =
-        block.responseType === 'numeric'
-          ? Math.abs(Number(payload.numeric_answer) - Number(block.numericAnswer)) <= (block.tolerance || 0)
-          : block.responseType === 'short-text'
-            ? (block.acceptedAnswers || []).includes(String(payload.text_answer))
-            : JSON.stringify([...((payload.selected_choice_ids as string[]) || [])].sort()) ===
-              JSON.stringify([...(block.correctChoiceIds || [])].sort());
-      if (is_correct) completed.add(`${courseId}:${unitId}`);
-      return { is_correct, completed: is_correct, remaining_attempts: null };
-    },
+
   };
 }

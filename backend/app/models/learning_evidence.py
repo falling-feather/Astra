@@ -145,6 +145,8 @@ class CheckpointAttempt(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    learning_context_id: Mapped[int | None] = mapped_column(ForeignKey("learning_contexts.id", name="fk_checkpoint_attempts_learning_context"), nullable=True)
+    completion_eligible: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
     client_attempt_id: Mapped[str] = mapped_column(
         _client_event_id_type(), nullable=False
     )
@@ -235,6 +237,7 @@ class LearningActivityRuntime(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    learning_context_id: Mapped[int | None] = mapped_column(ForeignKey("learning_contexts.id", name="fk_activity_runtimes_learning_context"), nullable=True)
     subject_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), index=True, nullable=False
     )

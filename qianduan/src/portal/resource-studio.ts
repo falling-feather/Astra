@@ -1,3 +1,4 @@
+import type { StudyGateway } from './study-types';
 import type { Role } from './contracts';
 import type { FunctionGraphConfig, ResourceGateway, ResourcePage, ResourcePreviewRead, ResourceVersionRead, TemplateConfiguration } from './resource-types';
 import { learningSpaces } from '../domain/learning-spaces';
@@ -21,7 +22,7 @@ export class ResourceStudio {
   private lastPreview?: ResourcePreviewRead;
   private configuration: TemplateConfiguration = {};
 
-  constructor(private root: HTMLElement, private api: ResourceGateway, private role: Role) {
+  constructor(private root: HTMLElement, private api: ResourceGateway, private role: Role, private study: StudyGateway) {
     root.addEventListener('click', this.click, { signal: this.lifecycle.signal });
     root.addEventListener('submit', this.submit, { signal: this.lifecycle.signal });
     root.addEventListener('input', this.input, { signal: this.lifecycle.signal });
@@ -54,7 +55,9 @@ export class ResourceStudio {
   private async open(id: number): Promise<void> {
     const generation = ++this.generation;
     try {
-      const resource = await this.api.version(id);
+      const context = await this.study.start({ client_request_id: crypto.randomUUID(), mode: this.role === 'student' ? 'explore' : 'preview', resource_version_id: id });
+      const resource = context.resources.find((item) => item.id === id);
+      if (!resource) throw new Error('资源学习入口不完整，请重新读取。');
       if (!this.active || generation !== this.generation) return;
       this.selected = resource;
       this.configuration = structuredClone(resource.definition.configuration || {}) as TemplateConfiguration;

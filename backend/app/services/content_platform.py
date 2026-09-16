@@ -352,6 +352,7 @@ def publish_prepared_course(
         draft_revision=source_revision,
         schema_version="astra-course-release-v3" if candidate_id is not None else COURSE_RELEASE_SCHEMA_VERSION,
         candidate_id=candidate_id,
+        result_contract_version=2,
         status="published",
         title_snapshot=course.title,
         summary_snapshot=course.summary,
@@ -437,6 +438,9 @@ def publish_prepared_course(
     )
     db.add(binding)
     db.flush()
+
+    from app.services.learning_results import recognize_publication_results
+    recognize_publication_results(db, course=course, release=release, course_class=course_class)
 
     course.content_draft_revision = next_draft_revision
     course.updated_at = published_at
@@ -891,7 +895,7 @@ def _course_release_read(
                 "position": row.position,
                 "content_slug": row.content_slug,
                 "content_page_version_id": row.content_page_version_id,
-                "content_schema_sha256": row.content_schema_sha256,
+                "content_schema_sha256": row.content_schema_sha256 if include_answers else _canonical_sha256(content),
                 "media_snapshot": [] if locked else deepcopy(row.media_snapshot_json or []),
                 "content": content,
                 "access_state": "locked" if locked else "open",
@@ -908,7 +912,9 @@ def _course_release_read(
         "summary": release.summary_snapshot,
         "completion_rule_id": release.completion_rule_id,
         "completion_rule_sha256": release.completion_rule_sha256,
-        "package_sha256": release.package_sha256,
+        # A public checksum covers the returned view, never the hidden answer
+        # fields (a small quiz could otherwise be guessed against its digest).
+        "package_sha256": release.package_sha256 if include_answers else _canonical_sha256({"release_id": release.id, "course_id": release.course_id, "title": release.title_snapshot, "summary": release.summary_snapshot, "units": units}),
         "published_by_user_id": release.published_by_user_id,
         "published_at": release.published_at,
         "units": units,

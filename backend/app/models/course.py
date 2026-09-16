@@ -184,6 +184,9 @@ class Submission(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    current_attempt_id: Mapped[int | None] = mapped_column(ForeignKey("assignment_attempts.id", use_alter=True, name="fk_submissions_current_attempt"), nullable=True)
+    current_grade_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id"), index=True, nullable=False)
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     class_id: Mapped[int | None] = mapped_column(ForeignKey("class_groups.id"), index=True, nullable=True)

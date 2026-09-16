@@ -1,3 +1,4 @@
+import type { StudyGateway } from './study-types';
 import type * as D from './workflow-types';
 import type * as T from './contracts';
 import type { ResourceGateway, ResourcePage, ResourceVersionRead, FunctionGraphConfig } from './resource-types';
@@ -15,6 +16,7 @@ import { PortalWorkspace } from './workspace';
 import { flowButton as button, WorkflowView } from './workflow-view';
 
 interface Options {
+  study: StudyGateway;
   role: T.Role;
   userId: number;
   demo: boolean;

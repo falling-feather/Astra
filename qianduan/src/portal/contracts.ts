@@ -128,7 +128,7 @@ export interface ContentPage {
     order: number;
     title: string;
     completion?: {
-      preset: 'experiment_operation' | 'checkpoint_passed' | 'assignment_reviewed';
+      preset: 'experiment_operation' | 'checkpoint_passed' | 'assignment_reviewed' | 'assignment_accepted';
       checkpointKey?: string;
       assignmentId?: number;
     } | null;
@@ -195,6 +195,9 @@ export interface AssignmentInput {
 }
 export interface Submission {
   id: number;
+  revision?: number;
+  current_attempt_id?: number | null;
+  current_grade_revision?: number;
   assignment_id: number;
   student_id: number;
   class_id: number;
@@ -374,9 +377,7 @@ export interface SchoolGateway {
   assignments(id: number): Promise<Assignment[]>;
   createAssignment(courseId: number, unitId: number, input: AssignmentInput): Promise<Assignment>;
   studentAssignments(filter: string, offset?: number): Promise<Page<StudentAssignment>>;
-  submitAssignment(id: number, classId: number, answer: string): Promise<Submission>;
   submissions(assignmentId: number, classId?: number, offset?: number): Promise<Page<Submission>>;
-  grade(id: number, score: number, feedback: string, status: 'graded' | 'returned'): Promise<Submission>;
   releasePlan(courseId: number, classId: number): Promise<ReleasePlan>;
   saveReleasePlan(plan: ReleasePlan): Promise<ReleasePlan>;
   teacherApplications(offset?: number): Promise<Page<TeacherApplication>>;
@@ -390,10 +391,5 @@ export interface SchoolGateway {
     id: number,
     patch: Partial<Pick<AdminUser, 'status' | 'role' | 'display_name'>>,
   ): Promise<AdminUser>;
-  checkpoint(
-    courseId: number,
-    unitId: number,
-    key: string,
-    payload: Record<string, unknown>,
-  ): Promise<{ is_correct: boolean; completed: boolean; remaining_attempts: number | null }>;
+
 }

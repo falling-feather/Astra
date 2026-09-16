@@ -224,6 +224,7 @@ class CourseUnitCompletionV1(StrictContentModel):
         "experiment_operation",
         "checkpoint_passed",
         "assignment_reviewed",
+        "assignment_accepted",
     ]
     checkpointKey: str | None = Field(
         default=None,

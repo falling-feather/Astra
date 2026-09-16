@@ -5,37 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 from pydantic import ValidationError
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.learning_evidence_contract import (
-    LearningEvidenceError,
-    canonical_sha256,
-    learning_evidence_write_gate,
-)
-from app.models import (
-    Assignment,
-    CheckpointAttempt,
-    ClassGroup,
-    Course,
-    CourseClass,
-    CourseClassReleaseBinding,
-    CourseEnrollment,
-    CourseRelease,
-    CourseReleaseUnit,
-    CourseUnit,
-    LearningCompletionRule,
-    LearningEvidenceEvent,
-    LearningRuleActivation,
-    LearningRuleClassBinding,
-    Submission,
-    User,
-)
+from app.core.learning_evidence_contract import canonical_sha256
+from app.models import Assignment, CheckpointAttempt, ClassGroup, Course, CourseClass, CourseRelease, CourseUnit, LearningCompletionRule, LearningEvidenceEvent, LearningRuleActivation, LearningRuleClassBinding, User
 from app.models.base import utc_now
-from app.models.content import ContentPageVersion
 from app.models.learning_evidence import (
     CURRENT_EVENT_SCHEMA_VERSION,
     CURRENT_RULE_DEFINITION_SCHEMA_VERSION,
@@ -47,16 +24,7 @@ from app.schemas.content_v2 import (
     OfficialSimulationBlock,
 )
 from app.schemas.learning_evidence import CompletionActivityRule
-from app.services.audit import record_audit_log
-from app.services.learning_evidence import lock_learner_evidence_scope
-from app.services.learning_evidence_access import (
-    effective_bound_rule,
-    effective_rule_binding,
-)
-from app.services.learning_evidence_projection import (
-    rebuild_activity_projection,
-    scope_from_event,
-)
+from app.services.learning_evidence_access import effective_rule_binding
 
 
 class CourseCompletionError(Exception):
@@ -193,371 +161,11 @@ def prepare_completion_rule_for_release(
 
 
 def submit_checkpoint_attempt(
-    db: Session,
-    *,
-    actor: User,
-    course_id: int,
-    unit_id: int,
-    checkpoint_key: str,
-    payload: CheckpointAttemptCreate,
-    request: Request,
+    db: Session, *, actor: User, course_id: int, unit_id: int,
+    checkpoint_key: str, payload: CheckpointAttemptCreate, request: Request,
 ) -> dict[str, Any]:
-    gate = learning_evidence_write_gate(db.get_bind().dialect.name)
-    with gate:
-        return _submit_checkpoint_attempt_locked(
-            db,
-            actor=actor,
-            course_id=course_id,
-            unit_id=unit_id,
-            checkpoint_key=checkpoint_key,
-            payload=payload,
-            request=request,
-        )
-
-
-def _submit_checkpoint_attempt_locked(
-    db: Session,
-    *,
-    actor: User,
-    course_id: int,
-    unit_id: int,
-    checkpoint_key: str,
-    payload: CheckpointAttemptCreate,
-    request: Request,
-) -> dict[str, Any]:
-    if actor.role != "student" or actor.status != "active":
-        _fail(403, "student_role_required", "Only active students can answer checkpoints")
-    unit = db.get(CourseUnit, unit_id)
-    if unit is None or unit.course_id != course_id:
-        _fail(404, "course_unit_not_found", "Course unit not found")
-    course_class = _single_internal_course_class(db, course_id)
-    preliminary_binding = effective_rule_binding(db, course_class)
-    if preliminary_binding is None:
-        _fail(409, "course_completion_rule_missing", "Course completion rule is unavailable")
-    try:
-        scope = lock_learner_evidence_scope(
-            db,
-            subject=actor,
-            class_id=course_class.class_id,
-            course_id=course_id,
-            course_unit_id=unit.id,
-            activity_key=unit.activity_key,
-            rule_version=preliminary_binding.rule_version,
-            assignment_id=None,
-        )
-    except LearningEvidenceError as exc:
-        _fail(exc.status_code, exc.code, exc.detail)
-    except HTTPException as exc:
-        _fail(exc.status_code, "checkpoint_scope_invalid", str(exc.detail))
-
-    enrollment = db.scalar(
-        select(CourseEnrollment)
-        .where(
-            CourseEnrollment.course_id == course_id,
-            CourseEnrollment.student_id == actor.id,
-            CourseEnrollment.status == "active",
-        )
-        .with_for_update()
-    )
-    if enrollment is None:
-        _fail(403, "course_enrollment_required", "Active course enrollment is required")
-
-    current_release_binding = db.scalar(
-        select(CourseClassReleaseBinding)
-        .where(CourseClassReleaseBinding.course_class_id == scope["course_class"].id)
-        .order_by(
-            CourseClassReleaseBinding.binding_revision.desc(),
-            CourseClassReleaseBinding.id.desc(),
-        )
-        .limit(1)
-        .with_for_update()
-    )
-    if current_release_binding is None:
-        _fail(409, "course_release_missing", "Course has no current content release")
-    if current_release_binding.course_release_id != payload.course_release_id:
-        _fail(409, "course_release_stale", "Checkpoint attempt targets an old course release")
-    release = db.get(CourseRelease, current_release_binding.course_release_id)
-    if release is None or release.course_id != course_id:
-        _fail(409, "course_release_invalid", "Current course release is invalid")
-    if release.completion_rule_id != scope["rule"].id:
-        _fail(409, "course_release_rule_mismatch", "Course release and completion rule do not match")
-
-    release_unit = db.scalar(
-        select(CourseReleaseUnit).where(
-            CourseReleaseUnit.course_release_id == release.id,
-            CourseReleaseUnit.source_course_unit_id == unit.id,
-        )
-    )
-    if release_unit is None:
-        _fail(404, "course_release_unit_not_found", "Course unit is absent from the current release")
-    version = db.get(ContentPageVersion, release_unit.content_page_version_id)
-    if version is None:
-        _fail(409, "course_release_content_missing", "Released course content is missing")
-    content = ContentPageV2.model_validate(version.schema_json)
-    checkpoint = next(
-        (
-            block
-            for block in content.blocks
-            if isinstance(block, CheckpointBlock)
-            and block.checkpointKey == checkpoint_key
-        ),
-        None,
-    )
-    if checkpoint is None:
-        _fail(404, "checkpoint_not_found", "Checkpoint not found in the current release")
-    if checkpoint.mode != "inline":
-        _fail(422, "checkpoint_not_server_gradable", "Question-set checkpoints cannot be graded here")
-    activity_rule = _activity_rule(scope["rule"], unit.activity_key)
-    if (
-        activity_rule.get("preset") != "checkpoint_passed"
-        or activity_rule.get("checkpoint_key") != checkpoint_key
-    ):
-        _fail(422, "checkpoint_completion_target_mismatch", "Checkpoint is not this unit's completion target")
-
-    response = _validated_checkpoint_response(checkpoint, payload)
-    request_sha256 = canonical_sha256(
-        {
-            "student_id": actor.id,
-            "course_id": course_id,
-            "course_unit_id": unit.id,
-            "course_release_id": release.id,
-            "checkpoint_key": checkpoint_key,
-            "response": response,
-        }
-    )
-    replay = db.scalar(
-        select(CheckpointAttempt)
-        .where(CheckpointAttempt.client_attempt_id == payload.client_attempt_id)
-        .with_for_update()
-    )
-    if replay is not None:
-        if not _matching_checkpoint_replay(
-            replay,
-            actor=actor,
-            unit=unit,
-            release=release,
-            checkpoint_key=checkpoint_key,
-            request_sha256=request_sha256,
-        ):
-            _fail(409, "checkpoint_attempt_id_conflict", "Checkpoint attempt id was reused with different data")
-        return _checkpoint_attempt_read(
-            replay,
-            max_attempts=checkpoint.maxAttempts,
-            replayed=True,
-        )
-
-    attempt_number = int(
-        db.scalar(
-            select(func.max(CheckpointAttempt.attempt_number)).where(
-                CheckpointAttempt.student_id == actor.id,
-                CheckpointAttempt.course_release_id == release.id,
-                CheckpointAttempt.course_unit_id == unit.id,
-                CheckpointAttempt.checkpoint_key == checkpoint_key,
-            )
-        )
-        or 0
-    ) + 1
-    if checkpoint.maxAttempts is not None and attempt_number > checkpoint.maxAttempts:
-        _fail(409, "checkpoint_attempt_limit_reached", "Checkpoint attempt limit has been reached")
-
-    submitted_at = utc_now()
-    is_correct = _grade_checkpoint(checkpoint, response)
-    attempt = CheckpointAttempt(
-        client_attempt_id=payload.client_attempt_id,
-        request_sha256=request_sha256,
-        student_id=actor.id,
-        class_id=scope["class_group"].id,
-        course_id=course_id,
-        course_unit_id=unit.id,
-        course_release_id=release.id,
-        content_page_version_id=version.id,
-        checkpoint_key=checkpoint_key,
-        rule_id=scope["rule"].id,
-        rule_version=scope["rule"].version_number,
-        attempt_number=attempt_number,
-        response_json=response,
-        response_sha256=canonical_sha256(response),
-        is_correct=is_correct,
-        submitted_at=submitted_at,
-    )
-    db.add(attempt)
-    db.flush([attempt])
-    if is_correct:
-        event = _trusted_completion_event(
-            client_event_id=f"@assessment:checkpoint:{attempt.id}",
-            actor=actor,
-            subject_user_id=actor.id,
-            school_id=scope["course"].school_id,
-            class_id=scope["class_group"].id,
-            course_id=course_id,
-            unit=unit,
-            rule=scope["rule"],
-            assignment_id=None,
-            evidence={
-                "preset": "checkpoint_passed",
-                "checkpoint_key": checkpoint_key,
-                "checkpoint_attempt_id": attempt.id,
-                "course_release_id": release.id,
-                "is_correct": True,
-            },
-            occurred_at=submitted_at,
-        )
-        db.add(event)
-        db.flush([event])
-        rebuild_activity_projection(
-            db,
-            scope=scope_from_event(event),
-            definition_json=scope["rule"].definition_json,
-            locking_read=True,
-        )
-    record_audit_log(
-        db,
-        actor=actor,
-        action="course.checkpoint.attempt",
-        resource_type="checkpoint_attempt",
-        resource_id=attempt.id,
-        school_id=scope["course"].school_id,
-        class_id=scope["class_group"].id,
-        event_result="success",
-        request=request,
-        snapshot={
-            "course_id": course_id,
-            "course_unit_id": unit.id,
-            "course_release_id": release.id,
-            "checkpoint_key": checkpoint_key,
-            "attempt_number": attempt_number,
-            "is_correct": is_correct,
-        },
-    )
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise CourseCompletionError(
-            409,
-            "checkpoint_attempt_conflict",
-            "Checkpoint attempt changed concurrently; retry with the same attempt id",
-        ) from exc
-    db.refresh(attempt)
-    return _checkpoint_attempt_read(
-        attempt,
-        max_attempts=checkpoint.maxAttempts,
-        replayed=False,
-    )
-
-
-def append_assignment_review_completion(
-    db: Session,
-    *,
-    actor: User,
-    course: Course,
-    unit: CourseUnit,
-    assignment: Assignment,
-    submission: Submission,
-    class_group: ClassGroup,
-) -> LearningEvidenceEvent | None:
-    """Append the first qualifying assignment-review completion in caller tx."""
-
-    if class_group.kind != "course_cohort":
-        return None
-    course_class = db.scalar(
-        select(CourseClass)
-        .where(
-            CourseClass.course_id == course.id,
-            CourseClass.class_id == class_group.id,
-            CourseClass.status == "active",
-        )
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if course_class is None:
-        _fail(409, "course_internal_scope_invalid", "Course internal teaching scope is unavailable")
-    release_binding = db.scalar(
-        select(CourseClassReleaseBinding)
-        .where(CourseClassReleaseBinding.course_class_id == course_class.id)
-        .order_by(
-            CourseClassReleaseBinding.binding_revision.desc(),
-            CourseClassReleaseBinding.id.desc(),
-        )
-        .limit(1)
-        .with_for_update()
-    )
-    if release_binding is None:
-        return None
-    release = db.get(CourseRelease, release_binding.course_release_id)
-    if release is None:
-        _fail(409, "course_release_invalid", "Current course release is invalid")
-    if release.completion_rule_id is None:
-        return None
-    binding = effective_rule_binding(db, course_class, locking_read=True)
-    if binding is None:
-        _fail(409, "course_completion_binding_missing", "Course completion binding is unavailable")
-    try:
-        rule = effective_bound_rule(
-            db,
-            course_class=course_class,
-            binding=binding,
-            locking_read=True,
-        )
-    except HTTPException as exc:
-        _fail(exc.status_code, "course_completion_binding_invalid", str(exc.detail))
-    if release.completion_rule_id != rule.id:
-        _fail(409, "course_release_rule_mismatch", "Course release and completion rule do not match")
-    activity_rule = _activity_rule(rule, unit.activity_key)
-    if (
-        activity_rule.get("preset") != "assignment_reviewed"
-        or activity_rule.get("assignment_id") != assignment.id
-    ):
-        return None
-    if submission.status not in {"graded", "returned"}:
-        return None
-    if submission.score is None and not (submission.feedback or "").strip():
-        return None
-
-    client_event_id = f"@assessment:assignment:{rule.id}:{submission.id}"
-    existing = db.scalar(
-        select(LearningEvidenceEvent)
-        .where(LearningEvidenceEvent.client_event_id == client_event_id)
-        .with_for_update()
-    )
-    if existing is not None:
-        if not _matching_assignment_completion(
-            existing,
-            submission=submission,
-            assignment=assignment,
-            unit=unit,
-            rule=rule,
-        ):
-            _fail(409, "assignment_completion_key_conflict", "Assignment completion key is inconsistent")
-        return existing
-
-    event = _trusted_completion_event(
-        client_event_id=client_event_id,
-        actor=actor,
-        subject_user_id=submission.student_id,
-        school_id=course.school_id,
-        class_id=class_group.id,
-        course_id=course.id,
-        unit=unit,
-        rule=rule,
-        assignment_id=assignment.id,
-        evidence={
-            "preset": "assignment_reviewed",
-            "assignment_id": assignment.id,
-            "submission_id": submission.id,
-            "review_status": submission.status,
-        },
-        occurred_at=submission.graded_at or utc_now(),
-    )
-    db.add(event)
-    db.flush([event])
-    rebuild_activity_projection(
-        db,
-        scope=scope_from_event(event),
-        definition_json=rule.definition_json,
-        locking_read=True,
-    )
-    return event
+    from app.services.learning_assessments import answer_legacy_checkpoint
+    return answer_legacy_checkpoint(db, actor=actor, course_id=course_id, unit_id=unit_id, checkpoint_key=checkpoint_key, payload=payload, request=request)
 
 
 def _completion_activity_definition(
@@ -758,31 +366,6 @@ def _matching_checkpoint_replay(
     )
 
 
-def _matching_assignment_completion(
-    event: LearningEvidenceEvent,
-    *,
-    submission: Submission,
-    assignment: Assignment,
-    unit: CourseUnit,
-    rule: LearningCompletionRule,
-) -> bool:
-    evidence = dict(event.evidence_json or {})
-    return (
-        event.producer_type == "trusted_assessment"
-        and event.event_type == "completed"
-        and event.subject_user_id == submission.student_id
-        and event.class_id == submission.class_id
-        and event.course_id == unit.course_id
-        and event.course_unit_id == unit.id
-        and event.assignment_id == assignment.id
-        and event.rule_id == rule.id
-        and event.rule_version == rule.version_number
-        and evidence.get("preset") == "assignment_reviewed"
-        and evidence.get("assignment_id") == assignment.id
-        and evidence.get("submission_id") == submission.id
-    )
-
-
 def _checkpoint_attempt_read(
     attempt: CheckpointAttempt,
     *,
@@ -802,7 +385,7 @@ def _checkpoint_attempt_read(
         "checkpoint_key": attempt.checkpoint_key,
         "attempt_number": attempt.attempt_number,
         "is_correct": attempt.is_correct,
-        "completed": attempt.is_correct,
+        "completed": attempt.is_correct and attempt.completion_eligible,
         "remaining_attempts": remaining,
         "replayed": replayed,
         "submitted_at": attempt.submitted_at,

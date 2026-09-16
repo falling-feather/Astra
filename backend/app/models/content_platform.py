@@ -50,6 +50,7 @@ class CourseRelease(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    result_contract_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     course_id: Mapped[int] = mapped_column(
         ForeignKey("courses.id"), index=True, nullable=False
     )

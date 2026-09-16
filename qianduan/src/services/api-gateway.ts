@@ -4,6 +4,7 @@ import type { Role, Workbench } from '../portal/contracts';
 import { HttpClient, ApiError } from './http-client';
 import { createSchoolApi } from './school-api';
 import { createResourceApi } from './resource-api';
+import { createStudyApi } from './study-api';
 import { createWorkflowApi } from './workflow-api';
 import { presentCourse } from './course-presentation';
 
@@ -48,6 +49,7 @@ export function createApiGateway(base = '/api'): LearningGateway {
     school,
     resources: createResourceApi(client),
     workflow: createWorkflowApi(client),
+    study: createStudyApi(client),
     async getSession() {
       try {
         session = sessionView(await client.request<UserDto>('/users/me'));

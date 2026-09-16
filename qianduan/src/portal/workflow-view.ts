@@ -31,7 +31,11 @@ export abstract class WorkflowView {
       if (form.reportValidity()) void this.run(() => this.submit(form, data));
     }, { signal });
     root.addEventListener('input', (event) => {
-      if ((event.target as Element).closest('[data-flow-dirty]')) this.dirty = true;
+      if ((event.target as Element).closest('[data-flow-dirty]')) {
+        this.dirty = true;
+        // A nested module owns its form; do not leave its parent falsely dirty after saving.
+        event.stopPropagation();
+      }
     }, { signal });
   }
 

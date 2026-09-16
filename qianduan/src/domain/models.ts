@@ -1,3 +1,4 @@
+import type { StudyGateway } from '../portal/study-types';
 import type { Role, SchoolGateway, TeacherApplication } from '../portal/contracts';
 import type { ResourceGateway } from '../portal/resource-types';
 import type { WorkflowGateway } from '../portal/workflow-types';
@@ -61,6 +62,7 @@ export interface LearningGateway {
   readonly school: SchoolGateway;
   readonly resources: ResourceGateway;
   readonly workflow: WorkflowGateway;
+  readonly study: StudyGateway;
   getSession(): Promise<Session | null>;
   signIn(name: string, password: string): Promise<Session>;
   enterAsGuest(role?: Role): Promise<Session>;

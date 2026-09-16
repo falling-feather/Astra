@@ -195,7 +195,7 @@ def fork_course(db: Session, *, actor: User, source_course_id: int, payload: Cou
             block["blockId"] = f"block-{uuid4().hex}"
             block_origins[block["blockId"]] = source_key
         completion = (content.get("courseUnit") or {}).get("completion")
-        if completion and completion["preset"] == "assignment_reviewed":
+        if completion and completion["preset"] in {"assignment_reviewed", "assignment_accepted"}:
             content["courseUnit"]["completion"] = None
             warnings.append(f"{item['title']}：请为新教学版本重新布置作业并选择完成条件")
         units.append(CourseUnitWrite(title=item["title"], position=item["position"], resource_version_id=item.get("resource_version_id"), content=ContentPageV2.model_validate(content)))

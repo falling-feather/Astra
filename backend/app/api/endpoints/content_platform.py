@@ -25,17 +25,8 @@ router = APIRouter()
 
 
 def _service_call(db: Session, operation: Callable[..., Any], **kwargs: Any) -> Any:
-    try:
-        return operation(db, **kwargs)
-    except (
-        platform_service.ContentPlatformError,
-        completion_service.CourseCompletionError,
-    ) as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": exc.message},
-        ) from exc
+    from app.api.endpoints.course_workflow import service_call
+    return service_call(db, operation, **kwargs)
 
 
 @router.post(

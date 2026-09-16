@@ -140,7 +140,7 @@ export function createWorkflowDemo(role: () => T.Role, store: DemoTeachingStore,
           const origins: Record<string, string> = {};
           for (const block of unit.content.blocks) { const origin = unit.block_origins[block.blockId]; block.blockId = `block-${crypto.randomUUID()}`; origins[block.blockId] = origin; if (block.type === 'media') media.get(block.assetKey)?.courses.add(target.id); }
           unit.block_origins = origins;
-          if (unit.content.courseUnit?.completion?.preset === 'assignment_reviewed') { unit.content.courseUnit.completion = null; warnings.push(`${unit.title}：请为新课程重新布置作业`); }
+          if (unit.content.courseUnit && ['assignment_reviewed', 'assignment_accepted'].includes(unit.content.courseUnit.completion?.preset || '')) { unit.content.courseUnit.completion = null; warnings.push(`${unit.title}：请为新课程重新布置作业`); }
         }
         await saveState(target, input.settings, inherited.map((unit) => ({ title: unit.title, position: unit.position, resource_version_id: unit.resource_version_id, content: unit.content! })));
         target.units.forEach((unit, index) => { unit.origin_key = inherited[index].origin_key; unit.block_origins = inherited[index].block_origins; });
@@ -211,6 +211,7 @@ export function createWorkflowDemo(role: () => T.Role, store: DemoTeachingStore,
           source.information_revision.status = 'approved'; source.information_revision.information_snapshot = legacySettings(settings);
           const revision = course.revisions.find((revision) => revision.summary.id === item.revision_id)!;
           const released = store.publish(source, { course_id: course.id, revision: revision.summary.revision_number, status: 'published', title: settings.title, summary: settings.summary || null, units: item.snapshot.units.map((unit) => ({ ...unit, content: copy(unit.content) as T.ContentPage })) });
+          store.resultPolicies.set(released.id, copy(item.result_policies));
           course.releases.set(released.id, copy(item.snapshot)); item.published_release_id = released.id;
           for (const [unit, policy] of Object.entries(item.result_policies)) if (policy === 'redo') store.resetResult(course.id, Number(unit));
           if (course.revision === revision.summary.revision_number) { course.revision++; course.units.forEach((unit) => { unit.revision = course.revision; }); const working = store.drafts.get(course.id)!; working.revision = course.revision; await capture(course); }

@@ -74,6 +74,7 @@ from app.models.user import AuthSession, LoginAttempt, PasswordResetToken, User
 from app.models.user_note import UserNote
 from app.models.learning_resource import LearningResource, LearningResourceVersion
 from app.models.course_media import CourseMediaAsset, CourseMediaGrant
+from app.models.learning_history import LearningContext, AssignmentAttempt, AssignmentGrade, LearningResult, LearningResultRecognition
 from app.models.course_workflow import (
     CourseFamily, CourseRevision, CourseChangeBatch, CourseCandidate,
     CourseReviewItem, CourseWorkflowOperation,
@@ -82,6 +83,7 @@ from app.models.course_workflow import (
 __all__ = [
     "LearningResource", "LearningResourceVersion", "CourseFamily", "CourseRevision",
     "CourseMediaAsset", "CourseMediaGrant",
+    "LearningContext", "AssignmentAttempt", "AssignmentGrade", "LearningResult", "LearningResultRecognition",
     "CourseChangeBatch", "CourseCandidate", "CourseReviewItem", "CourseWorkflowOperation",
     "AdminAlertOutboxDispatchPlan",
     "AdminAlertOutboxEntry",

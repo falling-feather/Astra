@@ -487,7 +487,7 @@ def _criterion_witness(
             ),
             None,
         )
-    if preset in {"checkpoint_passed", "assignment_reviewed"}:
+    if preset in {"checkpoint_passed", "assignment_reviewed", "assignment_accepted"}:
         return None
     observed_types = {event.event_type for event in learner_events}
     required_types = set(activity_rule.get("required_event_types") or [])
@@ -541,12 +541,12 @@ def _trusted_event_matches_rule(
             and isinstance(evidence.get("checkpoint_attempt_id"), int)
             and isinstance(evidence.get("course_release_id"), int)
         )
-    if preset == "assignment_reviewed":
+    if preset in {"assignment_reviewed", "assignment_accepted"}:
         return (
             evidence.get("preset") == preset
             and evidence.get("assignment_id") == activity_rule.get("assignment_id")
             and isinstance(evidence.get("submission_id"), int)
-            and evidence.get("review_status") in {"graded", "returned"}
+            and evidence.get("review_status") in ({"graded", "returned"} if preset == "assignment_reviewed" else {"graded"})
         )
     return False
 

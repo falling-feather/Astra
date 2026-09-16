@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.api.endpoints import course_media
+from app.api.endpoints import learning_history
 
 from app.api.endpoints import (
     admin,
@@ -58,3 +59,4 @@ api_router.include_router(workbench.router, prefix="/v1", tags=["workbench-v1"])
 api_router.include_router(learning_resources.router, prefix="/v2", tags=["learning-resources-v2"])
 api_router.include_router(course_workflow.router, prefix="/v2", tags=["course-workflow-v2"])
 api_router.include_router(course_media.router, prefix="/v2", tags=["course-media-v2"])
+api_router.include_router(learning_history.router, prefix="/v2", tags=["learning-history-v2"])

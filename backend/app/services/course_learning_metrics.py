@@ -18,6 +18,7 @@ from app.models import (
     LearningActivityProjection,
     LearningCompletionRule,
     LearningRuleClassBinding,
+    User,
 )
 
 from app.services.learning_evidence_access import effective_rule_binding_statement
@@ -38,6 +39,7 @@ def current_course_releases() -> Subquery:
             CourseRelease.id.label("release_id"),
             CourseRelease.course_id,
             CourseRelease.completion_rule_id,
+            CourseRelease.result_contract_version,
         )
         .join(
             latest_numbers,
@@ -50,7 +52,7 @@ def current_course_releases() -> Subquery:
     )
 
 
-def current_completed_units() -> Subquery:
+def _legacy_completed_units() -> Subquery:
     """Return distinct (course, student, unit) rows for current completion counts.
 
     Use released unit identities, not mutable drafts: unpublished changes must
@@ -119,6 +121,7 @@ def current_completed_units() -> Subquery:
         )
         .where(
             Course.status == "published",
+            release.c.result_contract_version == 1,
             ClassGroup.kind == "course_cohort",
             ClassGroup.status == "active",
             ClassGroup.school_id == Course.school_id,
@@ -128,3 +131,24 @@ def current_completed_units() -> Subquery:
         .distinct()
         .subquery("current_completed_units")
     )
+
+
+def current_completed_units() -> Subquery:
+    """One current population: versioned result facts or the retained legacy contract."""
+    from sqlalchemy import union_all
+    from app.services.learning_results import result_credits
+    release, credit = current_course_releases(), result_credits()
+    current = (
+        select(credit.c.course_id, credit.c.student_id, credit.c.course_unit_id)
+        .join(release, and_(release.c.release_id == credit.c.release_id, release.c.course_id == credit.c.course_id))
+        .join(Course, Course.id == credit.c.course_id)
+        .join(CourseReleaseUnit, and_(CourseReleaseUnit.course_release_id == release.c.release_id, CourseReleaseUnit.source_course_unit_id == credit.c.course_unit_id))
+        .join(CourseEnrollment, and_(CourseEnrollment.course_id == credit.c.course_id, CourseEnrollment.student_id == credit.c.student_id, CourseEnrollment.status == "active"))
+        .join(CourseClass, and_(CourseClass.course_id == credit.c.course_id, CourseClass.class_id == credit.c.class_id, CourseClass.status == "active"))
+        .join(ClassGroup, ClassGroup.id == CourseClass.class_id)
+        .join(User, User.id == credit.c.student_id)
+        .where(release.c.result_contract_version == 2, Course.status == "published", ClassGroup.kind == "course_cohort", ClassGroup.status == "active", ClassGroup.school_id == Course.school_id, User.role == "student", User.status == "active")
+        .distinct()
+    )
+    legacy = _legacy_completed_units()
+    return union_all(select(legacy.c.course_id, legacy.c.student_id, legacy.c.course_unit_id), current).subquery("current_completed_units")

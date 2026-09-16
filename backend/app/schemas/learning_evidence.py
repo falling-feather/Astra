@@ -760,6 +760,7 @@ class CompletionActivityRule(StrictLearningEvidenceWriteModel):
         "experiment_operation",
         "checkpoint_passed",
         "assignment_reviewed",
+        "assignment_accepted",
     ] | None = None
     checkpoint_key: str | None = Field(default=None, min_length=1, max_length=120)
     assignment_id: int | None = Field(default=None, ge=1)

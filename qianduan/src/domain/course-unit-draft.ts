@@ -47,8 +47,8 @@ export function readUnit(unit: D.CourseUnitWrite, data: FormData, resource?: D.R
     page.courseUnit.title = result.title;
     const preset = value('completion');
     if (preset === 'checkpoint_passed' && !checkpoint) throw new Error('请先配置理解检查点。');
-    if (preset === 'assignment_reviewed' && !Number(value('assignment_id'))) throw new Error('请选择本单元已布置的作业。');
-    page.courseUnit.completion = preset === 'checkpoint_passed' ? { preset, checkpointKey: checkpoint!.checkpointKey } : preset === 'assignment_reviewed' ? { preset, assignmentId: Number(value('assignment_id')) } : preset === 'experiment_operation' ? { preset } : null;
+    if ((preset === 'assignment_reviewed' || preset === 'assignment_accepted') && !Number(value('assignment_id'))) throw new Error('请选择本单元已布置的作业。');
+    page.courseUnit.completion = preset === 'checkpoint_passed' ? { preset, checkpointKey: checkpoint!.checkpointKey } : (preset === 'assignment_reviewed' || preset === 'assignment_accepted') ? { preset, assignmentId: Number(value('assignment_id')) } : preset === 'experiment_operation' ? { preset } : null;
   }
   return result;
 }

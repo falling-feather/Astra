@@ -13,7 +13,6 @@ import {
 } from './presentation';
 import { icon } from '../ui/icons';
 import { frontendAsset } from '../services/environment';
-import { markdown } from '../ui/markdown';
 
 export function heading(title: string, description = '', actions = ''): string {
   return `<header class="portal-heading"><div><h1>${e(title)}</h1>${description ? `<p>${e(description)}</p>` : ''}</div><div class="portal-actions">${actions}</div></header>`;
@@ -64,61 +63,16 @@ export function teacherAssignments(assignments: T.Assignment[], units: T.DraftUn
   )}${field('作业名称', 'title', '', { required: true, max: 180 })}${area('作业要求', 'description', '', true)}<div class="portal-form-grid">${field('截止时间', 'due_at', '', { type: 'datetime-local' })}${field('满分', 'max_score', 100, { type: 'number', min: 0, required: true })}</div><button class="primary-button" type="submit" ${units.some((unit) => unit.id) ? '' : 'disabled'}>布置作业</button></form><p class="portal-note">作业面向本课程已关联的教学范围；请先保存所属单元。</p></section></div>`;
 }
 
-export function grading(
-  assignment: T.Assignment,
-  submissions: T.Page<T.Submission>,
-  names: Map<number, string>,
-): string {
-  return (
-    heading(
-      assignment.title,
-      `满分 ${assignment.max_score} · ${submissions.total} 条提交记录`,
-      button('返回作业', 'course-tab', 'data-tab="assignments"'),
-    ) +
-    `<div class="portal-grading">${
-      submissions.items.length
-        ? submissions.items
-            .map(
-              (item) =>
-                `<section class="portal-surface"><div class="portal-section-heading"><h2>${e(names.get(item.student_id) || `学生 ${item.student_id}`)}</h2>${badge(item.status)}</div><p class="portal-note">提交于 ${when(item.submitted_at)}</p><div class="submission-answer">${e(submissionText(item.content))}</div><form class="portal-grade-form" data-id="${item.id}"><div class="portal-form-grid">${field('分数', 'score', item.score ?? 0, { type: 'number', required: true, min: 0 })}${selectField(
-                  '处理结果',
-                  'status',
-                  [
-                    { value: 'graded', label: '完成批改' },
-                    { value: 'returned', label: '退回重交' },
-                  ],
-                  item.status === 'returned' ? 'returned' : 'graded',
-                )}</div>${area('教师反馈', 'feedback', item.feedback || '')}<button class="primary-button" type="submit">保存批改</button></form></section>`,
-            )
-            .join('')
-        : empty('还没有学生提交。')
-    }</div>`
-  );
+export function grading(assignment: T.Assignment, submissions: T.Page<T.Submission>, names: Map<number, string>): string {
+  return heading(assignment.title, '选择一次提交，查看原作业要求、回答与评阅历史。', button('返回作业', 'course-tab', 'data-tab="assignments"')) + `<div class="portal-grading">${submissions.items.map((item) => `<section class="portal-surface"><div class="portal-section-heading"><h2>${e(names.get(item.student_id) || `学生 ${item.student_id}`)}</h2>${badge(item.status)}</div><p class="portal-note">提交于 ${when(item.submitted_at)}</p><div class="submission-answer">${e(submissionText(item.content))}</div>${button('查看与批改', 'grade-submission', `data-id="${item.id}"`)}</section>`).join('') || empty('还没有学生提交。')}</div>`;
 }
 
-export function studentAssignments(
-  page: T.Page<T.StudentAssignment>,
-  filter: string,
-  selectedKey: string,
-  activities: T.Activity[] = [],
-): string {
-  const item =
-    page.items.find((item) => `${item.assignment.id}:${item.class.id}` === selectedKey) || page.items[0];
-  return (
-    heading('我的作业', '查看任务、提交记录和教师反馈。') +
-    `<nav class="portal-tabs">${[
-      ['active', '当前作业'],
-      ['feedback', '批改反馈'],
-      ['history', '历史作业'],
-    ]
-      .map(
-        ([key, title]) =>
-          `<button data-portal="assignment-filter" data-filter="${key}" class="${filter === key ? 'active' : ''}">${title}</button>`,
-      )
-      .join(
-        '',
-      )}</nav><div class="portal-assignment-layout"><aside class="portal-assignment-list">${page.items.map((row) => `<button data-portal="select-assignment" data-key="${row.assignment.id}:${row.class.id}" class="${row === item ? 'active' : ''}"><strong>${e(row.assignment.title)}</strong><small>${e(row.course.title)}</small><span>${when(row.assignment.due_at)} ${badge(row.submission?.status || 'pending', row.submission ? human(row.submission.status) : '待提交')}</span></button>`).join('') || empty('这里暂时没有作业。')}<div class="portal-pagination">${page.offset > 0 ? button('上一页', 'assignment-page', `data-offset="${Math.max(0, page.offset - page.limit)}"`) : ''}${page.next_offset !== null ? button('下一页', 'assignment-page', `data-offset="${page.next_offset}"`) : ''}</div></aside><section class="portal-assignment-detail">${item ? `<h2>${e(item.assignment.title)}</h2><p class="portal-note">${e(item.course.title)} · 截止 ${when(item.assignment.due_at)}</p><div class="portal-rule"></div><div class="assignment-instructions">${e(item.assignment.description || '请根据课程内容完成本次作业。')}</div>${activities.some((activity) => activity.key === item.unit.activity_key) ? button('打开关联实验 →', 'open-activity', `data-key="${e(item.unit.activity_key)}"`) : ''}<form id="portal-submission-form" data-id="${item.assignment.id}" data-class="${item.class.id}">${item.can_submit ? area('我的回答', 'answer', item.submission ? submissionText(item.submission.content) : '', true) : `<h3>我的回答</h3><div class="submission-answer">${e(item.submission ? submissionText(item.submission.content) : '尚未提交回答。')}</div>`}${item.can_submit ? '<button type="submit" class="primary-button">提交作业</button>' : `<p class="portal-note">${item.submission?.status === 'graded' ? '本次作业已批改。' : item.submission ? '本次回答已提交，请等待教师批改。' : '当前作业暂不可提交，请核对单元开放安排。'}</p>`}</form><section class="portal-feedback"><h3>教师反馈</h3>${item.submission && ['graded', 'returned'].includes(item.submission.status) ? `<strong class="grade-score">${item.submission.score ?? '—'} <small>/ ${item.assignment.max_score}</small></strong><p>${e(item.submission.feedback || '教师未填写文字反馈。')}</p>` : '<p>提交后可在这里查看批改结果。</p>'}</section>` : empty('选择一项作业查看要求。')}</section></div>`
-  );
+export function studentAssignmentList(page: T.Page<T.StudentAssignment>, selectedKey: string): string {
+  return `${page.items.map((row) => `<button data-portal="select-assignment" data-key="${row.assignment.id}:${row.class.id}" class="${`${row.assignment.id}:${row.class.id}` === selectedKey ? 'active' : ''}"><strong>${e(row.assignment.title)}</strong><small>${e(row.course.title)}</small><span>${when(row.assignment.due_at)} ${badge(row.submission?.status || 'pending', row.submission ? human(row.submission.status) : '待提交')}</span></button>`).join('') || empty('这里暂时没有作业。')}<div class="portal-pagination">${page.offset > 0 ? button('上一页', 'assignment-page', `data-offset="${Math.max(0, page.offset - page.limit)}"`) : ''}${page.next_offset !== null ? button('下一页', 'assignment-page', `data-offset="${page.next_offset}"`) : ''}</div>`;
+}
+
+export function studentAssignments(page: T.Page<T.StudentAssignment>, filter: string, selectedKey: string): string {
+  return heading('我的作业', '查看任务、历次回答和教师反馈。') + `<nav class="portal-tabs">${[['active', '当前作业'], ['feedback', '批改反馈'], ['history', '历史作业']].map(([key, title]) => `<button data-portal="assignment-filter" data-filter="${key}" class="${filter === key ? 'active' : ''}">${title}</button>`).join('')}</nav><div class="portal-assignment-layout"><aside class="portal-assignment-list">${studentAssignmentList(page, selectedKey)}</aside><section class="portal-assignment-detail" data-assignment-detail>${empty(page.items.length ? '正在读取作业要求…' : '选择一项作业查看要求。')}</section></div>`;
 }
 
 export function classroomList(
@@ -156,51 +110,6 @@ export function administration(
     heading('学校管理', '审核教学资料，维护账号和组织。') +
     `<div class="portal-metrics"><div><strong>${data.catalog_totals?.users || 0}</strong><span>个账号</span></div><div><strong>${data.catalog_totals?.courses || 0}</strong><span>门课程</span></div><div><strong>${(data.pending_teacher_applications?.total || 0) + (data.pending_course_revisions?.total || 0)}</strong><span>项待审核</span></div></div><div class="portal-columns"><section class="portal-surface"><h2>教师申请</h2>${teachers.map((item) => `<div class="portal-request"><h3>${e(item.applicant_display_name)} <small>${e(item.applicant_username)}</small></h3><p>${e(item.message || '申请成为教师')}</p>${button('通过', 'review-teacher', `data-id="${item.id}" data-status="approved"`)} ${button('退回', 'review-teacher', `data-id="${item.id}" data-status="rejected"`)}</div>`).join('') || empty('没有待处理的教师申请。')}</section><section class="portal-surface"><h2>课程资料审核</h2>${reviews.map((item) => `<div class="portal-request"><h3>${e(item.proposed_information.title)}</h3><p>${e(item.proposed_information.summary || '')}</p><p>${e(item.proposed_information.academic_year)} · ${e(item.proposed_information.schedule_text)}</p><small>修改项目：${e(item.changed_fields.map((key) => (({ title: '标题', summary: '介绍', schedule_text: '授课安排', academic_year: '学年', admission_mode: '加入范围', total_hours: '课时' }) as Record<string, string>)[key] || key).join('、'))}</small><div>${button('通过', 'review-course', `data-id="${item.revision.id}" data-status="approved"`)} ${button('退回', 'review-course', `data-id="${item.revision.id}" data-status="rejected"`)}</div></div>`).join('') || empty('没有待审核的课程资料。')}</section></div><section class="portal-surface"><h2>账号</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>姓名</th><th>账号</th><th>身份</th><th>状态</th><th>操作</th></tr></thead><tbody>${users.map((user) => `<tr><td>${e(user.display_name)}</td><td>${e(user.username)}</td><td>${human(user.role)}</td><td>${badge(user.status)}</td><td>${user.role === 'admin' ? '—' : button(user.status === 'active' ? '停用' : '恢复', 'user-status', `data-id="${user.id}" data-status="${user.status === 'active' ? 'disabled' : 'active'}"`)}</td></tr>`).join('')}</tbody></table></div></section><section class="portal-surface"><h2>学校</h2>${schools.map((item) => `<p>${e(item.name)} · ${badge(item.status)}</p>`).join('')}<form id="portal-school-form" class="portal-inline-form">${field('学校名称', 'name', '', { required: true, max: 160 })}<button class="quiet-button" type="submit">创建学校</button></form></section>`
   );
-}
-
-export function learning(
-  release: T.Release,
-  selected: number,
-  activities: T.Activity[],
-  role: T.Role,
-): string {
-  const unit = release.units[selected] || release.units[0];
-  return (
-    heading(
-      release.title,
-      `${role === 'student' ? '正在学习' : '教师预览'}第 ${release.release_number} 个发布版本`,
-      role === 'student' ? '' : button('返回发布历史', 'course-tab', 'data-tab="releases"'),
-    ) +
-    `<div class="portal-editor"><aside class="portal-unit-list">${release.units.map((item, index) => `<button data-portal="learn-unit" data-index="${index}" class="${item === unit ? 'active' : ''}"><small>${index + 1}</small><span>${e(item.title)}</span></button>`).join('')}</aside><article class="portal-lesson">${unit ? `<h2>${e(unit.title)}</h2>${unit.access_state === 'locked' ? '<p class="portal-note">这个单元尚未开放，请查看教师安排或先完成前置单元。</p>' : unit.content.blocks.map((block) => renderBlock(block, release, unit, activities, role)).join('')}` : empty('当前发布还没有学习单元。')}</article></div>`
-  );
-}
-
-function renderBlock(
-  block: T.Block,
-  release: T.Release,
-  unit: T.ReleaseUnit,
-  activities: T.Activity[],
-  role: T.Role,
-): string {
-  if (block.type === 'hero')
-    return `<section class="lesson-block"><h2>${e(block.title)}</h2><p>${e(block.summary)}</p></section>`;
-  if (block.type === 'rich-text')
-    return `<section class="lesson-block"><h3>${e(block.title || '学习内容')}</h3><div class="lesson-prose">${markdown(block.markdown || '')}</div></section>`;
-  if (block.type === 'learning-task')
-    return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.prompt)}</p>${block.outcomes?.length ? `<ul>${block.outcomes.map((value) => `<li>${e(value)}</li>`).join('')}</ul>` : ''}${block.steps?.length ? `<ol>${block.steps.map((value) => `<li>${e(value)}</li>`).join('')}</ol>` : ''}</section>`;
-  if (block.type === 'official-simulation') {
-    const activity = activities.find((item) => item.key === block.simulationKey);
-    return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.instructions)}</p>${activity ? button('打开交互实验 →', 'open-activity', `data-key="${e(activity.key)}"`) : '<p>该实验暂不可用。</p>'}</section>`;
-  }
-  if (block.type === 'sources')
-    return `<section class="lesson-block"><h3>${e(block.title || '参考资料')}</h3>${(block.items || []).map((item) => (/^https?:\/\//.test(item.url) ? `<p><a href="${e(item.url)}" target="_blank" rel="noopener noreferrer">${e(item.label)}</a></p>` : '')).join('')}</section>`;
-  if (block.type === 'resource')
-    return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.instructions)}</p><div data-course-resource="${e(block.blockId)}" role="group" aria-label="${e(block.title)}">正在读取交互资源…</div></section>`;
-  if (block.type === 'media')
-    return `<section class="lesson-block"><h3>${e(block.title || '课程素材')}</h3><div data-course-media="${e(block.blockId)}">正在读取素材…</div><p>${e(block.caption || block.alt || '')}</p>${block.transcript ? `<details><summary>文字内容</summary><p>${e(block.transcript)}</p></details>` : ''}</section>`;
-  if (block.type === 'checkpoint')
-    return `<section class="lesson-block checkpoint-block"><h3>${e(block.title)}</h3><p>${e(block.prompt)}</p><form class="portal-checkpoint-form" data-course="${release.course_id}" data-unit="${unit.source_course_unit_id}" data-release="${release.id}" data-key="${e(block.checkpointKey)}" data-response="${e(block.responseType)}">${block.responseType?.endsWith('choice') ? (block.choices || []).map((item) => `<label class="checkpoint-choice"><input type="${block.responseType === 'multiple-choice' ? 'checkbox' : 'radio'}" name="answer" value="${e(item.choiceId)}"/>${e(item.label)}</label>`).join('') : field('你的回答', 'answer', '', { type: block.responseType === 'numeric' ? 'number' : 'text', required: true })}<button class="primary-button" type="submit" ${role === 'student' && block.mode !== 'question-set' ? '' : 'disabled'}>${role === 'student' ? '提交检查' : '教师预览'}</button><output class="checkpoint-result" role="status"></output></form></section>`;
-  return `<section class="lesson-block"><h3>${e(block.title || '课程媒体')}</h3><p>${e(block.caption || block.alt || '该媒体资源由学校内容库管理。')}</p></section>`;
 }
 
 export function experimentFrame(title: string, href: string): string {

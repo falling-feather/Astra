@@ -276,18 +276,19 @@ class AstraApp {
       this.inspectorId = this.state.selectedCourse;
     }
     if (this.state.view === 'resources') {
-      this.resourceStudio = new ResourceStudio(workspace, this.gateway.resources, role);
+      this.resourceStudio = new ResourceStudio(workspace, this.gateway.resources, role, this.gateway.study);
       this.resourceStudio.mount();
     } else if (this.state.view === 'reviews') {
       this.candidates = new CandidateWorkspace(workspace, this.gateway.workflow, role, (message) => this.notify(message), undefined, () => this.refreshData());
       this.candidates.mount();
     } else if (this.state.view === 'course' && role !== 'student') {
-      this.courseStudio = new CourseStudio(workspace, this.gateway.workflow, this.gateway.school, this.gateway.resources, { role, userId: Number(this.state.session?.userId), demo: this.gateway.mode === 'demo', activities, notify: (message) => this.notify(message), navigate: (view, id) => this.showView(view, id, false), changed: () => this.refreshData() }, this.state.openCourseId);
+      this.courseStudio = new CourseStudio(workspace, this.gateway.workflow, this.gateway.school, this.gateway.resources, { study: this.gateway.study, role, userId: Number(this.state.session?.userId), demo: this.gateway.mode === 'demo', activities, notify: (message) => this.notify(message), navigate: (view, id) => this.showView(view, id, false), changed: () => this.refreshData() }, this.state.openCourseId);
       this.courseStudio.mount();
     } else if (usePortal) {
       this.portal = new PortalWorkspace(workspace, this.gateway.school, {
         resources: this.gateway.resources,
         workflow: this.gateway.workflow,
+        study: this.gateway.study,
         role,
         userId: Number(this.state.session?.userId),
         demo: this.gateway.mode === 'demo',

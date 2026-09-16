@@ -12,11 +12,14 @@ import {
   selectField,
 } from './presentation';
 import { serverTime } from '../domain/time';
-import { CoursePlayer } from './course-player';
+import { AssignmentWorkspace } from './assignment-workspace';
+import { LearningWorkspace } from './learning-workspace';
+import type { StudyGateway } from './study-types';
 import type { ResourceGateway } from './resource-types';
 import type { WorkflowGateway } from './workflow-types';
 
 interface Options {
+  study: StudyGateway;
   resources: ResourceGateway;
   workflow: WorkflowGateway;
   courseSectionsOnly?: boolean;
@@ -40,8 +43,6 @@ export class PortalWorkspace {
   private course?: T.CourseInfo;
   private draft?: T.SharedDraft;
   private tab = 'assignments';
-  private unit = 0;
-  private learningRelease?: T.Release;
   private pageOffsets: Record<string, number> = {};
   private filter = 'active';
   private offset = 0;
@@ -52,9 +53,7 @@ export class PortalWorkspace {
   private schools: T.School[] = [];
   private classes: T.Classroom[] = [];
   private assignment?: T.Assignment;
-  private returnFromExperiment: DocumentFragment | null = null;
-  private player?: CoursePlayer;
-  private suspendedFormDirty = false;
+  private studyPanel?: AssignmentWorkspace | LearningWorkspace;
   private retry: () => Promise<void> = async () => {};
 
   constructor(
@@ -82,27 +81,23 @@ export class PortalWorkspace {
       this.options.notify('正在处理请求，请稍候。');
       return false;
     }
-    return !this.hasChanges() || confirm('这里有未保存的修改。确定离开并放弃这些修改吗？');
+    if (this.studyPanel && !this.studyPanel.canLeave()) return false;
+    return !this.formDirty || confirm('这里有未保存的修改。确定离开并放弃这些修改吗？');
   }
 
   hasChanges(): boolean {
-    return this.formDirty || this.suspendedFormDirty;
+    return this.formDirty || Boolean(this.studyPanel?.hasChanges());
   }
   destroy(): void {
-    this.player?.destroy();
+    this.studyPanel?.destroy();
     this.active = false;
     this.abort.abort();
   }
   private paint(html: string): void {
     if (!this.active) return;
-    this.player?.destroy(); this.player = undefined;
+    this.studyPanel?.destroy(); this.studyPanel = undefined;
     this.root.innerHTML = `<div class="portal-view">${html}</div>`;
     this.formDirty = false;
-    const unit = this.learningRelease?.units[this.unit];
-    if (this.learningRelease && unit && unit.access_state !== 'locked' && this.root.querySelector('[data-course-resource], [data-course-media]')) {
-      this.player = new CoursePlayer(this.root, this.options.resources, this.options.workflow, this.learningRelease, unit);
-      this.player.mount();
-    }
   }
 
   private async run(action: () => Promise<void>, mutation = false): Promise<void> {
@@ -147,10 +142,9 @@ export class PortalWorkspace {
     if (this.view === 'course') {
       if (!this.courseId) throw new Error('请先选择一门课程。');
       if (this.options.role === 'student') {
-        this.learningRelease = (await this.api.currentRelease(this.courseId)).release;
-        this.paint(
-          views.learning(this.learningRelease, this.unit, this.options.activities, this.options.role),
-        );
+        this.paint('<div data-study-panel></div>');
+        this.studyPanel = new LearningWorkspace(this.root.querySelector('[data-study-panel]')!, this.options.study, this.api, this.options.resources, this.options.workflow, this.courseId, this.options);
+        this.studyPanel.mount();
       } else await this.loadCourse();
       return;
     }
@@ -200,7 +194,6 @@ export class PortalWorkspace {
     ]);
     this.course = course;
     this.draft = draft;
-    this.unit = Math.min(this.unit, Math.max(0, draft.units.length - 1));
     await this.loadTab();
   }
 
@@ -259,9 +252,24 @@ export class PortalWorkspace {
 
   private async loadAssignments(): Promise<void> {
     this.studentPage = await this.api.studentAssignments(this.filter, this.offset);
-    this.paint(
-      views.studentAssignments(this.studentPage, this.filter, this.assignmentKey, this.options.activities),
-    );
+    this.showAssignment();
+  }
+
+  private showAssignment(): void {
+    const page = this.studentPage!;
+    const item = page.items.find((row) => `${row.assignment.id}:${row.class.id}` === this.assignmentKey) || page.items[0];
+    this.assignmentKey = item ? `${item.assignment.id}:${item.class.id}` : '';
+    this.paint(views.studentAssignments(page, this.filter, this.assignmentKey));
+    if (item) {
+      this.studyPanel = new AssignmentWorkspace(this.root.querySelector('[data-assignment-detail]')!, this.options.study, { teacher: false, assignmentId: item.assignment.id, classId: item.class.id, notify: this.options.notify, changed: async () => { await this.refreshAssignmentSummary(); await this.options.changed(); } });
+      this.studyPanel.mount();
+    }
+  }
+
+  private async refreshAssignmentSummary(): Promise<void> {
+    this.studentPage = await this.api.studentAssignments(this.filter, this.offset);
+    const list = this.root.querySelector('.portal-assignment-list');
+    if (this.active && list) list.innerHTML = views.studentAssignmentList(this.studentPage, this.assignmentKey);
   }
 
   private async loadClasses(): Promise<void> {
@@ -377,28 +385,23 @@ export class PortalWorkspace {
           await this.api.removeEnrollment(this.courseId!, id);
           await this.loadTab();
         }
-      } else if (action === 'grade-assignment')
+      } else if (action === 'grade-assignment') {
+        if (this.studyPanel && !this.studyPanel.canLeave()) return;
         await this.openGrading(id, Number(target.dataset.course) || undefined);
+      }
       else if (action === 'assignment-filter') {
-        if (this.formDirty && !confirm('放弃尚未提交的回答？')) return;
+        if (!this.canLeave()) return;
         this.filter = target.dataset.filter!;
         this.offset = 0;
         await this.loadAssignments();
       } else if (action === 'assignment-page') {
-        if (this.formDirty && !confirm('放弃尚未提交的回答？')) return;
+        if (!this.canLeave()) return;
         this.offset = Number(target.dataset.offset);
         await this.loadAssignments();
       } else if (action === 'select-assignment') {
-        if (this.formDirty && !confirm('放弃尚未提交的回答？')) return;
+        if (!this.canLeave()) return;
         this.assignmentKey = target.dataset.key!;
-        this.paint(
-          views.studentAssignments(
-            this.studentPage!,
-            this.filter,
-            this.assignmentKey,
-            this.options.activities,
-          ),
-        );
+        this.showAssignment();
       } else if (action === 'select-class') {
         this.pageOffsets.members = 0;
         this.classId = id;
@@ -423,23 +426,11 @@ export class PortalWorkspace {
           await this.api.updateUser(id, { status });
           await this.loadAdministration();
         }
-      } else if (action === 'learn-unit') {
-        this.unit = Number(target.dataset.index);
-        this.paint(
-          views.learning(this.learningRelease!, this.unit, this.options.activities, this.options.role),
-        );
-      } else if (action === 'open-activity') {
-        const activity = this.options.activities.find((item) => item.key === target.dataset.key);
-        if (!activity) throw new Error('没有找到这个实验。');
-        this.returnFromExperiment = document.createDocumentFragment();
-        this.suspendedFormDirty = this.formDirty;
-        while (this.root.firstChild) this.returnFromExperiment.append(this.root.firstChild);
-        this.paint(views.experimentFrame(activity.title, activity.href));
-      } else if (action === 'back-from-experiment') {
-        if (this.returnFromExperiment) this.root.replaceChildren(this.returnFromExperiment);
-        this.returnFromExperiment = null;
-        this.formDirty = this.suspendedFormDirty;
-        this.suspendedFormDirty = false;
+      } else if (action === 'grade-submission') {
+        if (this.studyPanel && !this.studyPanel.canLeave()) return;
+        this.paint(views.heading('作业评阅', '原回答与历次评分分别留存。', button('返回提交列表', 'grade-assignment', `data-id="${this.assignment!.id}"`)) + '<div data-study-panel></div>');
+        this.studyPanel = new AssignmentWorkspace(this.root.querySelector('[data-study-panel]')!, this.options.study, { teacher: true, submissionId: id, notify: this.options.notify, changed: this.options.changed });
+        this.studyPanel.mount();
       }
     }, !['select-unit', 'select-release', 'learn-unit', 'open-activity', 'back-from-experiment', 'select-class', 'course-tab'].includes(action));
   };
@@ -464,22 +455,6 @@ export class PortalWorkspace {
         });
         await this.loadTab();
         this.options.notify('作业已布置。');
-      } else if (form.classList.contains('portal-grade-form')) {
-        const score = Number(value('score'));
-        if (score > this.assignment!.max_score) throw new Error('分数不能超过作业满分。');
-        await this.api.grade(
-          Number(form.dataset.id),
-          score,
-          value('feedback'),
-          value('status') as 'graded' | 'returned',
-        );
-        await this.openGrading(this.assignment!.id);
-        this.options.notify('批改结果已保存。');
-      } else if (form.id === 'portal-submission-form') {
-        await this.api.submitAssignment(Number(form.dataset.id), Number(form.dataset.class), value('answer'));
-        await this.loadAssignments();
-        await this.options.changed();
-        this.options.notify('回答已提交，等待教师反馈。');
       } else if (form.id === 'portal-plan-form') {
         const plan = structuredClone(this.plan!);
         plan.items.forEach((item, index) => {
@@ -506,38 +481,13 @@ export class PortalWorkspace {
         else await this.api.reviewTeacher(Number(form.dataset.id), form.dataset.status!, value('note'));
         await this.loadAdministration();
         this.options.notify('审核结果已保存。');
-      } else if (form.classList.contains('portal-checkpoint-form')) {
-        const selected = data.getAll('answer').map(String);
-        if (!selected.length) throw new Error('请先填写你的回答。');
-        const payload: Record<string, unknown> = {
-          client_attempt_id: crypto.randomUUID(),
-          course_release_id: Number(form.dataset.release),
-        };
-        if (form.dataset.response === 'numeric') payload.numeric_answer = Number(value('answer'));
-        else if (form.dataset.response === 'short-text') payload.text_answer = value('answer');
-        else payload.selected_choice_ids = selected;
-        const result = await this.api.checkpoint(
-          Number(form.dataset.course),
-          Number(form.dataset.unit),
-          form.dataset.key!,
-          payload,
-        );
-        form.querySelector('output')!.textContent = result.is_correct
-          ? result.completed
-            ? this.options.demo
-              ? '演示回答正确，演示进度已更新。'
-              : '回答正确，服务端已认定完成。'
-            : '回答正确。'
-          : `还需要再想一想。${result.remaining_attempts === null ? '' : `剩余 ${result.remaining_attempts} 次机会。`}`;
-        this.formDirty = false;
-        await this.options.changed();
       }
     }, true);
   };
 
   private input = (event: Event): void => {
     const form = (event.target as Element).closest('form');
-    if (form?.classList.contains('portal-checkpoint-form') && this.options.role !== 'student') return;
+    if (form?.hasAttribute('data-flow-form')) return;
     if (form) this.formDirty = true;
   };
   private change = (event: Event): void => {

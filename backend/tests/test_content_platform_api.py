@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from app.core.config import get_settings
 from app.db.session import get_session_factory
-from app.api.endpoints import submissions as submission_endpoints
+from app.services import assignment_history
 from app.models import (
     Assignment,
     CheckpointAttempt,
@@ -774,7 +774,7 @@ def test_checkpoint_completion_is_server_graded_idempotent_and_release_bound(cli
     assert stale.json()["detail"]["code"] == "course_release_stale"
 
 
-def test_checkpoint_attempt_limit_and_target_mismatch_fail_closed(client):
+def test_checkpoint_attempt_limit_and_nontarget_grading_have_separate_completion(client):
     scope = _approved_course_scope(client, "checkpoint_limit")
     content = _content("限制次数并拒绝非目标检查点。")
     content["blocks"][3]["maxAttempts"] = 1
@@ -827,8 +827,9 @@ def test_checkpoint_attempt_limit_and_target_mismatch_fail_closed(client):
             "selected_choice_ids": ["a"],
         },
     )
-    assert mismatch.status_code == 422, mismatch.json()
-    assert mismatch.json()["detail"]["code"] == "checkpoint_completion_target_mismatch"
+    assert mismatch.status_code == 201, mismatch.json()
+    assert mismatch.json()["is_correct"] is True
+    assert mismatch.json()["completed"] is False
     first = client.post(
         f"{base}/energy-conservation-check/attempts",
         headers=_auth(scope["student"]["token"]),
@@ -899,12 +900,17 @@ def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempoten
         json={"expected_revision": final_saved.json()["revision"]},
     )
     assert published.status_code == 201, published.json()
+    opened = client.post(f"/api/v2/assignments/{assignment_id}/open", headers=_auth(scope["student"]["token"]), json={"client_request_id": "legacy-assignment-open"})
+    assert opened.status_code == 200, opened.text
     submission = client.post(
         f"/api/assignments/{assignment_id}/submissions",
         headers=_auth(scope["student"]["token"]),
         json={
             "class_id": scope["internal_class_id"],
             "content": {"report": "energy remains conserved"},
+            "context_key": opened.json()["context"]["context_key"],
+            "client_request_id": "legacy-assignment-submit",
+            "expected_submission_revision": 0,
         },
     )
     assert submission.status_code == 201, submission.json()
@@ -922,7 +928,7 @@ def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempoten
     )
     assert peer_course_submissions.status_code == 200, peer_course_submissions.json()
     assert [item["id"] for item in peer_course_submissions.json()] == [submission_id]
-    original_completion = submission_endpoints.append_assignment_review_completion
+    original_completion = assignment_history._completion_result
 
     def fail_completion(*_args, **_kwargs):
         raise CourseCompletionError(
@@ -932,14 +938,14 @@ def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempoten
         )
 
     monkeypatch.setattr(
-        submission_endpoints,
-        "append_assignment_review_completion",
+        assignment_history,
+        "_completion_result",
         fail_completion,
     )
     failed_grade = client.patch(
         f"/api/submissions/{submission_id}/grade",
         headers=_auth(scope["peer"]["token"]),
-        json={"score": 17, "feedback": "must roll back", "status": "graded"},
+        json={"score": 17, "feedback": "must roll back", "status": "graded", "client_request_id": "rollback-grade", "expected_submission_revision": 1, "expected_grade_revision": 0},
     )
     assert failed_grade.status_code == 409, failed_grade.json()
     assert failed_grade.json()["detail"]["code"] == "forced_completion_failure"
@@ -955,20 +961,20 @@ def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempoten
             )
         ) == 0
     monkeypatch.setattr(
-        submission_endpoints,
-        "append_assignment_review_completion",
+        assignment_history,
+        "_completion_result",
         original_completion,
     )
     grade = client.patch(
         f"/api/submissions/{submission_id}/grade",
         headers=_auth(scope["peer"]["token"]),
-        json={"score": 18, "feedback": "已完成", "status": "graded"},
+        json={"score": 18, "feedback": "已完成", "status": "graded", "client_request_id": "completed-grade", "expected_submission_revision": 1, "expected_grade_revision": 0},
     )
     assert grade.status_code == 200, grade.json()
     regrade = client.patch(
         f"/api/submissions/{submission_id}/grade",
         headers=_auth(scope["owner"]["token"]),
-        json={"score": 19, "feedback": "复核完成", "status": "returned"},
+        json={"score": 19, "feedback": "复核完成", "status": "returned", "client_request_id": "returned-grade", "expected_submission_revision": 2, "expected_grade_revision": 1},
     )
     assert regrade.status_code == 200, regrade.json()
 
@@ -981,7 +987,8 @@ def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempoten
                 )
             ).all()
         )
-        assert len(trusted) == 1
+        assert len(trusted) == 2
+        assert {event.evidence_json["review_status"] for event in trusted} == {"graded", "returned"}
         assert trusted[0].evidence_json["submission_id"] == submission_id
         projection = db.scalar(
             select(LearningActivityProjection).where(
