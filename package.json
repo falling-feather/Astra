@@ -4,10 +4,10 @@
   "private": true,
   "description": "Reproducible Node.js quality gates and browser proof tooling for Astra.",
   "engines": {
-    "node": "22.20.0",
-    "npm": "10.9.3"
+    "node": "24.20.0",
+    "npm": "11.19.0"
   },
-  "packageManager": "npm@10.9.3",
+  "packageManager": "npm@11.19.0",
   "scripts": {
     "check:syntax": "node tools/quality/check-tracked-javascript.cjs",
     "test:contracts": "node tools/tests/run-contracts.cjs",

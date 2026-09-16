@@ -30,7 +30,7 @@
 powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
 ```
 
-先核对 [运行环境约束](doc/04-部署指南.md#1-运行方式与环境)，包括仓库 Node 锁定与最新 Windows 递归复制要求的待对齐项，并准备 Python 3.12+。脚本创建仓库内忽略的 `.venv`、按 `backend/requirements.lock` 安装哈希锁依赖、构建正式前端、执行 Alembic 迁移，并把前端与 API 同源启动在 `http://127.0.0.1:9001/`。数据默认保存在 `%LOCALAPPDATA%\Astra\local-preview`；再次执行会识别已经运行的星序站点，停止使用 `Ctrl+C`。
+先核对 [运行环境约束](doc/04-部署指南.md#1-运行方式与环境)，使用仓库锁定的 Node/npm，并准备 Python 3.12+。脚本创建仓库内忽略的 `.venv`、按 `backend/requirements.lock` 安装哈希锁依赖、构建正式前端、执行 Alembic 迁移，并把前端与 API 同源启动在 `http://127.0.0.1:9001/`。数据默认保存在 `%LOCALAPPDATA%\Astra\local-preview`；再次执行会识别已经运行的星序站点，停止使用 `Ctrl+C`。
 
 需要保持仓库内不产生 `.venv` 时，可把托管虚拟环境显式放到仓库外；路径允许 Unicode 和空格，但规范化后不得等于仓库根目录或位于其子目录：
 
