@@ -4,10 +4,12 @@ import activities from 'virtual:astra-catalog';
 import { createSchoolDemo } from './school-demo';
 import { presentCourse } from './course-presentation';
 import { ApiError } from './http-client';
+import { createResourceDemo } from './resource-demo';
+import type { TemplateSeed } from '../portal/resource-types';
 
 const SESSION_KEY = 'astra.qianduan.demo-session';
 
-export function createDemoGateway(): LearningGateway {
+export function createDemoGateway(templates: TemplateSeed[] = []): LearningGateway {
   let session: Session | null = null;
   const noteStore = new Map<Role, Note[]>();
   try {
@@ -56,6 +58,7 @@ export function createDemoGateway(): LearningGateway {
   };
   return {
     mode: 'demo',
+    resources: createResourceDemo(() => session?.role || 'student', activities, templates),
     school,
     async getSession() {
       return session ? { ...session } : null;

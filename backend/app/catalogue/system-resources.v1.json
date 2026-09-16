@@ -1,0 +1,896 @@
+{
+  "schema_version": "astra-system-resource-seed-v1",
+  "source_revision": "f699d4a",
+  "runtime_mode": "legacy-compatibility",
+  "resources": [
+    {
+      "key": "mathematics.function-graph",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "函数图像",
+      "entry": "labs/index.html#mathematics/function-graph"
+    },
+    {
+      "key": "mathematics.calculus",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "微积分",
+      "entry": "labs/index.html#mathematics/calculus"
+    },
+    {
+      "key": "mathematics.geometry",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "几何变换",
+      "entry": "labs/index.html#mathematics/geometry"
+    },
+    {
+      "key": "mathematics.complex",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "复数运算",
+      "entry": "labs/index.html#mathematics/complex"
+    },
+    {
+      "key": "mathematics.trigonometry",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "三角函数",
+      "entry": "labs/index.html#mathematics/trigonometry"
+    },
+    {
+      "key": "mathematics.set-operations",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "集合运算",
+      "entry": "labs/index.html#mathematics/set-operations"
+    },
+    {
+      "key": "mathematics.probability",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "概率统计",
+      "entry": "labs/index.html#mathematics/probability"
+    },
+    {
+      "key": "mathematics.vector-ops",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "向量运算",
+      "entry": "labs/index.html#mathematics/vector-ops"
+    },
+    {
+      "key": "mathematics.inequality",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "不等式",
+      "entry": "labs/index.html#mathematics/inequality"
+    },
+    {
+      "key": "mathematics.conic-sections",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "圆锥曲线",
+      "entry": "labs/index.html#mathematics/conic-sections"
+    },
+    {
+      "key": "mathematics.solid-geometry",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "立体几何",
+      "entry": "labs/index.html#mathematics/solid-geometry"
+    },
+    {
+      "key": "mathematics.permutation-combination",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "排列组合",
+      "entry": "labs/index.html#mathematics/permutation-combination"
+    },
+    {
+      "key": "mathematics.sequences",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "数列可视化",
+      "entry": "labs/index.html#mathematics/sequences"
+    },
+    {
+      "key": "mathematics.function-properties",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "函数性质探究",
+      "entry": "labs/index.html#mathematics/function-properties"
+    },
+    {
+      "key": "mathematics.exp-log",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "指数与对数",
+      "entry": "labs/index.html#mathematics/exp-log"
+    },
+    {
+      "key": "mathematics.binomial-theorem",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "二项式定理",
+      "entry": "labs/index.html#mathematics/binomial-theorem"
+    },
+    {
+      "key": "mathematics.statistics-regression",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "统计与回归",
+      "entry": "labs/index.html#mathematics/statistics-regression"
+    },
+    {
+      "key": "mathematics.modeling-numerical",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "建模与数值方法",
+      "entry": "labs/index.html#mathematics/modeling-numerical"
+    },
+    {
+      "key": "mathematics.spatial-vector",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "空间向量",
+      "entry": "labs/index.html#mathematics/spatial-vector"
+    },
+    {
+      "key": "mathematics.derivative-application",
+      "space": "englab",
+      "subject": "mathematics",
+      "title": "导数应用",
+      "entry": "labs/index.html#mathematics/derivative-application"
+    },
+    {
+      "key": "physics.mechanics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "恢复系数与反弹高度",
+      "entry": "labs/index.html#physics/mechanics"
+    },
+    {
+      "key": "physics.double-pendulum-chaos",
+      "space": "englab",
+      "subject": "physics",
+      "title": "双摆混沌：初值差的放大",
+      "entry": "labs/index.html#physics/double-pendulum-chaos"
+    },
+    {
+      "key": "physics.gas-laws",
+      "space": "englab",
+      "subject": "physics",
+      "title": "气体实验定律",
+      "entry": "labs/index.html#physics/gas-laws"
+    },
+    {
+      "key": "physics.thermodynamics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "热力学基础",
+      "entry": "labs/index.html#physics/thermodynamics"
+    },
+    {
+      "key": "physics.electromagnetism",
+      "space": "englab",
+      "subject": "physics",
+      "title": "电磁场",
+      "entry": "labs/index.html#physics/electromagnetism"
+    },
+    {
+      "key": "physics.waves",
+      "space": "englab",
+      "subject": "physics",
+      "title": "波动演示",
+      "entry": "labs/index.html#physics/waves"
+    },
+    {
+      "key": "physics.relativity",
+      "space": "englab",
+      "subject": "physics",
+      "title": "相对论",
+      "entry": "labs/index.html#physics/relativity"
+    },
+    {
+      "key": "physics.kinematics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "匀变速运动",
+      "entry": "labs/index.html#physics/kinematics"
+    },
+    {
+      "key": "physics.projectile",
+      "space": "englab",
+      "subject": "physics",
+      "title": "抛体运动",
+      "entry": "labs/index.html#physics/projectile"
+    },
+    {
+      "key": "physics.circular-motion",
+      "space": "englab",
+      "subject": "physics",
+      "title": "圆周运动",
+      "entry": "labs/index.html#physics/circular-motion"
+    },
+    {
+      "key": "physics.energy-conservation",
+      "space": "englab",
+      "subject": "physics",
+      "title": "机械能守恒",
+      "entry": "labs/index.html#physics/energy-conservation"
+    },
+    {
+      "key": "physics.circuit-analysis",
+      "space": "englab",
+      "subject": "physics",
+      "title": "电路分析",
+      "entry": "labs/index.html#physics/circuit-analysis"
+    },
+    {
+      "key": "physics.em-induction",
+      "space": "englab",
+      "subject": "physics",
+      "title": "电磁感应",
+      "entry": "labs/index.html#physics/em-induction"
+    },
+    {
+      "key": "physics.alternating-current",
+      "space": "englab",
+      "subject": "physics",
+      "title": "交变电流",
+      "entry": "labs/index.html#physics/alternating-current"
+    },
+    {
+      "key": "physics.fluid-dynamics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "流体力学",
+      "entry": "labs/index.html#physics/fluid-dynamics"
+    },
+    {
+      "key": "physics.optics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "光学",
+      "entry": "labs/index.html#physics/optics"
+    },
+    {
+      "key": "physics.gravitation",
+      "space": "englab",
+      "subject": "physics",
+      "title": "万有引力",
+      "entry": "labs/index.html#physics/gravitation"
+    },
+    {
+      "key": "physics.force-composition",
+      "space": "englab",
+      "subject": "physics",
+      "title": "力的合成与分解",
+      "entry": "labs/index.html#physics/force-composition"
+    },
+    {
+      "key": "physics.momentum-conservation",
+      "space": "englab",
+      "subject": "physics",
+      "title": "动量守恒",
+      "entry": "labs/index.html#physics/momentum-conservation"
+    },
+    {
+      "key": "physics.charged-particle",
+      "space": "englab",
+      "subject": "physics",
+      "title": "带电粒子运动",
+      "entry": "labs/index.html#physics/charged-particle"
+    },
+    {
+      "key": "physics.atomic-physics",
+      "space": "englab",
+      "subject": "physics",
+      "title": "原子物理",
+      "entry": "labs/index.html#physics/atomic-physics"
+    },
+    {
+      "key": "chemistry.chromatography-separation",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "色谱分离：色带与峰同步",
+      "entry": "labs/index.html#chemistry/chromatography-separation"
+    },
+    {
+      "key": "chemistry.periodic-table",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "元素周期表",
+      "entry": "labs/index.html#chemistry/periodic-table"
+    },
+    {
+      "key": "chemistry.molecular-structure",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "分子结构",
+      "entry": "labs/index.html#chemistry/molecular-structure"
+    },
+    {
+      "key": "chemistry.hybrid-orbitals",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "杂化轨道理论",
+      "entry": "labs/index.html#chemistry/hybrid-orbitals"
+    },
+    {
+      "key": "chemistry.crystal-structures",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "晶体结构",
+      "entry": "labs/index.html#chemistry/crystal-structures"
+    },
+    {
+      "key": "chemistry.reactions",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "化学反应",
+      "entry": "labs/index.html#chemistry/reactions"
+    },
+    {
+      "key": "chemistry.chemical-equilibrium",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "化学平衡",
+      "entry": "labs/index.html#chemistry/chemical-equilibrium"
+    },
+    {
+      "key": "chemistry.electrochemistry",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "电化学",
+      "entry": "labs/index.html#chemistry/electrochemistry"
+    },
+    {
+      "key": "chemistry.chemical-bond",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "化学键",
+      "entry": "labs/index.html#chemistry/chemical-bond"
+    },
+    {
+      "key": "chemistry.organic-chemistry",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "有机化学",
+      "entry": "labs/index.html#chemistry/organic-chemistry"
+    },
+    {
+      "key": "chemistry.reaction-rate",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "反应速率",
+      "entry": "labs/index.html#chemistry/reaction-rate"
+    },
+    {
+      "key": "chemistry.solution-ionization",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "溶液与电离",
+      "entry": "labs/index.html#chemistry/solution-ionization"
+    },
+    {
+      "key": "chemistry.ionic-reaction",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "离子反应",
+      "entry": "labs/index.html#chemistry/ionic-reaction"
+    },
+    {
+      "key": "chemistry.redox",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "氧化还原",
+      "entry": "labs/index.html#chemistry/redox"
+    },
+    {
+      "key": "chemistry.atomic-structure",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "原子结构与电子排布",
+      "entry": "labs/index.html#chemistry/atomic-structure"
+    },
+    {
+      "key": "chemistry.element-compounds",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "元素化合物",
+      "entry": "labs/index.html#chemistry/element-compounds"
+    },
+    {
+      "key": "chemistry.intermolecular-forces",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "分子间力与氢键",
+      "entry": "labs/index.html#chemistry/intermolecular-forces"
+    },
+    {
+      "key": "chemistry.experiments",
+      "space": "englab",
+      "subject": "chemistry",
+      "title": "虚拟实验",
+      "entry": "labs/index.html#chemistry/experiments"
+    },
+    {
+      "key": "algorithms.sorting",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "排序算法",
+      "entry": "labs/index.html#algorithms/sorting"
+    },
+    {
+      "key": "algorithms.searching",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "搜索算法",
+      "entry": "labs/index.html#algorithms/searching"
+    },
+    {
+      "key": "algorithms.hash-tables",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "哈希表",
+      "entry": "labs/index.html#algorithms/hash-tables"
+    },
+    {
+      "key": "algorithms.bst-avl",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "二叉搜索树",
+      "entry": "labs/index.html#algorithms/bst-avl"
+    },
+    {
+      "key": "algorithms.graph",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "图算法",
+      "entry": "labs/index.html#algorithms/graph"
+    },
+    {
+      "key": "algorithms.mst-compare",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "最小生成树对比",
+      "entry": "labs/index.html#algorithms/mst-compare"
+    },
+    {
+      "key": "algorithms.greedy-scheduling",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "贪心算法",
+      "entry": "labs/index.html#algorithms/greedy-scheduling"
+    },
+    {
+      "key": "algorithms.data-structures",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "数据结构",
+      "entry": "labs/index.html#algorithms/data-structures"
+    },
+    {
+      "key": "algorithms.sorting-compare",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "排序对比",
+      "entry": "labs/index.html#algorithms/sorting-compare"
+    },
+    {
+      "key": "algorithms.recursion-vis",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "递归可视化",
+      "entry": "labs/index.html#algorithms/recursion-vis"
+    },
+    {
+      "key": "algorithms.dynamic-programming",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "动态规划",
+      "entry": "labs/index.html#algorithms/dynamic-programming"
+    },
+    {
+      "key": "algorithms.string-matching",
+      "space": "englab",
+      "subject": "algorithms",
+      "title": "字符串匹配",
+      "entry": "labs/index.html#algorithms/string-matching"
+    },
+    {
+      "key": "biology.cell-structure",
+      "space": "englab",
+      "subject": "biology",
+      "title": "细胞结构",
+      "entry": "labs/index.html#biology/cell-structure"
+    },
+    {
+      "key": "biology.dna",
+      "space": "englab",
+      "subject": "biology",
+      "title": "DNA结构",
+      "entry": "labs/index.html#biology/dna"
+    },
+    {
+      "key": "biology.photosynthesis",
+      "space": "englab",
+      "subject": "biology",
+      "title": "光合作用",
+      "entry": "labs/index.html#biology/photosynthesis"
+    },
+    {
+      "key": "biology.enzyme-properties",
+      "space": "englab",
+      "subject": "biology",
+      "title": "酶的特性",
+      "entry": "labs/index.html#biology/enzyme-properties"
+    },
+    {
+      "key": "biology.homeostasis",
+      "space": "englab",
+      "subject": "biology",
+      "title": "内环境稳态",
+      "entry": "labs/index.html#biology/homeostasis"
+    },
+    {
+      "key": "biology.humoral-regulation",
+      "space": "englab",
+      "subject": "biology",
+      "title": "体液调节",
+      "entry": "labs/index.html#biology/humoral-regulation"
+    },
+    {
+      "key": "biology.genetics",
+      "space": "englab",
+      "subject": "biology",
+      "title": "遗传学",
+      "entry": "labs/index.html#biology/genetics"
+    },
+    {
+      "key": "biology.mitosis",
+      "space": "englab",
+      "subject": "biology",
+      "title": "有丝分裂",
+      "entry": "labs/index.html#biology/mitosis"
+    },
+    {
+      "key": "biology.neural-regulation",
+      "space": "englab",
+      "subject": "biology",
+      "title": "神经调节",
+      "entry": "labs/index.html#biology/neural-regulation"
+    },
+    {
+      "key": "biology.immune-system",
+      "space": "englab",
+      "subject": "biology",
+      "title": "免疫系统",
+      "entry": "labs/index.html#biology/immune-system"
+    },
+    {
+      "key": "biology.population-community",
+      "space": "englab",
+      "subject": "biology",
+      "title": "种群与群落",
+      "entry": "labs/index.html#biology/population-community"
+    },
+    {
+      "key": "biology.material-cycles",
+      "space": "englab",
+      "subject": "biology",
+      "title": "生态系统物质循环",
+      "entry": "labs/index.html#biology/material-cycles"
+    },
+    {
+      "key": "biology.ecosystem",
+      "space": "englab",
+      "subject": "biology",
+      "title": "生态系统",
+      "entry": "labs/index.html#biology/ecosystem"
+    },
+    {
+      "key": "biology.meiosis",
+      "space": "englab",
+      "subject": "biology",
+      "title": "减数分裂",
+      "entry": "labs/index.html#biology/meiosis"
+    },
+    {
+      "key": "biology.gene-expression",
+      "space": "englab",
+      "subject": "biology",
+      "title": "基因表达",
+      "entry": "labs/index.html#biology/gene-expression"
+    },
+    {
+      "key": "biology.gene-engineering",
+      "space": "englab",
+      "subject": "biology",
+      "title": "基因工程",
+      "entry": "labs/index.html#biology/gene-engineering"
+    },
+    {
+      "key": "biology.cellular-respiration",
+      "space": "englab",
+      "subject": "biology",
+      "title": "细胞呼吸",
+      "entry": "labs/index.html#biology/cellular-respiration"
+    },
+    {
+      "key": "biology.substance-transport",
+      "space": "englab",
+      "subject": "biology",
+      "title": "物质运输",
+      "entry": "labs/index.html#biology/substance-transport"
+    },
+    {
+      "key": "biology.gene-mutation",
+      "space": "englab",
+      "subject": "biology",
+      "title": "基因突变",
+      "entry": "labs/index.html#biology/gene-mutation"
+    },
+    {
+      "key": "program-start.first-output",
+      "space": "code-space",
+      "subject": "program-start",
+      "title": "第一条输出",
+      "entry": "labs/codevis/#challenge?activity=program-start.first-output"
+    },
+    {
+      "key": "program-start.variable-box",
+      "space": "code-space",
+      "subject": "program-start",
+      "title": "变量的盒子",
+      "entry": "labs/codevis/#challenge?activity=program-start.variable-box"
+    },
+    {
+      "key": "program-start.input-response",
+      "space": "code-space",
+      "subject": "program-start",
+      "title": "输入与回应",
+      "entry": "labs/codevis/#challenge?activity=program-start.input-response"
+    },
+    {
+      "key": "control-flow.branch-doors",
+      "space": "code-space",
+      "subject": "control-flow",
+      "title": "条件分支",
+      "entry": "labs/codevis/#challenge?activity=control-flow.branch-doors"
+    },
+    {
+      "key": "control-flow.loop-boundary",
+      "space": "code-space",
+      "subject": "control-flow",
+      "title": "循环与边界",
+      "entry": "labs/codevis/#challenge?activity=control-flow.loop-boundary"
+    },
+    {
+      "key": "control-flow.nested-grid",
+      "space": "code-space",
+      "subject": "control-flow",
+      "title": "嵌套循环",
+      "entry": "labs/codevis/#challenge?activity=control-flow.nested-grid"
+    },
+    {
+      "key": "data-functions.list-snapshot",
+      "space": "code-space",
+      "subject": "data-functions",
+      "title": "列表快照",
+      "entry": "labs/codevis/#challenge?activity=data-functions.list-snapshot"
+    },
+    {
+      "key": "data-functions.parameter-return",
+      "space": "code-space",
+      "subject": "data-functions",
+      "title": "参数与返回",
+      "entry": "labs/codevis/#challenge?activity=data-functions.parameter-return"
+    },
+    {
+      "key": "data-functions.array-scan",
+      "space": "code-space",
+      "subject": "data-functions",
+      "title": "数组扫描",
+      "entry": "labs/codevis/#challenge?activity=data-functions.array-scan"
+    },
+    {
+      "key": "algorithm-thinking.linear-search",
+      "space": "code-space",
+      "subject": "algorithm-thinking",
+      "title": "线性查找",
+      "entry": "labs/codevis/#challenge?activity=algorithm-thinking.linear-search"
+    },
+    {
+      "key": "algorithm-thinking.bubble-pass",
+      "space": "code-space",
+      "subject": "algorithm-thinking",
+      "title": "冒泡的一趟",
+      "entry": "labs/codevis/#challenge?activity=algorithm-thinking.bubble-pass"
+    },
+    {
+      "key": "algorithm-thinking.binary-choice",
+      "space": "code-space",
+      "subject": "algorithm-thinking",
+      "title": "二分选择",
+      "entry": "labs/codevis/#challenge?activity=algorithm-thinking.binary-choice"
+    },
+    {
+      "key": "debugging-testing.assert-boundary",
+      "space": "code-space",
+      "subject": "debugging-testing",
+      "title": "边界断言",
+      "entry": "labs/codevis/#challenge?activity=debugging-testing.assert-boundary"
+    },
+    {
+      "key": "debugging-testing.trace-mismatch",
+      "space": "code-space",
+      "subject": "debugging-testing",
+      "title": "轨迹不一致",
+      "entry": "labs/codevis/#challenge?activity=debugging-testing.trace-mismatch"
+    },
+    {
+      "key": "debugging-testing.minimal-case",
+      "space": "code-space",
+      "subject": "debugging-testing",
+      "title": "最小反例",
+      "entry": "labs/codevis/#challenge?activity=debugging-testing.minimal-case"
+    },
+    {
+      "key": "challenge-submission.multi-language-counter",
+      "space": "code-space",
+      "subject": "challenge-submission",
+      "title": "多语言计数器",
+      "entry": "labs/codevis/#challenge?activity=challenge-submission.multi-language-counter"
+    },
+    {
+      "key": "challenge-submission.public-sample",
+      "space": "code-space",
+      "subject": "challenge-submission",
+      "title": "公开样例预检",
+      "entry": "labs/codevis/#challenge?activity=challenge-submission.public-sample"
+    },
+    {
+      "key": "challenge-submission.submission-record",
+      "space": "code-space",
+      "subject": "challenge-submission",
+      "title": "提交记录",
+      "entry": "labs/codevis/#challenge?activity=challenge-submission.submission-record"
+    },
+    {
+      "key": "cosmos.day-season",
+      "space": "future-galaxy",
+      "subject": "earth-space",
+      "title": "昼夜与季节",
+      "entry": "labs/index.html#cosmos/day-season"
+    },
+    {
+      "key": "cosmos.orbital-scale",
+      "space": "future-galaxy",
+      "subject": "earth-space",
+      "title": "轨道与尺度",
+      "entry": "labs/index.html#cosmos/orbital-scale"
+    },
+    {
+      "key": "cosmos.evidence-log",
+      "space": "future-galaxy",
+      "subject": "earth-space",
+      "title": "证据记录",
+      "entry": "labs/index.html#cosmos/evidence-log"
+    },
+    {
+      "key": "engineering.load-path",
+      "space": "future-galaxy",
+      "subject": "engineering-systems",
+      "title": "受力路径",
+      "entry": "labs/index.html#engineering/load-path"
+    },
+    {
+      "key": "engineering.member-choice",
+      "space": "future-galaxy",
+      "subject": "engineering-systems",
+      "title": "构件选择",
+      "entry": "labs/index.html#engineering/member-choice"
+    },
+    {
+      "key": "engineering.safety-check",
+      "space": "future-galaxy",
+      "subject": "engineering-systems",
+      "title": "安全校核",
+      "entry": "labs/index.html#engineering/safety-check"
+    },
+    {
+      "key": "engineering.robot-arm-ik",
+      "space": "future-galaxy",
+      "subject": "engineering-systems",
+      "title": "机械臂逆运动学",
+      "entry": "labs/index.html#engineering/robot-arm-ik"
+    },
+    {
+      "key": "datascience.model-fit",
+      "space": "future-galaxy",
+      "subject": "data-ai",
+      "title": "模型拟合",
+      "entry": "labs/index.html#datascience/model-fit"
+    },
+    {
+      "key": "datascience.outlier-test",
+      "space": "future-galaxy",
+      "subject": "data-ai",
+      "title": "离群点检验",
+      "entry": "labs/index.html#datascience/outlier-test"
+    },
+    {
+      "key": "datascience.evidence-claim",
+      "space": "future-galaxy",
+      "subject": "data-ai",
+      "title": "证据与主张",
+      "entry": "labs/index.html#datascience/evidence-claim"
+    },
+    {
+      "key": "infotech.packet-route",
+      "space": "future-galaxy",
+      "subject": "information-technology",
+      "title": "分组路由",
+      "entry": "labs/index.html#infotech/packet-route"
+    },
+    {
+      "key": "infotech.layer-contract",
+      "space": "future-galaxy",
+      "subject": "information-technology",
+      "title": "分层约定",
+      "entry": "labs/index.html#infotech/layer-contract"
+    },
+    {
+      "key": "infotech.fault-trace",
+      "space": "future-galaxy",
+      "subject": "information-technology",
+      "title": "故障追踪",
+      "entry": "labs/index.html#infotech/fault-trace"
+    },
+    {
+      "key": "materials.grain-boundary",
+      "space": "future-galaxy",
+      "subject": "materials-science",
+      "title": "晶粒边界",
+      "entry": "labs/index.html#materials/grain-boundary"
+    },
+    {
+      "key": "materials.defect-path",
+      "space": "future-galaxy",
+      "subject": "materials-science",
+      "title": "缺陷路径",
+      "entry": "labs/index.html#materials/defect-path"
+    },
+    {
+      "key": "materials.process-window",
+      "space": "future-galaxy",
+      "subject": "materials-science",
+      "title": "工艺窗口",
+      "entry": "labs/index.html#materials/process-window"
+    },
+    {
+      "key": "humanities.context-map",
+      "space": "future-galaxy",
+      "subject": "humanities-futures",
+      "title": "语境地图",
+      "entry": "labs/index.html#humanities/context-map"
+    },
+    {
+      "key": "humanities.voice-shift",
+      "space": "future-galaxy",
+      "subject": "humanities-futures",
+      "title": "视角切换",
+      "entry": "labs/index.html#humanities/voice-shift"
+    },
+    {
+      "key": "humanities.claim-review",
+      "space": "future-galaxy",
+      "subject": "humanities-futures",
+      "title": "主张审阅",
+      "entry": "labs/index.html#humanities/claim-review"
+    }
+  ]
+}

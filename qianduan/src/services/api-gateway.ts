@@ -3,6 +3,7 @@ import type { Course, LearningGateway, LearningTask, Note, Session } from '../do
 import type { Role, Workbench } from '../portal/contracts';
 import { HttpClient, ApiError } from './http-client';
 import { createSchoolApi } from './school-api';
+import { createResourceApi } from './resource-api';
 import { presentCourse } from './course-presentation';
 
 interface UserDto {
@@ -44,6 +45,7 @@ export function createApiGateway(base = '/api'): LearningGateway {
   return {
     mode: 'api',
     school,
+    resources: createResourceApi(client),
     async getSession() {
       try {
         session = sessionView(await client.request<UserDto>('/users/me'));

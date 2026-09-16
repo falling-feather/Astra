@@ -1,0 +1,14 @@
+{
+  "schema_version": "astra-learning-spaces-v1",
+  "spaces": [
+    { "key": "englab", "view": "lab", "title": "工科实验室", "entry": "labs/index.html#home", "kind": "legacy", "accent": "#78ccdb" },
+    { "key": "code-space", "view": "code", "title": "代码空间", "entry": "labs/codevis/index.html", "kind": "legacy", "accent": "#82d5ba" },
+    { "key": "future-galaxy", "view": "future", "title": "未来星系", "entry": "labs/index.html#frontier", "kind": "legacy", "accent": "#b7a6e2" }
+  ],
+  "levels": [
+    { "key": "introductory", "title": "启发入门" },
+    { "key": "foundation", "title": "基础理解" },
+    { "key": "applied", "title": "应用探究" },
+    { "key": "advanced", "title": "进阶拓展" }
+  ]
+}

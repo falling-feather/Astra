@@ -1,7 +1,10 @@
 import './styles.css';
 import './portal/styles.css';
 import activities from 'virtual:astra-catalog';
+import templateSeeds from 'virtual:astra-templates';
+import { learningSpaces, spaceForView } from './domain/learning-spaces';
 import { PortalWorkspace } from './portal/workspace';
+import { ResourceStudio } from './portal/resource-studio';
 import { createApiGateway } from './services/api-gateway';
 import { API_BASE, DEMO_MODE, frontendAsset } from './services/environment';
 import type { Discovery, Role } from './portal/contracts';
@@ -27,9 +30,8 @@ const validViews = new Set<View>([
   'notes',
   'account',
   'manage',
-  'lab',
-  'code',
-  'future',
+  ...learningSpaces.map((space) => space.view),
+  'resources',
   'assignments',
   'teaching',
   'course',
@@ -58,6 +60,7 @@ class AstraApp {
   private lastFocus: HTMLElement | null = null;
   private inspectorId = '';
   private portal?: PortalWorkspace;
+  private resourceStudio?: ResourceStudio;
   private registering = false;
   private noteOriginal: Note | null = null;
   private noteBusy = false;
@@ -207,6 +210,8 @@ class AstraApp {
       previousWorkspace?.dataset.workspaceView === this.state.view ? previousWorkspace.scrollTop : 0;
     this.portal?.destroy();
     this.portal = undefined;
+    this.resourceStudio?.destroy();
+    this.resourceStudio = undefined;
     this.renderer.attachOrbit(null);
     document.body.dataset.phase = this.state.phase;
     document.body.dataset.view = this.state.view;
@@ -241,13 +246,11 @@ class AstraApp {
         case 'account':
           content = account(this.state);
           break;
+        case 'resources':
+          break;
         default: {
-          const destinations = {
-            lab: ['工科实验室', 'labs/index.html#home'],
-            code: ['代码空间', 'labs/codevis/index.html'],
-            future: ['未来星系', 'labs/index.html#frontier'],
-          } as const;
-          const entry = destinations[this.state.view as keyof typeof destinations];
+          const space = spaceForView(this.state.view);
+          const entry = space ? [space.title, space.entry] : undefined;
           content = entry
             ? `<div class="laboratory-view"><header class="portal-heading"><h1>${entry[0]}</h1><a class="quiet-button" href="${e(frontendAsset(entry[1]))}" target="_blank" rel="noopener">独立窗口打开 ${icon('arrow')}</a></header><iframe class="portal-experiment-frame" title="${entry[0]}" src="${e(frontendAsset(entry[1]))}" allow="fullscreen"></iframe></div>`
             : '';
@@ -264,7 +267,10 @@ class AstraApp {
       this.renderer.select(this.state.selectedCourse, true);
       this.inspectorId = this.state.selectedCourse;
     }
-    if (usePortal) {
+    if (this.state.view === 'resources') {
+      this.resourceStudio = new ResourceStudio(workspace, this.gateway.resources, role);
+      this.resourceStudio.mount();
+    } else if (usePortal) {
       this.portal = new PortalWorkspace(workspace, this.gateway.school, {
         role,
         userId: Number(this.state.session?.userId),
@@ -567,7 +573,7 @@ class AstraApp {
   }
 
   private click = (event: MouseEvent): void => {
-    if ((event.target as Element).closest('[data-portal]')) return;
+    if ((event.target as Element).closest('[data-portal], [data-resource]')) return;
     const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href^="#/"]');
     if (anchor) {
       event.preventDefault();
@@ -749,7 +755,7 @@ class AstraApp {
 
   private submit = (event: SubmitEvent): void => {
     const form = event.target as HTMLFormElement;
-    if (form.id.startsWith('portal-') || form.className.includes('portal-')) return;
+    if (form.id.startsWith('portal-') || form.className.includes('portal-') || form.matches('[data-resource-config], [data-resource-filter]')) return;
     event.preventDefault();
     if (!form.reportValidity()) return;
     if (form.id === 'login-form') void this.authenticate(false, form);
@@ -856,12 +862,14 @@ class AstraApp {
     this.abort.abort();
     this.portal?.destroy();
     this.portal = undefined;
+    this.resourceStudio?.destroy();
+    this.resourceStudio = undefined;
     this.renderer.dispose();
     this.root.replaceChildren();
   }
 }
 
-const app = new AstraApp(DEMO_MODE ? createDemoGateway() : createApiGateway(API_BASE));
+const app = new AstraApp(DEMO_MODE ? createDemoGateway(templateSeeds) : createApiGateway(API_BASE));
 const reloadRestoredPage = (event: PageTransitionEvent) => {
   if (event.persisted) location.reload();
 };

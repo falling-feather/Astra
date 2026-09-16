@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { loadLearningSpaces } from './learning-spaces.mjs';
+import { loadCatalog } from './catalog.mjs';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const extensions = new Set([
@@ -61,6 +63,20 @@ export async function packageResources(demo = false) {
       },
     });
   }
+  for (const space of loadLearningSpaces(project).spaces.filter((item) => item.kind === 'bundle')) {
+    const source = path.join(project, 'extensions', space.key, 'public');
+    await fs.access(path.join(source, 'index.html'));
+    await fs.cp(source, path.join(labs, 'spaces', space.key), {
+      recursive: true,
+      filter: async (filename) => {
+        const stat = await fs.lstat(filename);
+        if (stat.isSymbolicLink()) throw new Error('Imported public bundles cannot contain symlinks.');
+        const relative = path.relative(source, filename).split(path.sep);
+        if (relative.some((part) => part.startsWith('.') || ['node_modules', 'tests', 'src'].includes(part))) return false;
+        return stat.isDirectory() || extensions.has(path.extname(filename).toLowerCase()) || /^(LICENSE(?:\.md)?|THIRD_PARTY_NOTICES\.md)$/.test(path.basename(filename));
+      },
+    });
+  }
   const publicMarker = '<meta name="astra-resource-explorer" content="public">';
   let entry = await fs.readFile(path.join(project, 'index.html'), 'utf8');
   entry = entry.replace(
@@ -97,10 +113,10 @@ export async function packageResources(demo = false) {
         mode: demo ? 'demo' : 'api',
         source_commit: git(['rev-parse', 'HEAD']),
         source_dirty: Boolean(
-          git(['status', '--porcelain', '--', 'qianduan', 'shared', 'pages', 'codevis', 'UI']),
+          git(['status', '--porcelain', '--', 'qianduan', 'shared', 'pages', 'codevis', 'UI', 'backend/app/catalogue', 'extensions']),
         ),
         base_path: asset?.[1] || '/',
-        activity_count: 127,
+        activity_count: loadCatalog(project).length,
       },
       null,
       2,

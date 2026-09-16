@@ -1,0 +1,17 @@
+{
+  "valid": [
+    { "formula": "a*x^2+b", "variables": { "x": 3, "a": 2, "b": -1 }, "expected": 17 },
+    { "formula": "-x^2", "variables": { "x": 3 }, "expected": -9 },
+    { "formula": "(-x)^2", "variables": { "x": 3 }, "expected": 9 },
+    { "formula": "2^3^2", "variables": {}, "expected": 512 },
+    { "formula": "sin(pi/2)+cos(0)", "variables": {}, "expected": 2 },
+    { "formula": "sqrt(4)+log(e)", "variables": {}, "expected": 3 },
+    { "formula": "2e-2*x", "variables": { "x": 50 }, "expected": 1 },
+    { "formula": "x^-2", "variables": { "x": 2 }, "expected": 0.25 },
+    { "formula": "1/x", "variables": { "x": 0 }, "expected": null },
+    { "formula": "sqrt(x)", "variables": { "x": -1 }, "expected": null },
+    { "formula": "2^13", "variables": {}, "expected": null },
+    { "formula": "exp(100)", "variables": {}, "expected": null }
+  ],
+  "invalid": ["x.__class__", "__import__('os')", "window.alert(1)", "x[0]", "unknown+x", "2x", "sin(x", "x;1", "1e999", "x +", "((((((((((((((((((((((((x))))))))))))))))))))))))"]
+}

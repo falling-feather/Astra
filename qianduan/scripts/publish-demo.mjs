@@ -14,7 +14,7 @@ if (branch !== 'main') throw new Error('Publish the reviewed main source only.')
 const { directory, info } = await verifyPackage(true);
 if (info.source_dirty || info.source_commit !== source)
   throw new Error('Commit the source and rebuild the demo before publishing.');
-if (git(['status', '--porcelain', '--', 'qianduan', 'shared', 'pages', 'codevis', 'UI']))
+if (git(['status', '--porcelain', '--', 'qianduan', 'shared', 'pages', 'codevis', 'UI', 'backend/app/catalogue', 'extensions']))
   throw new Error('Frontend sources have uncommitted changes.');
 if (git(['worktree', 'list', '--porcelain']).includes('branch refs/heads/qianduan'))
   throw new Error('qianduan is checked out elsewhere; finish that worktree first.');

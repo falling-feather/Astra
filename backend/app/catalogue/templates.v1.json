@@ -1,0 +1,97 @@
+{
+  "schema_version": "astra-template-seed-v1",
+  "templates": [
+    {
+      "key": "template.function-graph",
+      "space": "englab",
+      "subject": "mathematics",
+      "kind": "template",
+      "title": "可配置函数图像",
+      "renderer": "function-graph-v1",
+      "definition": {
+        "configuration": {
+          "formula": "a*x^2+b",
+          "parameters": [
+            {
+              "key": "a",
+              "label": "二次项系数",
+              "value": 1,
+              "minimum": -3,
+              "maximum": 3,
+              "step": 0.1
+            },
+            {
+              "key": "b",
+              "label": "上下移动",
+              "value": 0,
+              "minimum": -5,
+              "maximum": 5,
+              "step": 0.5
+            }
+          ],
+          "x_min": -5,
+          "x_max": 5,
+          "y_min": -10,
+          "y_max": 10,
+          "samples": 121
+        }
+      },
+      "capabilities": {
+        "operation_recording": false,
+        "completion_modes": [
+          "checkpoint_passed",
+          "assignment_reviewed"
+        ],
+        "runtime_pin": "template-v1",
+        "configurable": true
+      },
+      "provenance": {
+        "kind": "system-template",
+        "model": "受限算术表达式采样；无定义或超出运算界限的位置以断点表示"
+      }
+    },
+    {
+      "key": "template.data-chart",
+      "space": "englab",
+      "subject": "mathematics",
+      "kind": "template",
+      "title": "可配置数据图表",
+      "renderer": "data-chart-v1",
+      "definition": {
+        "configuration": {
+          "kind": "bar",
+          "title": "比较不同选择",
+          "labels": [
+            "方案 A",
+            "方案 B",
+            "方案 C"
+          ],
+          "series": [
+            {
+              "name": "观察值",
+              "values": [
+                3,
+                5,
+                4
+              ]
+            }
+          ],
+          "y_label": "数值"
+        }
+      },
+      "capabilities": {
+        "operation_recording": false,
+        "completion_modes": [
+          "checkpoint_passed",
+          "assignment_reviewed"
+        ],
+        "runtime_pin": "template-v1",
+        "configurable": true
+      },
+      "provenance": {
+        "kind": "system-template",
+        "model": "按教师提供的有限数据绘图，不自动推断因果或掌握程度"
+      }
+    }
+  ]
+}

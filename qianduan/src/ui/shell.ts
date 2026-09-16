@@ -1,4 +1,5 @@
 import type { AppState, View } from '../domain/models';
+import { learningSpaces } from '../domain/learning-spaces';
 import { brandMark, icon } from './icons';
 import { escapeHtml as e } from './html';
 import { demoRoles } from './secondary';
@@ -6,9 +7,8 @@ import { demoRoles } from './secondary';
 export const destinations: { view: View; label: string }[] = [
   { view: 'overview', label: '星序总览' },
   { view: 'manage', label: '管理页面' },
-  { view: 'lab', label: '工科实验室' },
-  { view: 'code', label: '代码空间' },
-  { view: 'future', label: '未来星系' },
+  ...learningSpaces.map((space) => ({ view: space.view, label: space.title })),
+  { view: 'resources', label: '资源与模板' },
 ];
 const navigation = [
   { view: 'overview', label: '星序总览', icon: 'orbit' },

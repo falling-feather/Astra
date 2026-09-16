@@ -1,4 +1,5 @@
 import type * as T from './contracts';
+import { learningSpaces } from '../domain/learning-spaces';
 import {
   area,
   badge,
@@ -89,10 +90,8 @@ export function metadataForm(
     '学习空间',
     'galaxy_key',
     [
-      { value: 'englab', label: '工科实验室' },
-      { value: 'code-space', label: '代码空间' },
-      { value: 'future-galaxy', label: '未来星系' },
-      ...(['englab', 'code-space', 'future-galaxy'].includes(current.galaxy_key)
+      ...learningSpaces.map((space) => ({ value: space.key, label: space.title })),
+      ...(learningSpaces.some((space) => space.key === current.galaxy_key)
         ? []
         : [{ value: current.galaxy_key, label: human(current.galaxy_key) }]),
     ],

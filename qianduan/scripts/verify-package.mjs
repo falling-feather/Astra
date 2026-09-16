@@ -43,7 +43,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     JSON.stringify({
       mode: result.info.mode,
       files: result.file_count,
-      activities: 127,
+      activities: result.info.activity_count,
       source_commit: result.info.source_commit,
     }),
   );
