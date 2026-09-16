@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.api.endpoints import course_media
 
 from app.api.endpoints import (
     admin,
@@ -9,6 +10,7 @@ from app.api.endpoints import (
     content,
     content_platform,
     course_authoring,
+    course_workflow,
     course_class_directory,
     course_status,
     course_unit_access,
@@ -54,3 +56,5 @@ api_router.include_router(course_authoring.router, prefix="/v1", tags=["course-a
 api_router.include_router(content_platform.router, prefix="/v1", tags=["content-platform-v1"])
 api_router.include_router(workbench.router, prefix="/v1", tags=["workbench-v1"])
 api_router.include_router(learning_resources.router, prefix="/v2", tags=["learning-resources-v2"])
+api_router.include_router(course_workflow.router, prefix="/v2", tags=["course-workflow-v2"])
+api_router.include_router(course_media.router, prefix="/v2", tags=["course-media-v2"])

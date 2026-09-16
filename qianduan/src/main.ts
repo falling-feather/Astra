@@ -5,6 +5,8 @@ import templateSeeds from 'virtual:astra-templates';
 import { learningSpaces, spaceForView } from './domain/learning-spaces';
 import { PortalWorkspace } from './portal/workspace';
 import { ResourceStudio } from './portal/resource-studio';
+import { CourseStudio } from './portal/course-studio';
+import { CandidateWorkspace } from './portal/candidate-workspace';
 import { createApiGateway } from './services/api-gateway';
 import { API_BASE, DEMO_MODE, frontendAsset } from './services/environment';
 import type { Discovery, Role } from './portal/contracts';
@@ -32,6 +34,7 @@ const validViews = new Set<View>([
   'manage',
   ...learningSpaces.map((space) => space.view),
   'resources',
+  'reviews',
   'assignments',
   'teaching',
   'course',
@@ -61,6 +64,8 @@ class AstraApp {
   private inspectorId = '';
   private portal?: PortalWorkspace;
   private resourceStudio?: ResourceStudio;
+  private courseStudio?: CourseStudio;
+  private candidates?: CandidateWorkspace;
   private registering = false;
   private noteOriginal: Note | null = null;
   private noteBusy = false;
@@ -150,7 +155,7 @@ class AstraApp {
     window.addEventListener(
       'beforeunload',
       (event) => {
-        if (this.state.noteDirty || this.portal?.hasChanges()) {
+        if (this.state.noteDirty || this.portal?.hasChanges() || this.courseStudio?.hasChanges() || this.candidates?.hasChanges()) {
           event.preventDefault();
           event.returnValue = '';
         }
@@ -212,6 +217,8 @@ class AstraApp {
     this.portal = undefined;
     this.resourceStudio?.destroy();
     this.resourceStudio = undefined;
+    this.courseStudio?.destroy(); this.courseStudio = undefined;
+    this.candidates?.destroy(); this.candidates = undefined;
     this.renderer.attachOrbit(null);
     document.body.dataset.phase = this.state.phase;
     document.body.dataset.view = this.state.view;
@@ -247,6 +254,7 @@ class AstraApp {
           content = account(this.state);
           break;
         case 'resources':
+        case 'reviews':
           break;
         default: {
           const space = spaceForView(this.state.view);
@@ -270,8 +278,16 @@ class AstraApp {
     if (this.state.view === 'resources') {
       this.resourceStudio = new ResourceStudio(workspace, this.gateway.resources, role);
       this.resourceStudio.mount();
+    } else if (this.state.view === 'reviews') {
+      this.candidates = new CandidateWorkspace(workspace, this.gateway.workflow, role, (message) => this.notify(message), undefined, () => this.refreshData());
+      this.candidates.mount();
+    } else if (this.state.view === 'course' && role !== 'student') {
+      this.courseStudio = new CourseStudio(workspace, this.gateway.workflow, this.gateway.school, this.gateway.resources, { role, userId: Number(this.state.session?.userId), demo: this.gateway.mode === 'demo', activities, notify: (message) => this.notify(message), navigate: (view, id) => this.showView(view, id, false), changed: () => this.refreshData() }, this.state.openCourseId);
+      this.courseStudio.mount();
     } else if (usePortal) {
       this.portal = new PortalWorkspace(workspace, this.gateway.school, {
+        resources: this.gateway.resources,
+        workflow: this.gateway.workflow,
         role,
         userId: Number(this.state.session?.userId),
         demo: this.gateway.mode === 'demo',
@@ -297,6 +313,8 @@ class AstraApp {
       return false;
     }
     if (this.portal && !this.portal.canLeave()) return false;
+    if (this.courseStudio && !this.courseStudio.canLeave()) return false;
+    if (this.candidates && !this.candidates.canLeave()) return false;
     if (this.state.noteDirty) {
       if (!confirm('笔记尚未保存，确定放弃本次修改吗？')) return false;
       if (this.noteOriginal) {
@@ -320,7 +338,7 @@ class AstraApp {
     this.state.view = view;
     this.state.phase = 'workspace';
     this.pendingView = view;
-    if (courseId) this.state.openCourseId = courseId;
+    if (view === 'course') this.state.openCourseId = courseId || undefined;
     if (innerWidth <= 900) this.state.sidebarCollapsed = true;
     if (location.hash !== this.routeHash()) history.pushState(null, '', this.routeHash());
     this.render();
@@ -855,6 +873,7 @@ class AstraApp {
   }
 
   dispose(): void {
+    this.courseStudio?.destroy(); this.candidates?.destroy();
     clearTimeout(this.introTimer);
     clearTimeout(this.toastTimer);
     this.authRequest++;

@@ -1,10 +1,25 @@
 from alembic import command
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
 from app.main import create_app
 from test_content_platform_api import _auth, _completed_workbench_course
 from test_content_platform_storage import _migration_config, _reset_migration_environment
+
+
+def _run_status_repair(engine, direction):
+    # Exercise this data-only migration on current facts without downgrading
+    # later immutable v2 records (their migrations correctly refuse data loss).
+    filename = Path(__file__).resolve().parents[1] / "alembic" / "versions" / "20260908_0060_restore_published_unit_status.py"
+    spec = spec_from_file_location("status_repair", filename)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with engine.begin() as connection, Operations.context(MigrationContext.configure(connection)):
+        getattr(module, direction)()
 
 
 def test_status_repair_keeps_withdrawn_drafts_and_published_learning_records(tmp_path, monkeypatch):
@@ -23,8 +38,8 @@ def test_status_repair_keeps_withdrawn_drafts_and_published_learning_records(tmp
                 connection.execute(text("UPDATE course_units SET status='archived' WHERE id=:id"), {"id": unit_id})
                 connection.execute(text("UPDATE content_drafts SET status='withdrawn', active_key=NULL WHERE course_unit_id=:id"), {"id": unit_id})
                 evidence_count = connection.execute(text("SELECT COUNT(*) FROM learning_evidence_events")).scalar_one()
-            command.downgrade(config, "20260907_0059")
-            command.upgrade(config, "head")
+            _run_status_repair(engine, "downgrade")
+            _run_status_repair(engine, "upgrade")
             draft = client.get(f"/api/v1/courses/{course_id}/draft", headers=_auth(scope["owner"]["token"]))
             assert draft.status_code == 200 and draft.json()["units"] == []
             current = client.get(f"/api/v1/courses/{course_id}/releases/current", headers=_auth(scope["student"]["token"]))
@@ -32,9 +47,9 @@ def test_status_repair_keeps_withdrawn_drafts_and_published_learning_records(tmp
             assert current.json()["release"]["units"][0]["source_course_unit_id"] == unit_id
             for target, expected in [("20260907_0059", "archived"), ("head", "published")]:
                 if expected == "archived":
-                    command.downgrade(config, target)
+                    _run_status_repair(engine, "downgrade")
                 else:
-                    command.upgrade(config, target)
+                    _run_status_repair(engine, "upgrade")
                 with engine.connect() as connection:
                     assert connection.execute(text("SELECT status FROM course_units WHERE id=:id"), {"id": unit_id}).scalar_one() == expected
                     assert connection.execute(text("SELECT COUNT(*) FROM learning_evidence_events")).scalar_one() == evidence_count

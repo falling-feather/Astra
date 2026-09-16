@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { updateUnit } from '../src/portal/unit-editor.ts';
-import { restoredUnits, comparableContent, submissionText } from '../src/portal/presentation.ts';
+import { readUnit, toWriteUnit } from '../src/domain/course-unit-draft.ts';
+import { reviewImpact } from '../src/domain/course-sync.ts';
+import { submissionText } from '../src/portal/presentation.ts';
 
-const course = { id: 7, galaxy_key: 'englab', subject_key: 'physics' };
 const original = {
   id: 12,
   activity_key: 'physics.mechanics',
@@ -56,7 +56,7 @@ function fields() {
     activity_key: 'physics.mechanics',
     goal: '比较变量',
     markdown: '教学说明',
-    completion: 'preserve',
+    completion: 'checkpoint_passed', checkpoint_enabled: 'on', response_type: 'numeric', question: '2+2', numeric_answer: '4', tolerance: '0.1', max_attempts: '3',
   }))
     data.set(key, value);
   return data;
@@ -64,13 +64,11 @@ function fields() {
 
 test('修改基本文本不会破坏原数值检查点、媒体和完成规则', () => {
   const before = structuredClone(original),
-    result = updateUnit(course, original, fields());
+    result = readUnit(original, fields());
   assert.deepEqual(original, before);
   for (const block of before.content.blocks)
-    assert.deepEqual(
-      result.content.blocks.find((item) => item.blockId === block.blockId),
-      block,
-    );
+    for (const [key, value] of Object.entries(block))
+      assert.deepEqual(result.content.blocks.find((item) => item.blockId === block.blockId)[key], value);
   assert.deepEqual(result.content.courseUnit.completion, before.content.courseUnit.completion);
   assert.equal(result.title, '修改标题');
   assert.ok(!result.content.blocks.some((block) => block.type === 'official-simulation'));
@@ -80,47 +78,50 @@ test('检查点和作业完成条件需要有效目标', () => {
   const empty = structuredClone(original);
   empty.content.blocks = [];
   const data = fields();
+  data.delete('checkpoint_enabled');
   data.set('completion', 'checkpoint_passed');
-  assert.throws(() => updateUnit(course, empty, data), /先配置检查点/);
+  assert.throws(() => readUnit(empty, data), /先配置理解检查点/);
   data.set('completion', 'assignment_reviewed');
-  assert.throws(() => updateUnit(course, empty, data), /请选择/);
-  data.set('completion_assignment', '55');
-  assert.deepEqual(updateUnit(course, empty, data).content.courseUnit.completion, {
+  assert.throws(() => readUnit(empty, data), /请选择/);
+  data.set('assignment_id', '55');
+  assert.deepEqual(readUnit(empty, data).content.courseUnit.completion, {
     preset: 'assignment_reviewed',
     assignmentId: 55,
   });
 });
 
-test('恢复发布保留原单元 ID，内容复制不改变历史快照', () => {
-  const release = [
-    {
-      source_course_unit_id: 100,
-      activity_key: 'physics.mechanics',
-      title: '历史标题',
-      position: 1,
-      content: original.content,
-    },
-  ];
-  const result = restoredUnits(release);
-  assert.equal(result[0].id, 100);
-  result[0].content.blocks.length = 0;
-  assert.ok(original.content.blocks.length);
-  assert.equal(restoredUnits(release)[0].id, 100);
+test('读取单元转为编辑状态时保留实例 ID，编辑副本不修改原件', () => {
+  const unit = { ...structuredClone(original), id: 100, origin_key: 'origin-100', block_origins: {}, resource_version_id: null, revision: 1 };
+  const result = toWriteUnit(unit);
+  assert.equal(result.id, 100);
+  result.content.blocks.length = 0;
+  assert.ok(unit.content.blocks.length);
 });
 
-test('比较内容时忽略草稿/发布标记，保留真正的说明和规则变化', () => {
-  const published = structuredClone(original.content),
-    draft = structuredClone(original.content);
-  draft.status = 'draft';
-  draft.version = 'next';
-  published.status = 'published';
-  assert.equal(comparableContent(published), comparableContent(draft));
-  draft.summary = '新的教学说明';
-  assert.notEqual(comparableContent(published), comparableContent(draft));
+test('差异预览忽略草稿和发布标记，仍识别教学说明变化', () => {
+  const before = { settings: {}, units: [{ ...structuredClone(original), origin_key: 'origin-12', block_origins: {}, resource_version_id: null }] };
+  const next = structuredClone(before);
+  next.units[0].content.version = 'next';
+  next.units[0].content.status = 'published';
+  assert.equal(reviewImpact(next, before).units[0].change, 'unchanged');
+  next.units[0].content.summary = '新的教学说明';
+  assert.equal(reviewImpact(next, before).units[0].change, 'modified');
+  assert.equal(reviewImpact(next, before).units[0].learning_changed, false);
 });
 
 test('新回答与旧实验报告均保留可读正文', () => {
   assert.equal(submissionText({ answer: '新回答' }), '新回答');
   assert.equal(submissionText({ report: '既有报告' }), '既有报告');
   assert.match(submissionText({ observations: [1, 2] }), /observations/);
+});
+
+test('旧单元缺少正文时可人工补齐，不伪造资源引用或完成规则', () => {
+  const old = { id: 9, activity_key: 'physics.mechanics', title: '旧单元', position: 1, content: null, resource_version_id: null };
+  const next = toWriteUnit(old, { galaxy_key: 'englab', subject_key: 'physics' });
+  assert.equal(next.id, 9);
+  assert.equal(next.activity_key, old.activity_key);
+  assert.equal(next.content.title, '旧单元');
+  assert.equal(next.content.courseUnit.completion, null);
+  assert.ok(!next.content.blocks.some((block) => ['resource', 'official-simulation'].includes(block.type)));
+  assert.equal(old.content, null);
 });

@@ -1,0 +1,101 @@
+{
+  "schema_version": "astra-course-sync-fields-v1",
+  "groups": {
+    "hero": [
+      [
+        "title"
+      ],
+      [
+        "summary"
+      ],
+      [
+        "eyebrow"
+      ],
+      [
+        "badges"
+      ]
+    ],
+    "rich-text": [
+      [
+        "title"
+      ],
+      [
+        "markdown"
+      ]
+    ],
+    "learning-task": [
+      [
+        "title"
+      ],
+      [
+        "prompt"
+      ],
+      [
+        "outcomes"
+      ],
+      [
+        "steps"
+      ],
+      [
+        "concepts"
+      ]
+    ],
+    "media": [
+      [
+        "title"
+      ],
+      [
+        "assetKey",
+        "mediaType",
+        "alt",
+        "caption",
+        "transcript"
+      ]
+    ],
+    "official-simulation": [
+      [
+        "title"
+      ],
+      [
+        "simulationKey",
+        "instructions",
+        "fallbackMarkdown"
+      ]
+    ],
+    "resource": [
+      [
+        "title"
+      ],
+      [
+        "resourceVersionId",
+        "configuration",
+        "instructions"
+      ]
+    ],
+    "checkpoint": [
+      [
+        "title"
+      ],
+      [
+        "prompt",
+        "mode",
+        "questionSetKey",
+        "responseType",
+        "choices",
+        "correctChoiceIds",
+        "numericAnswer",
+        "tolerance",
+        "acceptedAnswers",
+        "maxAttempts"
+      ]
+    ],
+    "sources": [
+      [
+        "title"
+      ],
+      [
+        "items"
+      ]
+    ]
+  }
+}

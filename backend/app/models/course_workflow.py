@@ -67,6 +67,7 @@ class CourseCandidate(Base):
     base_release_id: Mapped[int | None] = mapped_column(ForeignKey("course_releases.id"), nullable=True)
     result_policy_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     impact_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    dependencies_json: Mapped[dict | None] = mapped_column(JSON, default=dict, nullable=True)
     candidate_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
@@ -94,12 +95,14 @@ class CourseReviewItem(TimestampMixin, Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class CoursePublicationOperation(Base):
-    __tablename__ = "course_publication_operations"
+class CourseWorkflowOperation(Base):
+    __tablename__ = "course_workflow_operations"
     __table_args__ = (UniqueConstraint("actor_user_id", "client_request_id", name="uq_publication_operations_request"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     actor_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    operation_kind: Mapped[str] = mapped_column(String(48), default="publish", nullable=False)
+    scope_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     client_request_id: Mapped[str] = mapped_column(String(128), nullable=False)
     request_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     receipt_json: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -110,6 +113,6 @@ def _prevent_rewrite(_mapper, _connection, _target):
     raise ValueError("Workflow snapshots and receipts are immutable")
 
 
-for _model in (CourseRevision, CourseChangeBatch, CourseCandidate, CoursePublicationOperation):
+for _model in (CourseRevision, CourseChangeBatch, CourseCandidate, CourseWorkflowOperation):
     event.listen(_model, "before_update", _prevent_rewrite)
     event.listen(_model, "before_delete", _prevent_rewrite)

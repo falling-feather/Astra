@@ -46,6 +46,7 @@ class Course(TimestampMixin, Base):
     family_id: Mapped[int | None] = mapped_column(ForeignKey("course_families.id"), index=True, nullable=True)
     source_course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id"), nullable=True)
     source_release_id: Mapped[int | None] = mapped_column(ForeignKey("course_releases.id", use_alter=True, name="fk_courses_source_release"), nullable=True)
+    source_revision_id: Mapped[int | None] = mapped_column(ForeignKey("course_revisions.id", use_alter=True, name="fk_courses_source_revision"), nullable=True)
     galaxy_key: Mapped[str] = mapped_column(String(32), nullable=False)
     subject_key: Mapped[str] = mapped_column(String(96), default="general", nullable=False)
     course_key: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -67,6 +68,9 @@ class Course(TimestampMixin, Base):
     )
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
     content_draft_revision: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    workflow_generation: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
+    draft_settings_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    level_key: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 class CourseClass(TimestampMixin, Base):
     __tablename__ = "course_classes"

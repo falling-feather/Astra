@@ -82,7 +82,11 @@ export interface Activity {
 }
 export interface Block {
   blockId: string;
-  type: 'hero' | 'learning-task' | 'rich-text' | 'media' | 'official-simulation' | 'checkpoint' | 'sources';
+  type: 'hero' | 'learning-task' | 'rich-text' | 'media' | 'official-simulation' | 'resource' | 'checkpoint' | 'sources';
+  resourceVersionId?: number;
+  configuration?: import('./resource-types').TemplateConfiguration;
+  mediaType?: 'image' | 'diagram' | 'audio' | 'video' | 'document';
+  transcript?: string;
   title?: string;
   summary?: string;
   prompt?: string;

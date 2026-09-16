@@ -112,6 +112,8 @@ def review_information_revision(
         raise HTTPException(
             status_code=409, detail="Course information revision course is unavailable"
         )
+    if course.workflow_generation == 2:
+        raise HTTPException(status_code=409, detail="该课程已进入候选审核，请审核完整课程候选")
     if decision == "approved" and course.status == "archived":
         raise HTTPException(
             status_code=409, detail="Archived course information cannot be approved"
@@ -510,7 +512,7 @@ def _ensure_internal_course_scope(db: Session, course: Course) -> tuple[int, int
 
     class_group = ClassGroup(
         school_id=course.school_id,
-        name=f"课程群组 · {course.course_code}",
+        name=f"课程群组 · {course.course_code or course.id}",
         kind="course_cohort",
         description="系统为授课课程自动创建的内部学习群组",
         status="active",

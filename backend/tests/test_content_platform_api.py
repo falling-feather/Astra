@@ -131,6 +131,7 @@ def _approved_course_scope(client, suffix: str) -> dict:
         json={"status": "approved", "note": "approved for shared content"},
     )
     assert approved.status_code == 200, approved.json()
+    _install_test_diagram(owner["id"], school_id, course["id"])
     return {
         "admin": admin,
         "owner": owner,
@@ -142,6 +143,38 @@ def _approved_course_scope(client, suffix: str) -> dict:
         "course_id": course["id"],
         "internal_class_id": approved.json()["internal_class_id"],
     }
+
+
+def _install_test_diagram(user_id: int, school_id: int, course_id: int) -> None:
+    """The old fixture's media key now points to actual immutable PNG bytes."""
+    from base64 import b64decode
+    from hashlib import sha256
+    from app.models import CourseMediaAsset, CourseMediaGrant
+    data = b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2mQAAAAASUVORK5CYII=")
+    with get_session_factory(get_settings().database_url)() as db:
+        asset = CourseMediaAsset(asset_key="energy.diagram", school_id=school_id, source_course_id=course_id, created_by_user_id=user_id, client_request_id="fixture-diagram", filename="diagram.png", media_type="image", content_type="image/png", size_bytes=len(data), content_sha256=sha256(data).hexdigest(), content_bytes=data)
+        db.add(asset)
+        db.flush()
+        db.add(CourseMediaGrant(course_id=course_id, asset_id=asset.id, granted_by_user_id=user_id))
+        db.commit()
+
+
+def _approve_current_draft(client, scope):
+    """Explicit prerequisite of release tests; all calls use the real v2 routes."""
+    from uuid import uuid4
+    base = f"/api/v2/courses/{scope['course_id']}"
+    teacher = _auth(scope["owner"]["token"])
+    draft = client.get(f"{base}/draft", headers=teacher)
+    assert draft.status_code == 200, draft.json()
+    command = {"source_revision": draft.json()["revision"], "source_state_token": draft.json()["state_token"]}
+    preview = client.post(f"{base}/submission-preview", headers=teacher, json=command)
+    assert preview.status_code == 200, preview.json()
+    policies = {str(unit["unit_id"]): "redo" for item in preview.json()["courses"] for unit in item["impact"]["units"] if unit["decision_required"]}
+    submitted = client.post(f"{base}/submissions", headers=teacher, json={**command, "preview_token": preview.json()["preview_token"], "client_request_id": uuid4().hex, "result_policies": {str(scope["course_id"]): policies}})
+    assert submitted.status_code == 201, submitted.json()
+    reviewed = client.post("/api/v2/candidate-reviews", headers=_auth(scope["admin"]["token"]), json={"client_request_id": uuid4().hex, "decision": "approved", "items": [{"review_item_id": item["review_item_id"], "expected_version": item["review_version"]} for item in submitted.json()["items"]]})
+    assert reviewed.status_code == 200, reviewed.json()
+    return reviewed.json()
 
 
 def _content(markdown: str) -> dict:
@@ -407,6 +440,7 @@ def test_publish_automatically_switches_enrolled_students_and_redacts_answers(cl
         course_id=course_id,
     )
 
+    _approve_current_draft(client, scope)
     published = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["peer"]["token"]),
@@ -460,14 +494,14 @@ def test_publish_automatically_switches_enrolled_students_and_redacts_answers(cl
         json={"expected_revision": 2, "note": "内容没有变化"},
     )
     assert duplicate.status_code == 409, duplicate.json()
-    assert duplicate.json()["detail"]["code"] == "course_release_unchanged"
+    assert duplicate.json()["detail"]["code"] == "course_candidate_review_required"
     stale = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
         json={"expected_revision": 1, "note": "过期发布"},
     )
     assert stale.status_code == 409, stale.json()
-    assert stale.json()["detail"]["code"] == "course_draft_revision_conflict"
+    assert stale.json()["detail"]["code"] == "course_candidate_already_published"
 
     session_factory = get_session_factory(get_settings().database_url)
     with session_factory() as db:
@@ -500,6 +534,7 @@ def test_second_release_retains_old_history_and_becomes_current_for_students(cli
     )
     assert first_saved.status_code == 200, first_saved.json()
     unit_id = first_saved.json()["units"][0]["id"]
+    _approve_current_draft(client, scope)
     first_publish = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -523,6 +558,7 @@ def test_second_release_retains_old_history_and_becomes_current_for_students(cli
     )
     assert second_saved.status_code == 200, second_saved.json()
     assert second_saved.json()["revision"] == 3
+    _approve_current_draft(client, scope)
     second_publish = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["peer"]["token"]),
@@ -601,6 +637,7 @@ def test_checkpoint_completion_is_server_graded_idempotent_and_release_bound(cli
         teacher=scope["owner"],
         course_id=course_id,
     )
+    _approve_current_draft(client, scope)
     published = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -713,6 +750,7 @@ def test_checkpoint_completion_is_server_graded_idempotent_and_release_bound(cli
         _unit_payload(_content("同一规则下的新内容版本。"), unit_id),
     )
     assert second_saved.status_code == 200, second_saved.json()
+    _approve_current_draft(client, scope)
     second_publish = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -771,6 +809,7 @@ def test_checkpoint_attempt_limit_and_target_mismatch_fail_closed(client):
         teacher=scope["owner"],
         course_id=scope["course_id"],
     )
+    _approve_current_draft(client, scope)
     published = client.post(
         f"/api/v1/courses/{scope['course_id']}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -853,6 +892,7 @@ def test_assignment_review_completion_uses_course_teacher_scope_and_is_idempoten
         teacher=scope["owner"],
         course_id=course_id,
     )
+    _approve_current_draft(client, scope)
     published = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["peer"]["token"]),
@@ -967,6 +1007,7 @@ def test_publication_reuses_rule_and_changes_binding_only_when_completion_change
     )
     assert first.status_code == 200, first.json()
     unit_id = first.json()["units"][0]["id"]
+    _approve_current_draft(client, scope)
     first_release = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -982,6 +1023,7 @@ def test_publication_reuses_rule_and_changes_binding_only_when_completion_change
         _unit_payload(_content("只改正文，不改完成规则。"), unit_id),
     )
     assert unchanged.status_code == 200, unchanged.json()
+    _approve_current_draft(client, scope)
     second_release = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -1019,6 +1061,7 @@ def test_publication_reuses_rule_and_changes_binding_only_when_completion_change
         _unit_payload(changed_content, unit_id),
     )
     assert changed.status_code == 200, changed.json()
+    _approve_current_draft(client, scope)
     third_release = client.post(
         f"/api/v1/courses/{course_id}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -1069,7 +1112,7 @@ def test_publication_without_completion_config_rolls_back_all_new_facts(client):
         json={"expected_revision": saved.json()["revision"]},
     )
     assert rejected.status_code == 409, rejected.json()
-    assert rejected.json()["detail"]["code"] == "course_completion_missing"
+    assert rejected.json()["detail"]["code"] == "course_candidate_review_required"
     session_factory = get_session_factory(get_settings().database_url)
     with session_factory() as db:
         assert db.scalar(select(func.count()).select_from(CourseRelease)) == 0
@@ -1092,6 +1135,7 @@ def _completed_workbench_course(client, suffix: str) -> dict:
         client, student=scope["student"], teacher=scope["owner"],
         course_id=scope["course_id"],
     )
+    _approve_current_draft(client, scope)
     published = client.post(
         f"/api/v1/courses/{scope['course_id']}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -1194,6 +1238,7 @@ def test_workbench_completion_uses_current_release_rule_and_retains_same_rule_cr
         assert saved.status_code == 200, saved.json()
         # Unpublished edits do not change the release the student is following.
         _assert_workbench_completion(client, scope, completed=1, percent=100)
+        _approve_current_draft(client, scope)
         published = client.post(
             f"/api/v1/courses/{scope['course_id']}/releases",
             headers=_auth(scope["owner"]["token"]),
@@ -1238,6 +1283,7 @@ def test_workbench_completion_excludes_units_removed_from_the_latest_release(cli
         assert old_plan.position == 1
         assert old_plan.release_mode == "open"
     _assert_workbench_completion(client, scope, completed=1, percent=100)
+    _approve_current_draft(client, scope)
     published = client.post(
         f"/api/v1/courses/{scope['course_id']}/releases",
         headers=_auth(scope["owner"]["token"]),
@@ -1271,6 +1317,7 @@ def test_draft_removal_does_not_withdraw_current_release_and_history_can_be_rest
     assert [unit["source_course_unit_id"] for unit in current.json()["release"]["units"]] == [old_unit]
     attempt = client.post(f"/api/v1/courses/{course_id}/units/{old_unit}/checkpoints/energy-conservation-check/attempts", headers=_auth(scope["student"]["token"]), json={"client_attempt_id": "draft-removal-still-current", "course_release_id": old_release["id"], "selected_choice_ids": ["mechanical"]})
     assert attempt.status_code == 201, attempt.json()
+    _approve_current_draft(client, scope)
     published = client.post(f"/api/v1/courses/{course_id}/releases", headers=_auth(scope["owner"]["token"]), json={"expected_revision": saved.json()["revision"]})
     assert published.status_code == 201, published.json()
     assert [unit["activity_key"] for unit in published.json()["release"]["units"]] == ["physics.mechanics"]

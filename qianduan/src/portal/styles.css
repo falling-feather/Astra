@@ -625,3 +625,25 @@ button.portal-list-row:hover {
 .resource-studio h3 { margin: 22px 0 10px; font-size: 15px; font-weight: 500; }
 .resource-studio .portal-experiment-frame { min-height: 68vh; margin-top: 20px; }
 @media (max-width: 1150px) { .resource-editor { grid-template-columns: minmax(0, 1fr); } .resource-preview { position: static; } }
+.workflow-view .portal-tabs [aria-current="page"] {
+  color: var(--accent, #91e7ef);
+  border-bottom-color: currentColor;
+}
+.workflow-settings {
+  display: grid;
+  grid-template-columns: minmax(90px, 150px) minmax(0, 1fr);
+  gap: 12px 22px;
+}
+.workflow-settings dt { color: #98aab8; }
+.workflow-settings dd { margin: 0; overflow-wrap: anywhere; }
+.workflow-course-impact + .workflow-course-impact,
+.workflow-change + .workflow-change { border-top: 1px solid #26313e; margin-top: 24px; padding-top: 24px; }
+.workflow-result-policy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 300px); align-items: center; gap: 20px; padding: 12px 0; }
+.workflow-difference summary { cursor: pointer; font-size: 17px; padding: 8px 0; }
+.workflow-difference .portal-columns { margin-top: 20px; }
+.workflow-view pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; color: #acbecb; }
+.workflow-view .portal-table th:first-child { width: auto; }
+.workflow-view [aria-busy="true"] { opacity: .7; }
+@media (max-width: 800px) { .workflow-result-policy { grid-template-columns: 1fr; } }
+.course-media-image, .course-media-video { max-width: 100%; max-height: 560px; object-fit: contain; }
+.portal-lesson audio { width: min(100%, 640px); }

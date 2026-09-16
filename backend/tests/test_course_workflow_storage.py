@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateTable
 
 from app.models import (
-    CourseCandidate, CourseChangeBatch, CourseFamily, CoursePublicationOperation,
+    CourseCandidate, CourseChangeBatch, CourseFamily, CourseWorkflowOperation,
     CourseRevision, CourseReviewItem, LearningResource, LearningResourceVersion,
 )
 from test_content_platform_storage import (
@@ -19,7 +19,7 @@ from test_content_platform_storage import (
 
 FOUNDATION = (
     LearningResource, LearningResourceVersion, CourseFamily, CourseRevision,
-    CourseChangeBatch, CourseCandidate, CourseReviewItem, CoursePublicationOperation,
+    CourseChangeBatch, CourseCandidate, CourseReviewItem, CourseWorkflowOperation,
 )
 
 

@@ -5,6 +5,7 @@ import { createSchoolDemo } from './school-demo';
 import { presentCourse } from './course-presentation';
 import { ApiError } from './http-client';
 import { createResourceDemo } from './resource-demo';
+import { createWorkflowDemo } from './workflow-demo';
 import type { TemplateSeed } from '../portal/resource-types';
 
 const SESSION_KEY = 'astra.qianduan.demo-session';
@@ -28,6 +29,8 @@ export function createDemoGateway(templates: TemplateSeed[] = []): LearningGatew
   }
   const role = (): Role => session?.role || 'student';
   const school = createSchoolDemo(role, activities);
+  const resources = createResourceDemo(role, activities, templates);
+  const workflow = createWorkflowDemo(role, school.teaching, resources);
   function save(value: Session | null) {
     session = value;
     try {
@@ -58,7 +61,8 @@ export function createDemoGateway(templates: TemplateSeed[] = []): LearningGatew
   };
   return {
     mode: 'demo',
-    resources: createResourceDemo(() => session?.role || 'student', activities, templates),
+    resources,
+    workflow,
     school,
     async getSession() {
       return session ? { ...session } : null;

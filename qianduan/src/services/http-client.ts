@@ -46,9 +46,9 @@ export class HttpClient {
         cache: 'no-store',
         headers: {
           Accept: 'application/json',
-          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(body !== undefined ? { 'Content-Type': body instanceof Blob ? body.type || 'application/octet-stream' : 'application/json' } : {}),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body),
         signal: controller.signal,
       });
       if (response.status === 204) return undefined as T;
@@ -66,6 +66,7 @@ export class HttpClient {
         const code = detail && typeof detail === 'object' && 'code' in detail ? String(detail.code) : '';
         const message =
           domainMessages[code] ||
+          (detail && typeof detail === 'object' && 'message' in detail && /[\u4e00-\u9fff]/.test(String(detail.message)) ? String(detail.message) : '') ||
           (typeof detail === 'string' && /[\u4e00-\u9fff]/.test(detail)
             ? detail
             : messages[response.status] || `请求未完成（${response.status}）。`);

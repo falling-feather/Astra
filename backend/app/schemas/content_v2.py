@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.content import ContentPage
 from app.schemas.official_activity_keys import OFFICIAL_ACTIVITY_KEYS
+from app.schemas.learning_resources import LegacyResourceConfig, TemplateConfiguration
 
 STABLE_ID_PATTERN = r"^[a-z0-9][a-z0-9._:-]*$"
 SLUG_PATTERN = r"^[^\s/?#]+(?:/[^\s/?#]+)+$"
@@ -249,6 +250,15 @@ class CourseUnitCompletionV1(StrictContentModel):
         return self
 
 
+class ResourceBlock(StrictContentModel):
+    blockId: str = Field(min_length=1, max_length=120, pattern=STABLE_ID_PATTERN)
+    type: Literal["resource"]
+    title: str = Field(min_length=1, max_length=240)
+    resourceVersionId: int = Field(ge=1)
+    configuration: TemplateConfiguration = Field(default_factory=LegacyResourceConfig)
+    instructions: str = Field(min_length=1, max_length=4000)
+
+
 class SourceItem(StrictContentModel):
     sourceId: str = Field(min_length=1, max_length=120, pattern=STABLE_ID_PATTERN)
     label: str = Field(min_length=1, max_length=240)
@@ -285,6 +295,7 @@ ContentBlockV2 = Annotated[
         RichTextBlock,
         MediaBlock,
         OfficialSimulationBlock,
+        ResourceBlock,
         CheckpointBlock,
         SourcesBlock,
     ],

@@ -1,4 +1,4 @@
-import type { Block, ContentPage, CourseInfo, CourseInput, DraftUnit, Page } from './contracts';
+import type { Page } from './contracts';
 import { escapeHtml as e } from '../ui/html.ts';
 import { serverTime } from '../domain/time.ts';
 
@@ -88,89 +88,4 @@ export function submissionText(content: Record<string, unknown>): string {
 export function pagination(page: Page<unknown>, collection: string, title: string): string {
   if (page.offset === 0 && page.next_offset === null) return '';
   return `<div class="portal-pagination"><span>${e(title)} · 共 ${page.total} 项</span><div>${page.offset > 0 ? button('上一页', 'paginate', `data-collection="${collection}" data-offset="${Math.max(0, page.offset - page.limit)}"`) : ''}${page.next_offset !== null ? button('下一页', 'paginate', `data-collection="${collection}" data-offset="${page.next_offset}"`) : ''}</div></div>`;
-}
-export function courseInput(course: CourseInfo): CourseInput {
-  return {
-    school_id: course.school_id,
-    ...course.information_revision.information_snapshot,
-    collaborator_user_ids: course.information_revision.teacher_ids_snapshot
-      ? course.information_revision.teacher_ids_snapshot.filter((id) => id !== course.creator_user_id)
-      : course.teachers.filter((item) => !item.is_creator).map((item) => item.user_id),
-    admission_class_ids:
-      course.information_revision.information_snapshot.admission_class_ids ||
-      course.admission_classes.map((item) => item.class_id),
-  };
-}
-export function defaultContent(
-  course: CourseInfo,
-  key: string,
-  title: string,
-  position: number,
-): ContentPage {
-  return {
-    schemaVersion: 'astra-content-page-v2',
-    slug: `courses/${course.id}/${key}`,
-    galaxy: course.galaxy_key,
-    subject: course.subject_key,
-    title,
-    summary: title,
-    layout: 'course-page',
-    status: 'draft',
-    version: 'draft',
-    blocks: [
-      {
-        blockId: 'learning-goal',
-        type: 'learning-task',
-        title: '学习目标',
-        prompt: '观察、预测并解释实验结果。',
-        outcomes: [],
-        steps: [],
-      },
-      {
-        blockId: 'lesson-text',
-        type: 'rich-text',
-        title: '教学说明',
-        markdown: '记录你的预测、改变的参数和观察结果。',
-      },
-      {
-        blockId: 'official-experiment',
-        type: 'official-simulation',
-        title,
-        simulationKey: key,
-        instructions: '进入实验，先预测，再观察。',
-      },
-    ],
-    courseUnit: { courseId: `course-${course.id}`, unitId: key, order: position, title, completion: null },
-  };
-}
-export function replaceBlock(page: ContentPage, type: Block['type'], next: Block | null): void {
-  const index = page.blocks.findIndex((item) => item.type === type);
-  if (index < 0) {
-    if (next) page.blocks.push(next);
-  } else if (next) {
-    page.blocks[index] = { ...next, blockId: page.blocks[index].blockId };
-  } else page.blocks.splice(index, 1);
-}
-export function restoredUnits(
-  releaseUnits: {
-    source_course_unit_id: number;
-    activity_key: string;
-    title: string;
-    position: number;
-    content: ContentPage;
-  }[],
-): DraftUnit[] {
-  return releaseUnits.map((unit) => ({
-    id: unit.source_course_unit_id,
-    activity_key: unit.activity_key,
-    title: unit.title,
-    position: unit.position,
-    content: structuredClone(unit.content),
-  }));
-}
-
-export function comparableContent(content: ContentPage | null): string {
-  if (!content) return '';
-  const { status: _status, version: _version, ...semantic } = content;
-  return JSON.stringify(semantic);
 }

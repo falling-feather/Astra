@@ -1,10 +1,8 @@
 import type * as T from './contracts';
-import { learningSpaces } from '../domain/learning-spaces';
 import {
   area,
   badge,
   button,
-  courseInput,
   e,
   empty,
   field,
@@ -14,7 +12,6 @@ import {
   submissionText,
 } from './presentation';
 import { icon } from '../ui/icons';
-import { simpleCheckpoint } from './unit-editor';
 import { frontendAsset } from '../services/environment';
 import { markdown } from '../ui/markdown';
 
@@ -49,164 +46,8 @@ function courseRows(
 export function teacherCourses(courses: T.CourseInfo[]): string {
   return (
     heading('我的课程', '保留每次发布，继续完善下一次教学。', button('新建课程', 'new-course', '', true)) +
-    `<section class="portal-surface">${courseRows(courses.map((course) => ({ id: course.id, title: course.information_revision.status === 'draft' ? course.information_revision.information_snapshot.title : course.title, subject: human(course.subject_key), code: course.course_code || '审核通过后生成', status: course.information_revision.status === 'submitted' ? 'pending' : course.has_published_content ? 'published' : 'draft', release: course.has_published_content ? null : 0 })))}</section>`
+    `<section class="portal-surface">${courseRows(courses.map((course) => ({ id: course.id, title: course.title, subject: human(course.subject_key), code: course.course_code || '首次发布后生成', status: course.information_revision.status === 'submitted' ? 'pending' : course.has_published_content ? 'published' : 'draft', release: course.has_published_content ? null : 0 })))}</section>`
   );
-}
-
-export function metadataForm(
-  schools: T.School[],
-  classes: T.Classroom[],
-  activities: T.Activity[],
-  course?: T.CourseInfo,
-  teachers: { user_id: number; display_name: string }[] = [],
-): string {
-  const current: T.CourseInput = course
-    ? courseInput(course)
-    : {
-        school_id: schools[0]?.id || 0,
-        title: '',
-        summary: '',
-        academic_year: '2026—2027',
-        schedule_text: '',
-        total_hours: 16,
-        galaxy_key: 'englab',
-        subject_key: 'mathematics',
-        admission_mode: 'open',
-        admission_class_ids: [],
-        collaborator_user_ids: [],
-      };
-  const subjects = [
-    ...new Set(activities.filter((item) => item.galaxy === current.galaxy_key).map((item) => item.subject)),
-  ];
-  if (!subjects.includes(current.subject_key)) subjects.unshift(current.subject_key);
-  const locked = course?.information_revision.status === 'submitted';
-  return `${course ? '' : heading('新建课程', '先说明课程安排，再编排学习内容。', button('返回课程', 'course-list'))}<form id="portal-course-form" class="portal-form portal-surface"><fieldset ${locked ? 'disabled' : ''}><div class="portal-form-grid">${field('课程名称', 'title', current.title, { required: true, max: 180 })}${selectField(
-    '学校',
-    'school_id',
-    schools.map((item) => ({ value: item.id, label: item.name })),
-    current.school_id,
-    true,
-  )}${selectField(
-    '学习空间',
-    'galaxy_key',
-    [
-      ...learningSpaces.map((space) => ({ value: space.key, label: space.title })),
-      ...(learningSpaces.some((space) => space.key === current.galaxy_key)
-        ? []
-        : [{ value: current.galaxy_key, label: human(current.galaxy_key) }]),
-    ],
-    current.galaxy_key,
-  )}${selectField(
-    '学科 / 方向',
-    'subject_key',
-    subjects.map((value) => ({ value, label: human(value) })),
-    current.subject_key,
-  )}${field('学年', 'academic_year', current.academic_year, { required: true, max: 32 })}${field('课时', 'total_hours', current.total_hours, { type: 'number', required: true, min: 1 })}${field('授课安排，例如 周一 09:00—10:30', 'schedule_text', current.schedule_text, { required: true, max: 240 })}${selectField(
-    '加入范围',
-    'admission_mode',
-    [
-      { value: 'open', label: '校内学生可申请加入' },
-      { value: 'class_restricted', label: '限指定班级申请' },
-    ],
-    current.admission_mode,
-  )}</div>${area('课程介绍', 'summary', current.summary)}<div class="portal-field"><span>允许申请的班级（选择“限指定班级”时生效）</span><div class="portal-checks">${
-    classes
-      .filter((item) => item.kind === 'homeroom' && item.school_id === Number(current.school_id))
-      .map(
-        (item) =>
-          `<label><input name="admission_class_ids" type="checkbox" value="${item.id}" ${current.admission_class_ids.includes(item.id) ? 'checked' : ''}/>${e(item.name)}</label>`,
-      )
-      .join('') || '<span class="muted">暂无可选班级</span>'
-  }</div></div><div class="portal-field"><span>共同授课教师</span><div id="co-teacher-options">${teachers.map((teacher) => `<label class="portal-checkbox"><input type="checkbox" name="collaborator_user_ids" value="${teacher.user_id}" ${current.collaborator_user_ids.includes(teacher.user_id) ? 'checked' : ''}/>${e(teacher.display_name)}</label>`).join('') || '<span class="muted">暂无其他可选教师</span>'}</div></div><div class="portal-actions"><button class="primary-button" type="submit">${course ? '保存资料草稿' : '创建课程草稿'}</button></div></fieldset></form>${course ? `<p class="portal-note">资料状态：${badge(course.information_revision.status, course.information_revision.status === 'submitted' ? '等待学校审核' : human(course.information_revision.status))}${course.information_revision.review_note ? ` · ${e(course.information_revision.review_note)}` : ''}</p>${course.information_revision.status === 'draft' ? button('提交学校审核', 'submit-information', '', true) : ''}` : ''}`;
-}
-
-export const courseTabs = [
-  ['editor', '内容编排'],
-  ['metadata', '课程资料'],
-  ['releases', '发布版本'],
-  ['students', '学生名单'],
-  ['assignments', '作业'],
-  ['plan', '开放计划'],
-];
-export function courseHeader(course: T.CourseInfo, tab: string, dirty: boolean): string {
-  return (
-    heading(
-      course.title,
-      `${course.course_code ? `邀请码 ${course.course_code} · ` : ''}${dirty ? '有未保存修改' : course.has_published_content ? '已有发布版本' : '尚未发布内容'}`,
-      `${button('返回课程', 'course-list')}${tab === 'editor' ? button('保存草稿', 'save-draft', course.status !== 'published' ? 'disabled' : '') : ''}${button('发布课程', 'publish', course.information_revision.status !== 'approved' ? 'disabled' : '', true)}`,
-    ) +
-    `<nav class="portal-tabs" aria-label="课程管理">${courseTabs.map(([key, name]) => `<button data-portal="course-tab" data-tab="${key}" class="${tab === key ? 'active' : ''}" aria-current="${tab === key ? 'page' : 'false'}">${name}</button>`).join('')}</nav>`
-  );
-}
-
-export function editor(
-  course: T.CourseInfo,
-  draft: T.SharedDraft,
-  selected: number,
-  activities: T.Activity[],
-  assignments: T.Assignment[] = [],
-): string {
-  if (course.status !== 'published')
-    return `<section class="portal-surface"><h2>等待课程资料通过审核</h2><p class="portal-note">先完善课程资料并提交学校审核，通过后即可编排内容和布置作业。</p>${button('查看课程资料', 'course-tab', 'data-tab="metadata"')}</section>`;
-  const unit = draft.units[selected];
-  if (!unit)
-    return `<section class="portal-surface">${empty('为课程添加第一个学习单元。')}${button('添加单元', 'add-unit', '', true)}</section>`;
-  const page = unit.content,
-    goal = page?.blocks.find((block) => block.type === 'learning-task'),
-    text = page?.blocks.find((block) => block.type === 'rich-text'),
-    checkpoint = page?.blocks.find((block) => block.type === 'checkpoint');
-  const options = activities
-    .filter((item) => item.galaxy === course.galaxy_key && item.subject === course.subject_key)
-    .map((item) => ({ value: item.key, label: item.title }));
-  if (!options.some((item) => item.value === unit.activity_key))
-    options.unshift({
-      value: unit.activity_key,
-      label: activities.find((item) => item.key === unit.activity_key)?.title || '保留原单元内容',
-    });
-  return `<div class="portal-editor"><aside class="portal-unit-list">${draft.units.map((item, index) => `<button class="${index === selected ? 'active' : ''}" data-portal="select-unit" data-index="${index}"><small>${String(index + 1).padStart(2, '0')}</small><span>${e(item.title)}</span></button>`).join('')}${button('+ 添加单元', 'add-unit')}</aside><section class="portal-surface"><form id="portal-unit-form">${field('单元名称', 'unit_title', unit.title, { required: true, max: 180 })}${area('学习目标', 'goal', goal?.prompt || page?.summary || '', true)}${area('教学说明', 'markdown', text?.markdown || '', true)}${selectField(
-    '关联实验',
-    'activity_key',
-    options,
-    unit.activity_key,
-    true,
-    Boolean(unit.id),
-  )}<div class="portal-inline-actions">${button('上移单元', 'move-unit', 'data-step="-1"')}${button('下移单元', 'move-unit', 'data-step="1"')}${button('移除单元', 'remove-unit')}</div><div class="portal-rule"></div><h2>理解检查点</h2>${!simpleCheckpoint(checkpoint) ? '<p class="portal-note">现有题型与答案规则将完整保留，本表单仅支持新建两选一检查点。</p>' : ''}<fieldset ${simpleCheckpoint(checkpoint) ? '' : 'disabled'}><label class="portal-checkbox"><input type="checkbox" name="checkpoint_enabled" ${checkpoint ? 'checked' : ''}/>通过一道选择题检查理解</label>${field('题目', 'question', checkpoint?.prompt || '', { max: 4000 })}<div class="portal-form-grid">${field('选项 A', 'choice_a', checkpoint?.choices?.[0]?.label || '', { max: 500 })}${field('选项 B', 'choice_b', checkpoint?.choices?.[1]?.label || '', { max: 500 })}${selectField(
-    '正确选项',
-    'correct_choice',
-    [
-      { value: 'a', label: 'A' },
-      { value: 'b', label: 'B' },
-    ],
-    checkpoint?.correctChoiceIds?.[0] || 'a',
-  )}</div></fieldset><div class="portal-form-grid">${selectField(
-    '完成条件',
-    'completion',
-    [
-      { value: 'preserve', label: '保留现有完成规则' },
-      { value: 'none', label: '暂不自动认定完成' },
-      { value: 'checkpoint_passed', label: '通过本单元检查点' },
-      { value: 'assignment_reviewed', label: '完成本单元作业批改' },
-    ],
-    page?.courseUnit?.completion?.preset === 'experiment_operation'
-      ? 'preserve'
-      : page?.courseUnit?.completion?.preset || 'none',
-  )}${selectField('用于完成认定的作业', 'completion_assignment', [{ value: '', label: '选择已布置的作业' }, ...assignments.filter((item) => item.unit_id === unit.id && item.status === 'active').map((item) => ({ value: String(item.id), label: item.title }))], page?.courseUnit?.completion?.assignmentId || '')}</div><p class="portal-note">发布前需要选择完成条件。已存在的实验操作认定规则会保留。</p>${page?.blocks.filter((block) => !['learning-task', 'rich-text', 'official-simulation', 'checkpoint'].includes(block.type)).length ? '<p class="portal-note">现有媒体、导语和参考资料会保留。</p>' : ''}</form><p class="portal-note">保存时校验草稿修订；发布版本保持不可变。</p></section></div>`;
-}
-
-export function versions(releases: T.Release[], selected: number | undefined): string {
-  const current = releases.find((item) => item.id === selected) || releases.at(-1);
-  return `<div class="portal-columns"><section class="portal-surface"><h2>发布历史</h2>${
-    releases.length
-      ? releases
-          .slice()
-          .reverse()
-          .map(
-            (item) =>
-              `<button class="portal-list-row" data-portal="select-release" data-id="${item.id}"><span><strong>第 ${item.release_number} 版</strong><small>${when(item.published_at)} · ${item.units.length} 个单元</small></span>${badge('published')}</button>`,
-          )
-          .join('')
-      : empty('首次发布后，这里会保留不可变版本。')
-  }</section><section class="portal-surface"><h2>${current ? `第 ${current.release_number} 版内容` : '版本内容'}</h2>${current ? `<ol class="portal-chapters">${current.units.map((unit) => `<li>${e(unit.title)} <small>${unit.content.blocks.length} 个内容块</small></li>`).join('')}</ol>${button('预览此版本', 'preview-release', `data-id="${current.id}"`)} ${button('与当前草稿比较', 'compare-release', `data-id="${current.id}"`)} ${button('恢复为新的草稿', 'restore-release', `data-id="${current.id}"`)}<p class="portal-note">恢复只产生新的草稿，不改写发布记录或学生成绩。</p>` : empty('暂无版本')}</section></div><div id="release-comparison"></div>`;
 }
 
 export function courseStudents(enrollments: T.Page<T.Enrollment>, requests: T.Page<T.JoinRequest>): string {
@@ -353,6 +194,10 @@ function renderBlock(
   }
   if (block.type === 'sources')
     return `<section class="lesson-block"><h3>${e(block.title || '参考资料')}</h3>${(block.items || []).map((item) => (/^https?:\/\//.test(item.url) ? `<p><a href="${e(item.url)}" target="_blank" rel="noopener noreferrer">${e(item.label)}</a></p>` : '')).join('')}</section>`;
+  if (block.type === 'resource')
+    return `<section class="lesson-block"><h3>${e(block.title)}</h3><p>${e(block.instructions)}</p><div data-course-resource="${e(block.blockId)}" role="group" aria-label="${e(block.title)}">正在读取交互资源…</div></section>`;
+  if (block.type === 'media')
+    return `<section class="lesson-block"><h3>${e(block.title || '课程素材')}</h3><div data-course-media="${e(block.blockId)}">正在读取素材…</div><p>${e(block.caption || block.alt || '')}</p>${block.transcript ? `<details><summary>文字内容</summary><p>${e(block.transcript)}</p></details>` : ''}</section>`;
   if (block.type === 'checkpoint')
     return `<section class="lesson-block checkpoint-block"><h3>${e(block.title)}</h3><p>${e(block.prompt)}</p><form class="portal-checkpoint-form" data-course="${release.course_id}" data-unit="${unit.source_course_unit_id}" data-release="${release.id}" data-key="${e(block.checkpointKey)}" data-response="${e(block.responseType)}">${block.responseType?.endsWith('choice') ? (block.choices || []).map((item) => `<label class="checkpoint-choice"><input type="${block.responseType === 'multiple-choice' ? 'checkbox' : 'radio'}" name="answer" value="${e(item.choiceId)}"/>${e(item.label)}</label>`).join('') : field('你的回答', 'answer', '', { type: block.responseType === 'numeric' ? 'number' : 'text', required: true })}<button class="primary-button" type="submit" ${role === 'student' && block.mode !== 'question-set' ? '' : 'disabled'}>${role === 'student' ? '提交检查' : '教师预览'}</button><output class="checkpoint-result" role="status"></output></form></section>`;
   return `<section class="lesson-block"><h3>${e(block.title || '课程媒体')}</h3><p>${e(block.caption || block.alt || '该媒体资源由学校内容库管理。')}</p></section>`;

@@ -10,7 +10,21 @@ const page = <V>(items: V[], offset = 0, limit = 50): T.Page<V> => ({
   next_offset: offset + limit < items.length ? offset + limit : null,
 });
 
-export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): T.SchoolGateway {
+export interface DemoTeachingStore {
+  courses: T.CourseInfo[];
+  drafts: Map<number, T.SharedDraft>;
+  releases: Map<number, T.Release[]>;
+  nextId(): number;
+  create(input: T.CourseInput): T.CourseInfo;
+  save(id: number, draft: T.SharedDraft): void;
+  publish(course: T.CourseInfo, draft: T.SharedDraft): T.Release;
+  resetResult(courseId: number, unitId: number): void;
+  checkpoint(): () => void;
+}
+
+export type SchoolDemo = T.SchoolGateway & { teaching: DemoTeachingStore };
+
+export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): SchoolDemo {
   const schools: T.School[] = [{ id: 1, name: '星序示范学校', status: 'active', version: 1 }];
   const classes: T.Classroom[] = [
     {
@@ -236,7 +250,40 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
           },
         ]
       : [];
+  const teaching: DemoTeachingStore = {
+    courses, drafts, releases: releaseHistory,
+    nextId: () => ++counter,
+    create(input) {
+      const course = buildCourse(++counter, input, 'draft');
+      course.has_published_content = false; course.active_student_count = 0;
+      courses.push(course);
+      drafts.set(course.id, { course_id: course.id, revision: 0, status: 'draft', title: course.title, summary: course.summary, units: [] });
+      return course;
+    },
+    save(id, draft) {
+      drafts.set(id, copy(draft));
+      for (const unit of draft.units) unitRecords.set(unit.id!, { courseId: id, unit: copy(unit) });
+    },
+    publish(course, draft) {
+      const published = release(course, draft);
+      const history = releaseHistory.get(course.id) || [];
+      history.push(published); releaseHistory.set(course.id, history);
+      return published;
+    },
+    resetResult: (courseId, unitId) => { completed.delete(`${courseId}:${unitId}`); },
+    checkpoint() {
+      const saved = { courses: copy(courses), drafts: copy(drafts), releases: copy(releaseHistory), units: copy(unitRecords), completed: copy(completed) };
+      return () => {
+        courses.splice(0, courses.length, ...saved.courses);
+        drafts.clear(); saved.drafts.forEach((value, key) => drafts.set(key, value));
+        releaseHistory.clear(); saved.releases.forEach((value, key) => releaseHistory.set(key, value));
+        unitRecords.clear(); saved.units.forEach((value, key) => unitRecords.set(key, value));
+        completed.clear(); saved.completed.forEach((value) => completed.add(value));
+      };
+    },
+  };
   return {
+    teaching,
     async myTeacherApplication() {
       return copy(teacherRequests.at(-1) || null);
     },
@@ -423,19 +470,7 @@ export function createSchoolDemo(role: () => T.Role, activities: T.Activity[]): 
     },
     async createCourse(input) {
       requireRole('teacher');
-      const item = buildCourse(++counter, input, 'draft');
-      item.has_published_content = false;
-      item.active_student_count = 0;
-      courses.push(item);
-      drafts.set(item.id, {
-        course_id: item.id,
-        revision: 0,
-        status: 'draft',
-        title: item.title,
-        summary: item.summary,
-        units: [],
-      });
-      return copy(item);
+      return copy(teaching.create(input));
     },
     async reviseCourse(id, input) {
       requireRole('teacher');

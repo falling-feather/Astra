@@ -44,6 +44,7 @@ def create_course_draft(
     actor: User,
     payload: CourseDraftCreate,
     request: Request | None = None,
+    commit: bool = True,
 ) -> dict:
     actor = _lock_authoring_teacher(db, actor, payload.school_id)
     if actor.id in payload.collaborator_user_ids:
@@ -131,8 +132,11 @@ def create_course_draft(
             }
         },
     )
-    db.commit()
-    db.refresh(course)
+    if commit:
+        db.commit()
+        db.refresh(course)
+    else:
+        db.flush()
     return build_course_draft_read(db, course)
 
 
@@ -265,6 +269,8 @@ def create_information_revision(
     if course is None:
         raise HTTPException(status_code=404, detail="Course not found")
     _require_course_authoring_access(db, actor=actor, course=course, locking_read=True)
+    if course.workflow_generation == 2:
+        raise HTTPException(status_code=409, detail="课程已使用候选审核，请通过 v2 共享草稿修改课程资料")
     if course.status == "archived":
         raise HTTPException(status_code=409, detail="Archived course information cannot be revised")
     if payload.school_id != course.school_id:
@@ -358,6 +364,8 @@ def update_information_draft(
     if course is None:
         raise HTTPException(status_code=404, detail="Course not found")
     _require_course_authoring_access(db, actor=actor, course=course, locking_read=True)
+    if course.workflow_generation == 2:
+        raise HTTPException(status_code=409, detail="课程已使用候选审核，请通过 v2 共享草稿修改课程资料")
     revision = db.scalar(select(CourseInformationRevision).where(CourseInformationRevision.id == revision_id, CourseInformationRevision.course_id == course_id).with_for_update().execution_options(populate_existing=True))
     if revision is None:
         raise HTTPException(status_code=404, detail="Course information revision not found")
@@ -399,6 +407,8 @@ def submit_information_revision(
     if course is None:
         raise HTTPException(status_code=404, detail="Course not found")
     _require_course_authoring_access(db, actor=actor, course=course, locking_read=True)
+    if course.workflow_generation == 2:
+        raise HTTPException(status_code=409, detail="课程已使用候选审核，请通过 v2 共享草稿修改课程资料")
     revision = db.scalar(
         select(CourseInformationRevision)
         .where(

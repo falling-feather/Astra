@@ -43,6 +43,7 @@ export function shell(state: AppState, content: string): string {
     role === 'admin'
       ? [
           { view: 'manage', label: '学校管理', icon: 'shield' },
+          { view: 'reviews', label: '课程审核', icon: 'list' },
           { view: 'classes', label: '班级', icon: 'users' },
           { view: 'notes', label: '笔记', icon: 'note' },
         ]
@@ -55,6 +56,7 @@ export function shell(state: AppState, content: string): string {
               ? [
                   item,
                   { view: 'assignments', label: role === 'teacher' ? '作业与批改' : '作业', icon: 'list' },
+                  ...(role === 'teacher' ? [{ view: 'reviews', label: '审核与发布', icon: 'list' }] : []),
                 ]
               : [item],
           );

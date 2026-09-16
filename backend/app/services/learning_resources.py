@@ -161,7 +161,24 @@ def get_resource_version(db: Session, version_id: int) -> dict:
     return _version_view(*pair)
 
 
+def validate_configuration(version: dict, configuration: dict) -> dict:
+    try:
+        renderer = version["renderer"]
+        if renderer == "function-graph-v1":
+            config = FunctionGraphConfig.model_validate(configuration)
+            compile_expression(config.formula, {"x", *(parameter.key for parameter in config.parameters)})
+            return config.model_dump(mode="json")
+        if renderer == "data-chart-v1":
+            return DataChartConfig.model_validate(configuration).model_dump(mode="json")
+        if renderer in {"legacy", "bundle"} and not configuration:
+            return {}
+        raise ValueError("资源未声明这些配置字段或运行方式")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "resource_configuration_invalid", "message": str(exc)}) from exc
+
+
 def preview_configuration(version: dict, configuration: dict) -> dict:
+    configuration = validate_configuration(version, configuration)
     renderer = version["renderer"]
     try:
         if renderer == "function-graph-v1":

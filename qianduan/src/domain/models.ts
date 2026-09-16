@@ -1,7 +1,8 @@
 import type { Role, SchoolGateway, TeacherApplication } from '../portal/contracts';
 import type { ResourceGateway } from '../portal/resource-types';
+import type { WorkflowGateway } from '../portal/workflow-types';
 export type WorkspaceView =
-  'overview' | 'courses' | 'classes' | 'notes' | 'account' | 'assignments' | 'teaching' | 'course' | 'resources';
+  'overview' | 'courses' | 'classes' | 'notes' | 'account' | 'assignments' | 'teaching' | 'course' | 'resources' | 'reviews';
 export type LearningSpaceView = 'lab' | 'code' | 'future' | `space:${string}`;
 export type Destination = 'manage' | LearningSpaceView;
 export type View = WorkspaceView | Destination;
@@ -59,6 +60,7 @@ export interface LearningGateway {
   readonly mode: 'demo' | 'api';
   readonly school: SchoolGateway;
   readonly resources: ResourceGateway;
+  readonly workflow: WorkflowGateway;
   getSession(): Promise<Session | null>;
   signIn(name: string, password: string): Promise<Session>;
   enterAsGuest(role?: Role): Promise<Session>;

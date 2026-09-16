@@ -467,6 +467,7 @@ def rollback_content_page_version(
     target_version = db.get(ContentPageVersion, version_id)
     if target_version is None:
         raise HTTPException(status_code=404, detail="Content page version not found")
+    _validate_content_slug(target_version.slug)
     page = db.scalar(
         select(ContentPageRecord)
         .where(ContentPageRecord.id == target_version.page_id)
@@ -564,10 +565,14 @@ def _get_content_draft_for_transition(db: Session, draft_id: int) -> ContentDraf
     draft = db.scalar(select(ContentDraft).where(ContentDraft.id == draft_id).with_for_update())
     if draft is None:
         raise HTTPException(status_code=404, detail="Content draft not found")
+    if draft.course_id is not None or draft.course_unit_id is not None:
+        raise HTTPException(status_code=409, detail="课程内容请使用共享草稿与候选审核流程")
     return draft
 
 
 def _validate_content_slug(slug: str) -> None:
+    if slug.startswith("courses/"):
+        raise HTTPException(status_code=409, detail="课程内容路径由课程发布流程管理")
     if (
         not slug
         or slug.startswith("/")

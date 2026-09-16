@@ -86,8 +86,21 @@ def replace_course_draft(
     course_id: int,
     payload: CourseSharedDraftReplace,
     request: Request,
+    commit: bool = True,
+    allow_unpublished: bool = False,
+    draft_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     course_hint = get_course(db, course_id)
+    if course_hint.workflow_generation == 2 and commit:
+        from app.schemas.course_workflow import CourseDraftCommand, CourseSettings, CourseUnitWrite
+        from app.services.course_workflow_support import draft_snapshot
+        from app.core.learning_evidence_contract import canonical_sha256
+        from app.services.course_drafts_v2 import save_draft
+        snapshot = draft_snapshot(db, course_hint)
+        resources = {item["id"]: item["resource_version_id"] for item in snapshot["units"]}
+        command = CourseDraftCommand(client_request_id=f"legacy-save-{course_id}-{_canonical_sha256(payload.model_dump(mode='json'))}", expected_revision=payload.expected_revision, expected_state_token=canonical_sha256(snapshot), settings=CourseSettings.model_validate(snapshot["settings"]), units=[CourseUnitWrite(**item.model_dump(), resource_version_id=resources.get(item.id)) for item in payload.units])
+        save_draft(db, actor=actor, course_id=course_id, payload=command, request=request, legacy_activity_keys={item.position: item.activity_key for item in payload.units if item.id is None})
+        return _shared_draft_read(db, course_hint)
     require_course_editor_or_admin(
         db,
         actor,
@@ -101,7 +114,7 @@ def replace_course_draft(
         course,
         detail="Shared course draft requires an active course teacher",
     )
-    if course.status != "published":
+    if course.status != "published" and not (allow_unpublished and course.status == "draft"):
         raise ContentPlatformError(
             409,
             "course_not_approved",
@@ -178,6 +191,7 @@ def replace_course_draft(
             unit=unit,
             item=item,
             revision=next_revision,
+            metadata=draft_metadata,
         )
         _upsert_shared_content_draft(
             db,
@@ -220,12 +234,11 @@ def replace_course_draft(
             },
         },
     )
-    _commit_or_conflict(
-        db,
-        "course_draft_write_conflict",
-        "Shared course draft changed concurrently",
-    )
-    db.refresh(course)
+    if commit:
+        _commit_or_conflict(db, "course_draft_write_conflict", "Shared course draft changed concurrently")
+        db.refresh(course)
+    else:
+        db.flush()
     return _shared_draft_read(db, course)
 
 
@@ -280,81 +293,23 @@ def get_course_release(
 
 
 def create_course_release(
-    db: Session,
-    *,
-    actor: User,
-    course_id: int,
-    payload: CourseReleasePublish,
-    request: Request,
+    db: Session, *, actor: User, course_id: int,
+    payload: CourseReleasePublish, request: Request,
 ) -> dict[str, Any]:
-    course_hint = get_course(db, course_id)
-    require_course_editor_or_admin(
-        db,
-        actor,
-        course_hint,
-        detail="Course publication requires an active course teacher",
-    )
-    course = lock_course_for_write(db, course_id)
-    require_course_editor_or_admin(
-        db,
-        actor,
-        course,
-        detail="Course publication requires an active course teacher",
-    )
-    if course.status != "published":
-        raise ContentPlatformError(
-            409,
-            "course_not_approved",
-            "Course information must be approved before content publication",
-        )
-    if payload.expected_revision != course.content_draft_revision:
-        raise ContentPlatformError(
-            409,
-            "course_draft_revision_conflict",
-            f"Shared draft changed; current revision is {course.content_draft_revision}",
-        )
+    # Legacy transport must enter the same approval gate, never publish a live draft.
+    from app.services.course_publications_v2 import publish_legacy_request
+    return publish_legacy_request(db, actor=actor, course_id=course_id, payload=payload, request=request)
 
-    units = list(
-        db.scalars(
-            select(CourseUnit)
-            .where(
-                CourseUnit.course_id == course.id,
-                CourseUnit.status != "archived",
-                _current_draft_member(),
-            )
-            .order_by(CourseUnit.position, CourseUnit.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        ).all()
-    )
-    if not units:
-        raise ContentPlatformError(
-            409,
-            "course_draft_empty",
-            "Shared course draft must contain at least one unit before publication",
-        )
 
-    release_number = (
-        int(
-            db.scalar(
-                select(func.max(CourseRelease.release_number)).where(
-                    CourseRelease.course_id == course.id
-                )
-            )
-            or 0
-        )
-        + 1
-    )
-    specs = [
-        _release_unit_spec(
-            db,
-            course=course,
-            unit=unit,
-            release_number=release_number,
-            expected_revision=payload.expected_revision,
-        )
-        for unit in units
-    ]
+def publish_prepared_course(
+    db: Session, *, actor: User, course: Course, specs: list[dict[str, Any]],
+    release_number: int, source_revision: int, note: str | None, request: Request | None,
+    candidate_id: int | None = None, candidate_sha256: str | None = None,
+    roll_current_draft: bool = True, commit: bool = True,
+) -> dict[str, Any]:
+    """Persist already-authorized immutable specs; the outer use case owns batch atomicity."""
+    from app.services.course_publications_v2 import assert_approved_specs
+    assert_approved_specs(db, course=course, specs=specs, candidate_id=candidate_id, candidate_sha256=candidate_sha256)
     course_class = _internal_course_class(db, course.id, locking_read=True)
     try:
         rule_id, rule_sha256, rule_snapshot = prepare_completion_rule_for_release(
@@ -375,6 +330,8 @@ def create_course_release(
         completion_rule_sha256=rule_sha256,
         specs=specs,
     )
+    if candidate_id is not None:
+        package_sha256 = _canonical_sha256({"content": package_sha256, "approved_candidate": candidate_sha256})
     duplicate_release_id = db.scalar(
         select(CourseRelease.id).where(
             CourseRelease.course_id == course.id,
@@ -392,8 +349,9 @@ def create_course_release(
     release = CourseRelease(
         course_id=course.id,
         release_number=release_number,
-        draft_revision=payload.expected_revision,
-        schema_version=COURSE_RELEASE_SCHEMA_VERSION,
+        draft_revision=source_revision,
+        schema_version="astra-course-release-v3" if candidate_id is not None else COURSE_RELEASE_SCHEMA_VERSION,
+        candidate_id=candidate_id,
         status="published",
         title_snapshot=course.title,
         summary_snapshot=course.summary,
@@ -407,7 +365,7 @@ def create_course_release(
     db.add(release)
     db.flush()
 
-    next_draft_revision = course.content_draft_revision + 1
+    next_draft_revision = course.content_draft_revision + (1 if roll_current_draft else 0)
     for spec in specs:
         page, version = _publish_content_page(
             db,
@@ -415,15 +373,15 @@ def create_course_release(
             draft=spec["draft"],
             published_content=spec["published_content"],
             schema_sha256=spec["schema_sha256"],
-            note=payload.note,
+            note=note,
             published_at=published_at,
         )
         release_unit = CourseReleaseUnit(
             course_release_id=release.id,
             source_course_unit_id=spec["unit"].id,
             activity_key=spec["unit"].activity_key,
-            title_snapshot=spec["unit"].title,
-            position=spec["unit"].position,
+            title_snapshot=spec.get("snapshot_title", spec["unit"].title),
+            position=spec.get("snapshot_position", spec["unit"].position),
             content_slug=page.slug,
             content_page_version_id=version.id,
             content_schema_sha256=version.schema_hash,
@@ -431,15 +389,23 @@ def create_course_release(
         )
         db.add(release_unit)
         spec["unit"].status = "published"
-        _roll_shared_draft_forward(
-            db,
-            actor=actor,
-            course=course,
-            unit=spec["unit"],
-            published_draft=spec["draft"],
-            published_version=version,
-            next_revision=next_draft_revision,
-        )
+        frozen_source = spec["draft"]
+        if frozen_source is not spec.get("editable_draft", frozen_source) or not roll_current_draft:
+            frozen_source.status = "published"
+            frozen_source.published_page_id = page.id
+            frozen_source.published_version_id = version.id
+            frozen_source.published_by_user_id = actor.id
+            frozen_source.published_at = published_at
+        if roll_current_draft:
+            _roll_shared_draft_forward(
+                db,
+                actor=actor,
+                course=course,
+                unit=spec["unit"],
+                published_draft=spec.get("editable_draft", spec["draft"]),
+                published_version=version,
+                next_revision=next_draft_revision,
+            )
 
     current_binding = db.scalar(
         select(CourseClassReleaseBinding)
@@ -451,11 +417,13 @@ def create_course_release(
         .limit(1)
         .with_for_update()
     )
-    db.execute(update(CourseUnit).where(
-        CourseUnit.course_id == course.id,
-        CourseUnit.id.not_in([spec["unit"].id for spec in specs]),
-        CourseUnit.status == "published",
-    ).values(status="archived"))
+    published_ids = {spec["unit"].id for spec in specs}
+    active_draft_ids = set(db.scalars(select(ContentDraft.course_unit_id).where(
+        ContentDraft.course_id == course.id, ContentDraft.active_key == SHARED_DRAFT_ACTIVE_KEY,
+    )))
+    for unit in db.scalars(select(CourseUnit).where(CourseUnit.course_id == course.id)):
+        if unit.id not in published_ids:
+            unit.status = "draft" if unit.id in active_draft_ids else "archived"
     binding = CourseClassReleaseBinding(
         course_class_id=course_class.id,
         course_release_id=release.id,
@@ -484,7 +452,7 @@ def create_course_release(
         request=request,
         snapshot={
             "before": {
-                "draft_revision": payload.expected_revision,
+                "draft_revision": source_revision,
                 "binding_id": current_binding.id if current_binding else None,
                 "binding_revision": current_binding.binding_revision
                 if current_binding
@@ -500,13 +468,16 @@ def create_course_release(
             },
         },
     )
-    _commit_or_conflict(
-        db,
-        "course_release_conflict",
-        "Course release changed concurrently; no partial release was retained",
-    )
-    db.refresh(release)
-    db.refresh(binding)
+    if commit:
+        _commit_or_conflict(
+            db,
+            "course_release_conflict",
+            "Course release changed concurrently; no partial release was retained",
+        )
+        db.refresh(release)
+        db.refresh(binding)
+    else:
+        db.flush()
     return {
         "release": _course_release_read(db, release, include_answers=True),
         "binding": _binding_read(binding),
@@ -574,9 +545,10 @@ def _shared_draft_read(db: Session, course: Course) -> dict[str, Any]:
             .order_by(CourseUnit.position, CourseUnit.id)
         ).all()
     )
+    drafts = {draft.course_unit_id: draft for draft in db.scalars(select(ContentDraft).where(ContentDraft.course_unit_id.in_([unit.id for unit in units]), ContentDraft.active_key == SHARED_DRAFT_ACTIVE_KEY))}
     items: list[dict[str, Any]] = []
     for unit in units:
-        draft = _active_shared_draft(db, unit.id, locking_read=False)
+        draft = drafts.get(unit.id)
         content = (
             ContentPageV2.model_validate(draft.schema_json)
             if draft is not None
@@ -619,6 +591,7 @@ def _canonical_draft_content(
     unit: CourseUnit,
     item: CourseSharedDraftUnitWrite,
     revision: int,
+    metadata: dict[str, Any] | None = None,
 ) -> ContentPageV2:
     completion = (
         item.content.courseUnit.completion
@@ -628,8 +601,8 @@ def _canonical_draft_content(
     return item.content.model_copy(
         update={
             "slug": _canonical_content_slug(course.id, item.activity_key),
-            "galaxy": course.galaxy_key,
-            "subject": course.subject_key,
+            "galaxy": metadata["galaxy_key"] if metadata else course.galaxy_key,
+            "subject": metadata["subject_key"] if metadata else course.subject_key,
             "title": item.title,
             "status": "draft",
             "version": f"draft-r{revision}",
@@ -692,46 +665,6 @@ def _upsert_shared_content_draft(
     db.flush()
     return draft
 
-
-def _release_unit_spec(
-    db: Session,
-    *,
-    course: Course,
-    unit: CourseUnit,
-    release_number: int,
-    expected_revision: int,
-) -> dict[str, Any]:
-    draft = _active_shared_draft(db, unit.id, locking_read=True)
-    if draft is None or draft.course_id != course.id:
-        raise ContentPlatformError(
-            409,
-            "course_unit_draft_missing",
-            f"Course unit {unit.id} has no shared draft",
-        )
-    if draft.revision != expected_revision:
-        raise ContentPlatformError(
-            409,
-            "course_unit_draft_revision_conflict",
-            f"Course unit {unit.id} is not at shared revision {expected_revision}",
-        )
-    draft_content = ContentPageV2.model_validate(draft.schema_json)
-    published_content = draft_content.model_copy(
-        update={
-            "status": "published",
-            "version": f"course-{course.id}-release-{release_number}",
-        }
-    )
-    published_payload = published_content.model_dump(mode="json")
-    package_payload = deepcopy(published_payload)
-    package_payload["version"] = "release"
-    return {
-        "unit": unit,
-        "draft": draft,
-        "published_content": published_content,
-        "schema_sha256": _canonical_sha256(published_payload),
-        "package_schema_sha256": _canonical_sha256(package_payload),
-        "media_snapshot": _media_snapshot(published_payload),
-    }
 
 
 def _publish_content_page(
@@ -877,8 +810,8 @@ def _course_package_sha256(
             "units": [
                 {
                     "activity_key": spec["unit"].activity_key,
-                    "title": spec["unit"].title,
-                    "position": spec["unit"].position,
+                    "title": spec.get("snapshot_title", spec["unit"].title),
+                    "position": spec.get("snapshot_position", spec["unit"].position),
                     "content_slug": spec["published_content"].slug,
                     "content_schema_sha256": spec["package_schema_sha256"],
                     "media_snapshot": spec["media_snapshot"],

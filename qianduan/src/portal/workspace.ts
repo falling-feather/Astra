@@ -4,20 +4,22 @@ import * as views from './views';
 import {
   area,
   button,
-  defaultContent,
   e,
   empty,
   field,
   human,
   pagination,
-  restoredUnits,
-  comparableContent,
   selectField,
 } from './presentation';
 import { serverTime } from '../domain/time';
-import { updateUnit } from './unit-editor';
+import { CoursePlayer } from './course-player';
+import type { ResourceGateway } from './resource-types';
+import type { WorkflowGateway } from './workflow-types';
 
 interface Options {
+  resources: ResourceGateway;
+  workflow: WorkflowGateway;
+  courseSectionsOnly?: boolean;
   demo: boolean;
   role: T.Role;
   userId: number;
@@ -32,16 +34,13 @@ export class PortalWorkspace {
   private abort = new AbortController();
   private active = true;
   private busy = false;
-  private dirty = false;
   private formDirty = false;
   private view: View = 'overview';
   private courseId?: number;
   private course?: T.CourseInfo;
   private draft?: T.SharedDraft;
-  private tab = 'editor';
+  private tab = 'assignments';
   private unit = 0;
-  private releases: T.Release[] = [];
-  private selectedRelease?: number;
   private learningRelease?: T.Release;
   private pageOffsets: Record<string, number> = {};
   private filter = 'active';
@@ -51,11 +50,10 @@ export class PortalWorkspace {
   private classId?: number;
   private plan?: T.ReleasePlan;
   private schools: T.School[] = [];
-  private authoringTeachers: { user_id: number; display_name: string }[] = [];
-  private admissionClasses: T.Classroom[] = [];
   private classes: T.Classroom[] = [];
   private assignment?: T.Assignment;
   private returnFromExperiment: DocumentFragment | null = null;
+  private player?: CoursePlayer;
   private suspendedFormDirty = false;
   private retry: () => Promise<void> = async () => {};
 
@@ -71,10 +69,11 @@ export class PortalWorkspace {
     root.addEventListener('change', this.change, { signal });
   }
 
-  mount(view: View, courseId?: number, assignmentKey = ''): void {
+  mount(view: View, courseId?: number, assignmentKey = '', tab?: string): void {
     this.view = view;
     this.courseId = courseId;
     this.assignmentKey = assignmentKey;
+    if (tab) this.tab = tab;
     void this.run(() => this.load());
   }
 
@@ -87,16 +86,23 @@ export class PortalWorkspace {
   }
 
   hasChanges(): boolean {
-    return this.dirty || this.formDirty || this.suspendedFormDirty;
+    return this.formDirty || this.suspendedFormDirty;
   }
   destroy(): void {
+    this.player?.destroy();
     this.active = false;
     this.abort.abort();
   }
   private paint(html: string): void {
     if (!this.active) return;
+    this.player?.destroy(); this.player = undefined;
     this.root.innerHTML = `<div class="portal-view">${html}</div>`;
     this.formDirty = false;
+    const unit = this.learningRelease?.units[this.unit];
+    if (this.learningRelease && unit && unit.access_state !== 'locked' && this.root.querySelector('[data-course-resource], [data-course-media]')) {
+      this.player = new CoursePlayer(this.root, this.options.resources, this.options.workflow, this.learningRelease, unit);
+      this.player.mount();
+    }
   }
 
   private async run(action: () => Promise<void>, mutation = false): Promise<void> {
@@ -131,28 +137,6 @@ export class PortalWorkspace {
         delete item.dataset.wasDisabled;
       });
     }
-  }
-
-  private async loadAuthoringOptions(schoolId?: number): Promise<void> {
-    if (!schoolId) {
-      this.authoringTeachers = [];
-      this.admissionClasses = [];
-      return;
-    }
-    const data = await this.api.authoringOptions(schoolId);
-    this.authoringTeachers = data.teachers.filter(
-      (teacher) => teacher.user_id !== (this.course?.creator_user_id || this.options.userId),
-    );
-    this.admissionClasses = data.homerooms.map((group) => ({
-      id: group.class_id,
-      name: group.name,
-      grade: group.grade,
-      term: group.term,
-      school_id: schoolId,
-      kind: 'homeroom',
-      status: 'active',
-      version: 0,
-    }));
   }
 
   private async directories(): Promise<void> {
@@ -217,36 +201,12 @@ export class PortalWorkspace {
     this.course = course;
     this.draft = draft;
     this.unit = Math.min(this.unit, Math.max(0, draft.units.length - 1));
-    this.dirty = false;
     await this.loadTab();
   }
 
   private async loadTab(): Promise<void> {
     if (!this.course || !this.draft) return;
     let body = '';
-    if (this.tab === 'editor')
-      body = views.editor(
-        this.course,
-        this.draft,
-        this.unit,
-        this.options.activities,
-        await this.api.assignments(this.courseId!),
-      );
-    if (this.tab === 'metadata') {
-      await this.directories();
-      await this.loadAuthoringOptions(this.course.school_id);
-      body = views.metadataForm(
-        this.schools,
-        this.admissionClasses,
-        this.options.activities,
-        this.course,
-        this.authoringTeachers,
-      );
-    }
-    if (this.tab === 'releases') {
-      this.releases = await this.api.releases(this.courseId!);
-      body = views.versions(this.releases, this.selectedRelease);
-    }
     if (this.tab === 'students') {
       const [enrollments, requests] = await Promise.all([
         this.api.enrollments(this.courseId!, this.pageOffsets.enrollments),
@@ -267,7 +227,7 @@ export class PortalWorkspace {
         ? this.planView(groups)
         : empty('资料通过学校审核、建立教学范围后，可以设置单元开放计划。');
     }
-    this.paint(views.courseHeader(this.course, this.tab, this.dirty) + body);
+    this.paint((this.options.courseSectionsOnly ? '' : views.heading(this.course.title, '', button('进入课程编辑', 'open-course', `data-id="${this.course.id}"`)) + `<nav class="portal-tabs">${[['students', '学生'], ['assignments', '作业'], ['plan', '开放计划']].map(([key, label]) => button(label, 'course-tab', `data-tab="${key}"`)).join('')}</nav>`) + body);
   }
 
   private planView(groups: T.Classroom[]): string {
@@ -348,30 +308,6 @@ export class PortalWorkspace {
     );
   }
 
-  private captureUnit(): void {
-    const form = this.root.querySelector<HTMLFormElement>('#portal-unit-form');
-    if (!form || !this.course || !this.draft || !this.formDirty) return;
-    if (!form.reportValidity()) throw new Error('请先补全单元必填内容。');
-    const updated = updateUnit(this.course, this.draft.units[this.unit], new FormData(form));
-    if (
-      this.draft.units.some(
-        (unit, index) => index !== this.unit && unit.activity_key === updated.activity_key,
-      )
-    )
-      throw new Error('同一课程内不能重复添加同一个实验单元。');
-    this.draft.units[this.unit] = updated;
-    this.dirty = true;
-    this.formDirty = false;
-  }
-
-  private async saveDraft(): Promise<void> {
-    this.captureUnit();
-    if (this.dirty) {
-      this.draft = await this.api.saveDraft(this.courseId!, this.draft!);
-      this.dirty = false;
-    }
-  }
-
   private async openGrading(id: number, courseId?: number): Promise<void> {
     if (this.assignment?.id !== id) this.pageOffsets.submissions = 0;
     if (courseId && courseId !== this.courseId) {
@@ -414,8 +350,11 @@ export class PortalWorkspace {
       navigate('courses');
       return;
     }
+    if (action === 'new-course') {
+      navigate('course', 0);
+      return;
+    }
     void this.run(async () => {
-      this.captureUnit();
       const id = Number(target.dataset.id),
         status = target.dataset.status || '';
       if (action === 'paginate') {
@@ -426,127 +365,10 @@ export class PortalWorkspace {
           await this.loadAdministration();
         else if (target.dataset.collection === 'submissions') await this.openGrading(this.assignment!.id);
         else await this.loadTab();
-      } else if (action === 'new-course') {
-        await this.directories();
-        this.course = undefined;
-        this.courseId = undefined;
-        await this.loadAuthoringOptions(this.schools[0]?.id);
-        this.paint(
-          views.metadataForm(
-            this.schools,
-            this.admissionClasses,
-            this.options.activities,
-            undefined,
-            this.authoringTeachers,
-          ),
-        );
       } else if (action === 'course-tab') {
         if (this.formDirty && !confirm('放弃当前表单中未保存的修改？')) return;
         this.tab = target.dataset.tab!;
         await this.loadTab();
-      } else if (action === 'select-unit') {
-        this.unit = Number(target.dataset.index);
-        await this.loadTab();
-      } else if (action === 'add-unit') {
-        const activity = this.options.activities.find(
-          (item) =>
-            item.galaxy === this.course!.galaxy_key &&
-            item.subject === this.course!.subject_key &&
-            !this.draft!.units.some((unit) => unit.activity_key === item.key),
-        );
-        if (!activity) throw new Error('该方向可用的实验已全部加入。');
-        const position = this.draft!.units.length + 1;
-        this.draft!.units.push({
-          activity_key: activity.key,
-          title: activity.title,
-          position,
-          content: defaultContent(this.course!, activity.key, activity.title, position),
-        });
-        this.unit = position - 1;
-        this.dirty = true;
-        await this.loadTab();
-      } else if (action === 'move-unit' || action === 'remove-unit') {
-        const units = this.draft!.units,
-          destination = this.unit + Number(target.dataset.step);
-        if (action === 'remove-unit') {
-          if (!confirm('从草稿移除此单元？历史发布与学习记录会保留。')) return;
-          units.splice(this.unit, 1);
-          this.unit = Math.max(0, this.unit - 1);
-        } else if (destination >= 0 && destination < units.length) {
-          const [unit] = units.splice(this.unit, 1);
-          units.splice(destination, 0, unit);
-          this.unit = destination;
-        } else return;
-        units.forEach((unit, index) => {
-          unit.position = index + 1;
-          if (unit.content?.courseUnit) unit.content.courseUnit.order = index + 1;
-        });
-        this.dirty = true;
-        await this.loadTab();
-      } else if (action === 'save-draft') {
-        await this.saveDraft();
-        await this.loadTab();
-        this.options.notify('课程草稿已保存。');
-      } else if (action === 'submit-information') {
-        if (this.formDirty) throw new Error('请先保存课程资料，再提交审核。');
-        this.course = await this.api.submitInformation(this.courseId!, this.course!.information_revision.id);
-        await this.loadTab();
-      } else if (action === 'publish') {
-        this.paint(
-          views.heading(
-            '发布课程',
-            '发布后将保留这份快照；后续修改进入新的草稿。',
-            button('返回内容', 'course-tab', 'data-tab="editor"'),
-          ) +
-            `<section class="portal-surface"><h2>${e(this.course!.title)}</h2><ol>${this.draft!.units.map((unit) => `<li>${e(unit.title)}</li>`).join('')}</ol><form id="portal-publish-form">${area('本次发布说明', 'note', '')}<button class="primary-button" type="submit">保存并发布这份内容</button></form></section>`,
-        );
-      } else if (action === 'preview-release') {
-        this.learningRelease = this.releases.find((item) => item.id === id);
-        if (!this.learningRelease) throw new Error('这个发布版本暂不可读取。');
-        this.unit = 0;
-        this.paint(
-          views.learning(this.learningRelease, this.unit, this.options.activities, this.options.role),
-        );
-      } else if (action === 'select-release') {
-        this.selectedRelease = id;
-        await this.loadTab();
-      } else if (action === 'compare-release' || action === 'restore-release') {
-        const release = this.releases.find((item) => item.id === id)!;
-        if (action === 'restore-release') {
-          if (
-            !confirm(
-              `将第 ${release.release_number} 版的内容复制到当前草稿？现有未保存草稿将被替换，学生成绩不变。`,
-            )
-          )
-            return;
-          this.draft!.units = restoredUnits(release.units);
-          this.dirty = true;
-          this.tab = 'editor';
-          this.unit = 0;
-          await this.loadTab();
-        } else {
-          const keys = new Set([
-            ...release.units.map((unit) => unit.activity_key),
-            ...this.draft!.units.map((unit) => unit.activity_key),
-          ]);
-          this.root.querySelector('#release-comparison')!.innerHTML =
-            `<section class="portal-surface"><h2>版本差异</h2>${[...keys]
-              .map((key) => {
-                const old = release.units.find((unit) => unit.activity_key === key),
-                  next = this.draft!.units.find((unit) => unit.activity_key === key);
-                const status = !old
-                  ? '新增'
-                  : !next
-                    ? '已移除'
-                    : comparableContent(old.content) === comparableContent(next.content) &&
-                        old.position === next.position &&
-                        old.title === next.title
-                      ? '无变化'
-                      : '内容或顺序已修改';
-                return `<p>${e(next?.title || old?.title)} · ${status}</p>`;
-              })
-              .join('')}</section>`;
-        }
       } else if (action === 'review-join') {
         await this.api.reviewJoin(this.courseId!, id, status);
         await this.loadTab();
@@ -631,48 +453,7 @@ export class PortalWorkspace {
     const data = new FormData(form),
       value = (name: string) => String(data.get(name) || '').trim();
     void this.run(async () => {
-      if (form.id === 'portal-course-form') {
-        const input: T.CourseInput = {
-          school_id: Number(value('school_id')),
-          title: value('title'),
-          summary: value('summary'),
-          academic_year: value('academic_year'),
-          schedule_text: value('schedule_text'),
-          total_hours: Number(value('total_hours')),
-          galaxy_key: value('galaxy_key'),
-          subject_key: value('subject_key'),
-          admission_mode: value('admission_mode') as T.CourseInput['admission_mode'],
-          admission_class_ids:
-            value('admission_mode') === 'class_restricted'
-              ? data.getAll('admission_class_ids').map(Number)
-              : [],
-          collaborator_user_ids: data.getAll('collaborator_user_ids').map(Number),
-        };
-        if (input.admission_mode === 'class_restricted' && !input.admission_class_ids.length)
-          throw new Error('请至少选择一个允许加入的班级。');
-        const previous = this.course?.information_revision;
-        this.course = !this.course
-          ? await this.api.createCourse(input)
-          : previous!.status === 'draft'
-            ? await this.api.editInformation(this.courseId!, previous!.id, previous!.edit_revision, input)
-            : await this.api.reviseCourse(this.courseId!, input);
-        this.courseId = this.course.id;
-        this.draft = await this.api.draft(this.courseId);
-        this.dirty = false;
-        this.tab = 'metadata';
-        await this.loadTab();
-        this.options.notify('课程资料草稿已保存。');
-      } else if (form.id === 'portal-publish-form') {
-        await this.saveDraft();
-        const unfinished = this.draft!.units.filter((unit) => !unit.content?.courseUnit?.completion);
-        if (unfinished.length)
-          throw new Error(`请先为这些单元选择完成条件：${unfinished.map((unit) => unit.title).join('、')}`);
-        const result = await this.api.publish(this.courseId!, this.draft!.revision, value('note'));
-        this.tab = 'releases';
-        await this.loadCourse();
-        await this.options.changed();
-        this.options.notify(`第 ${result.release.release_number} 版已发布。`);
-      } else if (form.id === 'portal-assignment-form') {
+      if (form.id === 'portal-assignment-form') {
         await this.api.createAssignment(this.courseId!, Number(value('unit_id')), {
           title: value('title'),
           description: value('description'),
@@ -761,43 +542,6 @@ export class PortalWorkspace {
   };
   private change = (event: Event): void => {
     const target = event.target as HTMLSelectElement;
-    if (target.name === 'galaxy_key') {
-      const subject = this.root.querySelector<HTMLSelectElement>('[name="subject_key"]');
-      if (subject)
-        subject.innerHTML = [
-          ...new Set(
-            this.options.activities
-              .filter((item) => item.galaxy === target.value)
-              .map((item) => item.subject),
-          ),
-        ]
-          .map((key) => `<option value="${e(key)}">${e(human(key))}</option>`)
-          .join('');
-    }
-    if (target.name === 'school_id' && target.closest('#portal-course-form')) {
-      void this.run(async () => {
-        await this.loadAuthoringOptions(Number(target.value));
-        if (!this.active) return;
-        const list = this.root.querySelector('.portal-checks');
-        if (list)
-          list.innerHTML =
-            this.admissionClasses
-              .map(
-                (item) =>
-                  `<label><input type="checkbox" name="admission_class_ids" value="${item.id}"/>${e(item.name)}</label>`,
-              )
-              .join('') || '暂无可选班级';
-        const teachers = this.root.querySelector('#co-teacher-options');
-        if (teachers)
-          teachers.innerHTML =
-            this.authoringTeachers
-              .map(
-                (item) =>
-                  `<label class="portal-checkbox"><input type="checkbox" name="collaborator_user_ids" value="${item.user_id}"/>${e(item.display_name)}</label>`,
-              )
-              .join('') || '暂无其他可选教师';
-      });
-    }
     if (target.name === 'plan_class') {
       if (this.formDirty && !confirm('放弃未保存的开放计划修改？')) {
         target.value = String(this.classId);
