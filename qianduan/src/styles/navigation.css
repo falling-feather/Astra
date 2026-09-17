@@ -66,7 +66,8 @@
 .orbit-fallback-curves { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; fill: none; stroke-width: 1; }
 .empty-course-message { margin-top: 65px; color: #92a9be; }
 .app-shell .course-inspector { left: 0; top: 40px; width: clamp(214px,20vw,285px); padding: 0 12px 0 0; background: transparent; border: 0; box-shadow: none; pointer-events: none; }
-.course-inspector button { pointer-events: auto; }
+.course-inspector button,
+.course-inspector a { pointer-events: auto; }
 .app-shell .course-cover { height: 106px; width: 90%; border: 0; background: transparent; border-radius: 0; overflow: hidden; opacity: .75; mask-image: linear-gradient(90deg,#000 65%,transparent); }
 .course-subject { display: block; font-size: 11px; color: var(--course-color); letter-spacing: .1em; margin-top: 22px; }
 .app-shell .course-inspector-heading { margin-top: 12px; }
