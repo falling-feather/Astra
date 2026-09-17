@@ -1,156 +1,142 @@
-# 星序 Astra · 一站式交互学习平台
+# 星序 Astra
 
-星序 Astra 将可交互实验与教学管理结合在同一平台中，Web 实验体验与后端课程、协作和评价同等重要。当前包含：
+**交互式学科学习与职业情景实训。**
 
-- **工科试验室**：数学、物理、化学、算法、生物五大学科，共 90 个交互实验。
-- **代码空间**：独立子站 [`/codevis/`](codevis/README.md)，提供 6 组课程目录、18 个“预测—运行—追踪—修正”活动以及 JavaScript、Python、C、C++ 浏览器学习运行时。
-- **未来星系**：6 个跨学科方向、19 个活动身份，以课程目录、Canvas 观测和按需 Three.js 互动组织地球与宇宙、工程、数据、信息、材料与人文学习。
+星序把知识讲解、动手实验和教学任务放进浏览器。学生可以改变参数观察规律、追踪程序执行，也可以进入职业现场采访人物、核实资料并完成作品；教师可以组织资源、编排课程，在学校审核后发布，并回看学习记录。
 
-正式门户位于 `qianduan/`，使用 TypeScript、Vite、原生 DOM 和 Three.js；Python/FastAPI 提供认证、课程、作业、内容、学习分析与治理 API。三个原有实验空间保留，构建时打包为独立公开资源。
+项目包含学术主站与职业教育子站。两者通过教育方向入口衔接，分别维护业务服务和数据，适合本地课程演示、毕业设计与交互学习内容开发。
 
-[打开 GitHub Pages 演示](https://falling-feather.github.io/Astra/) · [前端开发与发布](qianduan/README.md)
+[在线体验学术静态演示](https://falling-feather.github.io/Astra/) · [运行完整版本](#运行完整版本) · [了解技术设计](doc/01-开发者手册.md) · [查看当前计划](doc/02-更新规划.md)
 
-## 当前状态
+## 可以在星序里做什么
 
-- `main` 保存完整源码，`qianduan` 保存 Pages 静态制品。线上使用明确标识的内存演示数据，本机完整版本连接真实账号和数据库。本轮采用普通开发提交，未新增产品发布号；提交与验证见 [本阶段记录](doc/03-发布历史.md#8-2026-09-07-正式门户接入与前后端封装)。
-- 登录前导览、Cookie Session、教师申请、课程创建与审核、学生选课、多教师共享草稿、不可变发布、三种完成结果和三角色工作台均已进入当前实现。
-- 三个学习空间合计 127 项正式活动身份：工科试验室 90、代码空间 18、未来星系 19。课程可引用这些活动；目录身份数量不等于独立实验或完整教学闭环的数量。
-- 当前迁移包含个人笔记与发布单元状态修复，准确迁移 head 见 [部署指南](doc/04-部署指南.md)。本轮完成教师课程/版本/学生/批改、学生作业和必要管理审核页面；课程家族、跨分叉同步、候选批审和补做策略仍属于后续计划。公网业务后端、隔离源码执行和真实课堂实证未作为已完成能力。
-- 当前作品服务毕业设计、大作业与展示类竞赛；先打磨 Web 交互和后端架构，微信小程序暂不设计。实验端强调课程广度、递进、适配与解释性；业务规则和实施顺序见 [更新规划](doc/02-更新规划.md)，目标图见 [架构设计](doc/01-开发者手册.md#13-目标架构与设计待实现)。
+| 学习空间 | 当前内容 | 可以尝试的操作 |
+| --- | --- | --- |
+| 工科试验室 | 数学、物理、化学、算法、生物，90 项交互实验 | 调整双摆初始角差，比较轨迹和末端距离；改变色谱参数，观察色带与检测峰的对应关系 |
+| 代码空间 | 6 组课程目录、18 项学习活动 | 先预测结果，再运行代码、追踪变量并修正判断；按需加载 JavaScript、Python、C、C++ 浏览器学习运行时 |
+| 未来星系 | 地球与宇宙、工程、数据、信息、材料与人文，19 项活动 | 通过课程目录、Canvas 观测和按需三维交互，探索跨学科问题 |
+| 职业教育 | 融媒体岗位下的 5 门课程，复用蟳埔、榕江和山地景区场景 | 调查现场、采访人物、核对来源、记录笔记、编辑作品，并在动态服务中查看过程评价与教师复核 |
 
-当前实现见 [`doc/01-开发者手册.md`](doc/01-开发者手册.md)，下一阶段任务与版本见 [`doc/02-更新规划.md`](doc/02-更新规划.md)，全部版本、验收证据与历史档案统一见 [`doc/03-发布历史.md`](doc/03-发布历史.md)。
+前三个空间共 **127 个活动身份**。教师创建的授课课程、资源模板和职教情景课程另行管理；同一个实验可以被不同课程引用，课程成员和学习记录各自保留。
 
-## 快速开始
+第一次体验，可以先选一项实验改变一个变量，再进入代码空间完成一次“预测—运行—追踪—修正”。需要了解教学管理时，切换演示身份观察教师编排、管理员审核、教师发布和学生学习的过程；需要观察真实持久化与职教模型交互时，使用下方本地入口。
 
-### 推荐：9001 单入口一键启动
+## 核心设计
 
-在 Windows PowerShell 中从仓库根目录执行：
+### 数值模型与可视化交互相结合
+
+星云开场和透视课程轮盘提供空间化导航，具体实验使用 DOM、Canvas 或 Three.js 表达适合观察的关系。计算与绘制分别组织：例如双摆实验用四阶 Runge–Kutta 方法推进状态，再将轨迹、分离距离和能量误差显示出来。代表性模型的公式、单位、假设和可复算样例见 [学科实验指南](doc/01-子文档/15-学科实验与内容开发指南.md)。
+
+### 从资源复用到课程审核与学习留档
+
+教师可以引用现有活动、使用受控函数或图表模板，配合讲解、媒体、检查点和作业编排课程。课程支持独立派生、共同教师共享草稿、同源内容同步预览和候选审核；正式发布固定到已审核的内容快照。
+
+学生的检查点、作业与评分记录保留所见版本和来源。重新提交、退回与改分追加历史，旧结果是否沿用由发布策略和认定记录表达。具体流程及当前接入范围见 [课程工作流](doc/01-开发者手册.md#64-本轮课程工作流) 和 [学习历史](doc/01-开发者手册.md#65-版本化学习作业与评分历史)。
+
+### 让 AI 参与有依据的学习任务
+
+学术主站提供按配置启用的 AI 助教接口。职教子站进一步将人物知识范围、交流历史、课程证据与世界状态结合：模型提出回答或行动建议，程序核验允许动作、权限和状态后再提交变化，教师保留复核入口。
+
+职教内容库保存来源版本、片段、知识、授权和审核记录，蟳埔旗舰课程已接入基于资料与本地向量的检索链。实时模型需要单独配置；公开导览使用预设访谈和本地草稿，两种体验的入口与能力见 [职教运行说明](doc/04-部署指南.md#8-职教子站运行与数据)。
+
+## 体验方式
+
+| 方式 | 入口 | 数据与适用场景 |
+| --- | --- | --- |
+| 学术静态演示 | [GitHub Pages](https://falling-feather.github.io/Astra/) | 三角色内存样例，刷新重置；适合先看界面和交互。线上制品版本以实际构建信息为准 |
+| 学术本机完整版本 | `http://127.0.0.1:9001/` | FastAPI、Cookie 会话和 SQLite，保存真实本机账号、课程与学习记录 |
+| 职教本机动态服务 | 默认 `http://127.0.0.1:4173/` | 独立 Fastify API、PGlite 和文件存储，适合观察人物交互、作品提交和教师流程 |
+| 职教公开导览 | 按 [第 8 节](doc/04-部署指南.md#8-职教子站运行与数据) 独立构建 | 预设场景和浏览器本地草稿，不依赖动态 API |
+
+教育方向中的“职业教育”默认跳转本机 `4173`，可通过 `VITE_VOCATIONAL_APP_URL` 修改。打开学术 Pages 不会启动职教服务；两站也尚未共享账号、课程或成绩。
+
+## 运行完整版本
+
+### 学术主站
+
+准备 Git、Python 3.12+，以及仓库锁定的 **Node 24.20.0 / npm 11.19.0**。从 Windows PowerShell 执行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\astra-local.ps1
-```
-
-先核对 [运行环境约束](doc/04-部署指南.md#1-运行方式与环境)，使用仓库锁定的 Node/npm，并准备 Python 3.12+。脚本创建仓库内忽略的 `.venv`、按 `backend/requirements.lock` 安装哈希锁依赖、构建正式前端、执行 Alembic 迁移，并把前端与 API 同源启动在 `http://127.0.0.1:9001/`。数据默认保存在 `%LOCALAPPDATA%\Astra\local-preview`；再次执行会识别已经运行的星序站点，停止使用 `Ctrl+C`。
-
-需要保持仓库内不产生 `.venv` 时，可把托管虚拟环境显式放到仓库外；路径允许 Unicode 和空格，但规范化后不得等于仓库根目录或位于其子目录：
-
-```powershell
-$ExternalVenv = Join-Path $env:LOCALAPPDATA "Astra\Python 环境\preview venv"
-powershell -ExecutionPolicy Bypass -File .\astra-local.ps1 -VirtualEnvironmentPath "$ExternalVenv"
-```
-
-该模式拒绝 Windows device namespace；所选目录及其现存祖先、`Scripts/python.exe`、依赖标记和 `Lib/site-packages` 也不得经过 junction、symlink、volume mount 或 cloud reparse point。脚本在所选目录创建/复用 Python 3.12+ 环境，要求该解释器回报的 `sys.prefix` 精确归属所选目录，按同一哈希锁安装依赖，并把锁文件 SHA 标记保存在该环境内，不创建或修改仓库 `.venv`。已有的调用方自管 Python 则使用 `-PythonExecutable "<python.exe>" -SkipDependencyInstall`；两种参数互斥。自管模式不安装依赖、也不写依赖标记，而是在创建数据目录、审计盐、环境配置、迁移、初始化或 Uvicorn 之前，先用解析后的同一可执行文件执行离线哈希锁 dry-run 和 `pip check`，任一步失败即停止。后续 pip、Alembic、bootstrap、演示初始化和前台 Uvicorn 也始终使用选定的精确 Python。
-
-全新数据目录需要首个管理员时，使用交互式入口；密码只在隐藏输入和当前进程内短暂存在，不写入参数、脚本或仓库：
-
-```powershell
+git clone https://github.com/falling-feather/Astra.git
+cd Astra
 powershell -ExecutionPolicy Bypass -File .\astra-local.ps1 -BootstrapAdmin
 ```
 
-这是当前展示版的正式启动与验收入口；它不配置域名、TLS、Windows 服务或正式 MySQL，也不能被描述成 staging/production。完整边界见 [`doc/04-部署指南.md`](doc/04-部署指南.md)。
+首次运行会准备 Python 环境、安装锁定依赖、构建前端、执行数据库迁移，并交互创建首个管理员。密码输入不回显。成功后打开 `http://127.0.0.1:9001/`；再次启动可省略 `-BootstrapAdmin`，使用 `Ctrl+C` 停止。
 
-### 前端独立开发与演示
+需要合成演示账号、隔离数据目录、外置 Python 环境或自管解释器时，按 [本机完整版本](doc/04-部署指南.md#2-本机完整版本) 操作。数据默认保存在 `%LOCALAPPDATA%\Astra\local-preview\astra-local.sqlite3`。
 
-在仓库根目录执行：
+### 职教子站与联合启动
 
-```bash
-npm --prefix qianduan ci --ignore-scripts
-npm --prefix qianduan run dev -- --port 5173 --strictPort
-```
-
-访问 `http://127.0.0.1:5173/`。真实模式的 `/api` 和 `/labs` 代理到上述本机 9001 服务。只看演示效果时改用 `npm --prefix qianduan run dev:demo`；独立打包、子路径与发布步骤见 [前端说明](qianduan/README.md)。
-
-### 单独运行业务 API
-
-需要 Python 3.12+：
-
-```bash
-cd backend
-python -m pip install --require-hashes -r requirements.lock
-python -m alembic upgrade head
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-默认数据库是本地 SQLite，也是当前展示版要求复验的数据库。以后恢复生产发布时，才需要显式配置 MySQL、关闭自动建表，并按 [`doc/04-部署指南.md`](doc/04-部署指南.md) 执行预检、迁移、烟测和回滚检查。
-
-`backend/requirements.txt` 是直接依赖约束输入，不能用于发布安装。依赖升级必须在独立变更中同时更新哈希锁：先安装 `uv==0.10.6`，再从仓库根目录执行 `python backend/scripts/compile_requirements_lock.py --exclude-newer YYYY-MM-DD`；CI 会重新解析并拒绝漂移。
-
-上述 8000 入口只运行 API；正式门户联调优先使用 9001 一键入口。其他域名或端口需同时配置前端接口地址和后端允许的来源，具体见 [部署指南](doc/04-部署指南.md)。
-
-### 兼容用途：C++ 静态服务
-
-需要 CMake 与完整支持 C++17 filesystem 的编译器（GCC 9.1+、现代 Clang 或 MSVC）：
-
-```bash
-cmake -S server -B server/build -DCMAKE_BUILD_TYPE=Release
-cmake --build server/build --config Release --target verify_build_manifest
-```
-
-C++ 进程只承担静态资源和内部存活探针，业务 `/api/*` 必须由反向代理转发到 FastAPI。FetchContent 固定 cpp-httplib v0.18.3 的完整 commit；构建旁生成并校验包含产物 SHA-256、工具链和依赖来源的 `englab_server.build-manifest.json`，离线缓存用法见 [`server/README.md`](server/README.md)。
-
-## 质量门禁
+职教采用独立 pnpm 工作区，锁定 **pnpm 11.9.0**；可共用上方 Node 环境，Windows 启动器还要求 `corepack` 命令可用。依赖准备见 [运行环境](doc/04-部署指南.md#1-运行方式与环境)。从仓库根目录独立启动：
 
 ```powershell
-# 后端全量回归；真实 MySQL 专项在未提供隔离数据库时会显式跳过
-python -m pytest backend
+powershell -ExecutionPolicy Bypass -File .\zhijiao\启动职教星云.ps1
+```
 
-# 精确 Node/npm + package-lock；覆盖全部跟踪脚本语法与前端契约
-npm ci --ignore-scripts
-npm test
+已完成学术主站初始化后，也可以联合启动两站并复用职教数据：
 
-# 正式门户行为、类型、构建与公开制品
-npm --prefix qianduan ci --ignore-scripts
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-joined-stack.ps1 -ReuseVocationalData
+```
+
+联合启动器不带 `-ReuseVocationalData` 时，为职教创建新的演示数据目录；这与职教独立启动默认复用数据的行为不同。依赖准备、模型选择、端口与备份方式统一见 [职教运行与数据](doc/04-部署指南.md#8-职教子站运行与数据)。
+
+## 技术架构与代码入口
+
+| 部分 | 核心技术 | 代码位置 |
+| --- | --- | --- |
+| 学术门户 | TypeScript、Vite、原生 DOM、Three.js | [`qianduan/src/`](qianduan/src/)：界面、角色工作区、API 适配、状态与渲染 |
+| 学术实验与编程活动 | JavaScript、HTML、CSS、Canvas、浏览器学习运行时 | [`pages/`](pages/)、[`shared/`](shared/)、[`codevis/`](codevis/) |
+| 学术业务后端 | Python、FastAPI、Pydantic、SQLAlchemy、Alembic | [`backend/app/`](backend/app/)、[`backend/alembic/`](backend/alembic/) |
+| 职教前端与 API | React、TypeScript、Vite；Node.js、Fastify | [`zhijiao/apps/web/`](zhijiao/apps/web/)、[`zhijiao/apps/api/`](zhijiao/apps/api/) |
+| 职教业务模块 | 共享契约、课程、世界规则、检索上下文、模型网关、智能体与媒体处理 | [`zhijiao/packages/`](zhijiao/packages/) |
+| 数据存储 | 主站默认 SQLite，可配置 MySQL；职教使用 PGlite 与 JSON/JSONL 文件 | 表结构、数据职责与边界见 [开发者手册](doc/01-开发者手册.md#2-系统全局架构) |
+
+主站由 FastAPI 决定权限、发布与学习结果，职教业务由自己的 Fastify 服务处理。根目录 `server/` 中的 Node/C++ 服务承担兼容静态服务和构建验证。两套业务实现及其接入关系见 [系统架构](doc/01-开发者手册.md#2-系统全局架构)。
+
+## 继续开发与阅读
+
+| 你要做的事 | 建议入口 |
+| --- | --- |
+| 了解作品范围与当前交付 | [00 项目总纲](doc/00-项目总纲.md) |
+| 理解接口、课程版本、学习记录与数据库 | [01 开发者手册](doc/01-开发者手册.md) |
+| 核对业务规则、待办和恢复顺序 | [02 更新规划](doc/02-更新规划.md) |
+| 查阅真实提交、历史验证与阶段问题 | [03 发布历史](doc/03-发布历史.md) |
+| 配置运行、数据、模型与发布 | [04 部署指南](doc/04-部署指南.md) |
+| 调整界面、导航和实验交互 | [05 UI 规范](doc/05-UI规范模板.md) |
+| 增加实验并核验科学模型 | [15 学科实验指南](doc/01-子文档/15-学科实验与内容开发指南.md) |
+| 单独开发学术前端或 API | [前端说明](qianduan/README.md)、[后端说明](backend/README.md) |
+
+按改动选择最接近的检查。下例在仓库根目录执行，假设已完成默认本机初始化；若使用外置或自管 Python，把解释器路径换成实际路径。原实验的根目录检查另需执行一次 `npm ci`：
+
+```powershell
+# 学术业务、门户和原实验
+.\.venv\Scripts\python.exe -m pytest backend
 npm --prefix qianduan test
 npm --prefix qianduan run build
 npm --prefix qianduan run verify:package
+npm ci
+npm test
 
-# 工作区差异检查
+# 职教工作区：已完成职教依赖安装后执行
+Push-Location .\zhijiao
+pnpm typecheck
+pnpm test
+Pop-Location
+
+# 提交前检查
 git diff --check
 ```
 
-GitHub Actions 分别运行 Windows 前端合同、Linux 门户构建、SQLite 全量、MySQL 8.4 发布证据和 C++ Release 构建。当前阶段另实测新门户桌面三角色业务和 Pages 子路径；旧 `role-workflows-proof.cjs` 绑定 V8 页面选择器，仅供兼容与历史追溯，不能代替新门户浏览器验收。验证结果和未覆盖范围见 [本阶段记录](doc/03-发布历史.md#8-2026-09-07-正式门户接入与前后端封装)。
+各命令的依赖和范围见 [最小验证](doc/01-开发者手册.md#92-按改动选择验证)。历史通过记录属于对应提交，当前实现与未完成事项分别由 01、02 维护。
 
-## 项目结构
+## 当前阶段
 
-```text
-.
-├── qianduan/                  # 正式门户、请求适配、演示适配及制品脚本
-├── index.html                 # 原实验站资源入口，构建时纳入 labs
-├── package.json/package-lock.json # Node 质量工具入口与 integrity 锁
-├── pages/                     # 三个原有学习空间及兼容角色页面
-├── shared/                    # 实验求解/渲染、资源路由和兼容模块
-├── codevis/                   # 代码空间独立子站
-├── backend/                   # FastAPI、SQLAlchemy、Alembic、脚本与 pytest
-├── server/                    # Node 开发静态服务与 C++ Release 静态服务
-├── tools/quality/             # 跨平台跟踪脚本语法门禁
-├── tools/tests/               # 前端/静态公开面契约
-├── doc/                       # 开发、规划、历史、部署、UI、审查与索引文档
-└── .github/workflows/         # 持续集成质量门禁
-```
+当前以 Web、本机持久化和展示为主要交付范围。课程版本、审核与学习历史已有实现，部分实验整页导航后的记录接线及其他已知回归仍需处理；具体问题与暂停后的继续事项见 [当前任务状态](doc/02-更新规划.md#3-当前任务状态)。完整移动端精调、公网业务运营、正式隔离判题与真实课堂效果不在当前交付范围。
 
-## 文档入口
+`main` 保存完整源码，`qianduan` 保存学术 Pages 静态制品。代码更新和线上制品发布分别进行，发布流程见 [前端构建与发布](qianduan/README.md#制品与-github-pages)。
 
-当前阶段只维护以下七篇。旧逐版本报告、冻结规划和迁移副本通过 Git 追溯，不在工作目录保留平行原件。
+## 许可证与资源来源
 
-| 文档 | 职责 |
-| --- | --- |
-| [00 项目总纲](doc/00-项目总纲.md) | 项目定位与文档入口 |
-| [01 开发者手册](doc/01-开发者手册.md) | 当前架构、业务、代码入口及待实现目标图 |
-| [02 更新规划](doc/02-更新规划.md) | 完整规则、任务、依赖和验收 |
-| [03 发布历史](doc/03-发布历史.md) | 真实提交、验证与历史恢复 |
-| [04 部署指南](doc/04-部署指南.md) | 环境、启动、迁移、静态发布与运行边界 |
-| [05 UI 规范](doc/05-UI规范模板.md) | 正式门户与实验交互约定 |
-| [15 实验指南](doc/01-子文档/15-学科实验与内容开发指南.md) | 新实验接线和科学模型依据 |
-
-
-## 核心边界
-
-- 认证会话使用 HttpOnly cookie；前端不持久化 Bearer token 或学生敏感学习数据。
-- `/api` 全状态 `no-store`，Service Worker 不缓存业务 API。
-- 教师自定义脚本必须经过 allowlist、审核、SRI/hash、opaque iframe 与 CSP 边界，不能直接执行任意脚本。
-- C++/Node 静态服务只公开 `index.html`、`sw.js`、`LICENSE.md`、`pages/`、`shared/`、`UI/`、`codevis/`。
-- 外部投递、问题同步和审计锚定默认关闭，不能用本地 dry-run 冒充真实外部证据。
-
-## 许可证
-
-使用条件与第三方资源说明见 [`LICENSE.md`](LICENSE.md)。
+使用条件及第三方资源说明见 [LICENSE.md](LICENSE.md)。浏览器运行时、模型参考与媒体素材按各自来源记录维护。
