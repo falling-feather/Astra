@@ -275,7 +275,7 @@ class AstraApp {
     const workspace = this.root.querySelector<HTMLElement>('.workspace')!;
     workspace.scrollTop = scrollTop;
     this.syncSidebarAccessibility();
-    const orbit = this.state.view === 'courses' && (role === 'student' || role === 'admin');
+    const orbit = this.state.view === 'courses' && role === 'student';
     this.renderer.setMode(orbit ? 'courses' : 'ambient');
     if (orbit) {
       this.renderer.attachOrbit(this.root.querySelector('#orbit-stage'));
@@ -620,6 +620,11 @@ class AstraApp {
     }
     if (target.dataset.galaxy) {
       this.selectCourse(target.dataset.galaxy);
+      return;
+    }
+    if (target.dataset.adminCourse) {
+      this.state.selectedCourse = target.dataset.adminCourse;
+      this.render();
       return;
     }
     if (target.dataset.nebula !== undefined) {
