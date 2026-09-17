@@ -8,7 +8,7 @@ import { ResourceStudio } from './portal/resource-studio';
 import { CourseStudio } from './portal/course-studio';
 import { CandidateWorkspace } from './portal/candidate-workspace';
 import { createApiGateway } from './services/api-gateway';
-import { API_BASE, DEMO_MODE, frontendAsset } from './services/environment';
+import { API_BASE, DEMO_MODE, LOCAL_DEMO_ACCOUNTS, frontendAsset } from './services/environment';
 import type { Discovery, Role } from './portal/contracts';
 import type { Note } from './domain/models';
 import { area, selectField } from './portal/presentation';
@@ -23,6 +23,7 @@ import { account, notes } from './ui/secondary';
 import { escapeHtml as e } from './ui/html';
 import { icon } from './ui/icons';
 import { inviteDialog, searchResults } from './ui/navigation-dialogs';
+import { demoAccountsDialog } from './ui/demo-accounts';
 
 const INTRO_KEY = 'astra.qianduan.intro-seen';
 const validViews = new Set<View>([
@@ -228,7 +229,7 @@ class AstraApp {
       return;
     }
     if (this.state.phase === 'login') {
-      this.root.innerHTML = login(this.gateway.mode === 'demo', this.registering);
+      this.root.innerHTML = login(this.gateway.mode === 'demo', this.registering, LOCAL_DEMO_ACCOUNTS);
       this.renderer.setMode('login');
       if (innerWidth >= 900)
         this.root.querySelector<HTMLInputElement>('#account-name')?.focus({ preventScroll: true });
@@ -679,6 +680,25 @@ class AstraApp {
       return;
     }
     switch (target.dataset.action) {
+      case 'demo-accounts':
+        this.openDialog(demoAccountsDialog());
+        break;
+      case 'fill-demo-account': {
+        const account = target.dataset.account || '';
+        const password = target.dataset.password || '';
+        this.closeDialog();
+        const accountInput = this.root.querySelector<HTMLInputElement>('#account-name');
+        const passwordInput = this.root.querySelector<HTMLInputElement>('#account-password');
+        if (accountInput && passwordInput) {
+          accountInput.value = account;
+          passwordInput.value = password;
+          accountInput.dispatchEvent(new Event('input', { bubbles: true }));
+          passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+          accountInput.focus({ preventScroll: true });
+          this.notify(`已填入 ${target.dataset.label || '演示账号'}，点击“进入星序”即可登录。`);
+        }
+        break;
+      }
       case 'explore':
         if (this.state.session) this.showView(this.pendingView);
         else {
