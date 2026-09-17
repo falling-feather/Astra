@@ -314,7 +314,7 @@ function assistancePrompt(
   return {
     templateId: `${profile.templateId}/prompt`,
     version: profile.promptVersion,
-    system: `你是融岗智训的${profile.label}。${profile.responsibility}`,
+    system: `你是职教星云的${profile.label}。${profile.responsibility}`,
     instructions: [
       ...sharedInstructions,
       profile.permissionBoundary,

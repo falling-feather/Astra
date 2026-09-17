@@ -472,7 +472,7 @@ describe("ContentIngestionService", () => {
     const result = await processor.process({
       kind: "document",
       mimeType: "application/pdf",
-      filePath: resolve(repositoryRoot, "演示/融岗智训-V2.4.9-全功能架构与交互演示手册.pdf"),
+      filePath: resolve(repositoryRoot, "演示/职教星云-V2.4.9-全功能架构与交互演示手册.pdf"),
     });
     expect(result.fragments.length).toBeGreaterThan(0);
     expect(result.fragments.map((fragment) => fragment.text).join("\n")).toMatch(/[\u4e00-\u9fff]/u);

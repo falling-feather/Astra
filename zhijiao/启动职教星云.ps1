@@ -70,7 +70,7 @@ try {
   Write-Host "[职教星云] 停止服务请回到此窗口按 Ctrl+C。" -ForegroundColor Green
   & corepack pnpm run $scriptName
   if ($LASTEXITCODE -ne 0) {
-    throw "融岗智训启动失败，退出码：$LASTEXITCODE"
+    throw "职教星云启动失败，退出码：$LASTEXITCODE"
   }
 } finally {
   Pop-Location
