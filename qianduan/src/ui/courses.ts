@@ -2,11 +2,14 @@ import type { AppState, Course } from '../domain/models';
 import { weekdays } from '../domain/calendar';
 import { courseArt, escapeHtml as e } from './html';
 import { icon } from './icons';
+import { frontendAsset } from '../services/environment';
 
 export function courseInspector(course: Course): string {
   const enter = course.backendId
     ? `<button class="course-enter" data-course-detail="${course.id}">进入课程 ${icon('arrow')}</button>`
-    : '<p class="course-preview-note">管理员预览 · 系统资源</p>';
+    : course.resourceEntry && course.resourceEntry.startsWith('labs/')
+      ? `<a class="course-enter" href="${e(frontendAsset(course.resourceEntry))}" target="_blank" rel="noopener">进入实验 ${icon('arrow')}</a>`
+      : '<p class="course-preview-note">管理员预览 · 系统资源</p>';
   return `<div class="course-inspector-inner" style="--course-color:${course.color}"><div class="course-cover">${courseArt(course.color, course.secondary)}</div><span class="course-subject">${e(course.subject)}</span><div class="course-inspector-heading"><h2>${e(course.title)}</h2></div><p class="course-description">${e(course.description)}</p><dl class="course-facts"><div><dt>${icon('user')}<span class="sr-only">授课教师</span></dt><dd>${e(course.teacher)}</dd></div><div><dt>${icon('clock')}<span class="sr-only">上课时间</span></dt><dd>${e(course.scheduleText || `${weekdays[course.schedule.weekday]} ${course.schedule.start}—${course.schedule.end}`)}</dd></div><div><dt>${icon('location')}<span class="sr-only">上课地点</span></dt><dd>${e(course.schedule.room)}</dd></div></dl><div class="course-progress-label"><span>课程进度</span><strong>${course.completed}<small> / ${course.lessons}</small></strong></div><div class="progress-track" role="progressbar" aria-label="课程进度" aria-valuemin="0" aria-valuemax="${course.lessons}" aria-valuenow="${course.completed}"><span style="width:${course.lessons ? (course.completed / course.lessons) * 100 : 0}%"></span></div>${enter}</div>`;
 }
 

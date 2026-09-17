@@ -63,6 +63,7 @@ function systemResourceCourse(resource: ResourceVersionRead): Course {
     schedule: { weekday: -1, start: '', end: '', room: '' },
     completed: 0,
     lessons: 1,
+    resourceEntry: typeof resource.definition.entry === 'string' ? resource.definition.entry : undefined,
     description:
       (typeof provenance.observation === 'string' && provenance.observation) ||
       (typeof provenance.model === 'string' && provenance.model) ||

@@ -32,6 +32,7 @@ export interface Course {
   description: string;
   chapters: string[];
   backendId?: number;
+  resourceEntry?: string;
   galaxyKey?: string;
   subjectKey?: string;
   scheduleText?: string;
