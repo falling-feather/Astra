@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
-from app.api.endpoints.course_workflow import service_call
+from app.api.service_calls import service_call
 from app.db.session import get_db
 from app.schemas.learning_history import ContextCheckpointAnswer, ContextCheckpointRead, LearningContextRead, LearningContextStart
 from app.services import learning_assessments, learning_contexts

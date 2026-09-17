@@ -13,11 +13,20 @@ from app.api.endpoints import (
     learning_events,
     points,
     schools,
-    submissions,
 )
 from app.core.config import get_settings
 from app.db.session import get_session_factory
-from app.models import ClassMembership, SchoolMembership
+from app.models import (
+    AssignmentAttempt,
+    AssignmentGrade,
+    AuditLog,
+    ClassMembership,
+    LearningEvent,
+    LearningResult,
+    PointLedger,
+    SchoolMembership,
+    Submission,
+)
 from app.services import class_join_requests, course_release_write_gate
 from app.services.knowledge_snapshot_runs import rebuild_periodic_knowledge_snapshots
 
@@ -858,8 +867,6 @@ def test_admin_authority_changes_cannot_orphan_organization_responsibility(clien
         (assignment_policies.put_assignment_class_policy, ("lock_active_class_for_write",)),
         (assignment_policies.delete_assignment_class_policy, ("lock_active_class_for_write",)),
         (points.update_assignment_point_rule, ("lock_active_school_for_write",)),
-        (submissions.create_submission, ("require_student_unit_open_for_write",)),
-        (submissions.grade_submission, ("lock_active_class_for_write",)),
         (
             learning_events.create_learning_event,
             ("lock_active_class_for_write", "lock_active_school_for_write"),
@@ -879,6 +886,100 @@ def test_scoped_domain_write_handlers_keep_active_organization_gate(handler, req
     source = getsource(handler)
     for required_token in required_tokens:
         assert required_token in source
+
+
+def _assignment_write_state() -> dict:
+    """Capture persisted facts, including the mutable compatibility head."""
+    with get_session_factory(get_settings().database_url)() as db:
+        state = {}
+        for model in (Submission, AssignmentAttempt, AssignmentGrade, PointLedger, LearningResult, LearningEvent):
+            table = model.__table__
+            state[table.name] = [tuple(row) for row in db.execute(select(table).order_by(table.c.id))]
+        state["successful_submission_audits"] = [
+            tuple(row)
+            for row in db.execute(
+                select(AuditLog.__table__)
+                .where(AuditLog.action.like("submission.%"), AuditLog.event_result == "success")
+                .order_by(AuditLog.id)
+            )
+        ]
+        return state
+
+
+@pytest.mark.parametrize("operation", ["submit", "grade"])
+@pytest.mark.parametrize("revocation", ["school", "class", "class_membership"])
+def test_assignment_http_writes_reject_revoked_scope_without_changing_history(client, operation, revocation):
+    admin = _bootstrap_admin(client)
+    teacher = _register_and_login(client, "revoked_assignment_teacher", "teacher")
+    student = _register_and_login(client, "revoked_assignment_student", "student")
+    school, class_group = _create_organization(client, teacher, "Revoked assignment")
+    _, assignment_id = _create_learning_scope(client, teacher, student, school["id"], class_group["id"])
+    rule = client.patch(
+        f"/api/points/assignments/{assignment_id}/rule",
+        headers=_auth_header(teacher["token"]),
+        json={"enabled": True, "points_per_score": 2, "max_points": 40},
+    )
+    assert rule.status_code == 200, rule.json()
+
+    if operation == "grade":
+        submitted = client.post(
+            f"/api/assignments/{assignment_id}/submissions",
+            headers=_auth_header(student["token"]),
+            json={"class_id": class_group["id"], "content": {"answer": "preserve this attempt"}},
+        )
+        assert submitted.status_code == 201, submitted.json()
+        write_url = f"/api/submissions/{submitted.json()['id']}/grade"
+        write_payload = {"status": "graded", "score": 10, "feedback": "must not persist"}
+        actor = teacher
+    else:
+        # This assignment has no previous attempt: rejection cannot be caused by
+        # the separate duplicate-submission rule.
+        write_url = f"/api/assignments/{assignment_id}/submissions"
+        write_payload = {"class_id": class_group["id"], "content": {"answer": "must not persist"}}
+        actor = student
+
+    if revocation == "class_membership":
+        with get_session_factory(get_settings().database_url)() as db:
+            membership = db.scalar(
+                select(ClassMembership).where(
+                    ClassMembership.class_id == class_group["id"],
+                    ClassMembership.user_id == actor["id"],
+                )
+            )
+            assert membership is not None
+            membership.status = "inactive"
+            db.commit()
+        expected_status = 403
+        expected_detail = "Course is outside current user scope" if operation == "submit" else "Submission grading requires class teacher scope"
+    else:
+        if revocation == "school":
+            archived_class = _patch_organization(
+                client,
+                admin,
+                "classes",
+                class_group["id"],
+                {"expected_version": 1, "reason": "archive child before parent", "status": "archived"},
+            )
+            assert archived_class.status_code == 200, archived_class.json()
+        resource = "schools" if revocation == "school" else "classes"
+        resource_id = school["id"] if revocation == "school" else class_group["id"]
+        archived = _patch_organization(
+            client,
+            admin,
+            resource,
+            resource_id,
+            {"expected_version": 1, "reason": "verify assignment write revocation", "status": "archived"},
+        )
+        assert archived.status_code == 200, archived.json()
+        expected_status = 409
+        expected_detail = "School is not active" if revocation == "school" else "Class is not active"
+
+    before = _assignment_write_state()
+    write = client.post if operation == "submit" else client.patch
+    response = write(write_url, headers=_auth_header(actor["token"]), json=write_payload)
+    assert response.status_code == expected_status, response.json()
+    assert response.json()["detail"] == expected_detail
+    assert _assignment_write_state() == before
 
 
 def test_student_release_write_gate_keeps_active_class_lock():

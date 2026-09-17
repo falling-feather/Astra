@@ -45,11 +45,26 @@ for (const endpoint of [
   '/enrollments',
   '/draft',
   '/releases',
-  '/api/learning-evidence/activity-runtime/events',
+  '/api/v2/resources/install-system',
+  '/api/v2/learning-contexts',
+  '/api/v2/operations/',
+  '/api/v2/courses/',
+  '/submission-preview',
+  '/api/v2/candidate-reviews',
+  '/api/v2/publications',
+  '/api/v2/assignments/',
+  '/api/v2/assignment-attempts/',
   '/api/learning-evidence/me/recovery',
 ]) {
   assert.match(initializer, new RegExp(endpoint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
+// Real workflow/evidence behavior is exercised by backend/tests/test_demo_data_initializer.py.
+// This launcher contract keeps the initializer wired through the current public API owners.
+assert.match(initializer, /runtime_path = f"\/api\/v2\/learning-contexts\/[\s\S]*?\/activity-runtime"/);
+assert.match(initializer, /api\.post\(f"\{runtime_path\}\/events", student, runtime_payload\)/);
+assert.match(initializer, /"expected_release_id": release_id/);
+assert.match(initializer, /runtime_receipt\.get\("status"\) not in \{"confirmed", "reconciled"\}/);
+assert.doesNotMatch(initializer, /\/api\/learning-evidence\/activity-runtime\/events/);
 assert.match(initializer, /runner_unavailable/);
 assert.match(initializer, /getpass\.getpass/);
 assert.match(initializer, /secret-free report/);

@@ -71,7 +71,13 @@ function testStaticGenerationChain() {
       `index direct boot must request ${asset}.js from the SHOW-03 generation`,
     );
   }
-  assert.match(html, new RegExp(`shared/js/router\\.js\\?v=${generation}`));
+  const bootRouterUrl = html.match(/src="(shared\/js\/router\.js\?[^\"]+)"/)?.[1].replaceAll('&amp;', '&');
+  assert.ok(bootRouterUrl, 'the public entry must load a versioned router');
+  const routerGeneration = new URL(bootRouterUrl, 'https://astra.test/').searchParams.get('v');
+  assert.equal(router.match(/_galaxyCacheVersion:\s*'([^']+)'/)?.[1], routerGeneration,
+    'the galaxy cache metadata must describe the router actually loaded by the entry');
+  assert.ok(main.includes(`'./${bootRouterUrl}'`), 'HTTP fallback must use the exact boot router URL');
+  assert.ok(serviceWorker.includes(`'./${bootRouterUrl}'`), 'precache must use the exact boot router URL');
   for (const asset of ['config', 'page-registry', 'main']) {
     assert.match(html, new RegExp(`shared/js/${asset}\\.js\\?v=${generation}`));
   }
@@ -102,7 +108,7 @@ function testStaticGenerationChain() {
     serviceWorker,
     new RegExp(`frontier-course-publication-adapter\\.js\\?v=${serviceWorkerGeneration}`),
   );
-  for (const asset of ['app-session', 'router']) {
+  for (const asset of ['app-session']) {
     assert.match(
       serviceWorker,
       new RegExp(`'\\./shared/js/${asset}\\.js\\?v=${generation}'`),

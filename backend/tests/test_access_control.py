@@ -9,7 +9,9 @@ from app.models import (
     Course,
     CourseCollaborator,
     CourseUnit,
+    PointLedger,
     SchoolMembership,
+    Submission,
     User,
     UserKnowledgeSnapshot,
 )
@@ -389,6 +391,16 @@ def test_school_teacher_without_class_scope_cannot_manage_class_assignments(clie
     )
     assert peer_grade.status_code == 403
     assert peer_grade.json()["detail"] == "Submission grading requires class teacher scope"
+    untouched_history = client.get(
+        f"/api/v2/submissions/{submission_id}/history", headers=student_headers,
+    )
+    assert untouched_history.status_code == 200
+    assert untouched_history.json()["revision"] == 1
+    assert untouched_history.json()["total"] == 1
+    assert untouched_history.json()["grades"] == []
+    untouched_points = client.get("/api/points/ledger", headers=student_headers)
+    assert untouched_points.status_code == 200
+    assert untouched_points.json() == []
 
     peer_unscoped_events = client.get("/api/learning-events", headers=peer_headers)
     assert peer_unscoped_events.status_code == 200
@@ -1396,7 +1408,9 @@ def test_students_only_see_published_course_content_and_active_assignments(clien
         json={"class_id": class_id, "content": {"answer": "closed"}},
     )
     assert closed_submission.status_code == 409
-    assert closed_submission.json()["detail"] == "Assignment is not active"
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(select(Submission).where(Submission.assignment_id == closed_assignment_id)) is None
+        assert db.scalar(select(PointLedger).where(PointLedger.assignment_id == closed_assignment_id)) is None
     draft_course_submission = client.post(
         f"/api/assignments/{draft_course_assignment_id}/submissions",
         headers=student_headers,

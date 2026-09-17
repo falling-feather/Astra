@@ -8,7 +8,7 @@ const APP_SHELL = [
   './shared/js/auth-ui.js?v=20260828v864RoleWorkbenchHarmonyP0',
   './shared/js/experiment-registry.js?v=20260824v832Show03P0', './shared/js/learning-activity-catalog.js?v=20260825v834Show04P0',
   './shared/js/public-guide.js?v=20260824v816ExperimentRestoreP2', './shared/js/app-session.js?v=20260828v864RoleWorkbenchHarmonyP0',
-  './shared/js/page-registry.js?v=20260828v864RoleWorkbenchHarmonyP0', './shared/js/router.js?v=20260828v864RoleWorkbenchHarmonyP0',
+  './shared/js/page-registry.js?v=20260828v864RoleWorkbenchHarmonyP0', './shared/js/router.js?v=20260918aiTutorV1&patch=20260918aiTutorV1',
   './shared/js/main.js?v=20260828v864RoleWorkbenchHarmonyP0',
   './shared/js/backend-content.js?v=20260716v7427RoleWorkflowGateP0',
   './shared/css/tokens.css?v=20260424ss',

@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, event, inspect, select, text
 from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateTable
 
-from app.api.endpoints import code_judge, learning_events, submissions
+from app.api.endpoints import code_judge, learning_events
 from app.core.config import get_settings
 from app.db.session import get_session_factory, make_engine, reset_database_state
 from app.models import (
@@ -21,7 +21,7 @@ from app.models import (
     CourseUnitClassPlan,
     School,
 )
-from app.services import course_release_plans, course_release_write_gate
+from app.services import assignment_history, course_release_plans, course_release_write_gate
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -689,7 +689,7 @@ def test_assignment_submission_http_write_rechecks_release_after_barrier(client,
     response = _post_student_write_after_release_barrier(
         client,
         monkeypatch,
-        module=submissions,
+        module=assignment_history,
         teacher_headers=_auth(teacher),
         course_id=course_id,
         class_id=class_id,
@@ -700,8 +700,17 @@ def test_assignment_submission_http_write_rechecks_release_after_barrier(client,
         release_mode=release_mode,
     )
     assert response.status_code == expected_status
+    assert response.json()["detail"] == (
+        "Course unit is not visible in this class" if release_mode == "hidden" else "Course unit is locked in this class"
+    )
     with get_session_factory(get_settings().database_url)() as db:
         assert db.scalar(text("SELECT COUNT(*) FROM submissions WHERE assignment_id = :assignment_id"), {"assignment_id": assignment.json()["id"]}) == 0
+        assert db.scalar(text("SELECT COUNT(*) FROM assignment_attempts WHERE assignment_id = :assignment_id"), {"assignment_id": assignment.json()["id"]}) == 0
+        assert db.scalar(text("SELECT COUNT(*) FROM learning_events WHERE assignment_id = :assignment_id"), {"assignment_id": assignment.json()["id"]}) == 0
+        assert db.scalar(
+            text("SELECT COUNT(*) FROM audit_logs WHERE action LIKE 'submission.%' AND event_result = 'success' AND class_id = :class_id"),
+            {"class_id": class_id},
+        ) == 0
 
 
 @pytest.mark.parametrize(("release_mode", "expected_status"), [("hidden", 403), ("locked", 409)])

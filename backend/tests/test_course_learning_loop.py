@@ -11,6 +11,7 @@ from app.models import (
     ClassKnowledgeSnapshot,
     Course,
     KnowledgeSnapshotRun,
+    PointLedger,
     SchoolMembership,
     Submission,
     UserKnowledgeSnapshot,
@@ -58,6 +59,14 @@ def _bootstrap_admin(client, username: str) -> str:
     )
     assert login.status_code == 200
     return login.json()["access_token"]
+
+
+def _submission_history(client, token: str, submission_id: int) -> dict:
+    response = client.get(
+        f"/api/v2/submissions/{submission_id}/history", headers=_auth_header(token),
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def test_knowledge_snapshot_period_windows_align_day_and_week():
@@ -375,6 +384,9 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
     assert grade.status_code == 200
     assert grade.json()["status"] == "graded"
     assert grade.json()["score"] == 18
+    graded_history = _submission_history(client, student_token, submission_id)
+    graded_ledger = client.get("/api/points/ledger", headers=_auth_header(student_token))
+    assert graded_ledger.status_code == 200
 
     active_review = client.get(
         f"/api/assignments/{assignment_id}/review",
@@ -443,7 +455,8 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
         json={"class_id": class_id, "content": {"answer": "late retry"}},
     )
     assert closed_resubmit.status_code == 409
-    assert closed_resubmit.json()["detail"] == "Assignment is not active"
+    assert closed_resubmit.json()["detail"] == "作业当前不能提交"
+    assert _submission_history(client, student_token, submission_id) == graded_history
 
     with get_session_factory(get_settings().database_url)() as db:
         stored_assignment = db.get(Assignment, assignment_id)
@@ -469,7 +482,11 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
         json={"class_id": class_id, "content": {"answer": "archived retry"}},
     )
     assert archived_resubmit.status_code == 409
-    assert archived_resubmit.json()["detail"] == "Assignment is not active"
+    assert archived_resubmit.json()["detail"] == "作业当前不能提交"
+    assert _submission_history(client, student_token, submission_id) == graded_history
+    unchanged_ledger = client.get("/api/points/ledger", headers=_auth_header(student_token))
+    assert unchanged_ledger.status_code == 200
+    assert unchanged_ledger.json() == graded_ledger.json()
 
     with get_session_factory(get_settings().database_url)() as db:
         stored_assignment = db.get(Assignment, assignment_id)
@@ -528,7 +545,9 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
     grade_snapshot = grade_audit_items[0]["snapshot_json"]
     assert grade_snapshot["before"]["score"] is None
     assert grade_snapshot["after"]["score"] == 18
-    assert grade_snapshot["after"]["score_delta"] == 18
+    assert grade_snapshot["after"]["point_delta"] == 18
+    assert grade_snapshot["after"]["attempt_id"] == graded_history["attempts"][0]["id"]
+    assert grade_snapshot["after"]["grade_id"] == graded_history["grades"][0]["id"]
 
     course_audit = client.get(
         f"/api/admin/audit-logs?action=course.create&resource_id={course_id}",
@@ -581,14 +600,21 @@ def test_teacher_course_assignment_and_student_learning_event_loop(client, monke
     assert class_join_audit_items[0]["snapshot_json"]["after"]["role"] == "student"
 
     submission_create_audit = client.get(
-        f"/api/admin/audit-logs?action=submission.create&resource_id={submission_id}",
+        (
+            "/api/admin/audit-logs?action=submission.attempt.create"
+            f"&resource_id={graded_history['attempts'][0]['id']}"
+        ),
         headers=_auth_header(admin_token),
     )
     assert submission_create_audit.status_code == 200
     submission_create_audit_items = submission_create_audit.json()["items"]
     assert submission_create_audit.json()["total"] == 1
     assert len(submission_create_audit_items) == 1
-    assert submission_create_audit_items[0]["snapshot_json"]["after"]["content_keys"] == ["answer"]
+    assert submission_create_audit_items[0]["resource_type"] == "assignment_attempt"
+    attempt_snapshot = submission_create_audit_items[0]["snapshot_json"]
+    assert attempt_snapshot["submission_id"] == submission_id
+    assert attempt_snapshot["attempt_number"] == 1
+    assert attempt_snapshot["content_keys"] == ["answer"]
 
     student_points = client.get("/api/points/ledger", headers=_auth_header(student_token))
     assert student_points.status_code == 200
@@ -1026,7 +1052,7 @@ def test_same_assignment_can_be_submitted_once_per_class(client):
     assert second_review.json()["submission"]["id"] == second_submission.json()["id"]
 
 
-def test_assignment_point_rule_controls_grading_points(client):
+def test_assignment_point_rule_is_pinned_per_attempt_and_return_adjusts_points_once(client):
     teacher_token = _register_and_login(client, "teacher_point_rule", "teacher")
     peer_teacher_token = _register_and_login(client, "peer_point_rule", "teacher")
     student_token = _register_and_login(client, "student_point_rule", "student")
@@ -1148,6 +1174,11 @@ def test_assignment_point_rule_controls_grading_points(client):
     )
     assert submission.status_code == 201
     submission_id = submission.json()["id"]
+    first_history = _submission_history(client, student_token, submission_id)
+    first_attempt = first_history["attempts"][0]
+    assert first_attempt["assignment_snapshot"]["point_rule"] == {
+        "enabled": True, "points_per_score": 2, "max_points": 25,
+    }
 
     grade = client.patch(
         f"/api/submissions/{submission_id}/grade",
@@ -1188,10 +1219,62 @@ def test_assignment_point_rule_controls_grading_points(client):
     assert disabled_regrade.status_code == 200
     ledger_after_disable = client.get(f"/api/points/ledger?class_id={class_id}", headers=_auth_header(teacher_token))
     assert ledger_after_disable.status_code == 200
-    assert [item["delta"] for item in ledger_after_disable.json()] == [24, 1, -25]
+    # A changed live rule applies to later attempts, not an existing answer's frozen rule.
+    assert [item["delta"] for item in ledger_after_disable.json()] == [24, 1]
     progress_after_disable = client.get(f"/api/progress/me?class_id={class_id}", headers=_auth_header(student_token))
     assert progress_after_disable.status_code == 200
-    assert progress_after_disable.json()["total_points"] == 0
+    assert progress_after_disable.json()["total_points"] == 25
+    regraded_history = _submission_history(client, student_token, submission_id)
+    assert regraded_history["attempts"] == first_history["attempts"]
+    assert [item["score"] for item in regraded_history["grades"]] == [16, 15, 12]
+    assert [item["point_delta"] for item in regraded_history["grades"]] == [0, 1, 24]
+
+    return_payload = {
+        "client_request_id": "return-after-point-rule-change",
+        "expected_submission_revision": regraded_history["revision"],
+        "expected_grade_revision": regraded_history["grades"][0]["revision"],
+        "status": "returned", "score": 0, "feedback": "请补充依据后重新提交",
+    }
+    returned = client.patch(
+        f"/api/submissions/{submission_id}/grade", headers=_auth_header(teacher_token), json=return_payload,
+    )
+    assert returned.status_code == 200, returned.text
+    returned_history = _submission_history(client, student_token, submission_id)
+    assert returned_history["grades"][0]["point_delta"] == -25
+    assert returned_history["grades"][1:] == regraded_history["grades"]
+    repeated_return = client.patch(
+        f"/api/submissions/{submission_id}/grade", headers=_auth_header(teacher_token), json=return_payload,
+    )
+    assert repeated_return.status_code == 200
+    assert _submission_history(client, student_token, submission_id) == returned_history
+
+    resubmission = client.post(
+        f"/api/assignments/{assignment_id}/submissions", headers=_auth_header(student_token),
+        json={"class_id": class_id, "content": {"answer": "revised under disabled rule"}},
+    )
+    assert resubmission.status_code == 201
+    assert resubmission.json()["id"] == submission_id
+    resubmitted_history = _submission_history(client, student_token, submission_id)
+    assert resubmitted_history["total"] == 2
+    assert resubmitted_history["attempts"][1] == first_attempt
+    assert resubmitted_history["attempts"][0]["assignment_snapshot"]["point_rule"] == {
+        "enabled": False, "points_per_score": 1, "max_points": None,
+    }
+    assert resubmitted_history["grades"] == returned_history["grades"]
+    new_grade = client.patch(
+        f"/api/submissions/{submission_id}/grade", headers=_auth_header(teacher_token),
+        json={"score": 18, "feedback": "新版规则不计积分"},
+    )
+    assert new_grade.status_code == 200
+    final_history = _submission_history(client, student_token, submission_id)
+    assert final_history["grades"][0]["point_delta"] == 0
+    assert final_history["grades"][1:] == returned_history["grades"]
+    final_ledger = client.get(f"/api/points/ledger?class_id={class_id}", headers=_auth_header(teacher_token))
+    assert final_ledger.status_code == 200
+    assert [item["delta"] for item in final_ledger.json()] == [24, 1, -25]
+    final_progress = client.get(f"/api/progress/me?class_id={class_id}", headers=_auth_header(student_token))
+    assert final_progress.status_code == 200
+    assert final_progress.json()["total_points"] == 0
 
 
 def test_assignment_class_policy_controls_audience_status_events_and_point_override(client):
@@ -1406,7 +1489,14 @@ def test_assignment_class_policy_controls_audience_status_events_and_point_overr
         json={"class_id": class_two_id, "content": {"answer": "not assigned"}},
     )
     assert class_two_submission.status_code == 403
-    assert class_two_submission.json()["detail"] == "Assignment is not assigned to this class"
+    assert class_two_submission.json()["detail"] == "作业不在该班级范围"
+    with get_session_factory(get_settings().database_url)() as db:
+        assert db.scalar(select(Submission).where(
+            Submission.assignment_id == assignment_id, Submission.class_id == class_two_id,
+        )) is None
+        assert db.scalar(select(PointLedger).where(
+            PointLedger.assignment_id == assignment_id, PointLedger.class_id == class_two_id,
+        )) is None
     class_two_event = client.post(
         "/api/learning-events",
         headers=_auth_header(student_two_token),

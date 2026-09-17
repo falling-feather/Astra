@@ -438,16 +438,90 @@ async def _read_control_flow_demo_scope(report: dict) -> dict:
         }
 
 
+async def _read_demo_publication_state() -> dict:
+    async with DemoApi() as api:
+        admin = await api.login(
+            "astra_demo_admin", DEMO_PASSWORDS["astra_demo_admin"], "admin", "演示管理员"
+        )
+        page = initializer_module._require_status(
+            await api.get("/api/v2/candidates?limit=100", admin), 200, "read demo candidates"
+        )
+        candidates = [
+            initializer_module._require_status(
+                await api.get(f"/api/v2/candidates/{item['candidate_id']}", admin),
+                200, "read demo candidate snapshot",
+            )
+            for item in page["items"]
+        ]
+        course_ids = sorted({item["course_id"] for item in candidates})
+        return {
+            "candidates": candidates,
+            "drafts": [
+                initializer_module._require_status(
+                    await api.get(f"/api/v2/courses/{course_id}/draft", admin),
+                    200, "read demo working draft",
+                )
+                for course_id in course_ids
+            ],
+            "releases": [
+                initializer_module._require_status(
+                    await api.get(f"/api/v1/courses/{course_id}/releases", admin),
+                    200, "read demo published releases",
+                )
+                for course_id in course_ids
+            ],
+        }
+
+
+async def _read_demo_assignment_history(report: dict) -> dict:
+    async with DemoApi() as api:
+        teacher = await api.login(
+            "astra_demo_teacher", DEMO_PASSWORDS["astra_demo_teacher"], "teacher", "演示教师"
+        )
+        return {
+            title: initializer_module._require_status(
+                await api.get(f"/api/v2/submissions/{submission['id']}/history", teacher),
+                200, "read demo assignment history",
+            )
+            for title, submission in report["course_loop"]["submissions"].items()
+        }
+
+
 def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_environment):
     first = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
     first_payloads = _read_seeded_learner_evidence_payloads()
     first_scope = asyncio.run(_read_control_flow_demo_scope(first))
+    first_publications = asyncio.run(_read_demo_publication_state())
+    first_assignments = asyncio.run(_read_demo_assignment_history(first))
     second = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
     second_payloads = _read_seeded_learner_evidence_payloads()
     second_scope = asyncio.run(_read_control_flow_demo_scope(second))
     third = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
     third_payloads = _read_seeded_learner_evidence_payloads()
     third_scope = asyncio.run(_read_control_flow_demo_scope(third))
+    assert asyncio.run(_read_demo_publication_state()) == first_publications
+    assert asyncio.run(_read_demo_assignment_history(third)) == first_assignments
+    for history in first_assignments.values():
+        assert history["total"] == 1
+        assert len(history["attempts"]) == 1
+        attempt = history["attempts"][0]
+        assert attempt["provenance"] == "formal_submission"
+        assert attempt["context_key"]
+        assert attempt["course_release_id"] == first["course_loop"]["releases"]["current_release_id"]
+    assert len(first_assignments["机械能证据报告"]["grades"]) == 1
+    assert first_assignments["机械能证据报告"]["grades"][0]["score"] == 92
+    assert first_assignments["机械能拓展思考"]["grades"] == []
+    candidates = first_publications["candidates"]
+    assert len(candidates) == 2
+    assert {item["status"] for item in candidates} == {"approved"}
+    assert {item["review_version"] for item in candidates} == {2}
+    assert {item["reviewed_by_user_id"] for item in candidates} == {first["users"]["admin"]["id"]}
+    assert {item["submitted_by_user_id"] for item in candidates} == {
+        first["users"]["teacher"]["id"], first["users"]["peer_teacher"]["id"]
+    }
+    assert {item["published_release_id"] for item in candidates} == {
+        item["id"] for item in first_publications["releases"][0]
+    }
 
     for report in (first, second, third):
         assert report["status"] == "initialized"
@@ -574,6 +648,110 @@ def test_fresh_demo_and_two_reruns_are_semantically_idempotent(local_demo_enviro
     )
     assert first["course_status"]["status_patch_audits"] == second["course_status"]["status_patch_audits"]
     assert second["course_status"]["status_patch_audits"] == third["course_status"]["status_patch_audits"]
+
+
+@pytest.mark.parametrize("interrupted_stage", [
+    "submissions", "candidate-reviews", "publications", "open", "attempts", "grades",
+])
+def test_demo_workflow_recovers_after_committed_step(
+    local_demo_environment, monkeypatch, interrupted_stage
+):
+    original_post = DemoApi.post
+
+    async def interrupt_after_commit(self, path, actor, payload):
+        response = await original_post(self, path, actor, payload)
+        if path.startswith("/api/v2/") and path.endswith(f"/{interrupted_stage}"):
+            assert response.status_code in (200, 201), response.json()
+            raise DemoInitializationError("injected interruption after committed workflow step")
+        return response
+
+    with monkeypatch.context() as local:
+        local.setattr(DemoApi, "post", interrupt_after_commit)
+        with pytest.raises(DemoInitializationError, match="injected interruption"):
+            asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+
+    before = asyncio.run(_read_demo_publication_state())
+    assert len(before["candidates"]) == (1 if interrupted_stage in {"submissions", "candidate-reviews", "publications"} else 2)
+    original_candidate_ids = {item["candidate_id"] for item in before["candidates"]}
+    report = asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    after = asyncio.run(_read_demo_publication_state())
+    assert report["course_loop"]["releases"]["release_numbers"] == [2, 1]
+    assert len(after["candidates"]) == 2
+    assert original_candidate_ids <= {item["candidate_id"] for item in after["candidates"]}
+    assert all(item["status"] == "approved" and item["published_release_id"] for item in after["candidates"])
+    assert asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))["course_loop"] == report["course_loop"]
+    assert asyncio.run(_read_demo_publication_state()) == after
+
+
+@pytest.mark.parametrize("external_change", [
+    "rejected", "approved", "withdrawn", "draft_changed", "completion_changed", "version_changed", "empty_draft",
+    "foreign_candidate",
+])
+def test_demo_does_not_publish_or_replace_a_drifted_candidate(
+    local_demo_environment, monkeypatch, external_change
+):
+    original_post = DemoApi.post
+
+    async def interrupt_after_submission(self, path, actor, payload):
+        if external_change == "foreign_candidate" and path.startswith("/api/v2/courses/") and path.endswith("/submissions"):
+            payload = {**payload, "client_request_id": "external-course-submission"}
+        response = await original_post(self, path, actor, payload)
+        if path.startswith("/api/v2/courses/") and path.endswith("/submissions"):
+            assert response.status_code == 201, response.json()
+            raise DemoInitializationError("injected interruption after candidate submission")
+        return response
+
+    with monkeypatch.context() as local:
+        local.setattr(DemoApi, "post", interrupt_after_submission)
+        with pytest.raises(DemoInitializationError, match="injected interruption"):
+            asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+
+    async def alter_candidate() -> None:
+        state = await _read_demo_publication_state()
+        candidate = state["candidates"][0]
+        async with DemoApi() as api:
+            if external_change in {"rejected", "approved", "withdrawn"}:
+                admin = await api.login(
+                    "astra_demo_admin", DEMO_PASSWORDS["astra_demo_admin"], "admin", "演示管理员"
+                )
+                if external_change == "withdrawn":
+                    teacher = await api.login(
+                        "astra_demo_teacher", DEMO_PASSWORDS["astra_demo_teacher"], "teacher", "演示教师"
+                    )
+                    response = await api.post(f"/api/v2/candidates/{candidate['candidate_id']}/withdraw", teacher, {
+                        "client_request_id": "external-demo-withdraw", "expected_version": candidate["review_version"],
+                    })
+                else:
+                    response = await api.post("/api/v2/candidate-reviews", admin, {
+                        "client_request_id": "external-demo-review",
+                        "items": [{"review_item_id": candidate["review_item_id"], "expected_version": candidate["review_version"]}],
+                        "decision": external_change, "note": "External review must be preserved",
+                    })
+            else:
+                teacher = await api.login(
+                    "astra_demo_teacher", DEMO_PASSWORDS["astra_demo_teacher"], "teacher", "演示教师"
+                )
+                draft = state["drafts"][0]
+                units = [{key: unit[key] for key in ("id", "activity_key", "title", "position", "content")} for unit in draft["units"]]
+                if external_change == "draft_changed":
+                    units[1]["content"]["blocks"][2]["prompt"] = "外部教师修改后的检查题，不可自动覆盖或批准。"
+                elif external_change in {"completion_changed", "foreign_candidate"}:
+                    units[0]["content"]["courseUnit"]["completion"] = None
+                elif external_change == "version_changed":
+                    units[0]["content"]["blocks"][1]["markdown"] = "外部教师的独立说明，不再使用演示版本标记。"
+                else:
+                    units = []
+                response = await api.patch(f"/api/v1/courses/{candidate['course_id']}/draft", teacher, {
+                    "expected_revision": draft["revision"], "units": units,
+                })
+            assert response.status_code == 200, response.json()
+
+    asyncio.run(alter_candidate())
+    before = asyncio.run(_read_demo_publication_state())
+    with pytest.raises(DemoInitializationError, match="(?:candidate|draft).*drifted"):
+        asyncio.run(initialize_demo_data(credentials=DEMO_PASSWORDS))
+    assert asyncio.run(_read_demo_publication_state()) == before
+    assert before["releases"] == [[]]
 
 
 @pytest.mark.parametrize("database_url", [
