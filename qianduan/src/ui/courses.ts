@@ -15,7 +15,7 @@ export function courses(state: AppState): string {
   const adminPreview = state.session?.role === 'admin';
   const galaxyNames: Record<string, string> = { englab: '工科实验室', 'code-space': '代码空间', 'future-galaxy': '未来星系' };
   const galaxyLegend = adminPreview
-    ? `<p class="course-preview-summary">管理员全域预览 · ${state.courses.length} 项系统资源 · ${[...new Set(state.courses.map((course) => course.galaxyKey).filter(Boolean))].map((key) => galaxyNames[key!] || key).join(' · ')}</p>`
+    ? `<p class="course-preview-summary">管理员全域预览 · ${state.courses.length} 门课程 · ${[...new Set(state.courses.map((course) => course.galaxyKey).filter(Boolean))].map((key) => galaxyNames[key!] || key).join(' · ')}</p>`
     : '';
   if (!selected)
     return `<div class="courses-view"><header class="view-heading"><h1>${adminPreview ? '全域课程预览' : '我的课程'}</h1>${galaxyLegend}</header><p class="empty-course-message">暂时还没有课程。</p></div>`;

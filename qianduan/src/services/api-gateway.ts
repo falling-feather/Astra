@@ -127,8 +127,16 @@ export function createApiGateway(base = '/api'): LearningGateway {
         );
       }
       if (session.role === 'admin') {
-        const catalogue = await client.request<{ items: ResourceVersionRead[] }>('/admin/catalogue/preview');
-        return catalogue.items.map(systemResourceCourse);
+        const [catalogue, schoolCourses] = await Promise.all([
+          client.request<{ items: ResourceVersionRead[] }>('/admin/catalogue/preview'),
+          client.request<
+            { id: number; title: string; galaxy_key: string; subject_key: string; summary: string | null }[]
+          >('/courses'),
+        ]);
+        return [
+          ...catalogue.items.map(systemResourceCourse),
+          ...schoolCourses.map((course) => presentCourse({ ...course, course_id: course.id })),
+        ];
       }
       const response: Workbench = await client.request('/v1/workbench?scope=current&limit=1&offset=0');
       if (response.section_errors.some((issue) => issue.section === 'courses'))
