@@ -1,0 +1,45 @@
+import { describe, expect, it } from 'vitest';
+import { StudentStudyStore } from '../src/student-study.js';
+import { StudentNotebookStore } from '../src/student-notebook.js';
+const owner={principalId:'student-a',profileId:'student-a',classroomId:'class-a',displayName:'学生甲'};
+const makeRun=(courseId:string,sessionId=courseId)=>({sessionId,bindingId:`binding-${sessionId}`,courseRef:{courseId,releaseId:courseId,version:1,contentHash:'a'.repeat(64)},title:courseId,status:'active' as const,startedAt:'2026-09-12T00:00:00.000Z',endedAt:null});
+describe('a single active course with durable personal learning',()=>{
+ it('counts new starts for course variants, keeps retries stable and requires adoption of prepared follow-up worlds',async()=>{
+  const store=new StudentStudyStore({canComplete:async()=>true}),ordinals:number[]=[];
+  const start=(requestId:string,sessionId:string)=>store.start(owner,{requestId,courseReleaseId:'course-a'},'course-a',async({practiceOrdinal})=>{ordinals.push(practiceOrdinal);return makeRun('course-a',sessionId);});
+  await expect(store.assertWritable(owner,'training-adaptive-v4-new')).rejects.toThrow('在学记录');
+  await start('first','first');await start('first','first');expect(ordinals).toEqual([0]);
+  await store.complete(owner,{requestId:'finish-first',sessionId:'first',expectedRevision:1,confirmation:'complete'});
+  await start('next','training-adaptive-v4-new');expect(ordinals).toEqual([0,1]);
+  await expect(store.assertWritable(owner,'training-adaptive-v4-new')).resolves.toBeUndefined();
+  await expect(store.start(owner,{requestId:'competing',courseReleaseId:'course-b'},'course-b',async()=>makeRun('course-b'))).rejects.toThrow('未完成');
+ });
+ it('serializes competing starts and preserves the active run on a failed replacement',async()=>{const store=new StudentStudyStore();
+  const starts=await Promise.allSettled(['course-a','course-b'].map(courseId=>store.start(owner,{requestId:courseId,courseReleaseId:courseId},courseId,async()=>makeRun(courseId))));
+  expect(starts.filter(result=>result.status==='fulfilled')).toHaveLength(1);const active=await store.read(owner);expect(active.runs.filter(run=>run.status==='active')).toHaveLength(1);
+  await expect(store.start(owner,{requestId:'failed',courseReleaseId:'course-c',replace:{sessionId:active.currentSessionId!,expectedRevision:active.revision,confirmation:'abandon-and-start'}},'course-c',async()=>{throw new Error('preparation failed');})).rejects.toThrow('preparation failed');
+  expect((await store.read(owner)).currentSessionId).toBe(active.currentSessionId);
+ });
+ it('requires current revision and explicit abandonment, retains history and denies closed-session writes',async()=>{const store=new StudentStudyStore();await store.start(owner,{requestId:'a',courseReleaseId:'course-a'},'course-a',async()=>makeRun('course-a'));
+  await expect(store.cancel(owner,{requestId:'stale',sessionId:'course-a',expectedRevision:0,confirmation:'abandon'})).rejects.toThrow();
+  const state=await store.cancel(owner,{requestId:'cancel',sessionId:'course-a',expectedRevision:1,confirmation:'abandon'});expect(state.currentSessionId).toBeNull();expect(state.runs[0]!.status).toBe('cancelled');
+  expect(await store.cancel(owner,{requestId:'cancel',sessionId:'course-a',expectedRevision:1,confirmation:'abandon'})).toEqual(state);await expect(store.assertWritable(owner,'course-a')).rejects.toThrow();
+ });
+ it('finishes only when required work is ready and keeps another student isolated',async()=>{let ready=false;const store=new StudentStudyStore({canComplete:async()=>ready});await store.start(owner,{requestId:'a',courseReleaseId:'course-a'},'course-a',async()=>makeRun('course-a'));
+  const command={requestId:'finish',sessionId:'course-a',expectedRevision:1,confirmation:'complete' as const};await expect(store.complete(owner,command)).rejects.toThrow('作品');ready=true;
+  expect((await store.complete(owner,command)).runs[0]!.status).toBe('completed');expect((await store.read({...owner,principalId:'student-b',profileId:'student-b'})).runs).toHaveLength(0);
+ });
+ it('treats distinct teacher tasks within the same course as distinct active assignments',async()=>{const store=new StudentStudyStore();const input={requestId:'task-a',courseReleaseId:'course-a',taskReleaseId:'task-a'};await store.start(owner,input,'course-a',async()=>({...makeRun('course-a'),taskReleaseId:'task-a'}));
+  await expect(store.start(owner,{requestId:'task-b',courseReleaseId:'course-a',taskReleaseId:'task-b'},'course-a',async()=>({...makeRun('course-a','run-b'),taskReleaseId:'task-b'}))).rejects.toThrow('未完成');
+ });
+});
+describe('private notebook and explicit immutable copies',()=>{
+ it('isolates students and courses, rejects stale edits, and freezes only selected notes',async()=>{const notes=new StudentNotebookStore({now:()=> '2026-09-12T00:00:00.000Z'});
+  const command={bindingId:'binding-a',requestId:'save-a',expectedRevision:0,action:{kind:'save' as const,noteId:'note-a',title:'现场观察',body:'我的私有观察'}};
+  const first=await notes.mutate('student-a','course-a',command);expect((await notes.mutate('student-a','course-a',command)).revision).toBe(first.revision);
+  expect((await notes.read('student-b','course-a')).notes).toHaveLength(0);expect((await notes.read('student-a','course-b')).notes).toHaveLength(0);
+  const copy=await notes.selectedCopies('student-a','course-a',['note-a']);await notes.mutate('student-a','course-a',{...command,requestId:'save-b',expectedRevision:1,action:{...command.action,body:'后来修改的私有观察'}});
+  expect(copy[0]!.body).toBe('我的私有观察');await expect(notes.mutate('student-a','course-a',{...command,requestId:'stale'})).rejects.toThrow();await expect(notes.selectedCopies('student-b','course-a',['note-a'])).rejects.toThrow();
+  await expect(notes.selectedCopies('student-a','course-a',['note-a'],first.revision)).rejects.toThrow('笔记已发生修改');
+ });
+});

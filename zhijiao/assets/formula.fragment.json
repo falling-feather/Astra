@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "type": "latex-formula-image-fragment",
+  "images": [
+    {
+      "id": "ranking-formula",
+      "path": "assets/formula.pdf",
+      "box_px": [
+        640.0,
+        632.0,
+        275.0,
+        33.0
+      ],
+      "alt": "LaTeX rendered formula ranking-formula",
+      "z_index": 220
+    }
+  ],
+  "asset_provenance": [
+    {
+      "path": "assets/formula.pdf",
+      "source": "assets/formula.tex",
+      "source_type": "latex-rendered-formula",
+      "provenance_note": "Rendered from LaTeX by editppt formula render-latex; visual fidelity is prioritized over formula editability."
+    }
+  ],
+  "formula_inventory": [
+    {
+      "id": "ranking-formula",
+      "decision": "latex-rendered-image",
+      "editable": false,
+      "image": "assets/formula.pdf",
+      "tex_source": "assets/formula.tex"
+    }
+  ]
+}

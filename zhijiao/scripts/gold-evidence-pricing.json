@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "gold-evidence-pricing/1.0.0",
+  "sourceUrl": "https://api-docs.deepseek.com/quick_start/pricing",
+  "accessedAt": "2026-07-29",
+  "calculation": "conservative_cache_miss_input_plus_output",
+  "models": {
+    "deepseek-v4-flash": {
+      "inputCacheMissUsdPerMillion": 0.14,
+      "outputUsdPerMillion": 0.28
+    },
+    "deepseek-v4-pro": {
+      "inputCacheMissUsdPerMillion": 0.435,
+      "outputUsdPerMillion": 0.87
+    }
+  }
+}

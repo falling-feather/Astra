@@ -1,0 +1,24 @@
+{
+  "name": "@ronggang/content-store",
+  "version": "3.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --external @electric-sql/pglite --external pdfjs-dist",
+    "test": "vitest run --maxWorkers=1",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "pdfjs-dist": "6.3.289",
+    "zod": "4.4.3"
+  }
+}

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title description">
+  <title id="title">教学仿真：巷口封闭未核验群聊截图</title>
+  <desc id="description">一张用于新闻核查训练的虚构群聊截图，所有人物和消息均为教学仿真。</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1d2b"/>
+      <stop offset="1" stop-color="#17384a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="24" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="1440" height="900" fill="url(#background)"/>
+  <rect x="72" y="54" width="1296" height="74" rx="20" fill="#f0b34a"/>
+  <text x="112" y="100" fill="#17222c" font-size="28" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">教学仿真 · 未核验消息 · 禁止作为事实转发</text>
+  <rect x="250" y="162" width="940" height="654" rx="38" fill="#f3f6f8" filter="url(#shadow)"/>
+  <rect x="250" y="162" width="940" height="96" rx="38" fill="#ffffff"/>
+  <rect x="250" y="218" width="940" height="40" fill="#ffffff"/>
+  <circle cx="310" cy="210" r="26" fill="#4c8e9c"/>
+  <text x="352" y="203" fill="#17222c" font-size="24" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">海边出行互助（仿真）</text>
+  <text x="352" y="233" fill="#71808c" font-size="17" font-family="Microsoft YaHei, PingFang SC, sans-serif">18 人 · 消息来源尚未确认</text>
+  <line x1="250" y1="258" x2="1190" y2="258" stroke="#dce3e8"/>
+
+  <circle cx="318" cy="337" r="30" fill="#cc6e5b"/>
+  <text x="309" y="346" fill="#fff" font-size="26" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">甲</text>
+  <text x="366" y="314" fill="#7b8790" font-size="17" font-family="Microsoft YaHei, PingFang SC, sans-serif">匿名成员甲 · 14:18</text>
+  <rect x="360" y="327" width="670" height="94" rx="22" fill="#ffffff" stroke="#dbe3e8"/>
+  <text x="392" y="367" fill="#283844" font-size="24" font-family="Microsoft YaHei, PingFang SC, sans-serif">听说下午巷口要全面封闭，所有游客都不能进了。</text>
+  <text x="392" y="399" fill="#c14d42" font-size="17" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">⚠ 无原始链接、无发布主体、无发布时间</text>
+
+  <circle cx="1122" cy="491" r="30" fill="#3a7d84"/>
+  <text x="1113" y="500" fill="#fff" font-size="26" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">乙</text>
+  <text x="715" y="464" fill="#7b8790" font-size="17" font-family="Microsoft YaHei, PingFang SC, sans-serif">匿名成员乙 · 14:20</text>
+  <rect x="618" y="477" width="448" height="74" rx="22" fill="#dff3ea" stroke="#b9dfcf"/>
+  <text x="650" y="522" fill="#21423a" font-size="24" font-family="Microsoft YaHei, PingFang SC, sans-serif">谁发布的？有官方通知或现场回执吗？</text>
+
+  <circle cx="318" cy="623" r="30" fill="#cc6e5b"/>
+  <text x="309" y="632" fill="#fff" font-size="26" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">甲</text>
+  <text x="366" y="600" fill="#7b8790" font-size="17" font-family="Microsoft YaHei, PingFang SC, sans-serif">匿名成员甲 · 14:22</text>
+  <rect x="360" y="613" width="510" height="74" rx="22" fill="#ffffff" stroke="#dbe3e8"/>
+  <text x="392" y="658" fill="#283844" font-size="24" font-family="Microsoft YaHei, PingFang SC, sans-serif">我也是转发来的，原链接现在找不到了。</text>
+
+  <rect x="360" y="720" width="720" height="58" rx="18" fill="#fff3d9" stroke="#edc66e"/>
+  <text x="392" y="756" fill="#6a4a11" font-size="21" font-weight="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">训练提示：截图只是待核线索；核验前不得写入稿件或对外发布。</text>
+  <text x="720" y="858" text-anchor="middle" fill="#a9c2ce" font-size="19" font-family="Microsoft YaHei, PingFang SC, sans-serif">所有账号、对话与时间均为项目生成的教学仿真内容</text>
+</svg>

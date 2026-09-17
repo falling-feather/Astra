@@ -3,6 +3,12 @@ server/build/
 dist/
 dist-demo/
 node_modules/
+zhijiao/**/node_modules/
+zhijiao/**/dist/
+zhijiao/.local/
+zhijiao/.data*/
+zhijiao/**/.data*/
+zhijiao/**/..data-*.ronggang-runtime.lock
 __pycache__/
 *.py[cod]
 .pytest_cache/

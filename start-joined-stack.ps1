@@ -2,7 +2,7 @@
 param(
     [ValidateRange(1, 65535)]
     [int]$AstraPort = 9001,
-    [string]$VocationalRoot = 'D:\代码玩具测试\揭榜挂帅',
+    [string]$VocationalRoot = '',
     [switch]$SkipVocationalInstall,
     [switch]$ReuseVocationalData
 )
@@ -11,8 +11,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $astraRoot = [IO.Path]::GetFullPath((Split-Path -Parent $MyInvocation.MyCommand.Path))
+$VocationalRoot = if ([string]::IsNullOrWhiteSpace($VocationalRoot)) { Join-Path $astraRoot 'zhijiao' } else { $VocationalRoot }
 $vocationalRootResolved = [IO.Path]::GetFullPath($VocationalRoot)
-$vocationalLauncher = Join-Path $vocationalRootResolved '启动融岗智训.ps1'
+$vocationalLauncher = Join-Path $vocationalRootResolved '启动职教星云.ps1'
 if (-not (Test-Path -LiteralPath $vocationalLauncher -PathType Leaf)) {
     throw "职业教育项目启动器不存在：$vocationalLauncher"
 }

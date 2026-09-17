@@ -1,0 +1,35 @@
+{
+  "name": "@ronggang/api",
+  "version": "3.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsup src/main.ts src/data-safety-cli.ts --format esm --sourcemap --clean --external @ronggang/contracts --external @ronggang/course-content --external @ronggang/session-control --external @ronggang/context-engine --external @ronggang/scenario-catalog --external @ronggang/model-gateway --external @ronggang/agent-runtime --external @ronggang/agent-orchestrator --external @ronggang/media-processing --external @ronggang/world-core --external @ronggang/iflytek-adapter --external @ronggang/content-store",
+    "data:backup": "node dist/data-safety-cli.js backup",
+    "data:verify": "node dist/data-safety-cli.js verify",
+    "data:restore": "node dist/data-safety-cli.js restore",
+    "dev": "node --watch --watch-preserve-output --import tsx src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run --maxWorkers=1",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@ronggang/agent-orchestrator": "workspace:*",
+    "@ronggang/agent-runtime": "workspace:*",
+    "@ronggang/content-store": "workspace:*",
+    "@ronggang/context-engine": "workspace:*",
+    "@ronggang/contracts": "workspace:*",
+    "@ronggang/course-content": "workspace:*",
+    "@ronggang/iflytek-adapter": "workspace:*",
+    "@ronggang/media-processing": "workspace:*",
+    "@ronggang/model-gateway": "workspace:*",
+    "@ronggang/scenario-catalog": "workspace:*",
+    "@ronggang/session-control": "workspace:*",
+    "@ronggang/world-core": "workspace:*",
+    "fastify": "5.10.0",
+    "zod": "4.4.3"
+  }
+}
