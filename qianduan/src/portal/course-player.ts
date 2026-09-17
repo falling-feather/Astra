@@ -17,7 +17,6 @@ import { ActivitySession, type ActivityRecordState } from '../domain/activity-se
 export class CoursePlayer {
   private life = new AbortController();
   private active = true;
-  private frameLife?: AbortController;
   private session?: ActivitySession;
   private recordState?: ActivityRecordState;
   private controls = new Set<HTMLInputElement>();
@@ -43,23 +42,6 @@ export class CoursePlayer {
     root.addEventListener('change', this.change, { signal: this.life.signal });
   }
   mount(): void {
-    const hasResource = this.unit.content.blocks.some((block) =>
-      ['resource', 'official-simulation'].includes(block.type),
-    );
-    if (hasResource) {
-      const lesson = this.root.querySelector('.portal-lesson');
-      lesson?.insertAdjacentHTML(
-        'afterbegin',
-        '<div class="portal-note" data-recording-panel><output role="status" data-recording-message></output><button type="button" class="quiet-button" data-player-retry hidden>重试原操作</button></div>',
-      );
-      this.session = new ActivitySession(
-        this.study.api,
-        this.study.context.context_key,
-        this.showRecordState,
-        this.study.changed,
-      );
-      void this.session.initialize().catch(() => {});
-    }
     void this.load();
   }
   hasPending(): boolean {
@@ -76,10 +58,24 @@ export class CoursePlayer {
       control.disabled = state.status === 'error';
     });
   };
+  private ensureSession(): void {
+    if (this.session) return;
+    const lesson = this.root.querySelector('.portal-lesson');
+    lesson?.insertAdjacentHTML(
+      'afterbegin',
+      '<div class="portal-note" data-recording-panel><output role="status" data-recording-message></output><button type="button" class="quiet-button" data-player-retry hidden>重试原操作</button></div>',
+    );
+    this.session = new ActivitySession(
+      this.study.api,
+      this.study.context.context_key,
+      this.showRecordState,
+      this.study.changed,
+    );
+    void this.session.initialize().catch(() => {});
+  }
   destroy(): void {
     this.active = false;
     this.session?.destroy();
-    this.frameLife?.abort();
     this.life.abort();
     this.versions.clear();
     this.controls.clear();
@@ -119,12 +115,13 @@ export class CoursePlayer {
           const configuration = structuredClone(block.configuration || {});
           this.versions.set(block.blockId, { resource, configuration });
           const legacy = resource.renderer === 'legacy' || resource.renderer === 'bundle';
+          if (!legacy && resource.capabilities.operation_recording === true) this.ensureSession();
           const parameters =
             resource.renderer === 'function-graph-v1'
               ? (configuration as FunctionGraphConfig).parameters || []
               : [];
           host.innerHTML = legacy
-            ? `<button type="button" class="quiet-button" data-player-open="${e(block.blockId)}">开始探索 →</button><div data-player-frame></div>`
+            ? `<button type="button" class="quiet-button" data-player-open="${e(block.blockId)}">进入完整实验 →</button>`
             : `<div data-player-plot>${resourcePreviewMarkup(previewTemplate(resource, configuration))}</div><div class="portal-form-grid">${parameters.map((parameter, index) => `<label class="portal-field"><span>${e(parameter.label)} <output data-parameter-value="${index}">${parameter.value}</output></span><input type="range" aria-label="${e(parameter.label)}" data-player-resource="${e(block.blockId)}" data-player-parameter="${index}" min="${parameter.minimum}" max="${parameter.maximum}" step="${parameter.step}" value="${parameter.value}"/></label>`).join('')}</div>`;
           if (resource.capabilities.operation_recording === true)
             host.querySelectorAll<HTMLInputElement>('[data-player-resource]').forEach((input) => {
@@ -210,75 +207,6 @@ export class CoursePlayer {
         }),
       );
   };
-  private observeFrame(frame: HTMLIFrameElement, blockId: string, entry: string): void {
-    const life = (this.frameLife = new AbortController());
-    let documentLife: AbortController | undefined;
-    life.signal.addEventListener('abort', () => documentLife?.abort(), { once: true });
-    frame.addEventListener(
-      'load',
-      () => {
-        documentLife?.abort();
-        documentLife = new AbortController();
-        const signal = documentLife.signal;
-        void this.session
-          ?.initialize()
-          .then((config) => {
-            if (!this.active || life.signal.aborted || signal.aborted) return;
-            const block = config.blocks.find(
-              (item) => item.block_id === blockId && item.adapter === 'numeric-controls-v1',
-            );
-            if (!block) return;
-            const expected = new URL(frontendAsset(entry), window.location.href),
-              child = frame.contentWindow,
-              doc = frame.contentDocument;
-            if (!child || !doc || child.location.origin !== expected.origin) return;
-            const frameControls: HTMLInputElement[] = [];
-            signal.addEventListener(
-              'abort',
-              () => frameControls.forEach((input) => this.controls.delete(input)),
-              { once: true },
-            );
-            for (const control of block.controls) {
-              if (!control.selector || !/^#[A-Za-z][A-Za-z0-9_-]*$/.test(control.selector)) continue;
-              const input = doc.querySelector<HTMLInputElement>(control.selector);
-              if (input) {
-                frameControls.push(input);
-                this.controls.add(input);
-                input.disabled = this.recordState?.status === 'error';
-              }
-            }
-            doc.addEventListener(
-              'change',
-              (event) => {
-                const input = event.target as HTMLInputElement;
-                if (
-                  child.location.pathname !== expected.pathname ||
-                  child.location.hash !== expected.hash ||
-                  !input.matches?.('input[type="range"], input[type="number"]') ||
-                  !input.getClientRects().length
-                )
-                  return;
-                const control = block.controls.find(
-                  (control) => control.selector && input.matches(control.selector),
-                );
-                if (!control) return;
-                void this.session
-                  ?.observe({ block_id: blockId, parameter: control.key, value: Number(input.value) })
-                  .catch((error) =>
-                    this.showRecordState({
-                      status: 'error',
-                      message: error instanceof Error ? error.message : '操作记录未确认。',
-                    }),
-                  );
-              },
-              { signal },
-            );
-          })
-          .catch(() => {});
-      },
-      { signal: life.signal },
-    );
-  }
   private click = (event: Event): void => {
     if ((event.target as Element).closest('[data-player-retry]')) {
       void this.session?.retry();
@@ -290,14 +218,19 @@ export class CoursePlayer {
     if (!state) return;
     const entry = String(state.resource.definition.entry || '');
     if (!entry.startsWith('labs/') || /[\\\s]|(?:^|\/)\.\.(?:\/|$)/.test(entry)) return;
-    this.frameLife?.abort();
-    this.root.querySelectorAll('[data-player-frame]').forEach((host) => host.replaceChildren());
-    const frame = document.createElement('iframe');
-    frame.className = 'portal-experiment-frame';
-    frame.title = state.resource.title;
-    frame.allow = 'fullscreen';
-    this.observeFrame(frame, button.dataset.playerOpen!, entry);
-    frame.src = frontendAsset(entry);
-    button.parentElement!.querySelector('[data-player-frame]')!.append(frame);
+    if (this.session?.hasPending()) {
+      this.showRecordState({
+        status: 'saving',
+        message: '正在保存本次操作记录，请稍后再进入完整实验。',
+      });
+      return;
+    }
+    const target = new URL(frontendAsset(entry), window.location.href);
+    target.searchParams.set('astra_context_key', this.study.context.context_key);
+    target.searchParams.set(
+      'astra_return_to',
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    );
+    window.location.assign(target.toString());
   };
 }
