@@ -6,6 +6,7 @@ const testsDirectory = __dirname;
 const testFiles = fs.readdirSync(testsDirectory)
   .filter((name) => name.endsWith('.cjs') && name !== path.basename(__filename))
   .sort();
+const failures = [];
 
 for (const testFile of testFiles) {
   const result = spawnSync(process.execPath, [path.join(testsDirectory, testFile)], {
@@ -14,13 +15,16 @@ for (const testFile of testFiles) {
     stdio: 'inherit',
     windowsHide: true,
   });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    process.exitCode = result.status || 1;
-    break;
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || (result.signal ? `signal ${result.signal}` : `exit ${result.status}`);
+    failures.push({ testFile, detail });
   }
 }
 
-if (!process.exitCode) {
+if (failures.length) {
+  console.error(`${failures.length} of ${testFiles.length} frontend contracts failed:`);
+  for (const { testFile, detail } of failures) console.error(`- ${testFile}: ${detail}`);
+  process.exitCode = 1;
+} else {
   console.log(`all ${testFiles.length} frontend contracts passed`);
 }

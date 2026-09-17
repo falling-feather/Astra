@@ -2270,20 +2270,144 @@ def _validate_v84_release(
             raise DemoInitializationError(f"V8.4 {version_marker} completion preset drifted")
 
 
+async def _demo_workflow_receipt(
+    api: DemoApi, actor: Actor, request_id: str, operation_kind: str,
+) -> dict[str, Any] | None:
+    response = await api.get(f"/api/v2/operations/{request_id}", actor)
+    if response.status_code == 404:
+        return None
+    receipt = _require_status(response, 200, "read demo course workflow receipt")
+    if receipt.get("client_request_id") != request_id or receipt.get("operation_kind") != operation_kind:
+        raise DemoInitializationError("demo course workflow receipt drifted")
+    return receipt["response"]
+
+
+async def _publish_demo_course_candidate(
+    api: DemoApi,
+    *,
+    course_id: int,
+    teacher: Actor,
+    admin: Actor,
+    expected_revision: int,
+    release_number: int,
+    note: str,
+) -> None:
+    # A committed step may outlive this process. Reuse its public receipt rather
+    # than generating another candidate or assuming an unrelated review is ours.
+    request_prefix = f"astra-demo-course-{course_id}-release-{release_number}"
+    draft = _require_status(
+        await api.get(f"/api/v2/courses/{course_id}/draft", teacher),
+        200, "read demo candidate source draft",
+    )
+    if draft["revision"] != expected_revision:
+        raise DemoInitializationError("demo candidate source revision drifted")
+    submitted = await _demo_workflow_receipt(api, teacher, f"{request_prefix}-submit", "course.submit")
+    if submitted is None:
+        source = {"source_revision": draft["revision"], "source_state_token": draft["state_token"]}
+        preview = _require_status(
+            await api.post(f"/api/v2/courses/{course_id}/submission-preview", teacher, source),
+            200, "preview demo course candidate",
+        )
+        submitted = _require_status(
+            await api.post(f"/api/v2/courses/{course_id}/submissions", teacher, {
+                **source, "preview_token": preview["preview_token"],
+                "client_request_id": f"{request_prefix}-submit", "note": note,
+            }),
+            201, "submit demo course candidate",
+        )
+    items = submitted.get("items", [])
+    if len(items) != 1 or items[0].get("course_id") != course_id or submitted.get("skipped"):
+        raise DemoInitializationError("demo candidate submission scope drifted")
+    candidate = _require_status(
+        await api.get(f"/api/v2/candidates/{items[0]['candidate_id']}", teacher),
+        200, "read frozen demo course candidate",
+    )
+    snapshot_sha256 = sha256(json.dumps(
+        candidate["snapshot"], ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode("utf-8")).hexdigest()
+    if (
+        candidate["course_id"] != course_id
+        or candidate["submitted_by_user_id"] != teacher.user_id
+        or candidate["note"] != note
+        or candidate["stale"]
+        or candidate["published_release_id"] is not None
+        or snapshot_sha256 != draft["state_token"]
+    ):
+        raise DemoInitializationError("demo candidate snapshot or publication baseline drifted")
+
+    review_note = f"{note}：已核对合成教学内容、完成规则与发布影响。"
+    reviewed = await _demo_workflow_receipt(api, admin, f"{request_prefix}-review", "course.review")
+    if candidate["status"] == "submitted" and reviewed is None:
+        reviewed = _require_status(
+            await api.post("/api/v2/candidate-reviews", admin, {
+                "client_request_id": f"{request_prefix}-review",
+                "items": [{"review_item_id": candidate["review_item_id"], "expected_version": candidate["review_version"]}],
+                "decision": "approved", "note": review_note,
+            }),
+            200, "review demo course candidate",
+        )
+    elif (
+        candidate["status"] != "approved"
+        or reviewed is None
+        or candidate["reviewed_by_user_id"] != admin.user_id
+        or candidate["review_note"] != review_note
+    ):
+        raise DemoInitializationError("demo candidate review state drifted")
+    reviewed_items = reviewed.get("items", [])
+    if (
+        len(reviewed_items) != 1
+        or reviewed_items[0].get("candidate_id") != candidate["candidate_id"]
+        or reviewed_items[0].get("status") != "approved"
+    ):
+        raise DemoInitializationError("demo candidate review receipt drifted")
+    _require_status(
+        await api.post("/api/v2/publications", teacher, {
+            "client_request_id": f"{request_prefix}-publish",
+            "items": [{
+                "candidate_id": candidate["candidate_id"],
+                "expected_review_version": reviewed_items[0]["review_version"],
+            }],
+            "note": note,
+        }),
+        201, "publish reviewed demo course candidate",
+    )
+
+
+async def _assert_demo_draft_has_no_unpublished_candidate(api: DemoApi, teacher: Actor, course_id: int) -> None:
+    page = _require_status(
+        await api.get(f"/api/v2/candidates?course_id={course_id}&limit=100", teacher),
+        200, "check candidate history before updating demo draft",
+    )
+    # This also protects candidates submitted by another request/teacher: they
+    # are never ours to rewrite, approve, withdraw or replace while resuming.
+    if page.get("next_offset") is not None or any(item["published_release_id"] is None for item in page["items"]):
+        raise DemoInitializationError("demo candidate draft drifted; unpublished candidate must be preserved")
+
+
 async def _ensure_v84_course_content(
     api: DemoApi,
     *,
     course: dict[str, Any],
     owner: Actor,
     peer_teacher: Actor,
+    admin: Actor,
 ) -> dict[str, Any]:
     course_id = int(course["id"])
+    releases = _require_status(
+        await api.get(f"/api/v1/courses/{course_id}/releases", owner),
+        200, "list V8.4 demo releases",
+    )
+    if len(releases) > 2:
+        raise DemoInitializationError("V8.4 demo course has more than two releases")
     draft = _require_status(
         await api.get(f"/api/v1/courses/{course_id}/draft", owner),
         200,
         "read V8.4 shared course draft",
     )
     if not draft.get("units"):
+        if releases:
+            raise DemoInitializationError("V8.4 shared draft drifted after publication")
+        await _assert_demo_draft_has_no_unpublished_candidate(api, owner, course_id)
         draft = await _replace_v84_draft(
             api,
             actor=owner,
@@ -2303,19 +2427,13 @@ async def _ensure_v84_course_content(
     )
     graded_assignment = assignments[DEMO_V84_ASSIGNMENTS[0]["title"]]
 
-    releases = _require_status(
-        await api.get(f"/api/v1/courses/{course_id}/releases", owner),
-        200,
-        "list V8.4 demo releases",
-    )
-    if len(releases) > 2:
-        raise DemoInitializationError("V8.4 demo course has more than two releases")
     if not releases:
         if not _validate_v84_draft(
             draft,
             version_marker="版本一",
             assignment_id=int(graded_assignment["id"]),
         ):
+            await _assert_demo_draft_has_no_unpublished_candidate(api, owner, course_id)
             draft = await _replace_v84_draft(
                 api,
                 actor=peer_teacher,
@@ -2324,14 +2442,10 @@ async def _ensure_v84_course_content(
                 version_marker="版本一",
                 assignment_id=int(graded_assignment["id"]),
             )
-        _require_status(
-            await api.post(
-                f"/api/v1/courses/{course_id}/releases",
-                owner,
-                {"expected_revision": draft["revision"], "note": "课程闭环演示版本一"},
-            ),
-            201,
-            "publish V8.4 demo release one",
+        await _publish_demo_course_candidate(
+            api, course_id=course_id, teacher=owner, admin=admin,
+            expected_revision=draft["revision"], release_number=1,
+            note="课程闭环演示版本一",
         )
         releases = _require_status(
             await api.get(f"/api/v1/courses/{course_id}/releases", owner),
@@ -2355,6 +2469,7 @@ async def _ensure_v84_course_content(
             version_marker="版本二",
             assignment_id=int(graded_assignment["id"]),
         ):
+            await _assert_demo_draft_has_no_unpublished_candidate(api, peer_teacher, course_id)
             draft = await _replace_v84_draft(
                 api,
                 actor=peer_teacher,
@@ -2363,14 +2478,10 @@ async def _ensure_v84_course_content(
                 version_marker="版本二",
                 assignment_id=int(graded_assignment["id"]),
             )
-        _require_status(
-            await api.post(
-                f"/api/v1/courses/{course_id}/releases",
-                peer_teacher,
-                {"expected_revision": draft["revision"], "note": "课程闭环演示版本二"},
-            ),
-            201,
-            "publish V8.4 demo release two",
+        await _publish_demo_course_candidate(
+            api, course_id=course_id, teacher=peer_teacher, admin=admin,
+            expected_revision=draft["revision"], release_number=2,
+            note="课程闭环演示版本二",
         )
         releases = _require_status(
             await api.get(f"/api/v1/courses/{course_id}/releases", owner),
@@ -2405,51 +2516,76 @@ async def _ensure_v84_submissions(
     *,
     assignments: dict[str, dict[str, Any]],
     internal_class_id: int,
+    release_id: int,
     student: Actor,
     peer_teacher: Actor,
 ) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for spec in DEMO_V84_ASSIGNMENTS:
         assignment = assignments[spec["title"]]
-        review = _require_status(
-            await api.get(
-                f"/api/assignments/{assignment['id']}/review?class_id={internal_class_id}",
-                student,
-            ),
-            200,
-            f"read V8.4 assignment review {spec['title']}",
+        request_prefix = f"astra-demo-assignment-{assignment['id']}"
+        open_payload = {"client_request_id": f"{request_prefix}-open", "class_id": internal_class_id}
+        workspace = _require_status(
+            await api.post(f"/api/v2/assignments/{assignment['id']}/open", student, open_payload),
+            200, f"open V8.4 demo assignment {spec['title']}",
         )
-        submission = review.get("submission")
-        if submission is None:
-            submission = _require_status(
+        context = workspace.get("context") or {}
+        if context.get("course_release_id") != release_id or context.get("class_id") != internal_class_id:
+            raise DemoInitializationError("V8.4 demo assignment learning context drifted")
+        content = {
+            "report": "实验观察显示动能与势能相互转化，总机械能保持稳定。",
+            "fixture": "synthetic-local-demo",
+        }
+        if workspace.get("attempt") is None:
+            if workspace.get("submission_id") is not None or not workspace["can_submit"]:
+                raise DemoInitializationError("V8.4 demo assignment submission history drifted")
+            _require_status(
                 await api.post(
-                    f"/api/assignments/{assignment['id']}/submissions",
+                    f"/api/v2/assignments/{assignment['id']}/attempts",
                     student,
                     {
+                        "client_request_id": f"{request_prefix}-submit",
+                        "context_key": context["context_key"],
                         "class_id": internal_class_id,
-                        "content": {
-                            "report": "实验观察显示动能与势能相互转化，总机械能保持稳定。",
-                            "fixture": "synthetic-local-demo",
-                        },
+                        "expected_submission_revision": workspace["submission_revision"],
+                        "expected_assignment_sha256": workspace["assignment_sha256"],
+                        "content": content,
                     },
                 ),
                 201,
                 f"submit V8.4 demo assignment {spec['title']}",
             )
-        if spec["desired_status"] == "graded" and submission.get("status") == "submitted":
-            submission = _require_status(
-                await api.patch(
-                    f"/api/submissions/{submission['id']}/grade",
+            workspace = _require_status(
+                await api.post(f"/api/v2/assignments/{assignment['id']}/open", student, open_payload),
+                200, "reread V8.4 assignment attempt",
+            )
+        attempt = workspace["attempt"]
+        if attempt["content"] != content or attempt["attempt_number"] != 1 or attempt["context_key"] != context["context_key"]:
+            raise DemoInitializationError("V8.4 demo assignment attempt drifted")
+        if spec["desired_status"] == "graded" and workspace.get("grade") is None:
+            _require_status(
+                await api.post(
+                    f"/api/v2/assignment-attempts/{attempt['id']}/grades",
                     peer_teacher,
                     {
+                        "client_request_id": f"{request_prefix}-grade",
+                        "expected_submission_revision": workspace["submission_revision"],
+                        "expected_grade_revision": 0,
                         "score": 92,
                         "feedback": "证据完整，守恒关系表达清楚。",
                         "status": "graded",
                     },
                 ),
-                200,
+                201,
                 "grade V8.4 demo assignment",
             )
+        review = _require_status(
+            await api.get(f"/api/assignments/{assignment['id']}/review?class_id={internal_class_id}", student),
+            200, f"read V8.4 assignment review {spec['title']}",
+        )
+        submission = review.get("submission")
+        if submission is None or submission.get("current_attempt_id") != attempt["id"]:
+            raise DemoInitializationError("V8.4 demo assignment current attempt drifted")
         if spec["desired_status"] == "graded":
             if (
                 submission.get("status") != "graded"
@@ -2476,6 +2612,7 @@ async def _ensure_v84_learning_completion(
     internal_class_id: int,
     student: Actor,
     owner: Actor,
+    admin: Actor,
 ) -> dict[str, Any]:
     releases = content_state["releases"]
     current_release = releases[0]
@@ -2490,63 +2627,68 @@ async def _ensure_v84_learning_completion(
     if len(matching_rules) != 1 or matching_rules[0].get("status") != "active":
         raise DemoInitializationError("V8.4 active completion rule drifted")
     rule = matching_rules[0]
-    mechanics_unit = units["physics.mechanics"]
-    runtime_payload = {
-        "schema_version": "astra-learning-activity-evidence-sidecar-v1",
-        "command": {
-            "schema_version": "astra-learning-activity-event-v1",
-            "scope": {
-                "class_id": internal_class_id,
-                "course_id": course["id"],
-                "course_unit_id": mechanics_unit["source_course_unit_id"],
-                "activity_key": mechanics_unit["activity_key"],
-            },
-            "run": {
-                "run_id": "v84-demo-run-0001",
-                "group_id": "v84-demo-group-0001",
-                "sequence": 1,
-            },
-            "versions": {
-                "manifest_version": "v84-demo-manifest",
-                "content_version": "v84-demo-release-2",
-                "event_schema_version": 1,
-                "rule_version": rule["version_number"],
-                "generation": "v84-demo-generation",
-            },
-            "client_event_id": "v84-demo:physics.mechanics:attempted:1",
-            "event_type": "attempted",
-            "evidence": {"operation": "mechanics-controlled-run"},
-            "occurred_at": "2026-08-01T08:00:00.000Z",
-        },
-        "snapshot": {
-            "state_schema_version": "v84-demo-state-v1",
-            "applied_through_learner_sequence": 1,
-            "data": {"stage": "attempted"},
-        },
-    }
-    runtime_response = await api.post(
-        "/api/learning-evidence/activity-runtime/events",
-        student,
-        runtime_payload,
+    _require_status(
+        await api.post("/api/v2/resources/install-system", admin, {}),
+        200, "install registered demo learning resources",
     )
-    if runtime_response.status_code not in {200, 201}:
-        raise DemoInitializationError(
-            f"append V8.4 experiment evidence failed with HTTP {runtime_response.status_code}: "
-            f"{_response_detail(runtime_response)}"
+    contexts = {}
+    for activity_key in ("physics.mechanics", "physics.energy-checkpoint"):
+        contexts[activity_key] = _require_status(
+            await api.post("/api/v2/learning-contexts", student, {
+                "client_request_id": f"astra-demo-{course['id']}-{activity_key}-start",
+                "mode": "formal", "course_id": course["id"],
+                "course_unit_id": units[activity_key]["source_course_unit_id"],
+                "expected_release_id": release_id,
+            }),
+            201, "open version-pinned demo learning context",
         )
-    runtime_receipt = runtime_response.json()
-    if runtime_receipt.get("status") not in {"confirmed", "reconciled"}:
-        raise DemoInitializationError("V8.4 experiment evidence receipt drifted")
+    runtime_path = f"/api/v2/learning-contexts/{contexts['physics.mechanics']['context_key']}/activity-runtime"
+    runtime = _require_status(
+        await api.get(runtime_path, student), 200, "read pinned demo runtime configuration",
+    )
+    if not runtime["blocks"] or not runtime["blocks"][0]["controls"]:
+        raise DemoInitializationError("demo experiment has no registered observation control")
+    block = runtime["blocks"][0]
+    control = block["controls"][0]
+    observation = {
+        "block_id": block["block_id"], "parameter": control["key"],
+        "value": control["maximum"] if control["value"] != control["maximum"] else control["minimum"],
+    }
+    for sequence, event_type in ((1, "started"), (2, "attempted")):
+        runtime_payload = {
+            "schema_version": "astra-learning-activity-evidence-sidecar-v1",
+            "command": {
+                "schema_version": "astra-learning-activity-event-v1",
+                "scope": runtime["scope"],
+                "run": {"run_id": "v84-demo-run-0001", "group_id": "v84-demo-group-0001", "sequence": sequence},
+                "versions": {key: runtime[key] for key in (
+                    "manifest_version", "content_version", "event_schema_version", "rule_version", "generation",
+                )},
+                "client_event_id": f"v84-demo:physics.mechanics:{event_type}:{sequence}",
+                "event_type": event_type,
+                "evidence": {} if event_type == "started" else {"operation": "parameter-change", "cursor": observation},
+                "occurred_at": f"2026-08-01T08:00:0{sequence}.000Z",
+            },
+            "snapshot": {
+                "state_schema_version": runtime["state_schema_version"],
+                "applied_through_learner_sequence": sequence,
+                "data": {"last_observation": None if event_type == "started" else observation},
+            },
+        }
+        runtime_receipt = _require_status(
+            await api.post(f"{runtime_path}/events", student, runtime_payload),
+            (200, 201), "append version-pinned demo experiment evidence",
+        )
+        if runtime_receipt.get("status") not in {"confirmed", "reconciled"}:
+            raise DemoInitializationError("V8.4 experiment evidence receipt drifted")
 
-    checkpoint_unit = units["physics.energy-checkpoint"]
     checkpoint = _require_status(
         await api.post(
-            f"/api/v1/courses/{course['id']}/units/{checkpoint_unit['source_course_unit_id']}"
-            "/checkpoints/energy-conservation-check/attempts",
+            f"/api/v2/learning-contexts/{contexts['physics.energy-checkpoint']['context_key']}"
+            "/checkpoints/energy-conservation-check",
             student,
             {
                 "client_attempt_id": "v84-demo-checkpoint-correct-1",
-                "course_release_id": release_id,
                 "selected_choice_ids": ["mechanical"],
             },
         ),
@@ -2746,11 +2888,13 @@ async def initialize_demo_data(
             course=open_course,
             owner=teacher,
             peer_teacher=peer_teacher,
+            admin=admin,
         )
         v84_submissions = await _ensure_v84_submissions(
             api,
             assignments=v84_content["assignments"],
             internal_class_id=int(open_course["_internal_class_id"]),
+            release_id=int(v84_content["releases"][0]["id"]),
             student=open_student,
             peer_teacher=peer_teacher,
         )
@@ -2761,6 +2905,7 @@ async def initialize_demo_data(
             internal_class_id=int(open_course["_internal_class_id"]),
             student=open_student,
             owner=teacher,
+            admin=admin,
         )
 
     return {

@@ -1,12 +1,12 @@
 """HTTP adapter for V8.4 shared course drafts and releases."""
 
-from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
+from app.api.service_calls import service_call
 from app.db.session import get_db
 from app.schemas.content_platform import (
     CheckpointAttemptCreate,
@@ -24,11 +24,6 @@ from app.services import content_platform as platform_service
 router = APIRouter()
 
 
-def _service_call(db: Session, operation: Callable[..., Any], **kwargs: Any) -> Any:
-    from app.api.endpoints.course_workflow import service_call
-    return service_call(db, operation, **kwargs)
-
-
 @router.post(
     "/courses/{course_id}/units/{unit_id}/checkpoints/{checkpoint_key}/attempts",
     response_model=CheckpointAttemptRead,
@@ -43,7 +38,7 @@ def submit_checkpoint_attempt(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return _service_call(
+    return service_call(
         db,
         completion_service.submit_checkpoint_attempt,
         actor=current_user,
@@ -61,7 +56,7 @@ def get_course_draft(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return _service_call(
+    return service_call(
         db,
         platform_service.get_course_draft,
         actor=current_user,
@@ -77,7 +72,7 @@ def replace_course_draft(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return _service_call(
+    return service_call(
         db,
         platform_service.replace_course_draft,
         actor=current_user,
@@ -93,7 +88,7 @@ def list_course_releases(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    return _service_call(
+    return service_call(
         db,
         platform_service.list_course_releases,
         actor=current_user,
@@ -113,7 +108,7 @@ def create_course_release(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return _service_call(
+    return service_call(
         db,
         platform_service.create_course_release,
         actor=current_user,
@@ -132,7 +127,7 @@ def get_current_course_release(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return _service_call(
+    return service_call(
         db,
         platform_service.get_current_course_release,
         actor=current_user,
@@ -150,7 +145,7 @@ def get_course_release(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return _service_call(
+    return service_call(
         db,
         platform_service.get_course_release,
         actor=current_user,

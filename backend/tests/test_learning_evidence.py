@@ -5848,11 +5848,15 @@ def test_access_query_boundary_and_mysql_current_read_statements_are_explicit():
     submissions_source = (
         backend_root / "app/api/endpoints/submissions.py"
     ).read_text(encoding="utf-8")
+    submission_queries_source = (
+        backend_root / "app/services/submissions_queries.py"
+    ).read_text(encoding="utf-8")
     access_source = (
         backend_root / "app/services/learning_evidence_access.py"
     ).read_text(encoding="utf-8")
     assert "from app.services.learning_evidence import" not in course_release_source
     assert "from app.services.learning_evidence import" not in submissions_source
+    assert "from app.services.learning_evidence import" not in submission_queries_source
     assert "course_release_plans" not in access_source
     assert "services.learning_evidence import" not in access_source
 

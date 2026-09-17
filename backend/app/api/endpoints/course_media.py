@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.api.deps.auth import get_current_user
-from app.api.endpoints.course_workflow import service_call
+from app.api.service_calls import service_call
 from app.db.session import get_db
 from app.schemas.course_media import CourseMediaPage, CourseMediaRead
 from app.services import course_media as media

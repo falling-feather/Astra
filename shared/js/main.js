@@ -239,7 +239,7 @@ const CORE_HTTP_FALLBACK_ASSETS = [
     './shared/js/experiment-registry.js?v=20260824v832Show03P0', './shared/js/learning-activity-catalog.js?v=' + PAGE_REGISTRY_ASSET_VERSION, './shared/js/public-guide.js?v=' + SESSION_STYLE_ASSET_VERSION,
     './shared/js/app-session.js?v=' + SHELL_RUNTIME_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
     './shared/js/page-registry.js?v=' + PAGE_REGISTRY_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
-    './shared/js/router.js?v=' + SHELL_RUNTIME_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
+    './shared/js/router.js?v=20260918aiTutorV1&patch=20260918aiTutorV1',
     './shared/js/main.js?v=' + PAGE_REGISTRY_ASSET_VERSION + '&patch=20260828v866StudentProjectionP0',
     './shared/js/backend-content.js?v=' + ENGLAB_ASSET_VERSION,
     './shared/css/backend-content.css?v=' + ENGLAB_ASSET_VERSION,

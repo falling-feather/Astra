@@ -69,7 +69,7 @@ def teacher_scope(db: Session, *, actor: User, submission: Submission, write: bo
     if group.kind == "course_cohort":
         require_course_editor_or_admin(db, actor, course)
     else:
-        require_class_teacher_or_admin(db, actor, group)
+        require_class_teacher_or_admin(db, actor, group, detail="Submission grading requires class teacher scope" if write else "Submission history requires class teacher scope")
     return assignment, unit, course, group
 
 

@@ -3,7 +3,8 @@ from inspect import getsource
 import pytest
 from fastapi import HTTPException
 
-from app.api.endpoints import classes, code_judge, learning_events, submissions
+from app.api.endpoints import classes, code_judge, learning_events
+from app.services import submissions_queries
 from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.models import ClassMembership, CodeJudgeAttempt, LearningEvent, Submission, User
@@ -162,7 +163,7 @@ def test_paged_endpoint_url_preserves_and_encodes_legacy_filters():
     ("handler", "helper_name", "paged_route_token"),
     [
         (learning_events.list_learning_events, "list_legacy_scalars", "/api/learning-events/page"),
-        (submissions.list_assignment_submissions, "list_legacy_scalars", "/submissions/page"),
+        (submissions_queries.list_assignment_submissions, "list_legacy_scalars", "/submissions/page"),
         (classes.list_class_members, "list_legacy_rows", "/members/page"),
         (code_judge.list_code_judge_attempts, "list_legacy_scalars", "/attempts/page"),
     ],

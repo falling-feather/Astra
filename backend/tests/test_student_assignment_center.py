@@ -303,7 +303,17 @@ def test_student_assignment_center_scopes_filters_feedback_and_pagination(client
         json={"class_id": own_class_id, "content": {"answer": "duplicate"}},
     )
     assert duplicate.status_code == 409
-    assert duplicate.json()["detail"] == "Assignment already submitted"
+    history = client.get(
+        f"/api/v2/submissions/{submission.json()['id']}/history", headers=_auth_header(student["token"]),
+    )
+    assert history.status_code == 200
+    assert history.json()["revision"] == 1
+    assert history.json()["total"] == 1
+    assert history.json()["attempts"][0]["content"] == {"answer": "center answer"}
+    assert history.json()["grades"] == []
+    unchanged_points = client.get("/api/points/ledger", headers=_auth_header(student["token"]))
+    assert unchanged_points.status_code == 200
+    assert unchanged_points.json() == []
     grade = client.patch(
         f"/api/submissions/{submission.json()['id']}/grade",
         headers=_auth_header(teacher["token"]),
