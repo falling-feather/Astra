@@ -36,6 +36,20 @@ def test_catalogue_installation_is_admin_only_idempotent_and_preview_does_not_cr
     assert client.get("/api/v1/workbench", headers=student).json()["courses"]["items"] == []
 
 
+def test_admin_preview_catalogue_is_full_three_space_activity_projection(client):
+    scope = _approved_course_scope(client, "admin_preview_catalogue")
+    admin, student = _auth(scope["admin"]["token"]), _auth(scope["student"]["token"])
+    preview = client.get("/api/admin/catalogue/preview", headers=admin)
+    assert preview.status_code == 200, preview.json()
+    assert preview.json()["total"] == 127
+    assert {item["space_key"] for item in preview.json()["items"]} == {
+        "englab",
+        "code-space",
+        "future-galaxy",
+    }
+    assert client.get("/api/admin/catalogue/preview", headers=student).status_code == 403
+
+
 def test_templates_reject_capability_injection_and_dimension_mismatch(client):
     scope = _approved_course_scope(client, "template_limits")
     admin, teacher = _auth(scope["admin"]["token"]), _auth(scope["owner"]["token"])

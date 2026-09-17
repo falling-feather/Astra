@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -17,10 +17,12 @@ def read_current_workbench(
     db: Annotated[Session, Depends(get_db)],
     limit: int = Query(default=6, ge=1, le=20),
     offset: int = Query(default=0, ge=0),
+    scope: Literal["all", "current"] = Query(default="all"),
 ) -> WorkbenchDTO:
     return build_workbench(
         db,
         actor=current_user,
         limit=limit,
         offset=offset,
+        student_scope=scope,
     )

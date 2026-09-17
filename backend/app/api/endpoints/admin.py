@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.endpoints import (
+    admin_catalogue,
     admin_alerts,
     admin_audit,
     admin_background_tasks,
@@ -23,3 +24,4 @@ router.include_router(admin_alerts.router)
 router.include_router(admin_background_tasks.router)
 router.include_router(admin_audit.router)
 router.include_router(admin_governance.router)
+router.include_router(admin_catalogue.router)

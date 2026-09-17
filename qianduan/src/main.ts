@@ -243,7 +243,8 @@ class AstraApp {
     const role = this.state.session?.role || 'student';
     const usePortal =
       ['course', 'classes', 'manage', 'assignments', 'teaching'].includes(this.state.view) ||
-      (role !== 'student' && ['overview', 'courses'].includes(this.state.view));
+      (role !== 'student' && this.state.view === 'overview') ||
+      (role === 'teacher' && this.state.view === 'courses');
     let content = '<div class="portal-loading" role="status">正在读取…</div>';
     if (!usePortal)
       switch (this.state.view) {
@@ -274,7 +275,7 @@ class AstraApp {
     const workspace = this.root.querySelector<HTMLElement>('.workspace')!;
     workspace.scrollTop = scrollTop;
     this.syncSidebarAccessibility();
-    const orbit = this.state.view === 'courses' && role === 'student';
+    const orbit = this.state.view === 'courses' && (role === 'student' || role === 'admin');
     this.renderer.setMode(orbit ? 'courses' : 'ambient');
     if (orbit) {
       this.renderer.attachOrbit(this.root.querySelector('#orbit-stage'));

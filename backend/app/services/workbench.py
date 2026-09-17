@@ -42,9 +42,16 @@ def build_workbench(
     actor: User,
     limit: int,
     offset: int,
+    student_scope: str = "all",
 ) -> dict[str, Any]:
     if actor.role == "student":
-        return _build_student_workbench(db, actor=actor, limit=limit, offset=offset)
+        return _build_student_workbench(
+            db,
+            actor=actor,
+            limit=limit,
+            offset=offset,
+            current_only=student_scope == "current",
+        )
     if actor.role == "teacher":
         return _build_teacher_workbench(db, actor=actor, limit=limit, offset=offset)
     if actor.role == "admin":
@@ -58,13 +65,14 @@ def _build_student_workbench(
     actor: User,
     limit: int,
     offset: int,
+    current_only: bool = False,
 ) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     courses = _safe_section(
         db,
         issues=issues,
         section="courses",
-        loader=lambda: _student_courses(db, actor.id, limit, offset),
+        loader=lambda: _student_courses(db, actor.id, limit, offset, current_only=current_only),
         fallback=lambda: _empty_page(limit, offset),
     )
     assignments = _safe_section(
@@ -229,7 +237,14 @@ def _build_admin_workbench(
     }
 
 
-def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> dict:
+def _student_courses(
+    db: Session,
+    student_id: int,
+    limit: int,
+    offset: int,
+    *,
+    current_only: bool = False,
+) -> dict:
     completions = current_completed_units()
     release_id = (
         select(CourseRelease.id)
@@ -275,10 +290,11 @@ def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> d
         )
     )
     total = _statement_total(db, base)
+    visible_total = min(total, 1) if current_only else total
     rows = db.execute(
         base.order_by(CourseEnrollment.updated_at.desc(), CourseEnrollment.id.desc())
-        .limit(limit)
-        .offset(offset)
+        .limit(1 if current_only else limit)
+        .offset(0 if current_only else offset)
     ).all()
     creators = dict(db.execute(select(User.id, User.display_name).where(User.id.in_({row[0].creator_user_id for row in rows}))).all()) if rows else {}
     items = [
@@ -298,7 +314,7 @@ def _student_courses(db: Session, student_id: int, limit: int, offset: int) -> d
         }
         for course, current_release_id, current_release_number, published_units, completed_units in rows
     ]
-    return _page(items, total, limit, offset)
+    return _page(items, visible_total, 1 if current_only else limit, 0 if current_only else offset)
 
 
 def _student_assignments(db: Session, student_id: int, limit: int, offset: int) -> dict:

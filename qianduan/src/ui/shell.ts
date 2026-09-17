@@ -64,6 +64,7 @@ export function shell(state: AppState, content: string): string {
       ? [
           { view: 'manage', label: '学校管理', icon: 'shield' },
           { view: 'reviews', label: '课程审核', icon: 'list' },
+          { view: 'courses', label: '课程预览', icon: 'book' },
           { view: 'classes', label: '班级', icon: 'users' },
           { view: 'notes', label: '笔记', icon: 'note' },
         ]

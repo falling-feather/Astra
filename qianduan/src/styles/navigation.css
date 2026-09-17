@@ -85,6 +85,8 @@
 .course-enter:hover { color: #e2faff; }
 .course-enter .icon { width: 26px; transition: transform .25s; }
 .course-enter:hover .icon { transform: translateX(5px); }
+.course-preview-note { min-height: 40px; margin-top: 18px; color: #87a2b3; font-size: 12px; letter-spacing: .08em; }
+.course-preview-summary { margin-top: 10px; color: #89a8b8; font-size: 12px; letter-spacing: .08em; }
 .app-shell .orbit-controls { bottom: 26px; left: 24%; right: 14%; gap: 22px; justify-content: space-between; }
 .app-shell .orbit-controls>span { margin: 0; font: 12px var(--font-ui); letter-spacing: .1em; color: #9faec2; padding: 8px 20px; border-inline: 1px solid #a7c4df2b; }
 .app-shell .orbit-arrow { display: inline-flex; align-items: center; gap: 13px; min-width: 122px; min-height: 46px; padding: 8px 0; border: 0; background: none; color: #b1c2d3; font-size: 13px; letter-spacing: .08em; text-shadow: 0 1px 8px #02050d,0 0 18px #02050d; }

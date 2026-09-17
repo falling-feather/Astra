@@ -1,6 +1,7 @@
 import { serverTime } from '../domain/time';
 import type { Course, LearningGateway, LearningTask, Note, Session } from '../domain/models';
 import type { Role, Workbench } from '../portal/contracts';
+import type { ResourceVersionRead } from '../portal/resource-types';
 import { HttpClient, ApiError } from './http-client';
 import { createSchoolApi } from './school-api';
 import { createResourceApi } from './resource-api';
@@ -40,14 +41,45 @@ function sessionView(user: UserDto): Session {
   };
 }
 
+const spaceAppearance: Record<string, { color: string; secondary: string }> = {
+  englab: { color: '#70d5e4', secondary: '#20384f' },
+  'code-space': { color: '#78ccb3', secondary: '#203f3c' },
+  'future-galaxy': { color: '#b7b9ea', secondary: '#322d58' },
+};
+
+function systemResourceCourse(resource: ResourceVersionRead): Course {
+  const appearance = spaceAppearance[resource.space_key] || { color: '#a6b3e9', secondary: '#2d315b' };
+  const provenance = resource.provenance as { observation?: unknown; model?: unknown };
+  return {
+    id: `resource:${resource.id}`,
+    title: resource.title,
+    teacher: '系统资源',
+    subject: resource.subject_key,
+    color: appearance.color,
+    secondary: appearance.secondary,
+    galaxyKey: resource.space_key,
+    subjectKey: resource.subject_key,
+    scheduleText: '系统预设 · 可交互资源',
+    schedule: { weekday: -1, start: '', end: '', room: '' },
+    completed: 0,
+    lessons: 1,
+    description:
+      (typeof provenance.observation === 'string' && provenance.observation) ||
+      (typeof provenance.model === 'string' && provenance.model) ||
+      '系统预设的可交互学习资源。',
+    chapters: [],
+  };
+}
+
 export function createApiGateway(base = '/api'): LearningGateway {
   const client = new HttpClient(base),
-    school = createSchoolApi(client);
+    school = createSchoolApi(client),
+    resources = createResourceApi(client);
   let session: Session | null = null;
   return {
     mode: 'api',
     school,
-    resources: createResourceApi(client),
+    resources,
     workflow: createWorkflowApi(client),
     study: createStudyApi(client),
     async getSession() {
@@ -95,23 +127,14 @@ export function createApiGateway(base = '/api'): LearningGateway {
         );
       }
       if (session.role === 'admin') {
-        const courses =
-          await client.request<
-            { id: number; title: string; galaxy_key: string; subject_key: string; summary: string | null }[]
-          >('/courses');
-        return courses.map((course) => presentCourse({ ...course, course_id: course.id }));
+        const catalogue = await client.request<{ items: ResourceVersionRead[] }>('/admin/catalogue/preview');
+        return catalogue.items.map(systemResourceCourse);
       }
-      const courses: Course[] = [];
-      let offset: number | null = 0;
-      while (offset !== null) {
-        const response: Workbench = await client.request(`/v1/workbench?limit=20&offset=${offset}`);
-        if (response.section_errors.some((issue) => issue.section === 'courses'))
-          throw new ApiError('课程目录暂时不可用，请稍后重试。');
-        if (!response.courses) throw new ApiError('课程目录返回格式不正确。');
-        courses.push(...response.courses.items.map(presentCourse));
-        offset = response.courses.next_offset;
-      }
-      return courses;
+      const response: Workbench = await client.request('/v1/workbench?scope=current&limit=1&offset=0');
+      if (response.section_errors.some((issue) => issue.section === 'courses'))
+        throw new ApiError('课程目录暂时不可用，请稍后重试。');
+      if (!response.courses) throw new ApiError('课程目录返回格式不正确。');
+      return response.courses.items.map(presentCourse);
     },
     async getTasks(): Promise<LearningTask[]> {
       if (session?.role !== 'student') return [];

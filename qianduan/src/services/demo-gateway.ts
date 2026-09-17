@@ -90,7 +90,8 @@ export function createDemoGateway(templates: TemplateSeed[] = []): LearningGatew
     },
     async getCourses() {
       const result = await school.workbench();
-      return (result.courses?.items || []).map(presentCourse);
+      const items = result.courses?.items || [];
+      return (role() === 'student' ? items.slice(0, 1) : items).map(presentCourse);
     },
     async getTasks() {
       if (role() !== 'student') return [];

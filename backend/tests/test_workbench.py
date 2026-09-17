@@ -276,6 +276,16 @@ def test_student_workbench_reconciles_course_assignment_and_submission_truth(
     assert body["submissions"] == {"submitted": 0, "graded": 0, "returned": 1}
     assert body["homerooms"]["items"][0]["name"] == "Workbench Student Homeroom"
 
+    current = client.get(
+        "/api/v1/workbench",
+        headers=_auth(student["token"]),
+        params={"scope": "current", "limit": 1, "offset": 0},
+    )
+    assert current.status_code == 200, current.json()
+    assert current.json()["courses"]["total"] == 1
+    assert len(current.json()["courses"]["items"]) == 1
+    assert current.json()["courses"]["next_offset"] is None
+
     second = client.get(
         "/api/v1/workbench",
         headers=_auth(student["token"]),
