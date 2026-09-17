@@ -9,6 +9,7 @@ const paths: Record<string, string> = {
   left: '<path d="m14 6-6 6 6 6"/>',
   right: '<path d="m10 6 6 6-6 6"/>',
   arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+  'arrow-up-right': '<path d="M5 19 19 5m-9 0h9v9"/>',
   chevrons: '<path d="m10 7-5 5 5 5m9-10-5 5 5 5"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',

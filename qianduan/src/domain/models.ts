@@ -7,7 +7,7 @@ export type WorkspaceView =
 export type LearningSpaceView = 'lab' | 'code' | 'future' | `space:${string}`;
 export type Destination = 'manage' | LearningSpaceView;
 export type View = WorkspaceView | Destination;
-export type Phase = 'intro' | 'welcome' | 'login' | 'workspace';
+export type Phase = 'intro' | 'welcome' | 'education' | 'login' | 'workspace';
 
 export interface Session {
   displayName: string;

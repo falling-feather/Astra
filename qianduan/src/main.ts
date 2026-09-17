@@ -8,7 +8,7 @@ import { ResourceStudio } from './portal/resource-studio';
 import { CourseStudio } from './portal/course-studio';
 import { CandidateWorkspace } from './portal/candidate-workspace';
 import { createApiGateway } from './services/api-gateway';
-import { API_BASE, DEMO_MODE, LOCAL_DEMO_ACCOUNTS, frontendAsset } from './services/environment';
+import { API_BASE, DEMO_MODE, LOCAL_DEMO_ACCOUNTS, VOCATIONAL_APP_URL, frontendAsset } from './services/environment';
 import type { Discovery, Role } from './portal/contracts';
 import type { Note } from './domain/models';
 import { area, selectField } from './portal/presentation';
@@ -16,7 +16,7 @@ import type { AppState, Course, LearningGateway, View } from './domain/models';
 import { dayLabel, moveMonth, parseDate } from './domain/calendar';
 import { createDemoGateway } from './services/demo-gateway';
 import { SpaceRenderer } from './render/space-renderer';
-import { login, shell, welcome } from './ui/shell';
+import { educationChoice, login, shell, welcome } from './ui/shell';
 import { overview } from './ui/overview';
 import { courseInspector, courses } from './ui/courses';
 import { account, notes } from './ui/secondary';
@@ -225,6 +225,11 @@ class AstraApp {
     document.body.dataset.view = this.state.view;
     if (this.state.phase === 'intro' || this.state.phase === 'welcome') {
       this.root.innerHTML = welcome(this.state.phase === 'intro');
+      this.renderer.setMode('welcome');
+      return;
+    }
+    if (this.state.phase === 'education') {
+      this.root.innerHTML = educationChoice();
       this.renderer.setMode('welcome');
       return;
     }
@@ -701,10 +706,14 @@ class AstraApp {
       }
       case 'explore':
         if (this.state.session) this.showView(this.pendingView);
-        else {
-          this.state.phase = 'login';
-          this.render();
-        }
+        else { this.state.phase = 'education'; this.render(); }
+        break;
+      case 'education-academic':
+        this.state.phase = 'login';
+        this.render();
+        break;
+      case 'education-vocational':
+        window.location.assign(VOCATIONAL_APP_URL);
         break;
       case 'welcome':
         this.showWelcome();

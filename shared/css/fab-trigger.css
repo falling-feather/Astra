@@ -273,7 +273,8 @@ body[data-fab-expanded="false"] .fab-trace .fab-trace-line { transition: stroke-
 body[data-fab-expanded="false"] .experiment-guide-help-btn,
 body[data-fab-expanded="false"] .favorite-fab,
 body[data-fab-expanded="false"] .back-to-top-fab,
-body[data-fab-expanded="false"] .experiment-export-btn {
+body[data-fab-expanded="false"] .experiment-export-btn,
+body[data-fab-expanded="false"] .ai-tutor-fab {
     opacity: 0 !important;
     transform: translateY(20px) scale(0.5) !important;
     pointer-events: none !important;
@@ -283,7 +284,8 @@ body[data-fab-expanded="false"] .experiment-export-btn {
 body[data-fab-expanded="true"] .experiment-guide-help-btn,
 body[data-fab-expanded="true"] .favorite-fab,
 body[data-fab-expanded="true"] .back-to-top-fab,
-body[data-fab-expanded="true"] .experiment-export-btn {
+body[data-fab-expanded="true"] .experiment-export-btn,
+body[data-fab-expanded="true"] .ai-tutor-fab {
     z-index: 9060;
     transition: opacity 0.28s ease,
                 transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -301,6 +303,10 @@ body[data-fab-expanded="true"] .experiment-export-btn      { transition-delay: 0
 body[data-fab-expanded="true"] .experiment-export-btn {
     bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
     right: 24px !important;
+}
+body[data-fab-expanded="true"] .ai-tutor-fab {
+    bottom: calc(280px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 22px !important;
 }
 body[data-fab-expanded="true"] .back-to-top-fab {
     bottom: calc(124px + env(safe-area-inset-bottom, 0px)) !important;
@@ -348,6 +354,7 @@ body[data-fab-collapsing="true"] .experiment-export-btn      { transition-delay:
 body[data-fab-collapsing="true"] .back-to-top-fab            { transition-delay: 0.05s; }
 body[data-fab-collapsing="true"] .favorite-fab               { transition-delay: 0.10s; }
 body[data-fab-collapsing="true"] .experiment-guide-help-btn  { transition-delay: 0.15s; }
+body[data-fab-collapsing="true"] .ai-tutor-fab               { transition-delay: 0.20s; }
 
 @media (max-width: 768px) {
     .fab-trigger {

@@ -33,6 +33,26 @@ export function welcome(intro: boolean): string {
   </section>`;
 }
 
+export function educationChoice(): string {
+  return `<section class="education-choice view-enter" aria-label="选择教育方向">
+    <button class="back-link education-choice__back" data-action="welcome">${icon('left')}<span>返回星空</span></button>
+    <div class="education-choice__mist" aria-hidden="true"></div>
+    <div class="education-choice__content">
+      <p class="education-choice__eyebrow">ASTRA · EDUCATION ROUTE</p>
+      <h1>选择你的学习星域</h1>
+      <p class="education-choice__intro">同一片星空，连接学术探索与职业现场。</p>
+      <div class="education-choice__options" role="group" aria-label="教育方向">
+        <button class="education-choice__option education-choice__option--academic" data-action="education-academic">
+          <span class="education-choice__index">01</span><span><strong>学术教育</strong><small>课程、实验与学习记录</small></span>${icon('arrow')}
+        </button>
+        <button class="education-choice__option education-choice__option--vocational" data-action="education-vocational">
+          <span class="education-choice__index">02</span><span><strong>职业教育</strong><small>岗位现场、作品与职业成长</small></span>${icon('arrow-up-right')}
+        </button>
+      </div>
+    </div>
+  </section>`;
+}
+
 export function login(demo: boolean, register = false, showDemoAccounts = false): string {
   return `<section class="login-screen view-enter"><button class="back-link login-back" data-action="welcome">${icon('left')}<span>返回星空</span></button><div class="login-scene" aria-label="可交互星云"><div class="login-brand">${brandMark()}<h1>星序</h1><p>ASTRA</p></div>${nebulaControls()}</div><div class="login-panel"><div class="login-form-wrap"><span class="small-orbit" aria-hidden="true">${brandMark()}</span><h2>${demo ? '探索不同的视角' : register ? '加入星序' : '欢迎回到星序'}</h2><p class="login-intro">${demo ? '从学习、教学到管理。' : '让探索，从这里继续。'}</p>${demo ? demoRoles() : `<form id="login-form"><label class="field-label" for="account-name">账号</label><div class="input-wrap">${icon('user')}<input id="account-name" name="account" autocomplete="username" maxlength="64" placeholder="输入你的账号" required/></div>${register ? '<label class="field-label" for="register-name">显示名称</label><div class="input-wrap"><input id="register-name" name="displayName" maxlength="120" required placeholder="你希望如何被称呼"/></div>' : ''}<label class="field-label" for="account-password">密码</label><div class="input-wrap">${icon('lock')}<input id="account-password" name="password" type="password" autocomplete="${register ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" placeholder="输入密码" required/><button type="button" class="password-toggle icon-button" data-action="password" aria-label="显示密码" aria-pressed="false">${icon('eye')}</button></div><button class="primary-button login-submit" type="submit"><span>${register ? '创建学生账号' : '进入星序'}</span>${icon('arrow')}</button></form><button class="guest-button" data-action="register">${register ? '已有账号，返回登录' : '创建学生账号'}</button>${showDemoAccounts && !register ? '<button class="demo-account-trigger" data-action="demo-accounts">查看本机演示账号</button>' : ''}` }<p id="login-error" class="form-error" role="alert"></p>${demo ? '<p class="demo-note">静态演示 · 不连接真实账号和数据库<br>演示操作仅在当前页面内有效，刷新后重置。</p>' : ''}</div></div></section>`;
 }

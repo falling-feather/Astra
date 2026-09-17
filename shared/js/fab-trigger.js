@@ -1,6 +1,6 @@
 /**
  * FAB 折叠触发器（v4.2.19）
- * 默认折叠状态：仅显示主控按钮；点击展开 4 个功能 FAB（错峰飞入）。
+ * 默认折叠状态：仅显示主控按钮；点击展开 5 个功能 FAB（错峰飞入）。
  */
 (function() {
     'use strict';
@@ -9,7 +9,8 @@
         '.favorite-fab',
         '.experiment-guide-help-btn',
         '.back-to-top-fab',
-        '.experiment-export-btn'
+        '.experiment-export-btn',
+        '.ai-tutor-fab'
     ].join(', ');
     const EXPORT_MENU_SELECTOR = '.experiment-export-menu';
     const EXPORT_MENU_ITEM_SELECTOR = '.experiment-export-menu__item';
@@ -91,6 +92,8 @@
             if (zoomModal) return true;
             const guideOverlay = document.getElementById('experiment-guide-overlay');
             if (guideOverlay && guideOverlay.classList.contains('active')) return true;
+            const aiTutor = document.querySelector('.ai-tutor-panel');
+            if (aiTutor && !aiTutor.hidden) return true;
             return Boolean(window.ExperimentExport && window.ExperimentExport._menuOpen);
         },
 
@@ -251,7 +254,7 @@
                 const badge = this._btn.querySelector('.fab-trigger-badge');
                 if (!badge) return;
                 const count = document.querySelectorAll(
-                    '.favorite-fab, .experiment-guide-help-btn, .back-to-top-fab, .experiment-export-btn'
+                    '.favorite-fab, .experiment-guide-help-btn, .back-to-top-fab, .experiment-export-btn, .ai-tutor-fab'
                 ).length;
                 badge.textContent = String(count);
                 badge.style.display = count > 0 ? '' : 'none';
@@ -327,6 +330,8 @@
                     t.closest('.experiment-guide-help-btn') ||
                     t.closest('.back-to-top-fab') ||
                     t.closest('.experiment-export-btn') ||
+                    t.closest('.ai-tutor-fab') ||
+                    t.closest('.ai-tutor-panel') ||
                     t.closest('.experiment-export-menu')) {
                     return; // 点击在任何 FAB / 导出菜单 上，不收起
                 }

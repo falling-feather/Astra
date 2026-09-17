@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     external_issue_sync_timeout_seconds: int = Field(default=10, ge=1, le=30)
     content_script_allowed_hosts: str = ""
     cors_origins: str = "http://127.0.0.1:8766,http://localhost:8766"
+    ai_tutor_enabled: bool = False
+    ai_tutor_provider: Literal["deepseek"] = "deepseek"
+    ai_tutor_base_url: str = "https://api.deepseek.com"
+    ai_tutor_api_key: SecretStr | None = None
+    ai_tutor_model: str = "deepseek-chat"
+    ai_tutor_timeout_seconds: int = Field(default=30, ge=5, le=120)
     admin_bootstrap_enabled: bool = True
     admin_bootstrap_token: str | None = None
     knowledge_snapshot_scheduler_enabled: bool = False

@@ -130,11 +130,11 @@
             key: 'ai-tutor',
             label: 'AI 助教',
             roles: ['student', 'teacher', 'admin'],
-            status: 'unavailable',
-            route: null,
-            evidenceSource: '未进入 V8 必备范围',
-            allowedClaim: '当前不提供',
-            prohibitedClaims: ['AI 助教', '智能诊断']
+            status: 'partial',
+            route: '#physics',
+            evidenceSource: '学校统一 DeepSeek 配置与 /api/ai-tutor/chat',
+            allowedClaim: '在学校启用并完成登录后提供文本问答',
+            prohibitedClaims: ['替代教师评分', '智能诊断已完成', '未配置时仍可回答']
         }),
         define({
             key: 'target-deployment',
