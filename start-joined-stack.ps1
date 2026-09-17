@@ -20,6 +20,20 @@ if (-not (Test-Path -LiteralPath $vocationalLauncher -PathType Leaf)) {
 $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $vocationalLauncher, '-NoBrowser')
 if ($SkipVocationalInstall) { $arguments += '-SkipInstall' }
 if (-not $ReuseVocationalData) { $arguments += '-FreshData' }
+$deepSeekEnv = Join-Path $vocationalRootResolved '.env.local'
+if (Test-Path -LiteralPath $deepSeekEnv -PathType Leaf) {
+    $deepSeekLine = Get-Content -LiteralPath $deepSeekEnv | Where-Object { $_ -match '^DEEPSEEK_API_KEY=' } | Select-Object -First 1
+    if ($deepSeekLine) {
+        $deepSeekKey = $deepSeekLine.Substring($deepSeekLine.IndexOf('=') + 1).Trim()
+        if ($deepSeekKey) {
+            $env:ASTRA_AI_TUTOR_ENABLED = 'true'
+            $env:ASTRA_AI_TUTOR_PROVIDER = 'deepseek'
+            $env:ASTRA_AI_TUTOR_BASE_URL = 'https://api.deepseek.com'
+            $env:ASTRA_AI_TUTOR_MODEL = 'deepseek-flash'
+            $env:ASTRA_AI_TUTOR_API_KEY = $deepSeekKey
+        }
+    }
+}
 $vocationalProcess = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WorkingDirectory $vocationalRootResolved -WindowStyle Hidden -PassThru
 try {
     Write-Host "职业教育动态站正在启动：$vocationalRootResolved" -ForegroundColor Cyan
