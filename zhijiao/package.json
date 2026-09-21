@@ -31,7 +31,8 @@
     "test": "pnpm build:packages && pnpm test:packages",
     "test:e2e": "pnpm build && playwright test",
     "test:e2e:built": "playwright test",
-    "test:release-tools": "node --test scripts/lib/release-policy.test.mjs",
+    "test:e2e:public": "playwright test --config playwright.public.config.ts",
+    "test:tools": "node --test scripts/check-release-docs.test.mjs",
     "test:live:deepseek": "pnpm --filter @ronggang/model-gateway test:live && pnpm --filter @ronggang/agent-runtime test:live",
     "gold:evidence": "pnpm build:packages && node scripts/generate-gold-readiness-evidence.mjs",
     "gold:evidence:full": "pnpm build:packages && node scripts/generate-gold-readiness-evidence.mjs --full",
@@ -41,14 +42,9 @@
     "gold:transfer:finish": "pnpm build:packages && node scripts/gold-transfer-authoring.mjs finish",
     "gold:transfer:verify": "pnpm build:packages && node scripts/gold-transfer-authoring.mjs verify",
     "gold:transfer:smoke": "pnpm build:packages && node scripts/gold-transfer-authoring.mjs validate-imports",
-    "release:audit": "node scripts/release-audit.mjs",
-    "release:archive": "node scripts/create-release-archive.mjs",
-    "release:clean-room": "node scripts/clean-room-check.mjs",
-    "release:data-drill": "node scripts/upgrade-rollback-drill.mjs",
-    "release:check": "node scripts/run-release-check.mjs",
     "typecheck:packages": "pnpm --filter @ronggang/contracts typecheck && pnpm --filter @ronggang/content-store typecheck && pnpm --filter @ronggang/course-content typecheck && pnpm --filter @ronggang/session-control typecheck && pnpm --filter @ronggang/context-engine typecheck && pnpm --filter @ronggang/scenario-catalog typecheck && pnpm --filter @ronggang/model-gateway typecheck && pnpm --filter @ronggang/agent-runtime typecheck && pnpm --filter @ronggang/world-core typecheck && pnpm --filter @ronggang/agent-orchestrator typecheck && pnpm --filter @ronggang/iflytek-adapter typecheck && pnpm --filter @ronggang/media-processing typecheck && pnpm --filter @ronggang/api typecheck && pnpm --filter @ronggang/web typecheck",
     "typecheck": "pnpm build:packages && pnpm typecheck:packages",
-    "check": "pnpm preflight && pnpm check:versions && pnpm check:docs && pnpm check:secrets && pnpm build:packages && node scripts/generate-gold-readiness-evidence.mjs --validate-imports && node scripts/gold-transfer-authoring.mjs validate-imports && pnpm typecheck:packages && pnpm test:packages && pnpm build:apps && pnpm test:e2e:built"
+    "check": "pnpm preflight && pnpm check:versions && pnpm check:docs && pnpm test:tools && pnpm check:secrets && pnpm build:packages && node scripts/generate-gold-readiness-evidence.mjs --validate-imports && node scripts/gold-transfer-authoring.mjs validate-imports && pnpm typecheck:packages && pnpm test:packages && pnpm build:apps && pnpm test:e2e:built"
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",

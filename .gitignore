@@ -39,3 +39,22 @@ backend/.requirements.lock.check-*
 # Test screenshots
 test-screenshots/
 .commit-msg-*.txt
+
+# Local configuration and private data
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+.audit-salt
+
+# Reproducible submission and test outputs
+.submission-*/
+245701125-*.zip
+playwright-report/
+test-results/
+zhijiao/.release-audit/
+zhijiao/release-artifacts/
+server/build-*/
