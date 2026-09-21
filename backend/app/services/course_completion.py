@@ -197,8 +197,8 @@ def _completion_activity_definition(
             and block.simulationKey == unit.activity_key
             for block in content.blocks
         )
-        from app.services.learning_resources import get_resource_version
-        has_activity = has_activity or any(isinstance(block, ResourceBlock) and get_resource_version(db, block.resourceVersionId)["capabilities"].get("operation_recording") is True for block in content.blocks)
+        from app.services.learning_resources import get_resource_version, observation_controls
+        has_activity = has_activity or any(isinstance(block, ResourceBlock) and observation_controls(get_resource_version(db, block.resourceVersionId), block.configuration.model_dump(mode="json")) for block in content.blocks)
         if not has_activity:
             _fail(
                 422,

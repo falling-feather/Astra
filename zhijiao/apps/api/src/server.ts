@@ -4093,11 +4093,13 @@ async function createAppWithLease(
         principalId: profile.principalId,
         statuses: ["active", "paused"],
       });
+      const authorizedSessionIds = authorizedSessions.map((session) => session.sessionId);
       return {
         profileId: profile.profileId,
         displayName: profile.displayName,
-        defaultSessionId: profile.defaultSessionId,
-        authorizedSessionIds: authorizedSessions.map((session) => session.sessionId),
+        defaultSessionId: profile.defaultSessionId && authorizedSessionIds.includes(profile.defaultSessionId)
+          ? profile.defaultSessionId : null,
+        authorizedSessionIds,
         classroomId: profile.classroomId,
         teamId: profile.teamId,
         role: profile.role,

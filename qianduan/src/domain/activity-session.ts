@@ -49,7 +49,9 @@ export class ActivitySession {
   }
 
   hasPending(): boolean {
-    return this.sending || this.queue.length > 0;
+    // Entries leave the queue only after an identity-checked server receipt.
+    // A later summary refresh is a read, not an unsaved learner operation.
+    return this.queue.length > 0;
   }
   destroy(): void {
     this.active = false;

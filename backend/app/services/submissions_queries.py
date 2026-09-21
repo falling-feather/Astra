@@ -174,7 +174,7 @@ def list_my_assignments(
         )
         if submit_block_reason is None and access.state != "open":
             submit_block_reason = "unit_locked"
-        assignment_payload = effective_assignment_payload(assignment, effective)
+        assignment_payload = effective_assignment_payload(assignment, effective, unit_release_state=access.state)
         assignment_payload["unit_release_state"] = access.state
         assignment_payload["unit_lock_reasons"] = list(access.lock_reasons)
         items.append(

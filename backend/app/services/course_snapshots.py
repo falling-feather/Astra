@@ -11,7 +11,7 @@ from app.core.course_workflow_contract import comparable_page
 from app.core.learning_evidence_contract import canonical_sha256
 from app.models import Assignment, Course, CourseAdmissionClass, CourseCandidate, CourseCollaborator, CourseRelease, CourseRevision, CourseUnit
 from app.services import content_platform
-from app.services.learning_resources import get_resource_version, validate_configuration
+from app.services.learning_resources import get_resource_version, validate_configuration, observation_controls
 from app.services.course_media import reference_media, media_snapshot
 
 
@@ -65,8 +65,8 @@ def freeze_dependencies(db: Session, course: Course, snapshot: dict) -> dict:
                     resources[key] = get_resource_version(db, block["resourceVersionId"])
                 resource = resources[key]
                 validate_configuration(resource, block["configuration"])
-                if completion["preset"] == "experiment_operation" and not resource["capabilities"].get("operation_recording"):
-                    raise HTTPException(status_code=422, detail=f"{unit['title']} 的资源没有操作记录能力，请使用检查点或作业评阅")
+                if completion["preset"] == "experiment_operation" and not observation_controls(resource, block["configuration"]):
+                    raise HTTPException(status_code=422, detail=f"{unit['title']} 的资源没有可记录的操作参数，请配置参数或使用检查点、作业评阅")
             elif block["type"] == "media":
                 media[block["assetKey"]] = media_snapshot(reference_media(db, course, block["assetKey"], block["mediaType"]))
         if completion["preset"] in {"assignment_reviewed", "assignment_accepted"}:

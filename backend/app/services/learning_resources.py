@@ -180,6 +180,20 @@ def validate_configuration(version: dict, configuration: dict) -> dict:
         raise HTTPException(status_code=422, detail={"code": "resource_configuration_invalid", "message": str(exc)}) from exc
 
 
+def observation_controls(version: dict, configuration: dict | None = None) -> list[dict]:
+    """The actual published controls, shared by completion gates and runtime reads."""
+    capabilities = version["capabilities"]
+    if capabilities.get("operation_recording") is not True:
+        return []
+    adapter = capabilities.get("observation_adapter")
+    if adapter == "function-parameters-v1":
+        config = configuration if configuration is not None else version["definition"].get("configuration", {})
+        return deepcopy(config.get("parameters", []))
+    if adapter == "numeric-controls-v1":
+        return deepcopy(capabilities.get("controls", []))
+    return []
+
+
 def preview_configuration(version: dict, configuration: dict) -> dict:
     configuration = validate_configuration(version, configuration)
     renderer = version["renderer"]

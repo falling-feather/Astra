@@ -19,7 +19,12 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: mode === 'demo' ? 'dist-demo' : 'dist',
     rolldownOptions: {
+      input: {
+        index: path.join(root, 'qianduan/index.html'),
+        ...(mode === 'demo' ? {} : { 'course-experiment': path.join(root, 'qianduan/src/course-experiment.ts') }),
+      },
       output: {
+        entryFileNames: (chunk) => chunk.name === 'course-experiment' ? 'assets/course-experiment.js' : 'assets/[name]-[hash].js',
         codeSplitting: {
           groups: [
             {

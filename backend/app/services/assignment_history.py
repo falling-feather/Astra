@@ -359,7 +359,7 @@ def open_assignment(db: Session, *, actor: User, assignment_id: int, payload) ->
             statement = statement.where(AssignmentAttempt.course_release_id == context.course_release_id)
         attempt = db.scalar(statement.order_by(AssignmentAttempt.attempt_number.desc()).limit(1))
     grade = db.scalar(select(AssignmentGrade).where(AssignmentGrade.attempt_id == attempt.id).order_by(AssignmentGrade.revision.desc()).limit(1)) if attempt else None
-    reason = "作业已关闭，当前可回读已提交的内容" if policy.status != "active" else "已有提交，等待教师评阅或明确的补做安排" if submission and not can_submit_again(db, submission, context) else None
+    reason = "作业已关闭，当前可回读已提交的内容" if policy.status != "active" else "本版已有提交，重交需由教师退回或安排补做" if submission and not can_submit_again(db, submission, context) else None
     response = {"assignment_id": assignment_id, "course_id": course.id, "course_unit_id": unit.id, "class_id": group.id, "context": context_data, "assignment": definition, "assignment_sha256": canonical_sha256(definition), "submission_id": submission.id if submission else None, "submission_revision": submission.revision if submission else 0, "attempt": attempt_read(db, attempt) if attempt else None, "grade": grade_read(grade) if grade else None, "can_submit": reason is None, "submit_block_reason": reason}
     db.commit()
     return response

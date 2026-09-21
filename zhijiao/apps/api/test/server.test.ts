@@ -359,7 +359,9 @@ describe("Fastify prototype API", { timeout: 15_000 }, () => {
     )?.authorizedSessionIds;
     expect(authorizedSessions("teacher-class-a")).toEqual([DEMO_SESSION_ID]);
     expect(authorizedSessions("student-team-a")).toEqual([DEMO_SESSION_ID]);
-    expect(authorizedSessions("student-unassigned")).toEqual([]);
+    // Student 1 is now part of the explicit classroom demo roster. That roster
+    // grants the shared classroom session, not a personal active study run.
+    expect(authorizedSessions("student-unassigned")).toEqual([DEMO_SESSION_ID]);
     expect(profiles.find(
       (profile) => profile.profileId === "student-unassigned",
     )?.defaultSessionId).toBeNull();
@@ -376,7 +378,7 @@ describe("Fastify prototype API", { timeout: 15_000 }, () => {
     await app.close();
   });
 
-  it("keeps an unassigned student empty until a real course claim creates role memberships", async () => {
+  it("keeps personal study empty while classroom role claims remain explicit and idempotent", async () => {
     const { app } = await testApp();
     const beforeLogin = await app.inject({
       method: "POST",
@@ -387,7 +389,13 @@ describe("Fastify prototype API", { timeout: 15_000 }, () => {
         sessionId: DEMO_SESSION_ID,
       },
     });
-    expect(beforeLogin.statusCode).toBe(403);
+    expect(beforeLogin.statusCode).toBe(200);
+    expect(beforeLogin.json().bindings).toHaveLength(1);
+    const rosterLogin = await loginProfile(app, "student-unassigned");
+    const study = await app.inject({ url: "/api/v3/me/study", headers: authHeaders(rosterLogin) });
+    expect(study.statusCode, study.body).toBe(200);
+    expect(study.json().runs).toEqual([]);
+    expect(study.json().currentSessionId).toBeNull();
 
     const claim = await app.inject({
       method: "POST",

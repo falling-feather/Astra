@@ -89,6 +89,10 @@ export async function packageResources(demo = false) {
     '<script src="shared/js/resource-explorer.js"></script><script src="shared/js/main.js',
   );
   entry = entry.replace(/<link\b[^>]*href="shared\/css\/(?:auth-ui|app-session)\.css[^>]*>/g, '');
+  if (!demo) {
+    await fs.access(path.join(output, 'assets/course-experiment.js'));
+    entry = entry.replace('</body>', '<script type="module" src="../assets/course-experiment.js"></script></body>');
+  }
   await fs.writeFile(path.join(labs, 'index.html'), entry);
   let code = await fs.readFile(path.join(labs, 'codevis/index.html'), 'utf8');
   code = code

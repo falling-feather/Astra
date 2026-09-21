@@ -120,12 +120,14 @@ def build_effective_assignment_policy(
 def effective_assignment_payload(
     assignment: Assignment,
     effective: EffectiveAssignmentPolicy | None = None,
+    *,
+    unit_release_state: str | None = None,
 ) -> dict:
     return {
         "id": assignment.id,
         "unit_id": assignment.unit_id,
         "title": assignment.title,
-        "description": assignment.description,
+        "description": assignment.description if unit_release_state in {None, "open"} else None,
         "due_at": effective.due_at if effective is not None else assignment.due_at,
         "max_score": assignment.max_score,
         "status": effective.status if effective is not None else assignment.status,

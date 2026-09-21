@@ -10,7 +10,7 @@ from app.models import ClassMembership, LearningActivityRuntime, LearningContext
 from app.services.content_platform import _public_content_page
 from app.services.learning_contexts import require_context
 from app.services.learning_results import carry_late_result
-from app.services.learning_resources import get_resource_version
+from app.services.learning_resources import get_resource_version, observation_controls
 from app.models.learning_evidence import CURRENT_EVENT_SCHEMA_VERSION
 
 MANIFEST_VERSION = "astra-context-activity-v1"
@@ -72,15 +72,9 @@ def recordable_blocks(db: Session, scope: dict) -> list[dict]:
         if block["type"] == "official-simulation" and version["resource_key"] != block["simulationKey"]:
             continue
         caps = version["capabilities"]
-        if caps.get("operation_recording") is not True:
-            continue
         adapter = caps.get("observation_adapter")
-        if adapter == "function-parameters-v1":
-            configuration = block.get("configuration") or version["definition"]["configuration"]
-            controls = configuration.get("parameters", [])
-        elif adapter == "numeric-controls-v1":
-            controls = caps["controls"]
-        else:
+        controls = observation_controls(version, block.get("configuration"))
+        if not controls:
             continue
         result.append({"block_id": block["blockId"], "resource_version_id": version_id, "adapter": adapter, "entry": version["definition"].get("entry"), "controls": deepcopy(controls)})
     return result

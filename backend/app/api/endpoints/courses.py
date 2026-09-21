@@ -1052,6 +1052,7 @@ def list_course_assignments(
             )
             if access.state == "hidden":
                 continue
+            payload_data = effective_assignment_payload(assignment, effective, unit_release_state=access.state)
             payload_data["unit_release_state"] = access.state
             payload_data["unit_lock_reasons"] = list(access.lock_reasons)
         reads.append(AssignmentRead.model_validate(payload_data))

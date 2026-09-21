@@ -227,6 +227,7 @@ export class CoursePlayer {
     }
     const target = new URL(frontendAsset(entry), window.location.href);
     target.searchParams.set('astra_context_key', this.study.context.context_key);
+    target.searchParams.set('astra_block_id', button.dataset.playerOpen!);
     target.searchParams.set(
       'astra_return_to',
       `${window.location.pathname}${window.location.search}${window.location.hash}`,

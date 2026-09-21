@@ -61,6 +61,25 @@ test('连续参数变化依次保存，离页后不启动排队写入或更新�
   assert.equal(states.length, stateCount);
 });
 
+test('操作已确认后，后台刷新学习汇总不再被误报为未保存', async () => {
+  let release, refreshing;
+  const refreshStarted = new Promise(resolve => { refreshing = resolve; });
+  const session = new ActivitySession({
+    activityConfig: async () => config(),
+    activityEvent: async (_, body) => receipt(body, body.command.event_type === 'attempted' ? 1 : 0),
+  }, 'context-original', () => {}, async () => {
+    refreshing();
+    await new Promise(resolve => { release = resolve; });
+  });
+  await session.initialize();
+  const observed = session.observe(observe(2));
+  await refreshStarted;
+  assert.equal(session.hasPending(), false);
+  session.destroy();
+  release();
+  await observed;
+});
+
 test('静态演示使用同一资源版本和完成状态源，参数观察实际进入学习历史', async () => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
   let role = 'teacher';
