@@ -8,5 +8,5 @@ if not exist node_modules\vite\bin\vite.js (
   pause
   exit /b 1
 )
-node node_modules\vite\bin\vite.js --host 127.0.0.1 --port 5173 --strictPort
+call pnpm dev
 pause

@@ -1,13 +1,13 @@
 # 星序 Astra
 
-包含镜湖开篇、登录页、悬崖观星主页面和本地实验工作区。以已确认参考图为视觉依据，使用独立原画素材、Three.js / WebGL 场景和原生网页控件实现；三个学习空间已接入工科实验室源码中的 127 项实验与活动副本。
+包含镜湖开篇、演示登录、海潮观星和实验工作区。新版在 Astra 的 `codex/astra-web-next` 分支开发；三个学习空间从同一工作树的权威源码生成公开运行包。正式教学门户仍为仓库根的 `qianduan/`。
 
 ## 打开网页
 
-在本目录运行：
+从完整的 Astra 工作树进入本目录，使用仓库 `.node-version` 指定的 Node 24.20.0 和 pnpm：
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
@@ -38,7 +38,7 @@ pnpm preview
 - 退出会清除演示会话；直接打开观星页仍可作为访客预览。
 - 邮箱账号以 `@` 前的名称显示欢迎文字。账号不是身份凭据，此演示不能用于保护真实用户数据。
 
-`vite.config.js` 将四个 HTML 页面分别作为正式构建入口；页面互链在开发与生产预览中使用同一路径。原实验的本地副本随 `public/labs/` 打包，运行不依赖原目录。
+`vite.config.js` 将四个 HTML 页面分别作为构建入口。开发、测试和构建命令先生成实验目录及运行文件；完成后的 `dist/` 可独立静态运行。要修改编程可视化，请编辑仓库根的 [codevis](../codevis)，再重新运行 `pnpm dev` 或 `pnpm build`。详细边界见[实验接入说明](docs/labs.md)。
 
 ## 登录页与观星页操作
 
@@ -59,7 +59,7 @@ pnpm preview
 
 所有菜单内容都是这次演示中的可用交互；真实账号同步和服务端存储不在本轮实现范围。
 
-观星素材的基准位置、尺寸、调色和眼睛／目镜／落脚注册点定义在 [`src/observatory/layers.js`](src/observatory/layers.js)，桌面变换由 [`desktop-composition.js`](src/observatory/desktop-composition.js) 计算，天空交界和望远镜点击区域由 [`coastal-layout.js`](src/observatory/coastal-layout.js) 读取同一变换推导。星系布局以 [`courses.js`](src/observatory/courses.js) 为准；实验目录从已复制的源项目权威注册表导出，导入方式和职责见 [实验接入说明](docs/labs.md)。素材与实际生成提示词见 [观星素材说明](public/assets/observatory/ASSETS.md)。
+观星素材的基准位置、尺寸、调色和眼睛／目镜／落脚注册点定义在 [`src/observatory/layers.js`](src/observatory/layers.js)，桌面变换由 [`desktop-composition.js`](src/observatory/desktop-composition.js) 计算，天空交界和望远镜点击区域由 [`coastal-layout.js`](src/observatory/coastal-layout.js) 读取同一变换推导。星系布局以 [`courses.js`](src/observatory/courses.js) 为准；实验目录从当前工作树的权威注册表导出，维护位置见[实验接入说明](docs/labs.md)。素材与实际生成提示词见[观星素材说明](public/assets/observatory/ASSETS.md)。
 
 ## 鼠标星光尾迹
 
@@ -112,7 +112,7 @@ pnpm preview
 | `src/observatory/lab-catalog.js` | 导入目录、稳定实验身份与本地跳转地址 |
 | `src/observatory/lab-activities.js` | 学科实验清单与名称筛选 |
 | `src/experiments/` | 全屏实验工作区、加载状态与原导航返回对接 |
-| `scripts/import-labs.mjs` | 从原项目复制公开实验资源并导出目录 |
+| `scripts/prepare-labs.mjs` | 从当前 Astra 工作树生成公开资源和目录，并接入观星导航 |
 | `src/observatory/observatory-panels.js` | 日志、收藏、探索与创作工坊 |
 
 所有运行时图片与依赖均由本站提供，不调用外部内容 API。需要支持 WebGL 2 的现代浏览器。镜湖渲染上限为 60 FPS，登录星系仪上限为 30 FPS；观星海岸限制绘制像素总量并跟随浏览器帧循环。三个场景均限制高像素密度屏幕的绘制分辨率。较旧设备的帧率会取决于显卡与浏览器。

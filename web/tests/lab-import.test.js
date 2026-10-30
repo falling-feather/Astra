@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateActivityHref,buildSnapshot} from '../scripts/import-labs.mjs';
+import {validateActivityHref,buildSnapshot} from '../scripts/prepare-labs.mjs';
 
 test('实验地址只接受本地副本，拒绝越界与外部跳转',()=>{
   assert.equal(validateActivityHref('labs/index.html#physics/mechanics'),'labs/index.html#physics/mechanics');

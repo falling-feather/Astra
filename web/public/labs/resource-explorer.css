@@ -1,7 +1,0 @@
-/* Teaching management belongs to the new portal; this shell only explores public resources. */
-[data-page="student"],[data-page="teacher"],[data-page="admin"],.auth-ui-entry,.astra-auth-entry { display:none!important; }
-.astra-evidence-panel,.astra-evidence-surface { display:none!important; }
-/* A course-pinned experiment uses a small status strip; ordinary exploration has none. */
-.astra-course-recording{position:fixed;z-index:150;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;width:max-content;max-width:calc(100vw - 150px);padding:10px 16px;background:#09131ef0;color:#d8e6ef;border:1px solid #80b5cc55;font:13px/1.6 system-ui,sans-serif;box-shadow:0 4px 20px #0006}
-.astra-course-recording output{max-width:560px}
-.astra-course-recording button,.astra-course-recording a{color:#a3e0ee;background:none;border:0;white-space:nowrap;cursor:pointer;font:inherit;text-decoration:underline}

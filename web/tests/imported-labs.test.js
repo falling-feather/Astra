@@ -29,3 +29,15 @@ test('公开副本保留来源与许可证，排除后端和角色管理页面',
   assert.ok(html.includes('name="astra-resource-explorer"'));
   assert.equal(/<script[^>]+src="shared\/js\/(?:auth-ui|app-session)\.js/.test(html),false);
 });
+
+test('展示版的追踪器与课程来自仓库 codevis，公开入口使用自己的观星返回桥接',()=>{
+  const canonical=new URL('../../codevis/',import.meta.url);
+  for(const file of ['pages/code-trace/code-trace.js','shared/js/course-manifest.js','shared/js/runtimes/runtime-py.js']){
+    assert.deepEqual(fs.readFileSync(new URL('codevis/'+file,labs)),fs.readFileSync(new URL(file,canonical)),file);
+  }
+  const codePage=fs.readFileSync(new URL('codevis/index.html',labs),'utf8');
+  assert.ok(codePage.includes('name="astra-resource-explorer"'));
+  assert.ok(codePage.includes('../../labs-host/bridge.js'));
+  assert.doesNotMatch(codePage,/<script\b[^>]*src="shared\/js\/student-context\.js/);
+  assert.equal(JSON.parse(fs.readFileSync(new URL('import-manifest.json',labs),'utf8')).directory,'.');
+});

@@ -34,11 +34,10 @@ const extensions = new Set([
 ]);
 const oldRolePages = new Set(['admin', 'student', 'teacher']);
 
-// The build admits public assets only. Source code, databases, logs and credentials never enter dist.
-export async function packageResources(demo = false) {
-  const output = path.join(project, 'qianduan', demo ? 'dist-demo' : 'dist');
-  const labs = path.join(output, 'labs');
-  await fs.access(path.join(output, 'index.html'));
+// Both frontends package the same public learning resources; portal-specific navigation stays with its caller.
+export async function packagePublicLabs(labs) {
+  let files = 0;
+  let bytes = 0;
   await fs.mkdir(labs, { recursive: true });
   for (const directory of ['shared', 'pages', 'UI', 'codevis']) {
     const source = path.join(project, directory);
@@ -55,11 +54,16 @@ export async function packageResources(demo = false) {
           )
         )
           return false;
-        return (
+        const include = (
           stat.isDirectory() ||
           extensions.has(path.extname(filename).toLowerCase()) ||
           /^(LICENSE(?:\.md)?|SOURCE\.md|THIRD_PARTY_NOTICES\.md)$/.test(path.basename(filename))
         );
+        if (include && stat.isFile()) {
+          files++;
+          bytes += stat.size;
+        }
+        return include;
       },
     });
   }
@@ -99,6 +103,13 @@ export async function packageResources(demo = false) {
     path.join(project, 'qianduan/public/resource-explorer.css'),
     path.join(labs, 'resource-explorer.css'),
   );
+  return { files, bytes };
+}
+
+export async function packageResources(demo = false) {
+  const output = path.join(project, 'qianduan', demo ? 'dist-demo' : 'dist');
+  await fs.access(path.join(output, 'index.html'));
+  await packagePublicLabs(path.join(output, 'labs'));
   await fs.copyFile(path.join(project, 'LICENSE.md'), path.join(output, 'LICENSE.md'));
   await fs.copyFile(path.join(project, 'UI/favicon.ico'), path.join(output, 'favicon.ico'));
   await fs.writeFile(path.join(output, '.nojekyll'), '');
