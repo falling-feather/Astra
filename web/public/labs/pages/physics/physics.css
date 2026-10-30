@@ -1,0 +1,1676 @@
+/* ===== Physics Demo ===== */
+
+.physics-canvas {
+    width: 100%;
+    height: 400px;
+    border-radius: var(--radius-default);
+    background: var(--surface-0);
+    border: 1px solid var(--border-subtle);
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.physics-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.range-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.range {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 44px;
+    min-height: 44px;
+    border-radius: 2px;
+    background: transparent;
+    outline: none;
+}
+
+.range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+}
+
+.range::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+}
+
+.range:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+}
+
+.range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-purple);
+    cursor: pointer;
+    border: 2px solid var(--surface-0);
+    box-shadow: 0 0 6px rgba(139,111,192,0.4);
+}
+
+.range::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-purple);
+    cursor: pointer;
+    border: 2px solid var(--surface-0);
+}
+
+.range-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent-purple);
+    min-width: 3ch;
+    text-align: right;
+}
+
+.range-unit {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    min-width: 3ch;
+}
+
+.physics-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+#page-physics [data-module="mechanics"] .demo-section {
+    --experiment-control-height: 44px;
+}
+
+.physics-actions .btn {
+    flex: 1;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+#gravity-slider,
+#restitution-slider,
+#friction-slider,
+#radius-slider {
+    height: 44px;
+    min-height: 44px;
+}
+
+#physics-clear,
+#physics-pause {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.physics-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-sm);
+    color: var(--text-tertiary);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.physics-stats strong {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+/* ===== Electromagnetic Field Demo ===== */
+
+.em-canvas {
+    width: 100%;
+    height: 400px;
+    border-radius: var(--radius-default);
+    background: var(--surface-0);
+    border: 1px solid var(--border-subtle);
+    cursor: default;
+    touch-action: none;
+}
+
+.em-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.em-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.em-actions .btn {
+    flex: 1;
+    min-width: 0;
+}
+
+.btn--pos {
+    background: rgba(239, 68, 68, 0.12);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.btn--pos:hover {
+    background: rgba(239, 68, 68, 0.22);
+}
+
+.btn--neg {
+    background: rgba(59, 130, 246, 0.12);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.btn--neg:hover {
+    background: rgba(59, 130, 246, 0.22);
+}
+
+.em-toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.em-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.em-toggle input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--surface-3);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.em-toggle input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    transition: transform 0.2s, background 0.2s;
+}
+
+.em-toggle input[type="checkbox"]:checked {
+    background: var(--accent-purple);
+}
+
+.em-toggle input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
+    background: #fff;
+}
+
+.em-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-sm);
+    color: var(--text-tertiary);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.em-stats strong {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.em-mode-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.em-mode-btn:hover { border-color: var(--physics-primary); }
+.em-mode-btn.active {
+    background: var(--physics-primary);
+    color: #fff;
+    border-color: var(--physics-primary);
+}
+
+.em-presets { margin-top: var(--space-3); }
+.em-preset-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.em-preset-btn {
+    padding: 3px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.em-preset-btn:hover {
+    background: rgba(139,111,192,0.12);
+    border-color: var(--physics-primary);
+}
+
+/* ===== Wave Demo ===== */
+
+.wave-canvas {
+    width: 100%;
+    height: 320px;
+    border-radius: var(--radius-default);
+    background: var(--surface-0);
+    border: 1px solid var(--border-subtle);
+}
+
+.wave-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.wave-param-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.wave-param-group h4 {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.wave-param-group h4 .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.dot--w1 { background: #ef4444; }
+.dot--w2 { background: #3b82f6; }
+
+.wave-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.wave-presets .btn {
+    font-size: var(--text-xs);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+
+.wave-presets .btn.active {
+    background: var(--accent-purple);
+    color: #fff;
+    border-color: var(--accent-purple);
+}
+
+.wave-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.wave-mode-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.wave-mode-btn:hover { border-color: var(--physics-primary); }
+.wave-mode-btn.active {
+    background: var(--physics-primary);
+    color: #fff;
+    border-color: var(--physics-primary);
+}
+
+.wave-sw-panel, .wave-dp-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* ===== Relativity Demo ===== */
+
+.rel-mode-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.rel-mode-btn {
+    padding: 0.45rem 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.rel-mode-btn:hover {
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+}
+
+.rel-mode-btn.active {
+    background: var(--accent-purple);
+    color: #fff;
+    border-color: var(--accent-purple);
+}
+
+.rel-velocity-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.rel-velocity-row label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.rel-velocity-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent-purple);
+}
+
+.rel-velocity-row .rel-val {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-purple);
+    font-weight: 600;
+    min-width: 4em;
+    text-align: right;
+}
+
+.relativity-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 520px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    margin-bottom: var(--space-4);
+}
+
+/* 仅「时空图」「多普勒」模式加高（由 JS 切换 .relativity-canvas-wrap--tall） */
+.relativity-canvas-wrap.relativity-canvas-wrap--tall {
+    height: 640px;
+}
+
+.relativity-canvas-wrap canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.rel-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.rel-actions button {
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: all 0.2s;
+}
+
+.rel-actions button:hover {
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+}
+
+.rel-info {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+/* ── Buttons (purple accent override) ── */
+#page-physics .btn-primary {
+    background: rgba(139,111,192,0.18);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+}
+
+#page-physics .btn-primary:hover {
+    background: rgba(139,111,192,0.28);
+    box-shadow: 0 0 12px rgba(139,111,192,0.15);
+}
+
+#page-physics .btn-secondary:hover {
+    border-color: var(--accent-purple);
+}
+
+.rel-extra-panel {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.rel-extra-panel label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.rel-extra-panel input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent-purple);
+}
+
+.rel-extra-panel .rel-val {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-purple);
+    font-weight: 600;
+    min-width: 5em;
+    text-align: right;
+}
+
+.rel-info h3 {
+    color: var(--accent-purple);
+    margin-bottom: var(--space-2);
+    font-size: 1rem;
+}
+
+.rel-info p {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.7;
+    margin-bottom: var(--space-2);
+}
+
+@media (max-width: 1024px) {
+    #page-physics [data-module="mechanics"] .demo-layout {
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    #page-physics [data-module="mechanics"] .demo-controls-panel,
+    #page-physics [data-module="mechanics"] .physics-controls,
+    #page-physics [data-module="mechanics"] .demo-visualization {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    #page-physics [data-module="mechanics"] .physics-canvas {
+        display: block;
+        min-width: 0;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .physics-canvas,
+    .em-canvas {
+        height: 300px;
+    }
+    .wave-canvas {
+        height: 250px;
+    }
+    .relativity-canvas-wrap {
+        height: 400px;
+    }
+    .relativity-canvas-wrap.relativity-canvas-wrap--tall {
+        height: 500px;
+    }
+}
+
+@media (max-width: 480px) {
+    .physics-canvas,
+    .em-canvas {
+        height: 250px;
+    }
+    .wave-canvas {
+        height: 200px;
+    }
+    .relativity-canvas-wrap {
+        height: 320px;
+    }
+    .relativity-canvas-wrap.relativity-canvas-wrap--tall {
+        height: 400px;
+    }
+}
+
+/* ═══ Kinematics ═══ */
+.kin-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.kin-param {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    min-width: 200px;
+}
+.kin-param label {
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    color: var(--accent-purple);
+    min-width: 120px;
+}
+.kin-param input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent-purple);
+}
+
+.kin-action-row {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.kin-canvas-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.kin-canvas {
+    display: block;
+    width: 100%;
+}
+
+.kin-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.ki-item { display: flex; gap: var(--space-2); align-items: baseline; }
+.ki-label { color: var(--accent-purple); font-weight: 600; }
+.ki-formula { color: rgba(255,255,255,0.4); font-size: var(--text-xs); }
+
+@media (max-width: 768px) {
+    .kin-controls { flex-direction: column; align-items: flex-start; }
+    .kin-param { min-width: 100%; }
+    .kin-info { flex-direction: column; gap: var(--space-2); }
+}
+
+/* ═══ Projectile Motion ═══ */
+.proj-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.proj-param {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    min-width: 180px;
+}
+.proj-param label {
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    color: var(--accent-purple);
+    min-width: 100px;
+}
+.proj-param input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent-purple);
+}
+
+.proj-preset-group { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+.proj-action-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+}
+.proj-time-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    flex: 1;
+}
+.proj-time-group input[type="range"] { flex: 1; accent-color: var(--accent-purple); }
+
+.proj-toggles {
+    display: flex;
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.proj-canvas-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+.proj-canvas { display: block; width: 100%; }
+
+.proj-info {
+    padding: var(--space-3) 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+.pi-row { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-2); }
+.pi-item { display: flex; gap: var(--space-1); }
+.pi-label { color: var(--accent-purple); font-weight: 600; }
+.pi-summary { color: rgba(255,255,255,0.5); font-size: var(--text-xs); }
+
+@media (max-width: 768px) {
+    .proj-controls { flex-direction: column; align-items: flex-start; }
+    .proj-param { min-width: 100%; }
+    .proj-info .pi-row { flex-direction: column; gap: var(--space-1); }
+}
+
+/* ── Circular Motion ── */
+.circ-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; }
+.circ-sliders { display: flex; flex-direction: column; gap: .5rem; }
+.circ-sliders label { font-size: .82rem; color: rgba(255,255,255,.6); display: flex; align-items: center; gap: .5rem; }
+.circ-sliders input[type="range"] { width: 110px; accent-color: var(--accent-purple, #8b6fc0); }
+.circ-toggles { display: flex; flex-direction: column; gap: .4rem; }
+.circ-btns { display: flex; gap: .5rem; }
+.circ-stats {
+    margin-top: .6rem; font-family: var(--font-mono, monospace); font-size: .78rem;
+    color: rgba(255,255,255,.6); line-height: 1.6; word-break: break-all;
+}
+.physics-canvas-wrap { position: relative; border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.15); }
+.physics-canvas-wrap canvas { display: block; width: 100%; }
+
+@media (max-width: 768px) {
+    .circ-controls { flex-direction: column; }
+    .circ-sliders input[type="range"] { width: 100%; }
+}
+
+/* ── Energy Conservation ── */
+.energy-controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+.energy-controls label { font-size: .82rem; color: rgba(255,255,255,.6); display: flex; align-items: center; gap: .5rem; }
+.energy-controls input[type="range"] { width: 100px; accent-color: var(--accent-purple, #8b6fc0); }
+
+/* ── Circuit Analysis ── */
+.circuit-controls {
+    display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem;
+}
+.circuit-controls label {
+    font-size: .82rem; color: rgba(255,255,255,.6); display: flex; align-items: center; gap: .35rem;
+}
+.circuit-controls input[type="range"] { width: 80px; accent-color: var(--accent-purple, #8b6fc0); }
+.circuit-mode-btn {
+    padding: .35rem .9rem; border-radius: 6px; border: 1.5px solid rgba(139,111,192,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.circuit-mode-btn.active, .circuit-mode-btn:hover {
+    background: rgba(139,111,192,.25); border-color: var(--accent-purple, #8b6fc0); color: #fff;
+}
+
+/* Circuit Analysis education panel */
+.circuit-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.circuit-info .ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.circuit-info .ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.circuit-info .ac-tag--amber { background:rgba(229,192,123,.15); color:rgba(229,192,123,.9); }
+.circuit-info .ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.circuit-info .ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.circuit-info .ac-key--purple { color:rgba(139,111,192,.85); }
+.circuit-info .ac-key--amber { color:rgba(229,192,123,.85); }
+.circuit-info .ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* Energy Conservation education panel */
+.energy-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.energy-info .ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.energy-info .ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.energy-info .ac-tag--amber { background:rgba(229,192,123,.15); color:rgba(229,192,123,.9); }
+.energy-info .ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.energy-info .ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.energy-info .ac-key--purple { color:rgba(139,111,192,.85); }
+.energy-info .ac-key--amber { color:rgba(229,192,123,.85); }
+.energy-info .ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* ── EM Induction ── */
+.emi-controls { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.emi-mode-btn {
+    padding: .35rem .9rem; border-radius: 6px; border: 1.5px solid rgba(139,111,192,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.emi-mode-btn.active, .emi-mode-btn:hover {
+    background: rgba(139,111,192,.25); border-color: var(--accent-purple, #8b6fc0); color: #fff;
+}
+
+/* EM Induction education panel */
+.emi-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.emi-info .ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.emi-info .ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.emi-info .ac-tag--amber { background:rgba(229,192,123,.15); color:rgba(229,192,123,.9); }
+.emi-info .ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.emi-info .ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.emi-info .ac-key--purple { color:rgba(139,111,192,.85); }
+.emi-info .ac-key--amber { color:rgba(229,192,123,.85); }
+.emi-info .ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* Optics education panel */
+.optics-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.optics-info .ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.optics-info .ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.optics-info .ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.optics-info .ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.optics-info .ac-key--red { color:rgba(224,108,117,.85); }
+.optics-info .ac-key--amber { color:rgba(229,192,123,.85); }
+.optics-info .ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* Waves education panel */
+.wave-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.wave-info .ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.wave-info .ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.wave-info .ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.wave-info .ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.wave-info .ac-key--red { color:rgba(224,108,117,.85); }
+.wave-info .ac-key--amber { color:rgba(229,192,123,.85); }
+.wave-info .ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+.circuit-controls .primary-btn.small,
+.emi-controls .primary-btn.small,
+.grav-controls .primary-btn.small {
+    padding: .35rem .9rem;
+}
+
+/* ══════ Alternating Current ══════ */
+.ac-controls { display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+.ac-mode-btns { display:flex; gap:6px; }
+.ac-mode-btn { padding:5px 14px; border-radius:var(--radius-sm); border:1px solid rgba(139,111,192,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.82rem; transition:all .2s; }
+.ac-mode-btn:hover { border-color:rgba(139,111,192,.5); }
+.ac-mode-btn.active { background:rgba(139,111,192,.18); color:var(--text-primary); border-color:rgba(139,111,192,.5); }
+.ac-label { display:flex; align-items:center; gap:4px; font-size:.82rem; color:var(--text-secondary); white-space:nowrap; }
+.ac-label input[type="range"] { width:64px; accent-color:var(--accent-purple,#8b6fc0); }
+.ac-ctrl-right { display:flex; align-items:center; gap:6px; margin-left:auto; }
+.ac-ctrl-right input[type="range"] { width:56px; accent-color:var(--accent-purple,#8b6fc0); }
+.ac-pause-btn { width:28px; height:28px; border-radius:var(--radius-sm); border:1px solid rgba(139,111,192,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.9rem; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+.ac-pause-btn:hover { border-color:rgba(139,111,192,.5); color:var(--text-primary); }
+
+/* education panel */
+.ac-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.ac-tag--amber { background:rgba(229,192,123,.15); color:rgba(229,192,123,.9); }
+.ac-tag--red { background:rgba(224,108,117,.15); color:rgba(224,108,117,.9); }
+.ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.ac-key--purple { color:rgba(139,111,192,.85); }
+.ac-key--amber { color:rgba(229,192,123,.85); }
+.ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+@media (max-width: 768px) { .ac-controls { flex-direction: column; align-items: flex-start; } .ac-ctrl-right { margin-left:0; } }
+
+/* ══════ Gravitation ══════ */
+.grav-controls { display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+.grav-mode-btns { display:flex; gap:6px; }
+.grav-mode-btn { padding:5px 14px; border-radius:var(--radius-sm); border:1px solid rgba(139,111,192,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.82rem; transition:all .2s; }
+.grav-mode-btn.active { background:rgba(139,111,192,.18); color:var(--text-primary); border-color:rgba(139,111,192,.5); }
+.grav-param { display:flex; align-items:center; gap:4px; font-size:.82rem; color:var(--text-secondary); }
+.grav-param input[type="range"] { width:80px; accent-color:var(--accent-purple,#8b6fc0); }
+@media (max-width: 768px) { .grav-controls { flex-direction: column; align-items: flex-start; } }
+
+/* Gravitation education panel */
+.grav-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(139,111,192,.06); border:1px solid rgba(139,111,192,.12); font-size:.85rem; line-height:1.65; }
+.grav-info .ac-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.grav-info .ac-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(139,111,192,.18); color:rgba(139,111,192,.9); }
+.grav-info .ac-tag--amber { background:rgba(229,192,123,.15); color:rgba(229,192,123,.9); }
+.grav-info .ac-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.grav-info .ac-key { flex-shrink:0; font-weight:600; color:rgba(91,141,206,.85); }
+.grav-info .ac-key--purple { color:rgba(139,111,192,.85); }
+.grav-info .ac-key--amber { color:rgba(229,192,123,.85); }
+.grav-info .ac-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(139,111,192,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* ══════ Physics Zoom Modal ══════ */
+.physics-zoom-btn {
+    margin-left: auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(139,111,192,.35);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: .82rem;
+    cursor: pointer;
+    transition: all .2s;
+}
+.physics-zoom-btn:focus-visible,
+.physics-zoom-modal__close:focus-visible,
+.physics-publication-gate button:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+}
+.physics-zoom-btn:hover {
+    background: rgba(139,111,192,.18);
+    border-color: rgba(139,111,192,.55);
+    color: var(--text-primary);
+}
+
+.physics-zoom-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(9, 12, 18, .72);
+    backdrop-filter: blur(2px);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.physics-zoom-modal.open {
+    display: flex;
+}
+
+.physics-zoom-modal__inner {
+    width: min(96vw, 1320px);
+    height: min(88vh, 900px);
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: 0 22px 48px rgba(0,0,0,.45);
+    padding: 12px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.physics-zoom-modal__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.physics-zoom-modal__title {
+    font-size: .85rem;
+    color: var(--text-secondary);
+}
+
+.physics-zoom-modal__close {
+    min-width: 44px;
+    min-height: 44px;
+    border: 1px solid var(--border-default);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.physics-publication-gate {
+    width: min(680px, calc(100% - 32px));
+    margin: clamp(28px, 8vh, 84px) auto;
+    padding: clamp(24px, 5vw, 42px);
+    border: 1px solid rgba(139, 111, 192, .32);
+    border-radius: var(--radius-default);
+    background: var(--surface-1);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, .22);
+    text-align: center;
+}
+
+.physics-publication-gate__eyebrow {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--accent-purple);
+    font-size: var(--text-xs);
+    letter-spacing: .08em;
+}
+
+.physics-publication-gate h2 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.physics-publication-gate p {
+    margin: 14px auto 22px;
+    max-width: 48ch;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.physics-publication-gate button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px 18px;
+    border: 1px solid rgba(139, 111, 192, .5);
+    border-radius: 8px;
+    background: rgba(139, 111, 192, .16);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.physics-zoom-modal__host {
+    flex: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface-0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.physics-zoom-modal__host canvas {
+    display: block;
+}
+
+/* ═══ 力的合成与分解 ═══ */
+.fc-controls {
+    margin-bottom: 12px;
+}
+.fc-mode-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.fc-mode-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .2s;
+}
+.fc-mode-btn.active,
+.fc-mode-btn:hover {
+    background: var(--accent, #5b8dce);
+    color: #fff;
+    border-color: var(--accent, #5b8dce);
+}
+.fc-params {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.fc-hint {
+    color: var(--text-tertiary, #888);
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+.fc-row {
+    font-size: 14px;
+    color: var(--text-primary, #eee);
+}
+.fc-label b {
+    font-variant-numeric: tabular-nums;
+}
+.fc-slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+}
+.fc-slider-row label {
+    font-size: 13px;
+    color: var(--text-secondary, #bbb);
+}
+.fc-slider-row input[type="range"] {
+    width: 100%;
+    max-width: 280px;
+}
+.fc-edu {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--surface-1, rgba(255,255,255,0.03));
+    border-radius: 10px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text-secondary, #ccc);
+}
+.fc-edu h4 {
+    margin: 0 0 8px;
+    color: var(--text-primary, #fff);
+    font-size: 16px;
+}
+.fc-edu ul {
+    padding-left: 20px;
+    margin: 8px 0;
+}
+.fc-edu li {
+    margin-bottom: 4px;
+}
+.fc-tip {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(91,141,206,0.1);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--accent, #5b8dce);
+}
+
+/* v4.6.0-α1 多力合成：工具栏 + 颜色点 + 力行 */
+.fc-multiforce-toolbar {
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 8px; padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255,255,255,0.12);
+}
+.fc-mini-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all .15s;
+}
+.fc-mini-btn:hover:not(:disabled) {
+    background: rgba(91,141,206,0.18);
+    color: #fff;
+    border-color: rgba(91,141,206,0.5);
+}
+.fc-mini-btn.active {
+    background: rgba(91,141,206,0.35);
+    color: #fff;
+    border-color: rgba(91,141,206,0.7);
+}
+.fc-mini-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.fc-force-count {
+    font-size: 12px;
+    color: var(--text-tertiary, #888);
+    margin: 0 4px;
+}
+.fc-method-sep {
+    color: rgba(255,255,255,0.2);
+    margin: 0 2px;
+}
+.fc-force-row {
+    display: flex; align-items: center; gap: 6px;
+}
+.fc-color-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.25);
+    flex-shrink: 0;
+}
+
+/* ═══ 动量守恒 ═══ */
+.mc-controls { margin-bottom: 12px; }
+/* v4.6.0-α3：维度切换按钮 */
+.mc-dim-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.mc-dim-btn {
+    padding: 5px 14px;
+    border: 1px dashed rgba(229,192,123,0.4);
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(229,192,123,0.7);
+    cursor: pointer; font-size: 12px;
+    transition: all .2s;
+}
+.mc-dim-btn.active, .mc-dim-btn:hover {
+    background: rgba(229,192,123,0.18); color: #e5c07b;
+    border-color: #e5c07b; border-style: solid;
+}
+.mc-vel-group { display: contents; }   /* 不破坏父级 flex */
+.mc-2d-tip {
+    font-size: 11px; color: rgba(229,192,123,0.7);
+    padding: 4px 6px; margin: 4px 0 6px;
+    border-left: 2px solid rgba(229,192,123,0.4);
+    background: rgba(229,192,123,0.06); border-radius: 0 4px 4px 0;
+}
+.mc-mode-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.mc-mode-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #aaa);
+    cursor: pointer; font-size: 13px;
+    transition: all .2s;
+}
+.mc-mode-btn.active, .mc-mode-btn:hover {
+    background: var(--accent, #5b8dce); color: #fff;
+    border-color: var(--accent, #5b8dce);
+}
+.mc-params { display: flex; flex-direction: column; gap: 4px; }
+.mc-slider-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.mc-slider-row label, .mc-label { font-size: 13px; color: var(--text-secondary, #bbb); }
+.mc-slider-row input[type="range"], .mc-slider { width: 100%; max-width: 280px; }
+.mc-actions { display: flex; gap: 10px; margin: 12px 0; }
+.mc-btn {
+    padding: 8px 20px; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all .2s;
+}
+.mc-play {
+    background: var(--accent, #5b8dce); color: #fff;
+}
+.mc-play:hover { filter: brightness(1.15); }
+.mc-reset {
+    background: rgba(255,255,255,0.08); color: var(--text-secondary, #bbb);
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+}
+.mc-reset:hover { background: rgba(255,255,255,0.15); }
+.mc-info {
+    padding: 12px 16px;
+    background: var(--surface-1, rgba(255,255,255,0.03));
+    border-radius: 10px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    font-size: 13px; line-height: 1.8;
+    color: var(--text-secondary, #ccc);
+}
+.mc-mode-tag {
+    display: inline-block; padding: 2px 10px;
+    background: var(--accent, #5b8dce); color: #fff;
+    border-radius: 12px; font-size: 11px; font-weight: 600; margin-bottom: 6px;
+}
+.mc-data-row span { color: var(--text-tertiary, #888); }
+.mc-data-row strong { font-variant-numeric: tabular-nums; }
+.mc-momentum strong { color: #2ED573; }
+.mc-energy strong { color: #FFD93D; }
+.mc-edu {
+    margin-top: 16px; padding: 16px;
+    background: var(--surface-1, rgba(255,255,255,0.03));
+    border-radius: 10px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    font-size: 14px; line-height: 1.8;
+    color: var(--text-secondary, #ccc);
+}
+.mc-edu h4 { margin: 0 0 8px; color: var(--text-primary, #fff); font-size: 16px; }
+.mc-edu ul { padding-left: 20px; margin: 8px 0; }
+.mc-edu li { margin-bottom: 4px; }
+.mc-formula {
+    text-align: center; font-size: 15px; font-weight: 600;
+    color: #2ED573; margin: 8px 0;
+    padding: 8px; background: rgba(46,213,115,0.08); border-radius: 6px;
+}
+.mc-tip {
+    margin-top: 10px; padding: 8px 12px;
+    background: rgba(91,141,206,0.1); border-radius: 6px;
+    font-size: 13px; color: var(--accent, #5b8dce);
+}
+
+/* ===== 带电粒子运动 ===== */
+.cp-controls { margin-bottom: 12px; }
+.cp-mode-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.cp-mode-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #aaa);
+    cursor: pointer; font-size: 13px;
+    transition: all .2s;
+}
+.cp-mode-btn.active, .cp-mode-btn:hover {
+    background: var(--accent, #5b8dce); color: #fff;
+    border-color: var(--accent, #5b8dce);
+}
+.cp-params { display: flex; flex-direction: column; gap: 4px; }
+.cp-slider-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.cp-label { font-size: 13px; color: var(--text-secondary, #bbb); }
+.cp-slider { width: 100%; max-width: 280px; }
+.cp-actions { display: flex; gap: 10px; margin: 12px 0; }
+.cp-btn {
+    padding: 8px 20px; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all .2s;
+}
+.cp-play { background: var(--accent, #5b8dce); color: #fff; }
+.cp-play:hover { filter: brightness(1.15); }
+.cp-reset {
+    background: rgba(255,255,255,0.08); color: var(--text-secondary, #bbb);
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+}
+.cp-reset:hover { background: rgba(255,255,255,0.15); }
+.cp-info {
+    padding: 12px 16px;
+    background: var(--surface-1, rgba(255,255,255,0.03));
+    border-radius: 10px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    font-size: 13px; line-height: 1.8;
+    color: var(--text-secondary, #ccc);
+}
+.cp-mode-tag {
+    display: inline-block; padding: 2px 10px;
+    background: var(--accent, #5b8dce); color: #fff;
+    border-radius: 12px; font-size: 11px; font-weight: 600; margin-bottom: 6px;
+}
+.cp-data-row strong { font-variant-numeric: tabular-nums; }
+.cp-edu {
+    margin-top: 16px; padding: 16px;
+    background: var(--surface-1, rgba(255,255,255,0.03));
+    border-radius: 10px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    font-size: 14px; line-height: 1.8;
+    color: var(--text-secondary, #ccc);
+}
+.cp-edu h4 { margin: 0 0 8px; color: var(--text-primary, #fff); font-size: 16px; }
+.cp-edu ul { padding-left: 20px; margin: 8px 0; }
+.cp-edu li { margin-bottom: 4px; }
+.cp-formula {
+    text-align: center; font-size: 15px; font-weight: 600;
+    color: #2ED573; margin: 8px 0;
+    padding: 8px; background: rgba(46,213,115,0.08); border-radius: 6px;
+}
+.cp-tip {
+    margin-top: 10px; padding: 8px 12px;
+    background: rgba(91,141,206,0.1); border-radius: 6px;
+    font-size: 13px; color: var(--accent, #5b8dce);
+}
+
+/* ===== 气体实验定律 ===== */
+.gas-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.gas-mode-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.gas-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(91,141,206,0.35);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .2s;
+}
+.gas-btn:hover {
+    background: rgba(91,141,206,0.12);
+    color: var(--text-primary, #fff);
+}
+.gas-btn.active {
+    background: rgba(91,141,206,0.24);
+    color: #fff;
+    border-color: rgba(125,211,252,0.72);
+}
+.gas-sliders {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.gas-slider {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary, #bbb);
+    white-space: nowrap;
+}
+.gas-slider input[type="range"] {
+    width: 78px;
+    accent-color: #7dd3fc;
+}
+.gas-slider__value {
+    min-width: 54px;
+    color: rgba(226,232,240,0.82);
+    font-variant-numeric: tabular-nums;
+}
+.gas-slider.is-locked {
+    opacity: .54;
+}
+.gas-slider.is-locked input[type="range"] {
+    cursor: not-allowed;
+}
+.gas-info {
+    margin-top: 16px;
+    padding: 16px 18px;
+    background: rgba(91,141,206,0.05);
+    border: 1px solid rgba(91,141,206,0.16);
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-secondary, #ccc);
+}
+.gas-info__hd {
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin-bottom: 10px;
+}
+.gas-info__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.gas-info__sub {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: rgba(255,255,255,.42);
+    margin-bottom: 4px;
+}
+.gas-info__val {
+    color: #7dd3fc;
+    font-weight: 700;
+}
+.gas-info__desc,
+.gas-info__row,
+.gas-info__note {
+    color: rgba(255,255,255,.62);
+}
+.gas-info__key {
+    display: inline-block;
+    padding: 1px 7px;
+    margin-right: 6px;
+    border-radius: 4px;
+    color: var(--c, #7dd3fc);
+    background: color-mix(in srgb, var(--c, #7dd3fc) 12%, transparent);
+    font-size: 11px;
+    font-weight: 700;
+}
+@media (max-width: 768px) {
+    .gas-controls {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .gas-sliders {
+        width: 100%;
+    }
+    .gas-slider {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .gas-slider input[type="range"] {
+        flex: 1;
+        min-width: 130px;
+    }
+    .gas-info__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ===== 原子物理 ===== */
+.atomphys-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.atomphys-mode-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.atomphys-btn {
+    padding: 7px 14px;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.34);
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .2s;
+}
+.atomphys-btn:hover {
+    background: rgba(125, 211, 252, 0.12);
+    color: var(--text-primary, #fff);
+}
+.atomphys-btn.active {
+    background: rgba(96, 165, 250, 0.24);
+    color: #fff;
+    border-color: rgba(125, 211, 252, 0.72);
+}
+.atomphys-sliders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(174px, 1fr));
+    gap: 10px 12px;
+}
+.atomphys-slider {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.24);
+    color: var(--text-secondary, #bbb);
+    font-size: 12px;
+}
+.atomphys-slider input[type="range"] {
+    width: 100%;
+    accent-color: #7dd3fc;
+}
+.atomphys-slider__value {
+    color: rgba(226, 232, 240, 0.86);
+    font-variant-numeric: tabular-nums;
+}
+.atomphys-info {
+    margin-top: 16px;
+    padding: 16px 18px;
+    background: rgba(91, 141, 206, 0.05);
+    border: 1px solid rgba(91, 141, 206, 0.16);
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-secondary, #ccc);
+}
+.atomphys-info__hd {
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin-bottom: 10px;
+}
+.atomphys-info__grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr;
+    gap: 12px;
+}
+.atomphys-info__sub {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: rgba(255,255,255,.42);
+    margin-bottom: 4px;
+}
+.atomphys-info__val {
+    color: #7dd3fc;
+    font-weight: 700;
+}
+.atomphys-info__desc,
+.atomphys-info__row,
+.atomphys-info__note {
+    color: rgba(255,255,255,.62);
+}
+.atomphys-info__key {
+    display: inline-block;
+    padding: 1px 7px;
+    margin-right: 6px;
+    border-radius: 4px;
+    color: var(--c, #7dd3fc);
+    background: color-mix(in srgb, var(--c, #7dd3fc) 12%, transparent);
+    font-size: 11px;
+    font-weight: 700;
+}
+@media (max-width: 768px) {
+    .atomphys-sliders {
+        grid-template-columns: 1fr;
+    }
+    .atomphys-info__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ===== 热力学基础 ===== */
+.thermo-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.thermo-mode-btns,
+.thermo-process-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.thermo-btn,
+.thermo-mini-btn {
+    padding: 7px 14px;
+    border: 1px solid rgba(251, 191, 36, 0.26);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.34);
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background .2s, border-color .2s, color .2s;
+}
+.thermo-mini-btn {
+    padding: 5px 11px;
+    font-size: 12px;
+}
+.thermo-btn:hover,
+.thermo-mini-btn:hover {
+    background: rgba(251, 191, 36, 0.12);
+    color: var(--text-primary, #fff);
+}
+.thermo-btn.active,
+.thermo-mini-btn.active {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fff;
+    border-color: rgba(251, 191, 36, 0.68);
+}
+.thermo-dynamic-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.thermo-sliders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+    gap: 10px 12px;
+}
+.thermo-slider {
+    display: grid;
+    gap: 5px;
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.24);
+    color: var(--text-secondary, #bbb);
+    font-size: 12px;
+}
+.thermo-slider input[type="range"] {
+    width: 100%;
+    accent-color: #fbbf24;
+}
+.thermo-slider__value {
+    color: rgba(226, 232, 240, 0.86);
+    font-variant-numeric: tabular-nums;
+}
+.thermo-info {
+    margin-top: 16px;
+    padding: 16px 18px;
+    background: rgba(251, 191, 36, 0.045);
+    border: 1px solid rgba(251, 191, 36, 0.15);
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-secondary, #ccc);
+}
+.thermo-info__hd {
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin-bottom: 10px;
+}
+.thermo-info__grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1.1fr;
+    gap: 12px;
+}
+.thermo-info__block--wide {
+    grid-column: 1 / -1;
+}
+.thermo-info__sub {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: rgba(255,255,255,.42);
+    margin-bottom: 4px;
+}
+.thermo-info__val {
+    color: #fbbf24;
+    font-weight: 700;
+}
+.thermo-info__desc,
+.thermo-info__row,
+.thermo-info__note {
+    color: rgba(255,255,255,.64);
+}
+.thermo-info__key {
+    display: inline-block;
+    padding: 1px 7px;
+    margin-right: 6px;
+    border-radius: 4px;
+    color: var(--c, #fbbf24);
+    background: color-mix(in srgb, var(--c, #fbbf24) 12%, transparent);
+    font-size: 11px;
+    font-weight: 700;
+}
+@media (max-width: 768px) {
+    .thermo-sliders,
+    .thermo-info__grid {
+        grid-template-columns: 1fr;
+    }
+}

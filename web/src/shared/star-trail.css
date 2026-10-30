@@ -1,0 +1,14 @@
+.pointer-star-trail {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  pointer-events: none;
+  user-select: none;
+  contain: strict;
+  mix-blend-mode: screen;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pointer-star-trail { display: none; }
+}

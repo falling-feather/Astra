@@ -1,0 +1,14 @@
+.utility-intro{color:#b9c9db;line-height:1.9;margin:0 0 24px}
+.utility-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.utility-row h3{margin:0}.utility-row>span{font-size:12px;color:#9db2c9}
+.utility-actions{display:flex;gap:12px;flex-wrap:wrap}
+.utility-list{display:grid;gap:14px}.utility-feedback{min-height:1.6em;color:#bddeec;font-size:13px}
+.journal-form{display:grid;gap:12px;margin-bottom:28px}
+.journal-form label{font-size:13px;color:#c1d4e5}
+.journal-form select,.journal-form textarea{width:100%;border:1px solid #a4cce333;background:#0b1a2c;color:#dbe7f4;font:inherit;padding:12px 14px;border-radius:0}
+.journal-form textarea{resize:vertical;min-height:100px;max-height:280px;line-height:1.7}
+.journal-form .panel-action{justify-self:start}
+.journal-records .local-entry>p{white-space:pre-wrap;overflow-wrap:anywhere}
+.explore-instructions{padding-left:20px;line-height:2;color:#b9c9db;margin:0 0 28px}
+.starlight-slider{width:100%;accent-color:#9fd2ef;margin:24px 0 30px}
+.local-entry{margin-bottom:14px}

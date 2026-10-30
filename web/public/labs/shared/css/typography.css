@@ -1,0 +1,67 @@
+/* ===== Typography ===== */
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    color: var(--text-primary);
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+h1 { font-size: var(--text-3xl); font-weight: 700; letter-spacing: 0; }
+h2 { font-size: var(--text-2xl); font-weight: 600; letter-spacing: 0; }
+h3 { font-size: var(--text-xl); font-weight: 500; }
+h4 { font-size: var(--text-lg); font-weight: 500; }
+
+p {
+    font-size: var(--text-base);
+    line-height: 1.7;
+    color: var(--text-secondary);
+}
+
+small, .text-sm { font-size: var(--text-sm); }
+.text-xs { font-size: var(--text-xs); }
+.text-mono { font-family: var(--font-mono); }
+
+/* Accent text */
+.text-blue { color: var(--accent-blue); }
+.text-purple { color: var(--accent-purple); }
+.text-green { color: var(--accent-green); }
+.text-orange { color: var(--accent-orange); }
+
+/* Section header pattern */
+.section-header {
+    margin-bottom: var(--space-10);
+}
+
+.section-header h2 {
+    margin-bottom: var(--space-2);
+}
+
+.section-header p {
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+}
+
+/* ── Label / tag with left accent bar ── */
+.label-accent {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+}
+
+.label-accent::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 2px;
+}
+
+.label-accent--blue::before { background: var(--accent-blue); }
+.label-accent--purple::before { background: var(--accent-purple); }
+.label-accent--green::before { background: var(--accent-green); }
+.label-accent--orange::before { background: var(--accent-orange); }

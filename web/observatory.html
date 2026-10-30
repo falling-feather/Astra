@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#040b19" />
+    <meta name="description" content="海潮与星空之间的学习星系。" />
+    <title>星序 Astra · 海潮观星</title>
+    <link rel="icon" href="./star.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/observatory/panorama-style.css" />
+    <link rel="stylesheet" href="/src/observatory/big-dipper-menu.css" />
+  </head>
+  <body>
+    <main id="observatory" class="panorama-page" data-paused="false">
+      <h1 class="sr-only">星序 · 海潮观星</h1>
+      <canvas id="panorama-canvas" class="panorama-canvas" role="img" aria-label="可以拖动与缩放的环形全景星空，包含工科实验室、代码空间、未来星系与 AI 智境四个学习星系。"></canvas>
+      <canvas id="coast-canvas" class="coast-canvas" role="img" aria-label="海潮、悬崖、孩子与望远镜组成的观星前景。"></canvas>
+      <div class="panorama-vignette" aria-hidden="true"></div>
+      <nav id="galaxy-navigation" class="galaxy-navigation" aria-label="星系入口"></nav>
+
+      <button id="star-toggle" class="big-dipper-toggle" type="button" aria-label="打开七星导航" aria-controls="big-dipper-menu" aria-expanded="false" data-pan-block>
+        <svg viewBox="0 0 36 36" aria-hidden="true"><defs><linearGradient id="dipper-star-gold" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#fff5d6"/><stop offset=".53" stop-color="#ffdc9d"/><stop offset="1" stop-color="#c28038"/></linearGradient></defs><path d="m18 3 4.4 9.7L33 14l-7.7 7.4 2 10.6-9.3-5.4-9.3 5.4 2-10.6L3 14l10.6-1.3z" fill="url(#dipper-star-gold)" stroke="#ffefc8" stroke-width=".6"/><path d="M18 3v17.2L3 14l15 6.2L8.7 32 18 20.2 33 14l-15 6.2L27.3 32" fill="none" stroke="#fffbec" stroke-opacity=".55" stroke-width=".8"/></svg>
+      </button>
+      <div id="big-dipper-menu" class="big-dipper-menu" aria-hidden="true" inert data-pan-block>
+        <div class="big-dipper-shade" aria-hidden="true"></div>
+        <nav id="constellation-navigation" class="big-dipper-navigation" aria-label="七星导航" aria-describedby="big-dipper-help">
+          <p id="big-dipper-help" class="sr-only">使用方向键选择，按 Esc 返回星空。</p>
+          <svg id="big-dipper-lines" class="big-dipper-lines" aria-hidden="true"></svg>
+          <div id="big-dipper-items"></div>
+        </nav>
+      </div>
+
+      <button id="telescope-hotspot" class="telescope-hotspot" type="button" aria-label="通过望远镜打开课程目录" aria-haspopup="dialog" aria-controls="course-dialog" aria-expanded="false" data-pan-block>
+        <span class="telescope-halo" aria-hidden="true"></span>
+        <span class="telescope-label">课程目录</span>
+      </button>
+
+      <header class="panorama-header" data-pan-block>
+        <a class="panorama-brand" href="./index.html" aria-label="星序 Astra，返回首页"><img src="./assets/brand.png" alt="星序 Astra" width="180" height="90" /></a>
+        <button id="welcome-button" class="welcome-button" type="button" aria-haspopup="dialog" aria-controls="course-dialog" title="个人中心">
+          <span>欢迎回来，<span id="welcome-name">旅人</span></span>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m7.5 5 5 5-5 5"/></svg>
+        </button>
+      </header>
+
+      <button id="catalog-toggle" class="catalog-launcher" type="button" aria-haspopup="dialog" aria-controls="course-dialog" aria-expanded="false" data-pan-block>
+        <svg class="telescope-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m10 18 23-10 5 11-23 10-5-11Z"/><path d="m33 8 4-2 6 13-5 1M10 18l-4 2 4 9 5-1M21 27l3 5m-7-3 7 3m0 0v10m0-10L13 42m11-10 12 10"/><path d="m30 11 4 10M8 23l-4 2"/><circle cx="24" cy="32" r="2.5"/></svg>
+        <span>课程目录</span>
+        <svg class="launcher-arrow" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4"/></svg>
+      </button>
+
+      <div class="panorama-controls" aria-label="星空视图控制" data-pan-block>
+        <div class="view-tools" role="group" aria-label="缩放与定位">
+          <button id="zoom-out" class="view-tool" type="button" aria-label="缩小星空" title="缩小星空"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 12h12"/></svg></button>
+          <button id="reset-view" class="view-tool" type="button" aria-label="返回初始星区" title="返回初始星区"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/><circle cx="12" cy="12" r="3.5"/></svg></button>
+          <button id="zoom-in" class="view-tool" type="button" aria-label="放大星空" title="放大星空"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 12h12M12 6v12"/></svg></button>
+        </div>
+        <button id="pause-toggle" class="view-tool motion-control" type="button" aria-label="暂停动态效果" aria-pressed="false" title="暂停动态效果"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="pause-bars" d="M8 5v14M16 5v14"/><path class="play-triangle" d="m8 5 11 7-11 7V5Z"/></svg></button>
+      </div>
+
+      <p id="panorama-hint" class="panorama-hint">拖动上方星空探索 · 滚轮缩放</p>
+      <nav id="sector-nav" class="sector-nav" aria-label="定位学习星系" data-pan-block></nav>
+      <p id="panorama-status" class="sr-only" role="status" aria-live="polite"></p>
+      <p id="render-notice" class="render-notice" role="status" aria-live="polite"></p>
+
+      <dialog id="course-dialog" class="course-dialog" aria-labelledby="dialog-title" data-pan-block>
+        <div class="course-dialog-shell">
+          <svg class="dialog-frame" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 285V38L38 0H410 M760 0H1000V370 M1000 695V955L955 1000H560 M285 1000H0V765"/><path class="dialog-frame-accent" d="M38 0H220 M1000 840V955L955 1000H850"/></svg>
+          <button id="dialog-close" class="dialog-close" type="button" aria-label="返回星空" title="返回星空"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+          <div class="course-dialog-scroll">
+            <header class="course-dialog-header"><h2 id="dialog-title" tabindex="-1">课程目录</h2></header>
+            <div id="dialog-content" class="dialog-content"></div>
+          </div>
+        </div>
+      </dialog>
+      <noscript><p class="no-script">请启用 JavaScript，以拖动星空并浏览课程目录。</p></noscript>
+    </main>
+    <script type="module" src="/src/observatory/main.js"></script>
+  </body>
+</html>

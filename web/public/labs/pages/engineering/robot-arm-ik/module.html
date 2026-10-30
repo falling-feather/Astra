@@ -1,0 +1,74 @@
+<section class="content-section" data-module="robot-arm-ik" aria-labelledby="robot-arm-ik-title">
+    <div class="astra-exp astra-exp--robot-arm-ik" data-state="running" data-reach="reachable" data-preset="trajectory">
+        <header class="astra-exp--robot-arm-ik__header">
+            <div>
+                <a class="astra-exp--robot-arm-ik__back" href="#engineering">← 返回工程实验</a>
+                <p class="astra-exp--robot-arm-ik__eyebrow">Engineering · Motion Lab</p>
+                <h2 id="robot-arm-ik-title">机械臂逆运动学：拖动即求解</h2>
+                <p class="astra-exp--robot-arm-ik__subtitle">移动目标点，观察三关节如何在限位内逼近末端位置。</p>
+            </div>
+            <output class="astra-exp--robot-arm-ik__state" data-role="state" aria-live="polite">轨迹演示</output>
+        </header>
+
+        <div class="astra-exp--robot-arm-ik__workspace">
+            <div class="astra-exp--robot-arm-ik__stage" data-role="stage">
+                <canvas
+                    class="astra-exp--robot-arm-ik__canvas"
+                    data-role="canvas"
+                    role="img"
+                    aria-label="带关节限位的三连杆机械臂实时跟随可拖动目标点"
+                ></canvas>
+
+                <div class="astra-exp--robot-arm-ik__telemetry" aria-label="机械臂实时读数">
+                    <span>CCD SOLVER / 逆运动学</span>
+                    <output class="astra-exp--robot-arm-ik__readout" data-role="readout" aria-live="polite">主参数 50 · 限位 ±105.0° · 误差 0.000</output>
+                </div>
+
+                <div class="astra-exp--robot-arm-ik__metrics" aria-label="求解结果">
+                    <div><span>末端误差</span><output data-role="residual">0.000</output></div>
+                    <div><span>迭代次数</span><output data-role="iterations">0</output></div>
+                    <div><span>目标状态</span><output data-role="reach-state">可达</output></div>
+                </div>
+
+                <p class="astra-exp--robot-arm-ik__stage-hint" data-role="stage-hint">按住目标环并拖动，直接改变末端目标</p>
+
+                <ul class="astra-exp--robot-arm-ik__legend" data-role="legend" aria-label="画面图例">
+                    <li><span class="astra-exp--robot-arm-ik__swatch" data-tone="arm" aria-hidden="true"></span><span>机械臂</span></li>
+                    <li><span class="astra-exp--robot-arm-ik__swatch" data-tone="target" aria-hidden="true"></span><span>目标点</span></li>
+                    <li><span class="astra-exp--robot-arm-ik__swatch" data-tone="error" aria-hidden="true"></span><span>残差</span></li>
+                </ul>
+            </div>
+
+            <details class="astra-exp--robot-arm-ik__drawer" data-role="control-drawer" open>
+                <summary><span>参数与控制</span><span aria-hidden="true">展开 / 收起</span></summary>
+
+                <div class="astra-exp--robot-arm-ik__drawer-body">
+                    <div class="astra-exp--robot-arm-ik__control-group">
+                        <div class="astra-exp--robot-arm-ik__label-row">
+                            <label for="robot-arm-ik-parameter">关节活动范围</label>
+                            <output for="robot-arm-ik-parameter" data-role="parameter-value">50 · ±105.0°</output>
+                        </div>
+                        <input id="robot-arm-ik-parameter" data-control="parameter" type="range" min="0" max="100" value="50" aria-describedby="robot-arm-ik-parameter-hint">
+                        <p id="robot-arm-ik-parameter-hint">向右放宽三个转动关节的对称限位。</p>
+                    </div>
+
+                    <div class="astra-exp--robot-arm-ik__preset-group" aria-label="目标点预设">
+                        <span>目标点预设</span>
+                        <div>
+                            <button type="button" data-preset="reachable">可达点</button>
+                            <button type="button" data-preset="limit">限位挑战</button>
+                            <button type="button" data-preset="outside">越界点</button>
+                        </div>
+                    </div>
+
+                    <div class="astra-exp--robot-arm-ik__actions" role="group" aria-label="播放控制">
+                        <button class="astra-exp--robot-arm-ik__action astra-exp--robot-arm-ik__action--primary" type="button" data-action="toggle" aria-pressed="false">暂停轨迹</button>
+                        <button class="astra-exp--robot-arm-ik__action" type="button" data-action="reset">重置机械臂</button>
+                    </div>
+
+                    <p class="astra-exp--robot-arm-ik__notice" data-role="notice" data-tone="info" role="status" aria-live="polite">目标沿参考轨迹移动，机械臂实时求解。</p>
+                </div>
+            </details>
+        </div>
+    </div>
+</section>

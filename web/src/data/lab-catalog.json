@@ -1,0 +1,950 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "directory": "D:\\代码玩具测试\\工科实验室",
+    "commit": "82b9430a5cb5f6e6139bbf54f7ca03c1940a8aec",
+    "importedAt": "2026-10-20T09:14:11.749Z"
+  },
+  "spaces": [
+    {
+      "key": "englab",
+      "title": "工科实验室",
+      "topics": [
+        {
+          "id": "mathematics",
+          "title": "数学",
+          "summary": "通过交互式可视化探索数学的奥秘，从函数图像到微积分、几何变换，感受数学之美。",
+          "objectives": [],
+          "activities": [
+            {
+              "key": "mathematics.function-graph",
+              "title": "函数图像",
+              "summary": "可视化各种数学函数",
+              "href": "labs/index.html#mathematics/function-graph"
+            },
+            {
+              "key": "mathematics.calculus",
+              "title": "微积分",
+              "summary": "理解导数、积分和极限",
+              "href": "labs/index.html#mathematics/calculus"
+            },
+            {
+              "key": "mathematics.geometry",
+              "title": "几何变换",
+              "summary": "探索平移、旋转、缩放",
+              "href": "labs/index.html#mathematics/geometry"
+            },
+            {
+              "key": "mathematics.complex",
+              "title": "复数运算",
+              "summary": "复平面上的运算",
+              "href": "labs/index.html#mathematics/complex"
+            },
+            {
+              "key": "mathematics.trigonometry",
+              "title": "三角函数",
+              "summary": "单位圆与sin/cos/tan联动",
+              "href": "labs/index.html#mathematics/trigonometry"
+            },
+            {
+              "key": "mathematics.set-operations",
+              "title": "集合运算",
+              "summary": "Venn图与集合操作可视化",
+              "href": "labs/index.html#mathematics/set-operations"
+            },
+            {
+              "key": "mathematics.probability",
+              "title": "概率统计",
+              "summary": "抛硬币/掷骰子频率收敛与直方图",
+              "href": "labs/index.html#mathematics/probability"
+            },
+            {
+              "key": "mathematics.vector-ops",
+              "title": "向量运算",
+              "summary": "向量加减/数量积/投影可视化",
+              "href": "labs/index.html#mathematics/vector-ops"
+            },
+            {
+              "key": "mathematics.inequality",
+              "title": "不等式",
+              "summary": "线性规划可行域与最优解",
+              "href": "labs/index.html#mathematics/inequality"
+            },
+            {
+              "key": "mathematics.conic-sections",
+              "title": "圆锥曲线",
+              "summary": "椭圆/双曲线/抛物线焦点轨迹",
+              "href": "labs/index.html#mathematics/conic-sections"
+            },
+            {
+              "key": "mathematics.solid-geometry",
+              "title": "立体几何",
+              "summary": "三维多面体旋转与截面",
+              "href": "labs/index.html#mathematics/solid-geometry"
+            },
+            {
+              "key": "mathematics.permutation-combination",
+              "title": "排列组合",
+              "summary": "树状图/计数公式/杨辉三角",
+              "href": "labs/index.html#mathematics/permutation-combination"
+            },
+            {
+              "key": "mathematics.sequences",
+              "title": "数列可视化",
+              "summary": "等差/等比数列图形化与前n项和",
+              "href": "labs/index.html#mathematics/sequences"
+            },
+            {
+              "key": "mathematics.function-properties",
+              "title": "函数性质探究",
+              "summary": "单调性/奇偶性/周期性交互分析",
+              "href": "labs/index.html#mathematics/function-properties"
+            },
+            {
+              "key": "mathematics.exp-log",
+              "title": "指数与对数",
+              "summary": "底数a对图像影响与互为反函数",
+              "href": "labs/index.html#mathematics/exp-log"
+            },
+            {
+              "key": "mathematics.binomial-theorem",
+              "title": "二项式定理",
+              "summary": "杨辉三角与(a+b)ⁿ展开系数联动",
+              "href": "labs/index.html#mathematics/binomial-theorem"
+            },
+            {
+              "key": "mathematics.statistics-regression",
+              "title": "统计与回归",
+              "summary": "最小二乘回归/相关系数/正态分布与3σ",
+              "href": "labs/index.html#mathematics/statistics-regression"
+            },
+            {
+              "key": "mathematics.modeling-numerical",
+              "title": "建模与数值方法",
+              "summary": "拟合误差·Euler步长·Newton迭代",
+              "href": "labs/index.html#mathematics/modeling-numerical"
+            },
+            {
+              "key": "mathematics.spatial-vector",
+              "title": "空间向量",
+              "summary": "3D 向量加法/数量积/向量积/夹角可视化",
+              "href": "labs/index.html#mathematics/spatial-vector"
+            },
+            {
+              "key": "mathematics.derivative-application",
+              "title": "导数应用",
+              "summary": "切线/单调性/极值与最值的导数分析",
+              "href": "labs/index.html#mathematics/derivative-application"
+            }
+          ]
+        },
+        {
+          "id": "physics",
+          "title": "物理",
+          "summary": "通过动态模拟理解物理世界的运行规律，从力学到电磁场，沉浸式体验物理法则。",
+          "objectives": [],
+          "activities": [
+            {
+              "key": "physics.mechanics",
+              "title": "恢复系数与反弹高度",
+              "summary": "固定落高，对照 e² 与第一次反弹峰值",
+              "href": "labs/index.html#physics/mechanics"
+            },
+            {
+              "key": "physics.double-pendulum-chaos",
+              "title": "双摆混沌：初值差的放大",
+              "summary": "近初值双摆轨迹与相空间对照",
+              "href": "labs/index.html#physics/double-pendulum-chaos"
+            },
+            {
+              "key": "physics.gas-laws",
+              "title": "气体实验定律",
+              "summary": "Boyle/Charles/理想气体状态方程",
+              "href": "labs/index.html#physics/gas-laws"
+            },
+            {
+              "key": "physics.thermodynamics",
+              "title": "热力学基础",
+              "summary": "第一定律·热机效率·熵增方向",
+              "href": "labs/index.html#physics/thermodynamics"
+            },
+            {
+              "key": "physics.electromagnetism",
+              "title": "电磁场",
+              "summary": "电场和磁场分布",
+              "href": "labs/index.html#physics/electromagnetism"
+            },
+            {
+              "key": "physics.waves",
+              "title": "波动演示",
+              "summary": "声波、光波",
+              "href": "labs/index.html#physics/waves"
+            },
+            {
+              "key": "physics.relativity",
+              "title": "相对论",
+              "summary": "时间膨胀、长度收缩",
+              "href": "labs/index.html#physics/relativity"
+            },
+            {
+              "key": "physics.kinematics",
+              "title": "匀变速运动",
+              "summary": "v-t图与s-t图联动",
+              "href": "labs/index.html#physics/kinematics"
+            },
+            {
+              "key": "physics.projectile",
+              "title": "抛体运动",
+              "summary": "轨迹、速度分解、射程",
+              "href": "labs/index.html#physics/projectile"
+            },
+            {
+              "key": "physics.circular-motion",
+              "title": "圆周运动",
+              "summary": "向心加速度/向心力/线速度",
+              "href": "labs/index.html#physics/circular-motion"
+            },
+            {
+              "key": "physics.energy-conservation",
+              "title": "机械能守恒",
+              "summary": "过山车PE/KE能量条",
+              "href": "labs/index.html#physics/energy-conservation"
+            },
+            {
+              "key": "physics.circuit-analysis",
+              "title": "电路分析",
+              "summary": "串并联电路与欧姆定律",
+              "href": "labs/index.html#physics/circuit-analysis"
+            },
+            {
+              "key": "physics.em-induction",
+              "title": "电磁感应",
+              "summary": "法拉第定律与感应电动力",
+              "href": "labs/index.html#physics/em-induction"
+            },
+            {
+              "key": "physics.alternating-current",
+              "title": "交变电流",
+              "summary": "AC波形、RMS与变压器",
+              "href": "labs/index.html#physics/alternating-current"
+            },
+            {
+              "key": "physics.fluid-dynamics",
+              "title": "流体力学",
+              "summary": "势流叠加、圆柱绕流与伯努利方程",
+              "href": "labs/index.html#physics/fluid-dynamics"
+            },
+            {
+              "key": "physics.optics",
+              "title": "光学",
+              "summary": "透镜成像/双缝干涉/折射/色散/偏振",
+              "href": "labs/index.html#physics/optics"
+            },
+            {
+              "key": "physics.gravitation",
+              "title": "万有引力",
+              "summary": "卫星轨道模拟与引力场",
+              "href": "labs/index.html#physics/gravitation"
+            },
+            {
+              "key": "physics.force-composition",
+              "title": "力的合成与分解",
+              "summary": "平行四边形定则与正交分解",
+              "href": "labs/index.html#physics/force-composition"
+            },
+            {
+              "key": "physics.momentum-conservation",
+              "title": "动量守恒",
+              "summary": "一维碰撞与动量-动能柱状图",
+              "href": "labs/index.html#physics/momentum-conservation"
+            },
+            {
+              "key": "physics.charged-particle",
+              "title": "带电粒子运动",
+              "summary": "洛伦兹力偏转·质谱仪·速度选择器",
+              "href": "labs/index.html#physics/charged-particle"
+            },
+            {
+              "key": "physics.atomic-physics",
+              "title": "原子物理",
+              "summary": "玻尔能级·光谱跃迁·光电效应",
+              "href": "labs/index.html#physics/atomic-physics"
+            }
+          ]
+        },
+        {
+          "id": "chemistry",
+          "title": "化学",
+          "summary": "探索化学元素和反应的奥秘，从原子结构到化学平衡，理解物质的本质。",
+          "objectives": [],
+          "activities": [
+            {
+              "key": "chemistry.chromatography-separation",
+              "title": "色谱分离：色带与峰同步",
+              "summary": "柱中色带与检测峰的保留时间对照",
+              "href": "labs/index.html#chemistry/chromatography-separation"
+            },
+            {
+              "key": "chemistry.periodic-table",
+              "title": "元素周期表",
+              "summary": "交互式元素周期表",
+              "href": "labs/index.html#chemistry/periodic-table"
+            },
+            {
+              "key": "chemistry.molecular-structure",
+              "title": "分子结构",
+              "summary": "3D可视化分子",
+              "href": "labs/index.html#chemistry/molecular-structure"
+            },
+            {
+              "key": "chemistry.hybrid-orbitals",
+              "title": "杂化轨道理论",
+              "summary": "sp/sp²/sp³ 与 VSEPR 构型联动",
+              "href": "labs/index.html#chemistry/hybrid-orbitals"
+            },
+            {
+              "key": "chemistry.crystal-structures",
+              "title": "晶体结构",
+              "summary": "离子/金属/共价网络/分子晶体对比",
+              "href": "labs/index.html#chemistry/crystal-structures"
+            },
+            {
+              "key": "chemistry.reactions",
+              "title": "化学反应",
+              "summary": "模拟原子重排",
+              "href": "labs/index.html#chemistry/reactions"
+            },
+            {
+              "key": "chemistry.chemical-equilibrium",
+              "title": "化学平衡",
+              "summary": "勒夏特列原理与平衡移动",
+              "href": "labs/index.html#chemistry/chemical-equilibrium"
+            },
+            {
+              "key": "chemistry.electrochemistry",
+              "title": "电化学",
+              "summary": "原电池/电解池电子流动",
+              "href": "labs/index.html#chemistry/electrochemistry"
+            },
+            {
+              "key": "chemistry.chemical-bond",
+              "title": "化学键",
+              "summary": "离子键/共价键/金属键微观结构",
+              "href": "labs/index.html#chemistry/chemical-bond"
+            },
+            {
+              "key": "chemistry.organic-chemistry",
+              "title": "有机化学",
+              "summary": "碳链结构与常见有机分子",
+              "href": "labs/index.html#chemistry/organic-chemistry"
+            },
+            {
+              "key": "chemistry.reaction-rate",
+              "title": "反应速率",
+              "summary": "碰撞理论与温度/浓度/催化剂影响",
+              "href": "labs/index.html#chemistry/reaction-rate"
+            },
+            {
+              "key": "chemistry.solution-ionization",
+              "title": "溶液与电离",
+              "summary": "pH指示与强弱电解质",
+              "href": "labs/index.html#chemistry/solution-ionization"
+            },
+            {
+              "key": "chemistry.ionic-reaction",
+              "title": "离子反应",
+              "summary": "离子方程式拆分与旁观离子",
+              "href": "labs/index.html#chemistry/ionic-reaction"
+            },
+            {
+              "key": "chemistry.redox",
+              "title": "氧化还原",
+              "summary": "电子转移可视化与双线桥法",
+              "href": "labs/index.html#chemistry/redox"
+            },
+            {
+              "key": "chemistry.atomic-structure",
+              "title": "原子结构与电子排布",
+              "summary": "电子云轨道·排布规则·玻尔模型",
+              "href": "labs/index.html#chemistry/atomic-structure"
+            },
+            {
+              "key": "chemistry.element-compounds",
+              "title": "元素化合物",
+              "summary": "Na/Fe/Al/Cl/N/S 价类二维图与焰色反应",
+              "href": "labs/index.html#chemistry/element-compounds"
+            },
+            {
+              "key": "chemistry.intermolecular-forces",
+              "title": "分子间力与氢键",
+              "summary": "氢化物沸点趋势·氢键网络模型",
+              "href": "labs/index.html#chemistry/intermolecular-forces"
+            },
+            {
+              "key": "chemistry.experiments",
+              "title": "虚拟实验",
+              "summary": "滴定·沉淀·指示剂虚拟观察",
+              "href": "labs/index.html#chemistry/experiments"
+            }
+          ]
+        },
+        {
+          "id": "algorithms",
+          "title": "算法",
+          "summary": "通过动画理解算法的工作原理，从排序到图论，用代码解构复杂问题。",
+          "objectives": [],
+          "activities": [
+            {
+              "key": "algorithms.sorting",
+              "title": "排序算法",
+              "summary": "冒泡、快排、归并",
+              "href": "labs/index.html#algorithms/sorting"
+            },
+            {
+              "key": "algorithms.searching",
+              "title": "搜索算法",
+              "summary": "二分查找、DFS/BFS",
+              "href": "labs/index.html#algorithms/searching"
+            },
+            {
+              "key": "algorithms.hash-tables",
+              "title": "哈希表",
+              "summary": "链地址法/线性探测与负载因子",
+              "href": "labs/index.html#algorithms/hash-tables"
+            },
+            {
+              "key": "algorithms.bst-avl",
+              "title": "二叉搜索树",
+              "summary": "BST 插入/删除与 AVL 旋转",
+              "href": "labs/index.html#algorithms/bst-avl"
+            },
+            {
+              "key": "algorithms.graph",
+              "title": "图算法",
+              "summary": "最短路径、生成树",
+              "href": "labs/index.html#algorithms/graph"
+            },
+            {
+              "key": "algorithms.mst-compare",
+              "title": "最小生成树对比",
+              "summary": "Prim 与 Kruskal 选边顺序对照",
+              "href": "labs/index.html#algorithms/mst-compare"
+            },
+            {
+              "key": "algorithms.greedy-scheduling",
+              "title": "贪心算法",
+              "summary": "活动选择与区间调度",
+              "href": "labs/index.html#algorithms/greedy-scheduling"
+            },
+            {
+              "key": "algorithms.data-structures",
+              "title": "数据结构",
+              "summary": "栈、队列、树",
+              "href": "labs/index.html#algorithms/data-structures"
+            },
+            {
+              "key": "algorithms.sorting-compare",
+              "title": "排序对比",
+              "summary": "5种排序算法动画对比",
+              "href": "labs/index.html#algorithms/sorting-compare"
+            },
+            {
+              "key": "algorithms.recursion-vis",
+              "title": "递归可视化",
+              "summary": "Fibonacci树/汉诺塔动画",
+              "href": "labs/index.html#algorithms/recursion-vis"
+            },
+            {
+              "key": "algorithms.dynamic-programming",
+              "title": "动态规划",
+              "summary": "0/1背包问题DP表填充",
+              "href": "labs/index.html#algorithms/dynamic-programming"
+            },
+            {
+              "key": "algorithms.string-matching",
+              "title": "字符串匹配",
+              "summary": "KMP算法逐步动画",
+              "href": "labs/index.html#algorithms/string-matching"
+            }
+          ]
+        },
+        {
+          "id": "biology",
+          "title": "生物",
+          "summary": "探索生命的奥秘，从细胞结构到遗传规律，可视化理解生物学核心概念。",
+          "objectives": [],
+          "activities": [
+            {
+              "key": "biology.cell-structure",
+              "title": "细胞结构",
+              "summary": "动植物细胞的结构与功能",
+              "href": "labs/index.html#biology/cell-structure"
+            },
+            {
+              "key": "biology.dna",
+              "title": "DNA结构",
+              "summary": "双螺旋结构与复制过程",
+              "href": "labs/index.html#biology/dna"
+            },
+            {
+              "key": "biology.photosynthesis",
+              "title": "光合作用",
+              "summary": "光反应与 Calvin 循环可视化",
+              "href": "labs/index.html#biology/photosynthesis"
+            },
+            {
+              "key": "biology.enzyme-properties",
+              "title": "酶的特性",
+              "summary": "活化能、温度/pH 与底物浓度曲线",
+              "href": "labs/index.html#biology/enzyme-properties"
+            },
+            {
+              "key": "biology.homeostasis",
+              "title": "内环境稳态",
+              "summary": "血糖、体温与反馈调节模型",
+              "href": "labs/index.html#biology/homeostasis"
+            },
+            {
+              "key": "biology.humoral-regulation",
+              "title": "体液调节",
+              "summary": "HPT 轴、甲状腺激素与负反馈",
+              "href": "labs/index.html#biology/humoral-regulation"
+            },
+            {
+              "key": "biology.genetics",
+              "title": "遗传学",
+              "summary": "孟德尔定律与遗传图谱",
+              "href": "labs/index.html#biology/genetics"
+            },
+            {
+              "key": "biology.mitosis",
+              "title": "有丝分裂",
+              "summary": "细胞分裂各时期动画演示",
+              "href": "labs/index.html#biology/mitosis"
+            },
+            {
+              "key": "biology.neural-regulation",
+              "title": "神经调节",
+              "summary": "突触传递与动作电位可视化",
+              "href": "labs/index.html#biology/neural-regulation"
+            },
+            {
+              "key": "biology.immune-system",
+              "title": "免疫系统",
+              "summary": "巨噬细胞/抗体/T细胞免疫模拟",
+              "href": "labs/index.html#biology/immune-system"
+            },
+            {
+              "key": "biology.population-community",
+              "title": "种群与群落",
+              "summary": "J/S 型增长、K 值与种间关系",
+              "href": "labs/index.html#biology/population-community"
+            },
+            {
+              "key": "biology.material-cycles",
+              "title": "生态系统物质循环",
+              "summary": "碳循环、氮循环与温室效应",
+              "href": "labs/index.html#biology/material-cycles"
+            },
+            {
+              "key": "biology.ecosystem",
+              "title": "生态系统",
+              "summary": "食物链能量流动与种群动态模拟",
+              "href": "labs/index.html#biology/ecosystem"
+            },
+            {
+              "key": "biology.meiosis",
+              "title": "减数分裂",
+              "summary": "同源染色体联会与分裂全过程",
+              "href": "labs/index.html#biology/meiosis"
+            },
+            {
+              "key": "biology.gene-expression",
+              "title": "基因表达",
+              "summary": "转录(DNA→mRNA)与翻译(mRNA→蛋白质)",
+              "href": "labs/index.html#biology/gene-expression"
+            },
+            {
+              "key": "biology.gene-engineering",
+              "title": "基因工程",
+              "summary": "限制酶、连接酶与载体构建",
+              "href": "labs/index.html#biology/gene-engineering"
+            },
+            {
+              "key": "biology.cellular-respiration",
+              "title": "细胞呼吸",
+              "summary": "糖酵解/柠檬酸循环/电子传递链",
+              "href": "labs/index.html#biology/cellular-respiration"
+            },
+            {
+              "key": "biology.substance-transport",
+              "title": "物质运输",
+              "summary": "自由扩散/协助扩散/主动运输/胞吞胞吐",
+              "href": "labs/index.html#biology/substance-transport"
+            },
+            {
+              "key": "biology.gene-mutation",
+              "title": "基因突变",
+              "summary": "碱基替换/插入/缺失对蛋白质的影响",
+              "href": "labs/index.html#biology/gene-mutation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "code-space",
+      "title": "代码空间",
+      "topics": [
+        {
+          "id": "program-start",
+          "title": "程序起步",
+          "summary": "建立输入、变量与输出的可观察关系。",
+          "objectives": [
+            "建立输入、变量与输出的可观察关系。"
+          ],
+          "activities": [
+            {
+              "key": "program-start.first-output",
+              "title": "第一条输出",
+              "summary": "让输出成为可验证的结果。",
+              "href": "labs/codevis/#challenge?activity=program-start.first-output"
+            },
+            {
+              "key": "program-start.variable-box",
+              "title": "变量的盒子",
+              "summary": "观察变量赋值与重写。",
+              "href": "labs/codevis/#challenge?activity=program-start.variable-box"
+            },
+            {
+              "key": "program-start.input-response",
+              "title": "输入与回应",
+              "summary": "区分输入、处理和输出。",
+              "href": "labs/codevis/#challenge?activity=program-start.input-response"
+            }
+          ]
+        },
+        {
+          "id": "control-flow",
+          "title": "控制流程",
+          "summary": "通过判断与循环理解程序的前进路线。",
+          "objectives": [
+            "通过判断与循环理解程序的前进路线。"
+          ],
+          "activities": [
+            {
+              "key": "control-flow.branch-doors",
+              "title": "条件分支",
+              "summary": "根据条件选择不同路径。",
+              "href": "labs/codevis/#challenge?activity=control-flow.branch-doors"
+            },
+            {
+              "key": "control-flow.loop-boundary",
+              "title": "循环与边界",
+              "summary": "预测并验证循环何时停止。",
+              "href": "labs/codevis/#challenge?activity=control-flow.loop-boundary"
+            },
+            {
+              "key": "control-flow.nested-grid",
+              "title": "嵌套循环",
+              "summary": "用两层循环扫描规则网格。",
+              "href": "labs/codevis/#challenge?activity=control-flow.nested-grid"
+            }
+          ]
+        },
+        {
+          "id": "data-functions",
+          "title": "数据与函数",
+          "summary": "把数据组织成可复用的处理步骤。",
+          "objectives": [
+            "把数据组织成可复用的处理步骤。"
+          ],
+          "activities": [
+            {
+              "key": "data-functions.list-snapshot",
+              "title": "列表快照",
+              "summary": "在修改前后比较数据状态。",
+              "href": "labs/codevis/#challenge?activity=data-functions.list-snapshot"
+            },
+            {
+              "key": "data-functions.parameter-return",
+              "title": "参数与返回",
+              "summary": "追踪值如何进入和离开函数。",
+              "href": "labs/codevis/#challenge?activity=data-functions.parameter-return"
+            },
+            {
+              "key": "data-functions.array-scan",
+              "title": "数组扫描",
+              "summary": "使用索引读取连续数据。",
+              "href": "labs/codevis/#challenge?activity=data-functions.array-scan"
+            }
+          ]
+        },
+        {
+          "id": "algorithm-thinking",
+          "title": "算法思维",
+          "summary": "用有限步骤比较输入、过程与结果。",
+          "objectives": [
+            "用有限步骤比较输入、过程与结果。"
+          ],
+          "activities": [
+            {
+              "key": "algorithm-thinking.linear-search",
+              "title": "线性查找",
+              "summary": "从头扫描并在命中时停下。",
+              "href": "labs/codevis/#challenge?activity=algorithm-thinking.linear-search"
+            },
+            {
+              "key": "algorithm-thinking.bubble-pass",
+              "title": "冒泡的一趟",
+              "summary": "观察相邻元素比较与交换。",
+              "href": "labs/codevis/#challenge?activity=algorithm-thinking.bubble-pass"
+            },
+            {
+              "key": "algorithm-thinking.binary-choice",
+              "title": "二分选择",
+              "summary": "用区间缩小寻找范围。",
+              "href": "labs/codevis/#challenge?activity=algorithm-thinking.binary-choice"
+            }
+          ]
+        },
+        {
+          "id": "debugging-testing",
+          "title": "调试与测试",
+          "summary": "用反例和最小修复定位问题。",
+          "objectives": [
+            "用反例和最小修复定位问题。"
+          ],
+          "activities": [
+            {
+              "key": "debugging-testing.assert-boundary",
+              "title": "边界断言",
+              "summary": "为临界输入写下可检查的预期。",
+              "href": "labs/codevis/#challenge?activity=debugging-testing.assert-boundary"
+            },
+            {
+              "key": "debugging-testing.trace-mismatch",
+              "title": "轨迹不一致",
+              "summary": "将预测与实际状态逐步对照。",
+              "href": "labs/codevis/#challenge?activity=debugging-testing.trace-mismatch"
+            },
+            {
+              "key": "debugging-testing.minimal-case",
+              "title": "最小反例",
+              "summary": "缩小输入以复现错误。",
+              "href": "labs/codevis/#challenge?activity=debugging-testing.minimal-case"
+            }
+          ]
+        },
+        {
+          "id": "challenge-submission",
+          "title": "挑战与提交",
+          "summary": "在公开样例后准备可追踪的正式提交。",
+          "objectives": [
+            "在公开样例后准备可追踪的正式提交。"
+          ],
+          "activities": [
+            {
+              "key": "challenge-submission.multi-language-counter",
+              "title": "多语言计数器",
+              "summary": "比较不同语言的相同算法步骤。",
+              "href": "labs/codevis/#challenge?activity=challenge-submission.multi-language-counter"
+            },
+            {
+              "key": "challenge-submission.public-sample",
+              "title": "公开样例预检",
+              "summary": "把公开样例视为学习反馈而非判定。",
+              "href": "labs/codevis/#challenge?activity=challenge-submission.public-sample"
+            },
+            {
+              "key": "challenge-submission.submission-record",
+              "title": "提交记录",
+              "summary": "理解等待、反馈与重试状态。",
+              "href": "labs/codevis/#challenge?activity=challenge-submission.submission-record"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "future-galaxy",
+      "title": "未来星系",
+      "topics": [
+        {
+          "id": "earth-space",
+          "title": "地球与宇宙",
+          "summary": "用可调的日照角与轨道尺度，把预测、观察和判断连成一次可复查的推理。",
+          "objectives": [
+            "用可调的日照角与轨道尺度，把预测、观察和判断连成一次可复查的推理。"
+          ],
+          "activities": [
+            {
+              "key": "cosmos.day-season",
+              "title": "昼夜与季节",
+              "summary": "先预测：北半球的受光面积会怎样变化？",
+              "href": "labs/index.html#cosmos/day-season"
+            },
+            {
+              "key": "cosmos.orbital-scale",
+              "title": "轨道与尺度",
+              "summary": "先预测：改变位置后，昼夜分界线与观察角会怎样移动？",
+              "href": "labs/index.html#cosmos/orbital-scale"
+            },
+            {
+              "key": "cosmos.evidence-log",
+              "title": "证据记录",
+              "summary": "先预测：同一地点的阴影会向哪里移动？",
+              "href": "labs/index.html#cosmos/evidence-log"
+            }
+          ]
+        },
+        {
+          "id": "engineering-systems",
+          "title": "工程应用",
+          "summary": "调节载荷位置，观察受力路径，判断哪个设计更能稳定传力。",
+          "objectives": [
+            "调节载荷位置，观察受力路径，判断哪个设计更能稳定传力。"
+          ],
+          "activities": [
+            {
+              "key": "engineering.load-path",
+              "title": "受力路径",
+              "summary": "先预测：把载荷移到跨中，哪几根杆会先变红？",
+              "href": "labs/index.html#engineering/load-path"
+            },
+            {
+              "key": "engineering.member-choice",
+              "title": "构件选择",
+              "summary": "先预测：删去 FB 斜杆后，原静力模型还能继续校核吗？",
+              "href": "labs/index.html#engineering/member-choice"
+            },
+            {
+              "key": "engineering.safety-check",
+              "title": "安全校核",
+              "summary": "先预测：提高安全系数后，允许载荷会怎样变化？",
+              "href": "labs/index.html#engineering/safety-check"
+            },
+            {
+              "key": "engineering.robot-arm-ik",
+              "title": "机械臂逆运动学",
+              "summary": "拖动目标点，观察机械臂能否在限位内到达。",
+              "href": "labs/index.html#engineering/robot-arm-ik"
+            }
+          ]
+        },
+        {
+          "id": "data-ai",
+          "title": "数据科学",
+          "summary": "改变模型参数并查看误差，区分“贴近样本”和“可解释”的判断。",
+          "objectives": [
+            "改变模型参数并查看误差，区分“贴近样本”和“可解释”的判断。"
+          ],
+          "activities": [
+            {
+              "key": "datascience.model-fit",
+              "title": "模型拟合",
+              "summary": "先预测：斜率变大时哪些点的误差会增加？",
+              "href": "labs/index.html#datascience/model-fit"
+            },
+            {
+              "key": "datascience.outlier-test",
+              "title": "离群点检验",
+              "summary": "先预测：切换到含离群点的样本会如何拉动拟合线？",
+              "href": "labs/index.html#datascience/outlier-test"
+            },
+            {
+              "key": "datascience.evidence-claim",
+              "title": "证据与主张",
+              "summary": "先预测：切换到温度与销量样本会带来什么不确定性？",
+              "href": "labs/index.html#datascience/evidence-claim"
+            }
+          ]
+        },
+        {
+          "id": "information-technology",
+          "title": "信息技术",
+          "summary": "调节跳数和请求体，沿路径观察分层处理，再判断瓶颈所在。",
+          "objectives": [
+            "调节跳数和请求体，沿路径观察分层处理，再判断瓶颈所在。"
+          ],
+          "activities": [
+            {
+              "key": "infotech.packet-route",
+              "title": "分组路由",
+              "summary": "先预测：增加中继后，请求的到达时间会怎样变化？",
+              "href": "labs/index.html#infotech/packet-route"
+            },
+            {
+              "key": "infotech.layer-contract",
+              "title": "分层约定",
+              "summary": "先预测：更长的消息会影响哪一层的工作？",
+              "href": "labs/index.html#infotech/layer-contract"
+            },
+            {
+              "key": "infotech.fault-trace",
+              "title": "故障追踪",
+              "summary": "先预测：一个节点失效后，包会在哪里停下？",
+              "href": "labs/index.html#infotech/fault-trace"
+            }
+          ]
+        },
+        {
+          "id": "materials-science",
+          "title": "材料微观",
+          "summary": "调节晶粒尺度，观察边界密度与受力方向，再判断微结构方案。",
+          "objectives": [
+            "调节晶粒尺度，观察边界密度与受力方向，再判断微结构方案。"
+          ],
+          "activities": [
+            {
+              "key": "materials.grain-boundary",
+              "title": "晶粒边界",
+              "summary": "先预测：晶粒更细时，边界数量会怎样变化？",
+              "href": "labs/index.html#materials/grain-boundary"
+            },
+            {
+              "key": "materials.defect-path",
+              "title": "缺陷路径",
+              "summary": "先预测：增加缺陷会让裂纹更容易向哪里延伸？",
+              "href": "labs/index.html#materials/defect-path"
+            },
+            {
+              "key": "materials.process-window",
+              "title": "工艺窗口",
+              "summary": "先预测：冷却更快会如何影响组织尺度？",
+              "href": "labs/index.html#materials/process-window"
+            }
+          ]
+        },
+        {
+          "id": "humanities-futures",
+          "title": "人文可视化",
+          "summary": "调整叙事视角与连接强度，观察关系网络，并用证据解释一个判断。",
+          "objectives": [
+            "调整叙事视角与连接强度，观察关系网络，并用证据解释一个判断。"
+          ],
+          "activities": [
+            {
+              "key": "humanities.context-map",
+              "title": "语境地图",
+              "summary": "先预测：提高共现阈值后，哪些主题连接会留下？",
+              "href": "labs/index.html#humanities/context-map"
+            },
+            {
+              "key": "humanities.voice-shift",
+              "title": "视角切换",
+              "summary": "先预测：切换文本材料后，哪些关系会被强调？",
+              "href": "labs/index.html#humanities/voice-shift"
+            },
+            {
+              "key": "humanities.claim-review",
+              "title": "主张审阅",
+              "summary": "先预测：提高证据阈值会留下哪些连接？",
+              "href": "labs/index.html#humanities/claim-review"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

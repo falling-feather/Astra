@@ -1,0 +1,83 @@
+/* 星序 AI 助教：学校统一配置后启用，前端不保存模型密钥。 */
+.ai-tutor-fab {
+    position: fixed;
+    right: 22px;
+    bottom: calc(280px + env(safe-area-inset-bottom, 0px));
+    z-index: 9060;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #cfeeff;
+    border: 1px solid rgba(115, 208, 224, .58);
+    border-radius: 50%;
+    background: linear-gradient(145deg, rgba(20, 70, 86, .92), rgba(10, 26, 43, .96));
+    box-shadow: 0 7px 22px rgba(0, 0, 0, .38), 0 0 22px rgba(85, 203, 222, .16);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity .28s ease, transform .32s cubic-bezier(.34, 1.56, .64, 1), border-color .2s, box-shadow .2s;
+}
+.ai-tutor-fab:hover { border-color: #a1eff5; box-shadow: 0 9px 25px rgba(0,0,0,.42), 0 0 28px rgba(85,203,222,.26); }
+.ai-tutor-fab .icon { width: 20px; height: 20px; }
+body[data-fab-expanded="false"] .ai-tutor-fab {
+    opacity: 0 !important;
+    transform: translateY(20px) scale(.5) !important;
+    pointer-events: none !important;
+}
+body[data-fab-expanded="true"] .ai-tutor-fab { transition-delay: .2s; }
+body[data-fab-collapsing="true"] .ai-tutor-fab { transition-delay: 0s; }
+body[data-fab-expanded="true"] .ai-tutor-fab[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 5px 10px;
+    white-space: nowrap;
+    border: 1px solid rgba(58, 169, 255, .55);
+    border-radius: 6px;
+    color: rgba(212, 232, 255, .95);
+    background: rgba(20, 23, 35, .95);
+    font-size: 12px;
+    pointer-events: none;
+}
+.ai-tutor-fab:focus-visible { outline: 2px solid #3aa9ff; outline-offset: 3px; }
+
+.ai-tutor-panel {
+    position: fixed;
+    right: 78px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    z-index: 9100;
+    width: min(390px, calc(100vw - 32px));
+    height: min(520px, calc(100svh - 112px));
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    border: 1px solid rgba(115, 208, 224, .35);
+    border-radius: 4px;
+    background: linear-gradient(160deg, rgba(8, 22, 38, .98), rgba(5, 12, 24, .985));
+    box-shadow: 0 24px 80px rgba(0,0,0,.58), 0 0 34px rgba(81, 192, 217, .10);
+}
+.ai-tutor-panel[hidden] { display: none; }
+.ai-tutor-panel__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 17px; border-bottom: 1px solid rgba(158,180,207,.14); }
+.ai-tutor-panel__header strong { color: #e5f5fa; font-size: 14px; letter-spacing: .08em; }
+.ai-tutor-panel__header small { display: block; margin-top: 5px; color: #7ea0b0; font-size: 10px; }
+.ai-tutor-panel__close { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; color: #9fb7c5; }
+.ai-tutor-panel__close:hover { color: #e5f5fa; background: rgba(146, 201, 214, .1); }
+.ai-tutor-panel__messages { display: flex; flex-direction: column; gap: 11px; overflow-y: auto; padding: 16px; }
+.ai-tutor-message { max-width: 90%; padding: 10px 12px; border: 1px solid rgba(146, 190, 204, .16); color: #c5d7de; font-size: 12px; line-height: 1.7; white-space: pre-wrap; }
+.ai-tutor-message--assistant { align-self: flex-start; background: rgba(26, 68, 80, .36); }
+.ai-tutor-message--user { align-self: flex-end; border-color: rgba(124, 198, 220, .32); background: rgba(35, 90, 107, .42); color: #e4f5f7; }
+.ai-tutor-message--error { border-color: rgba(219, 138, 138, .42); color: #edb9b9; }
+.ai-tutor-panel__status { min-height: 17px; padding: 0 16px 8px; color: #83bcca; font-size: 10px; }
+.ai-tutor-panel__form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border-top: 1px solid rgba(158,180,207,.14); }
+.ai-tutor-panel__input { min-height: 42px; max-height: 100px; resize: vertical; padding: 10px 11px; border: 1px solid rgba(143,167,194,.27); border-radius: 2px; outline: none; color: #e7eef1; background: rgba(11, 25, 42, .82); font-size: 12px; line-height: 1.5; }
+.ai-tutor-panel__input:focus { border-color: rgba(115, 208, 224, .78); box-shadow: 0 0 0 2px rgba(115, 208, 224, .1); }
+.ai-tutor-panel__send { min-width: 52px; align-self: end; min-height: 42px; border: 1px solid rgba(115, 208, 224, .52); color: #dcf5f6; background: rgba(29, 95, 107, .62); }
+.ai-tutor-panel__send:hover { background: rgba(44, 130, 143, .72); }
+.ai-tutor-panel__send:disabled { opacity: .48; cursor: default; }
+@media (max-width: 768px) {
+    .ai-tutor-fab { right: 18px; bottom: calc(238px + env(safe-area-inset-bottom, 0px)); }
+    .ai-tutor-panel { right: 16px; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 32px); height: min(520px, calc(100svh - 90px)); }
+}

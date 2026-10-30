@@ -1,0 +1,649 @@
+#page-engineering > .frontier-hero[hidden],
+#page-engineering > .engineering-shell[hidden],
+#page-engineering > [data-engineering-view][hidden] {
+    display: none !important;
+}
+
+#page-engineering .engineering-activity-view[data-engineering-view="robot-arm-ik"]:not([hidden]) {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 100vh;
+    padding: clamp(82px, 8vw, 108px) clamp(12px, 3vw, 42px) clamp(28px, 5vw, 64px);
+}
+
+/* This route owns its view directly instead of going through ModuleSelector. */
+#page-engineering .engineering-activity-view[data-engineering-view="robot-arm-ik"]:not([hidden])
+    > .content-section[data-module="robot-arm-ik"] {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+#page-engineering.engineering-page--robot-arm-ik {
+    background:
+        radial-gradient(circle at 74% 10%, rgba(91, 212, 232, 0.09), transparent 30%),
+        #030b13;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik {
+    --robot-arm-accent: var(--accent-cyan, #5bd4e8);
+    --robot-arm-accent-rgb: 91, 212, 232;
+    --robot-arm-green: #68efc9;
+    --robot-arm-gold: #ffd176;
+    --robot-arm-danger: #ff806f;
+    --robot-arm-panel: rgba(6, 18, 29, 0.9);
+    --robot-arm-line: rgba(127, 213, 232, 0.18);
+    width: min(100%, 1480px);
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: clamp(18px, 2.4vw, 30px);
+    color: #edfafd;
+    border: 1px solid rgba(var(--robot-arm-accent-rgb), 0.2);
+    border-radius: clamp(18px, 2vw, 28px);
+    background:
+        radial-gradient(circle at 82% 4%, rgba(255, 202, 104, 0.09), transparent 34%),
+        linear-gradient(145deg, rgba(9, 27, 42, 0.97), rgba(3, 11, 19, 0.98));
+    box-shadow: 0 28px 70px rgba(0, 5, 12, 0.34);
+    overflow: hidden;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik * {
+    box-sizing: border-box;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__back {
+    display: inline-flex;
+    margin: 0 0 12px;
+    color: rgba(184, 235, 244, 0.78);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+    text-decoration: none;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__back:hover {
+    color: #f4fdff;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__eyebrow {
+    margin: 0 0 8px;
+    color: rgba(128, 229, 244, 0.76);
+    font: 700 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__header h2 {
+    margin: 0;
+    color: #f4fdff;
+    font-size: clamp(24px, 3.2vw, 40px);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__subtitle {
+    max-width: 660px;
+    margin: 10px 0 0;
+    color: rgba(220, 241, 246, 0.68);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__state {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 9px 14px;
+    color: #b9fff0;
+    border: 1px solid rgba(104, 239, 201, 0.3);
+    border-radius: 999px;
+    background: rgba(104, 239, 201, 0.09);
+    font: 700 12px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik[data-state="paused"] .astra-exp--robot-arm-ik__state {
+    color: #ffe6ad;
+    border-color: rgba(255, 209, 118, 0.34);
+    background: rgba(255, 209, 118, 0.1);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik[data-state="reduced-motion"] .astra-exp--robot-arm-ik__state {
+    color: #cbd7e6;
+    border-color: rgba(203, 215, 230, 0.25);
+    background: rgba(203, 215, 230, 0.08);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    gap: 18px;
+    align-items: stretch;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage {
+    position: relative;
+    min-width: 0;
+    height: clamp(380px, 58vh, 650px);
+    overflow: hidden;
+    border: 1px solid rgba(var(--robot-arm-accent-rgb), 0.22);
+    border-radius: 20px;
+    background: #06111d;
+    isolation: isolate;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 0 60px rgba(0, 4, 10, 0.42);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__canvas:active {
+    cursor: grabbing;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__telemetry {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
+    left: 16px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 44px;
+    padding: 9px 13px;
+    border: 1px solid rgba(116, 219, 237, 0.2);
+    border-radius: 12px;
+    background: rgba(2, 11, 19, 0.76);
+    box-shadow: 0 10px 26px rgba(0, 4, 10, 0.22);
+    backdrop-filter: blur(10px);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__telemetry > span {
+    flex: 0 0 auto;
+    color: rgba(121, 226, 243, 0.72);
+    font: 700 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+    letter-spacing: 0.09em;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__readout {
+    min-width: 0;
+    color: rgba(240, 252, 255, 0.86);
+    font: 600 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+    text-align: right;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(92px, 1fr));
+    gap: 6px;
+    padding: 7px;
+    border: 1px solid rgba(117, 216, 235, 0.18);
+    border-radius: 14px;
+    background: rgba(2, 11, 19, 0.72);
+    backdrop-filter: blur(10px);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 7px 9px;
+    border-radius: 9px;
+    background: rgba(113, 213, 234, 0.06);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics span {
+    color: rgba(198, 230, 237, 0.52);
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics output {
+    overflow: hidden;
+    color: #eafcff;
+    font: 700 11px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik[data-reach="reachable"] [data-role="reach-state"] {
+    color: var(--robot-arm-green);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik[data-reach="limited"] [data-role="reach-state"] {
+    color: var(--robot-arm-gold);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik[data-reach="outside"] [data-role="reach-state"] {
+    color: var(--robot-arm-danger);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage-hint {
+    position: absolute;
+    top: 84px;
+    left: 18px;
+    z-index: 2;
+    margin: 0;
+    padding: 7px 10px;
+    color: rgba(225, 245, 248, 0.7);
+    border: 1px solid rgba(122, 218, 235, 0.17);
+    border-radius: 9px;
+    background: rgba(2, 11, 19, 0.62);
+    font-size: 11px;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage-hint[hidden] {
+    display: none;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__legend {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px 12px;
+    max-width: min(310px, 48%);
+    margin: 0;
+    padding: 9px 11px;
+    list-style: none;
+    border: 1px solid rgba(118, 215, 234, 0.16);
+    border-radius: 12px;
+    background: rgba(2, 11, 19, 0.67);
+    backdrop-filter: blur(9px);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(220, 241, 246, 0.72);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px currentColor;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__swatch[data-tone="arm"] {
+    color: #69d7ff;
+    background: #69d7ff;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__swatch[data-tone="target"] {
+    color: #62f1d4;
+    background: #62f1d4;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__swatch[data-tone="error"] {
+    color: #ff806f;
+    background: #ff806f;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer {
+    align-self: stretch;
+    min-width: 0;
+    border: 1px solid rgba(var(--robot-arm-accent-rgb), 0.18);
+    border-radius: 18px;
+    background: var(--robot-arm-panel);
+    overflow: hidden;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 52px;
+    padding: 14px 16px;
+    color: rgba(235, 250, 252, 0.88);
+    border-bottom: 1px solid rgba(var(--robot-arm-accent-rgb), 0.13);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    list-style: none;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer > summary::-webkit-details-marker {
+    display: none;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer > summary span:last-child {
+    color: rgba(141, 220, 235, 0.55);
+    font-size: 10px;
+    font-weight: 600;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer:not([open]) .astra-exp--robot-arm-ik__drawer-body {
+    display: none;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer-body {
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    min-width: 0;
+    padding: 18px;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__control-group {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__label-row label {
+    color: rgba(232, 248, 251, 0.82);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__label-row output {
+    color: #aaf5e5;
+    font: 700 11px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+    text-align: right;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__control-group input[type="range"] {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    accent-color: var(--robot-arm-accent);
+    cursor: pointer;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__control-group p {
+    margin: -3px 0 0;
+    color: rgba(195, 223, 229, 0.55);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__preset-group {
+    display: grid;
+    gap: 9px;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__preset-group > span {
+    color: rgba(232, 248, 251, 0.78);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__preset-group > div {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__preset-group button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 6px;
+    color: rgba(218, 241, 246, 0.72);
+    border: 1px solid rgba(116, 212, 232, 0.18);
+    border-radius: 10px;
+    background: rgba(93, 204, 226, 0.055);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__preset-group button:hover {
+    color: #effcff;
+    border-color: rgba(111, 223, 241, 0.42);
+    background: rgba(var(--robot-arm-accent-rgb), 0.12);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__preset-group button[aria-pressed="true"] {
+    color: #baffee;
+    border-color: rgba(104, 239, 201, 0.48);
+    background: rgba(104, 239, 201, 0.12);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__action {
+    min-width: 44px;
+    min-height: 46px;
+    padding: 10px 12px;
+    color: rgba(227, 246, 250, 0.82);
+    border: 1px solid rgba(116, 212, 232, 0.22);
+    border-radius: 11px;
+    background: rgba(99, 204, 226, 0.07);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__action:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(119, 225, 243, 0.48);
+    background: rgba(var(--robot-arm-accent-rgb), 0.13);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__action--primary {
+    color: #05222a;
+    border-color: rgba(112, 235, 217, 0.76);
+    background: linear-gradient(135deg, #61e0eb, #75efc5);
+    box-shadow: 0 10px 22px rgba(50, 207, 213, 0.16);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__action:disabled {
+    color: rgba(218, 232, 237, 0.42);
+    border-color: rgba(180, 204, 212, 0.12);
+    background: rgba(180, 204, 212, 0.05);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__notice {
+    min-height: 46px;
+    margin: 0;
+    padding: 11px 12px;
+    color: rgba(216, 241, 246, 0.7);
+    border: 1px solid rgba(111, 214, 232, 0.14);
+    border-radius: 11px;
+    background: rgba(var(--robot-arm-accent-rgb), 0.055);
+    font-size: 11px;
+    line-height: 1.55;
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__notice[data-tone="warning"] {
+    color: #ffd2ca;
+    border-color: rgba(255, 128, 111, 0.28);
+    background: rgba(255, 128, 111, 0.08);
+}
+
+#page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik :is(button, input, summary, canvas):focus-visible {
+    outline: 3px solid rgba(129, 231, 246, 0.72);
+    outline-offset: 3px;
+}
+
+@media (max-width: 980px) {
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer {
+        align-self: auto;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer-body {
+        grid-template-columns: minmax(0, 1.2fr) minmax(270px, 0.8fr);
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__notice {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 760px) {
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__header {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__state {
+        justify-self: start;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage {
+        height: clamp(470px, 66vh, 560px);
+        border-radius: 15px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics {
+        top: 63px;
+        right: 10px;
+        left: 10px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__legend {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        justify-content: center;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage-hint {
+        top: 121px;
+        left: 12px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__telemetry {
+        right: 10px;
+        bottom: 10px;
+        left: 10px;
+        display: grid;
+        gap: 4px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__readout {
+        text-align: left;
+        white-space: normal;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__notice {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    #page-engineering .engineering-activity-view[data-engineering-view="robot-arm-ik"]:not([hidden]) {
+        padding: 74px 8px 28px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik {
+        width: 100%;
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__header h2 {
+        font-size: 25px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage {
+        height: 500px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics > div {
+        padding: 6px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics span {
+        font-size: 9px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__metrics output {
+        font-size: 10px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__stage-hint {
+        max-width: calc(100% - 24px);
+        font-size: 10px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__drawer-body {
+        padding: 15px;
+    }
+
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik__actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik *,
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik *::before,
+    #page-engineering [data-module="robot-arm-ik"] .astra-exp--robot-arm-ik *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

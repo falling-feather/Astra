@@ -1,0 +1,226 @@
+/* ===== Navigation ===== */
+.navbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    padding: 0;
+    background: var(--navbar-bg);
+    border-bottom: 1px solid var(--border-subtle);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    transition: background var(--duration-slow) ease, border-color var(--duration-slow) ease, box-shadow var(--duration-slow) ease;
+}
+
+.navbar:not(.navbar--transparent) {
+    box-shadow: var(--shadow-sm);
+}
+
+/* Transparent on homepage */
+.navbar--transparent {
+    background: transparent;
+    border-bottom-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* v4.4：星系大屏完全隐藏顶栏（不占据空间，避免遮挡星系导航） */
+.navbar--hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.nav-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 var(--space-6);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 56px;
+}
+
+/* ── Logo ── */
+.nav-logo {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: var(--space-3);
+    text-decoration: none;
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    font-weight: 600;
+    font-family: var(--font-display);
+    white-space: nowrap;
+    transition: opacity var(--duration-fast) ease;
+}
+
+.navbar:not(.navbar--frontier) .nav-container {
+    max-width: 1240px;
+}
+
+.nav-logo:hover {
+    opacity: 0.8;
+}
+
+.navbar .nav-logo--frontier,
+.navbar .nav-menu--frontier {
+    display: none;
+}
+
+.navbar--frontier {
+    background: rgba(6, 9, 16, 0.88);
+    border-bottom-color: rgba(242, 200, 107, 0.18);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.navbar--frontier .nav-logo--englab,
+.navbar--frontier .nav-menu--englab {
+    display: none;
+}
+
+.navbar--frontier .nav-logo--frontier,
+.navbar--frontier .nav-menu--frontier {
+    display: flex;
+}
+
+.navbar--frontier .nav-container {
+    max-width: 1180px;
+}
+
+.navbar--frontier .nav-item.active {
+    color: #f2c86b;
+}
+
+.navbar--frontier .nav-indicator {
+    background: linear-gradient(90deg, #f2c86b, #65e4f0);
+}
+
+.logo-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-blue);
+    border-radius: var(--radius-sm);
+    clip-path: polygon(0 0, 100% 0, 100% 75%, 75% 100%, 0 100%);
+}
+
+.logo-icon--frontier {
+    background: linear-gradient(135deg, #f2c86b, #65e4f0);
+    box-shadow: 0 0 18px rgba(242, 200, 107, 0.22);
+}
+
+.logo-icon i {
+    width: 16px;
+    height: 16px;
+    color: white;
+}
+
+.desktop-only {
+    display: inline;
+}
+
+/* ── Nav Menu ── */
+.nav-menu {
+    display: flex;
+    gap: var(--space-1);
+    position: relative;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    text-decoration: none;
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+    font-weight: 400;
+    white-space: nowrap;
+    border-radius: var(--radius-default);
+    transition: color var(--duration-fast) ease;
+    position: relative;
+}
+
+.nav-item[hidden] {
+    display: none !important;
+}
+
+.nav-item:hover {
+    color: var(--text-primary);
+}
+
+.nav-item.active {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Active indicator (underline) */
+.nav-indicator {
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 2px;
+    background: var(--accent-blue);
+    border-radius: 1px;
+    transition: left var(--duration-slow) var(--ease-out-expo),
+                width var(--duration-slow) var(--ease-out-expo);
+    pointer-events: none;
+}
+
+.nav-item i {
+    width: 16px;
+    height: 16px;
+}
+
+/* v4.4-α6：星系入口 — 蓝色辉光与微旋转图标，作为目录入口的强调 */
+.nav-item--galaxy { color: rgba(58, 169, 255, 0.95); }
+.nav-item--galaxy:hover { color: #3aa9ff; text-shadow: 0 0 10px rgba(58,169,255,0.55); }
+.nav-item--galaxy i {
+    animation: navGalaxyOrbit 9s linear infinite;
+    filter: drop-shadow(0 0 4px rgba(58,169,255,0.5));
+}
+@keyframes navGalaxyOrbit {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nav-item--galaxy i { animation: none; }
+}
+
+/* ── v5.0：theme-toggle 与 theme-fab 已随亮色主题一并移除 ── */
+
+/* ── 通用 FAB 中文提示气泡（v4.2.15） ── */
+.favorite-fab[data-tip]::after,
+.experiment-guide-help-btn[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    padding: 5px 10px;
+    background: rgba(20, 23, 35, 0.95);
+    color: #e5e7eb;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 9001;
+}
+.favorite-fab[data-tip]:hover::after,
+.experiment-guide-help-btn[data-tip]:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+@media (max-width: 768px) {
+    .favorite-fab[data-tip]::after,
+    .experiment-guide-help-btn[data-tip]::after { display: none; }
+}

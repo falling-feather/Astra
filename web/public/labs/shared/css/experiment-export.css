@@ -1,0 +1,147 @@
+/* ===== Experiment Export (E-03) ===== */
+
+/* ── Export Button ── */
+.experiment-export-btn {
+    position: fixed;
+    bottom: 124px;
+    right: 24px;
+    /* v4.2.43 z-index 9060 高于 fab-scrim 9050，并纳入折叠菜单布局 */
+    z-index: 9060;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid var(--border-default, rgba(255,255,255,0.07));
+    border-radius: 50%;
+    color: var(--text-secondary, #8a90a0);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.experiment-export-btn:hover {
+    background: var(--surface-4, #24273a);
+    border-color: var(--accent-green, #4ade80);
+    color: var(--accent-green, #4ade80);
+}
+
+/* v4.3.0：tooltip 气泡（与其他 FAB 风格统一，默认隐藏，由 fab-trigger.css 在展开态显示） */
+.experiment-export-btn[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    padding: 5px 10px;
+    background: rgba(20, 23, 35, 0.95);
+    color: rgba(212, 232, 255, 0.95);
+    border: 1px solid rgba(58, 169, 255, 0.55);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 9101;
+}
+.experiment-export-btn[data-tip]:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+@media (max-width: 768px) {
+    .experiment-export-btn[data-tip]::after { display: none; }
+}
+
+/* ── Export Menu (popup) ── */
+.experiment-export-menu {
+    position: fixed;
+    /* v4.3.0：与新的垂直堆叠中 export 按钮位置对齐（bottom 76px / right 24px + 36 + 8 = 68px） */
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    right: 68px;
+    z-index: 9070;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateX(8px) scale(0.95);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.experiment-export-menu.open {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    pointer-events: auto;
+}
+
+.experiment-export-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-primary, #e2e8f0);
+    font-size: 0.82rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.experiment-export-menu__item:hover {
+    background: var(--surface-4, rgba(255,255,255,0.06));
+}
+
+.experiment-export-menu__item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+/* ── Toast notification ── */
+.export-toast {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 10001;
+    padding: 10px 22px;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+    border-radius: 8px;
+    color: var(--text-primary, #e2e8f0);
+    font-size: 0.85rem;
+    font-family: var(--font-sans, system-ui, sans-serif);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.export-toast--visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .experiment-export-btn {
+        bottom: 114px;
+        right: 16px;
+        width: 32px;
+        height: 32px;
+    }
+
+    .experiment-export-menu {
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+        right: 56px;
+    }
+}

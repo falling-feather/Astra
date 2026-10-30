@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "subject": "engineering",
+  "id": "robot-arm-ik",
+  "alt": "三连杆机械臂在关节限位弧内追踪青色目标点，并以虚线显示末端残差",
+  "poster": {
+    "path": "pages/engineering/robot-arm-ik/preview.webp",
+    "width": 1600,
+    "height": 900,
+    "bytes": 27740,
+    "sha256": "6baca743c89c1465347445482bbd75b857d3eeae234d5eaceccc31de574a90fa"
+  },
+  "motion": null,
+  "reduced_motion": "poster",
+  "source": {
+    "method": "browser-capture",
+    "route": "#engineering/robot-arm-ik",
+    "selector": "[data-module=\"robot-arm-ik\"] [data-role=\"stage\"]",
+    "viewport": { "width": 1600, "height": 900 },
+    "captured_by": "主开发与工程内容复核角色",
+    "captured_on": "2026-08-24",
+    "rights": "project-original",
+    "source_files": [
+      "pages/engineering/robot-arm-ik/module.html",
+      "pages/engineering/robot-arm-ik/index.js",
+      "pages/engineering/robot-arm-ik/styles.css"
+    ]
+  },
+  "content": {
+    "shows_interaction_result": true,
+    "decorative_only": false,
+    "old_activity_source": false,
+    "embedded_title": false
+  }
+}

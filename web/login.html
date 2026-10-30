@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#05101f" />
+    <meta name="description" content="登录星序 Astra，继续探索。" />
+    <title>欢迎回来 · 星序 Astra</title>
+    <link rel="icon" href="./star.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="./assets/login/deep-space.png" />
+    <link rel="stylesheet" href="./src/login/style.css" />
+    <link rel="stylesheet" href="./src/shared/entry-transition.css" />
+  </head>
+  <body>
+    <div class="space-backdrop" aria-hidden="true"></div>
+    <div id="celestial-scene" class="visual-stage" aria-hidden="true"></div>
+    <header class="brand-header">
+      <a class="brand" href="./index.html" aria-label="星序 Astra，返回镜湖首页">
+        <img src="./assets/brand.png" alt="星序 Astra" width="230" height="138" />
+      </a>
+    </header>
+
+    <main class="login-layout">
+      <div class="login-surface">
+      <section class="login-panel" aria-labelledby="welcome-title">
+        <svg class="instrument-frame" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path class="frame-outer" d="M0 285V75L75 0H490 M720 0H875L910 25H1000V300 M1000 650V890L890 1000H595 M355 1000H0V750"/>
+          <path class="frame-inner" d="M24 217V94L95 25H608 M975 210V874L874 975H695 M264 975H24V860"/>
+          <path class="frame-accent" d="M75 0H270 M1000 721V890L890 1000H808"/>
+          <path class="frame-marker" d="M0 390V473 M0 492V513 M734 25H820"/>
+        </svg>
+        <span class="panel-glint panel-glint--top" aria-hidden="true"></span>
+        <span class="panel-glint panel-glint--bottom" aria-hidden="true"></span>
+        <div class="panel-content">
+          <h1 id="welcome-title">欢迎回来</h1>
+          <p class="welcome-copy">登录星序，继续探索</p>
+
+          <form id="login-form" novalidate>
+            <div class="form-field">
+              <label for="identifier">邮箱 / 用户名</label>
+              <div class="input-shell">
+                <svg class="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="7.25" r="4"/><path d="M3.75 21v-1.5a8.25 8.25 0 0 1 16.5 0V21H3.75Z"/></svg>
+                <input id="identifier" name="identifier" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="请输入邮箱或用户名" aria-describedby="identifier-error" required />
+              </div>
+              <p id="identifier-error" class="field-error" aria-live="polite" hidden></p>
+            </div>
+
+            <div class="form-field">
+              <label for="password">密码</label>
+              <div class="input-shell">
+                <svg class="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="10" width="15" height="12" rx="1.5"/><path d="M7.5 10V6.5a4.5 4.5 0 0 1 9 0V10"/><path d="M12 15v3"/><circle cx="12" cy="14.5" r=".65" fill="currentColor" stroke="none"/></svg>
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" aria-describedby="password-error" required />
+                <button class="password-toggle" id="toggle-password" type="button" aria-label="显示密码" aria-pressed="false" aria-controls="password">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.7-6.5 10-6.5S22 12 22 12s-3.7 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/><path class="eye-slash" d="m4 3 16 18"/></svg>
+                </button>
+              </div>
+              <p id="password-error" class="field-error" aria-live="polite" hidden></p>
+            </div>
+
+            <div class="form-options">
+              <label class="remember-control" title="仅记住账号，不保存密码"><input id="remember" type="checkbox" name="remember" aria-description="仅记住账号，不保存密码" /><span class="checkbox-art" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="m4.5 10 3.5 3.5 7.5-8"/></svg></span><span>记住我</span></label>
+              <button type="button" class="text-button" id="forgot-password">忘记密码？</button>
+            </div>
+
+            <p id="form-status" class="form-status" role="status" aria-live="polite" hidden></p>
+            <button class="login-button" id="sign-in" type="submit"><span class="button-spinner" aria-hidden="true"></span><span id="sign-in-label">登录</span><svg class="success-check" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"/></svg></button>
+          </form>
+
+          <p class="register-copy">还没有账号？ <button type="button" class="text-button" id="register">注册</button></p>
+        </div>
+      </section>
+      <p class="demo-note">交互演示 · 任意非空账号和密码即可体验</p>
+      </div>
+    </main>
+
+    <footer class="page-tools">
+      <a href="./index.html" class="back-link"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>返回镜湖</a>
+      <button type="button" id="motion-toggle" class="motion-button" aria-label="暂停动效" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path class="pause-icon" d="M6.5 4.5v11m7-11v11"/><path class="play-icon" d="m6.5 4.5 9 5.5-9 5.5V4.5Z"/></svg><span id="motion-label">暂停动效</span></button>
+      <p id="scene-notice" role="status" hidden></p>
+    </footer>
+
+    <dialog id="account-dialog" aria-labelledby="account-dialog-title" aria-describedby="account-dialog-copy">
+      <form method="dialog" class="dialog-dismiss"><button class="dialog-close" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></form>
+      <h2 id="account-dialog-title"></h2>
+      <p id="account-dialog-copy"></p>
+      <div id="dialog-detail"></div>
+      <button id="dialog-action" class="login-button" type="button"></button>
+      <form method="dialog" class="dialog-return"><button class="text-button">返回登录</button></form>
+    </dialog>
+    <noscript><p class="no-script">请启用 JavaScript 以使用星序登录表单。</p></noscript>
+    <script type="module" src="./src/login/main.js"></script>
+  </body>
+</html>

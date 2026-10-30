@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#061025" />
+    <meta name="description" content="从镜湖出发，登录星序 Astra，进入交互学习星空。" />
+    <title>星序 Astra · 镜湖星途</title>
+    <link rel="icon" type="image/svg+xml" href="/star.svg" />
+    <link rel="preload" as="image" href="/assets/atmosphere.png" />
+    <link rel="stylesheet" href="./src/shared/entry-transition.css" />
+  </head>
+  <body>
+    <main id="experience" aria-label="星序：孩子静立在镜湖上的动态星空">
+      <div id="scene" aria-hidden="true"></div>
+      <div class="entry-shade" aria-hidden="true"></div>
+      <header class="brand">
+        <h1 class="sr-only">星序 Astra</h1>
+        <img src="/assets/brand.png" alt="星序 Astra" width="1774" height="887" draggable="false" />
+      </header>
+      <a id="enter-gateway" class="enter-gateway" href="./login.html" aria-label="点击以进入星序账号登录">
+        <span class="enter-prompt">
+          <span class="enter-label">点击以进入</span>
+          <span class="enter-destination" aria-hidden="true">账号登录 <span>→</span></span>
+        </span>
+      </a>
+      <footer class="entry-footer">
+      <details id="ambience" class="ambience">
+        <summary><span>景观</span><span class="ambience-divider" aria-hidden="true">/</span><span id="ambience-label">镜湖</span><span class="ambience-chevron" aria-hidden="true">⌃</span></summary>
+        <nav class="scene-controls" aria-label="选择天空场景">
+          <button type="button" data-scene="0" aria-pressed="true"><span class="scene-number">01</span><span>镜湖</span><span class="track"><i></i></span></button>
+          <button type="button" data-scene="1" aria-pressed="false"><span class="scene-number">02</span><span>星火</span><span class="track"><i></i></span></button>
+          <button type="button" data-scene="2" aria-pressed="false"><span class="scene-number">03</span><span>极光</span><span class="track"><i></i></span></button>
+        </nav>
+      </details>
+      <div class="tools" role="group" aria-label="画面控制">
+        <button id="pause" class="icon-button" type="button" aria-label="暂停动效" title="暂停动效 · 空格">
+          <svg class="pause-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="play-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 5 10 7-10 7V5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="fullscreen" class="icon-button" type="button" aria-label="全屏欣赏" title="全屏欣赏 · F">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      </footer>
+      <p id="scene-status" class="sr-only" aria-live="polite">当前场景：镜湖</p>
+      <div id="loading" role="status"><span class="loading-star">✦</span><span id="loading-text">群星正在归位</span></div>
+      <div id="error" hidden role="alert"><p></p><button type="button" onclick="location.reload()">重新加载</button></div>
+    </main>
+    <noscript>请启用 JavaScript 以观看星序的动态星空。</noscript>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+# Audited runtime assets are verified byte-for-byte against vendor/manifest.json.
+# Keep upstream bytes stable and keep audited third-party payloads out of textual
+# whitespace/diff rewrites; manifest hashes remain the source of truth.
+vendor/** -text -diff
+vendor/manifest.json text eol=lf diff

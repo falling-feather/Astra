@@ -1,0 +1,7 @@
+/* Entry presentation never delays or intercepts the native account-navigation link. */
+@keyframes astra-entry-reveal { from { opacity: 0; } to { opacity: 1; } }
+.brand { animation: astra-entry-reveal .45s ease-out both; }
+.login-surface { animation: astra-entry-reveal .3s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .brand, .login-surface { animation: none; }
+}

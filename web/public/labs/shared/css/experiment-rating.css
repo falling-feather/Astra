@@ -1,0 +1,105 @@
+/* ===== Experiment Rating Card ===== */
+
+.rating-card {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.rating-card--visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.rating-card__label {
+    color: var(--text-secondary, #8a90a0);
+    font-size: 0.82rem;
+    font-family: var(--font-sans, system-ui, sans-serif);
+    white-space: nowrap;
+}
+
+.rating-card__stars {
+    display: flex;
+    gap: 4px;
+}
+
+.rating-star {
+    color: var(--text-muted, #555a6e);
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.15s ease;
+    display: flex;
+    align-items: center;
+}
+.rating-star:hover {
+    transform: scale(1.15);
+}
+.rating-star--filled {
+    color: var(--accent-yellow, #facc15);
+}
+
+.rating-card__close {
+    background: none;
+    border: none;
+    color: var(--text-muted, #555a6e);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 0 0 4px;
+    line-height: 1;
+    transition: color 0.15s ease;
+}
+.rating-card__close:hover {
+    color: var(--text-primary, #e2e8f0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .rating-card {
+        bottom: max(16px, env(safe-area-inset-bottom, 16px));
+        left: 16px;
+        right: 16px;
+        justify-content: center;
+    }
+
+}
+
+/*
+ * mechanics 的评分能力属于实验内容而非视口浮层。运行 owner 将卡片插入
+ * 力学 demo 文档流；真实占位保证页面滚动时不会覆盖教学控件或模块导航。
+ */
+.rating-card--mechanics-inline {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    width: fit-content;
+    margin: 0 auto var(--space-4, 16px);
+}
+
+.rating-star:focus-visible,
+.rating-card__close:focus-visible {
+    outline: 2px solid var(--accent-blue, #5b8dce);
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rating-card,
+    .rating-star,
+    .rating-card__close {
+        transition-duration: 0.01ms !important;
+    }
+}

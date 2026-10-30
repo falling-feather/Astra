@@ -1,0 +1,25 @@
+{
+  "directory": "D:\\代码玩具测试\\工科实验室",
+  "commit": "82b9430a5cb5f6e6139bbf54f7ca03c1940a8aec",
+  "importedAt": "2026-10-20T09:14:11.749Z",
+  "activities": 127,
+  "spaces": [
+    {
+      "key": "englab",
+      "groups": 5,
+      "activities": 90
+    },
+    {
+      "key": "code-space",
+      "groups": 6,
+      "activities": 18
+    },
+    {
+      "key": "future-galaxy",
+      "groups": 6,
+      "activities": 19
+    }
+  ],
+  "files": 247,
+  "bytes": 9963830
+}

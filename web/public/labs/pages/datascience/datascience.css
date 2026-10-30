@@ -1,0 +1,441 @@
+/* ===== Data Science & AI ===== */
+
+.datascience-page {
+    --frontier-accent: #8aa7ff;
+    --frontier-accent-rgb: 138, 167, 255;
+}
+
+.datascience-page .frontier-hero {
+    display: grid !important;
+}
+
+.datascience-page .frontier-hero__label--data {
+    color: #8aa7ff;
+}
+
+.datascience-page .frontier-hero__canvas {
+    opacity: 0.96;
+}
+
+.datascience-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-8) var(--space-16);
+}
+
+.datascience-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.88fr);
+    gap: var(--space-5);
+    margin-bottom: var(--space-8);
+}
+
+.datascience-overview__copy,
+.datascience-overview__metric,
+.datascience-model-map,
+.datascience-lab,
+.datascience-interpretation,
+.datascience-reference {
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-default);
+    background: linear-gradient(180deg, rgba(138,167,255,0.035), rgba(255,255,255,0.01)), var(--surface-1);
+}
+
+.datascience-overview__copy {
+    padding: var(--space-6);
+}
+
+.datascience-overview__copy h2,
+.datascience-model-map__header h2,
+.datascience-interpretation__header h2,
+.datascience-reference h2 {
+    margin: 0 0 var(--space-3);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    line-height: 1.2;
+}
+
+.datascience-overview__copy p,
+.datascience-model-map__header p,
+.datascience-model-card p,
+.datascience-interpretation__header p,
+.datascience-interpretation__item p,
+.datascience-reference p,
+.datascience-note p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.datascience-overview__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.datascience-overview__metric {
+    min-height: 116px;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.datascience-overview__metric span,
+.datascience-model-card span,
+.datascience-lab__eyebrow,
+.datascience-interpretation__eyebrow,
+.datascience-interpretation__item span,
+.datascience-reference__eyebrow,
+.datascience-panel__label {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.datascience-overview__metric strong {
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    line-height: 1.25;
+}
+
+.datascience-model-map {
+    padding: var(--space-5);
+    margin-bottom: var(--space-8);
+}
+
+.datascience-model-map__header {
+    max-width: 860px;
+    margin-bottom: var(--space-5);
+}
+
+.datascience-model-map__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+.datascience-model-card {
+    position: relative;
+    min-height: 206px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.012)),
+        rgba(255,255,255,0.018);
+    overflow: hidden;
+}
+
+.datascience-model-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(180deg, #8aa7ff, #43d6b0 58%, #f2c86b);
+    opacity: 0.82;
+}
+
+.datascience-model-card span {
+    display: inline-block;
+    margin-bottom: var(--space-4);
+    color: rgba(138,167,255,0.96);
+}
+
+.datascience-model-card h3 {
+    margin: 0 0 var(--space-3);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    line-height: 1.35;
+}
+
+.datascience-model-card p {
+    font-size: var(--text-sm);
+}
+
+.datascience-lab {
+    padding: var(--space-5);
+    margin-bottom: var(--space-8);
+}
+
+.datascience-lab__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+}
+
+.datascience-lab__header h2 {
+    margin: var(--space-2) 0 var(--space-2);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+}
+
+.datascience-lab__header p {
+    max-width: 720px;
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+
+.datascience-lab__badge {
+    flex: 0 0 auto;
+    border: 1px solid rgba(138,167,255,0.32);
+    border-radius: var(--radius-default);
+    padding: 8px 10px;
+    color: #8aa7ff;
+    background: rgba(138,167,255,0.08);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+}
+
+.regression-workbench {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: var(--space-5);
+}
+
+.regression-controls,
+.regression-info {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.regression-control {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background: rgba(255,255,255,0.018);
+}
+
+.regression-control label {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.regression-control strong {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+.regression-control input[type="range"] {
+    width: 100%;
+    accent-color: #8aa7ff;
+}
+
+.regression-presets,
+.regression-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.regression-presets button,
+.regression-actions button {
+    min-height: 38px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color var(--duration-normal), color var(--duration-normal), background var(--duration-normal);
+}
+
+.regression-presets button:hover,
+.regression-presets button.is-active,
+.regression-actions button:hover {
+    color: var(--text-primary);
+    border-color: rgba(138,167,255,0.45);
+    background: rgba(138,167,255,0.09);
+}
+
+.regression-canvas-wrap {
+    min-height: 540px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    background:
+        radial-gradient(circle at 16% 20%, rgba(67,214,176,0.1), transparent 26%),
+        radial-gradient(circle at 82% 12%, rgba(138,167,255,0.12), transparent 34%),
+        rgba(0,0,0,0.14);
+    overflow: hidden;
+}
+
+#linear-regression-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 540px;
+}
+
+.regression-info {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.datascience-panel {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background: rgba(255,255,255,0.018);
+}
+
+.datascience-panel strong {
+    display: block;
+    margin-top: var(--space-2);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    line-height: 1.35;
+}
+
+.datascience-panel p {
+    margin: var(--space-2) 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+}
+
+.datascience-note {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: var(--space-3);
+    align-items: start;
+    margin-top: var(--space-5);
+    padding: var(--space-4);
+    border-left: 3px solid #8aa7ff;
+    background: rgba(138,167,255,0.055);
+}
+
+.datascience-note i {
+    width: 20px;
+    height: 20px;
+    color: #8aa7ff;
+}
+
+.datascience-interpretation {
+    padding: var(--space-6);
+    margin-bottom: var(--space-8);
+}
+
+.datascience-interpretation__header {
+    max-width: 850px;
+    margin-bottom: var(--space-5);
+}
+
+.datascience-interpretation__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+.datascience-interpretation__item {
+    min-height: 226px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-default);
+    padding: var(--space-4);
+    background: rgba(255,255,255,0.018);
+}
+
+.datascience-interpretation__item span {
+    display: inline-block;
+    margin-bottom: var(--space-4);
+    color: rgba(138,167,255,0.96);
+}
+
+.datascience-interpretation__item h3 {
+    margin: 0 0 var(--space-3);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    line-height: 1.35;
+}
+
+.datascience-interpretation__item p {
+    font-size: var(--text-sm);
+    line-height: 1.65;
+}
+
+.datascience-reference {
+    padding: var(--space-6);
+}
+
+.datascience-reference__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.datascience-reference__links a {
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    padding: 7px 10px;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.025);
+    font-size: var(--text-xs);
+    text-decoration: none;
+}
+
+.datascience-reference__links a:hover,
+.datascience-reference__links a:focus-visible {
+    color: var(--text-primary);
+    border-color: rgba(138,167,255,0.45);
+}
+
+@media (max-width: 980px) {
+    .datascience-overview,
+    .regression-workbench {
+        grid-template-columns: 1fr;
+    }
+
+    .regression-info {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .datascience-model-map__grid,
+    .datascience-interpretation__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .datascience-shell {
+        padding: var(--space-5) var(--space-4) var(--space-10);
+    }
+
+    .datascience-overview__metrics,
+    .datascience-model-map__grid,
+    .regression-info,
+    .regression-presets,
+    .regression-actions,
+    .datascience-interpretation__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .datascience-lab,
+    .datascience-model-map,
+    .datascience-interpretation {
+        padding: var(--space-4);
+    }
+
+    .datascience-lab__header {
+        flex-direction: column;
+    }
+
+    .regression-canvas-wrap,
+    #linear-regression-canvas {
+        min-height: 420px;
+    }
+}

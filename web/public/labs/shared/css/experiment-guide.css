@@ -1,0 +1,230 @@
+/* ===== Experiment Guide Overlay ===== */
+
+.experiment-guide-overlay {
+    position: fixed;
+    inset: 0;
+    /* v4.2.43 z-index 9060 高于 fab-scrim 9050 */
+    z-index: 9060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.experiment-guide-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.guide-card {
+    background: var(--surface-2, #151822);
+    border: 1px solid var(--border-default, rgba(255,255,255,0.07));
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    max-width: 480px;
+    width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    transform: translateY(20px) scale(0.96);
+    transition: transform 0.3s ease;
+}
+
+.experiment-guide-overlay.active .guide-card {
+    transform: translateY(0) scale(1);
+}
+
+.guide-card__header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.guide-card__title {
+    font-family: var(--font-display);
+    font-size: var(--text-lg, 1.25rem);
+    font-weight: 600;
+    color: var(--text-primary, #d8dce6);
+    margin-bottom: 0.4rem;
+}
+
+.guide-card__subtitle {
+    font-size: var(--text-xs, 0.8rem);
+    color: var(--text-tertiary, #5a5f70);
+}
+
+.guide-card__steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-bottom: 1.75rem;
+}
+
+.guide-step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    background: var(--surface-3, #1c1f2e);
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.04));
+    transition: border-color 0.2s ease;
+}
+
+.guide-step:hover {
+    border-color: var(--border-hover, rgba(255,255,255,0.12));
+}
+
+.guide-step__number {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-blue-wash, rgba(91,141,206,0.08));
+    color: var(--accent-blue, #5b8dce);
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 50%;
+}
+
+.guide-step__icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    color: var(--text-secondary, #8a90a0);
+}
+
+.guide-step__icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.guide-step__text {
+    font-size: var(--text-sm, 0.875rem);
+    color: var(--text-primary, #d8dce6);
+    line-height: 1.4;
+}
+
+.guide-dismiss-btn {
+    display: block;
+    width: 100%;
+    padding: 0.7rem 1.5rem;
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: 500;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent-blue, #5b8dce);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.guide-dismiss-btn:hover {
+    background: #6d9ed8;
+    transform: translateY(-1px);
+}
+
+.guide-dismiss-btn:active {
+    transform: translateY(0);
+}
+
+/* ── Help Button ("?") ── */
+
+.experiment-guide-help-btn {
+    position: fixed;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    right: 24px;
+    z-index: 9060;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3, #1c1f2e);
+    border: 1px solid rgba(91, 141, 206, 0.3);
+    border-radius: 50%;
+    color: rgba(91, 141, 206, 0.75);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: guide-help-pulse 3s ease-in-out infinite;
+    animation-delay: 0s;
+}
+
+@keyframes guide-help-pulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(91, 141, 206, 0.0); }
+    50%      { box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 14px 2px rgba(91, 141, 206, 0.3); }
+}
+
+.experiment-guide-help-btn:hover {
+    background: var(--surface-4, #24273a);
+    border-color: var(--accent-blue, #5b8dce);
+    color: var(--accent-blue, #5b8dce);
+    box-shadow: 0 4px 16px rgba(91, 141, 206, 0.45);
+    animation: none;
+}
+
+/* ── 点击水波 ripple（v4.2.16）── */
+.experiment-guide-help-btn.is-rippling::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: rgba(91, 141, 206, 0.45);
+    pointer-events: none;
+    animation: fab-ripple-blue 0.55s ease-out forwards;
+}
+@keyframes fab-ripple-blue {
+    0%   { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+/* v4.2.18：tooltip 边框跟随蓝色 */
+.experiment-guide-help-btn[data-tip]::after {
+    border-color: rgba(91, 141, 206, 0.55);
+    color: rgba(199, 218, 240, 0.95);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 768px) {
+    .guide-card {
+        padding: 1.5rem 1.25rem;
+        max-width: 95vw;
+    }
+
+    .guide-step {
+        padding: 0.5rem 0.65rem;
+        gap: 0.5rem;
+    }
+
+    .experiment-guide-help-btn {
+        bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        width: 36px;
+        height: 36px;
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .guide-card {
+        padding: 1.25rem 1rem;
+        width: 96vw;
+        max-height: 88vh;
+    }
+    .guide-card__title {
+        font-size: 1.05rem;
+    }
+    .guide-step__text {
+        font-size: 0.82rem;
+    }
+}

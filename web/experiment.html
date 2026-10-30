@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071321" />
+    <title>实验探索 · 星序 Astra</title>
+    <link rel="icon" href="./star.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <main class="experiment-layout">
+      <section class="experiment-stage" aria-label="实验工作区">
+        <p id="experiment-load-status" class="experiment-load-status" role="status">正在载入实验…</p>
+        <div id="experiment-error" class="experiment-error" hidden><h1>没有找到这项实验</h1><p>请返回观星页，从课程目录重新选择。</p><a href="./observatory.html">返回观星页 →</a></div>
+        <iframe id="experiment-frame" title="实验工作区" allow="fullscreen" sandbox="allow-scripts allow-same-origin allow-downloads allow-modals" referrerpolicy="same-origin" hidden></iframe>
+      </section>
+    </main>
+    <script type="module" src="/src/experiments/main.js"></script>
+  </body>
+</html>

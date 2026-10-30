@@ -1,0 +1,1748 @@
+/* ===== Periodic Table ===== */
+
+/* 搜索框 */
+.pt-search-wrap {
+    position: relative;
+    margin-bottom: var(--space-3);
+    max-width: 320px;
+}
+
+.pt-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.pt-search-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.pt-search-input:focus {
+    border-color: var(--accent-blue, #3b82f6);
+}
+
+.pt-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 50;
+    display: none;
+}
+
+.pt-search-results.active {
+    display: block;
+}
+
+.pt-search-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    transition: background 0.1s;
+}
+
+.pt-search-item:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-primary);
+}
+
+.pt-search-item .pt-sr-num {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    min-width: 24px;
+}
+
+.pt-search-item .pt-sr-sym {
+    font-weight: 700;
+    min-width: 28px;
+}
+
+.pt-element.pt-search-match {
+    box-shadow: 0 0 0 2px var(--accent-blue, #3b82f6);
+    z-index: 5;
+}
+
+.pt-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--space-4);
+}
+
+#periodic-table-grid {
+    display: grid;
+    grid-template-columns: repeat(18, minmax(48px, 1fr));
+    gap: 2px;
+    min-width: 700px;
+}
+
+.pt-cell {
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    position: relative;
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+}
+
+.pt-empty {
+    visibility: hidden;
+}
+
+.pt-spacer {
+    height: 8px;
+}
+
+/* 元素格子 */
+.pt-element {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--el-color, rgba(255,255,255,0.08));
+    cursor: pointer;
+    user-select: none;
+}
+
+.pt-element:hover {
+    transform: scale(1.15);
+    z-index: 10;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--el-color) 40%, transparent);
+    background: color-mix(in srgb, var(--el-color) 12%, transparent);
+}
+
+.pt-element.pt-dim {
+    opacity: 0.15;
+}
+
+.pt-number {
+    font-size: 8px;
+    color: var(--text-tertiary);
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-family: var(--font-mono);
+}
+
+.pt-symbol {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--el-color, var(--text-primary));
+    line-height: 1;
+}
+
+.pt-name {
+    font-size: 9px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+}
+
+/* 镧系/锕系占位符 */
+.pt-placeholder {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.08);
+    cursor: default;
+}
+
+.pt-placeholder .pt-symbol {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+}
+
+/* 图例 */
+.pt-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.pt-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.pt-legend-item:hover {
+    color: var(--text-primary);
+}
+
+.pt-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* 详情面板 - 遮罩层 */
+.pt-detail-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0,0,0,0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s 0.3s;
+}
+.pt-detail-overlay.active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0s;
+}
+
+/* 详情面板 */
+.pt-detail {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    width: min(400px, calc(100vw - 32px));
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-6);
+    z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0s 0.3s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    visibility: hidden;
+    opacity: 0;
+}
+
+.pt-detail.active {
+    transform: translate(-50%, -50%) scale(1);
+    visibility: visible;
+    opacity: 1;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0s;
+}
+
+.pt-detail-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.pt-detail-big {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 72px;
+}
+
+.pt-detail-number {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+}
+
+.pt-detail-symbol {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.pt-detail-name {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.pt-detail-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.pt-detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-sm);
+}
+
+.pt-detail-row .label {
+    color: var(--text-tertiary);
+}
+
+.pt-detail-row .value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.pt-detail-cat {
+    font-weight: 600;
+}
+
+.pt-detail-config {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-0);
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+
+.pt-detail-close {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px;
+}
+.pt-detail-close:hover {
+    color: var(--text-primary);
+}
+
+/* Periodic table education panel */
+.pt-edu-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(77,158,126,.06); border:1px solid rgba(77,158,126,.12); font-size:.85rem; line-height:1.65; }
+.pt-edu-info .chem-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.pt-edu-info .chem-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(77,158,126,.18); color:rgba(77,158,126,.9); }
+.pt-edu-info .chem-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.pt-edu-info .chem-key { flex-shrink:0; font-weight:600; color:rgba(77,158,126,.85); }
+.pt-edu-info .chem-key--purple { color:rgba(139,111,192,.85); }
+.pt-edu-info .chem-key--amber { color:rgba(229,192,123,.85); }
+.pt-edu-info .chem-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(77,158,126,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* 响应式 */
+@media (max-width: 768px) {
+    #periodic-table-grid {
+        grid-template-columns: repeat(18, minmax(36px, 1fr));
+        gap: 1px;
+    }
+    .pt-symbol { font-size: 11px; }
+    .pt-name { font-size: 7px; }
+    .pt-number { font-size: 6px; }
+}
+
+@media (max-width: 480px) {
+    #periodic-table-grid {
+        grid-template-columns: repeat(18, minmax(28px, 1fr));
+    }
+    .pt-name { display: none; }
+    .pt-symbol { font-size: 10px; }
+}
+
+/* ===== Molecular Structure ===== */
+.mol-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.mol-select-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mol-select-btn:hover { border-color: var(--accent-green); color: #fff; }
+.mol-select-btn.active {
+    background: rgba(77,158,126,0.15);
+    border-color: var(--accent-green);
+    color: #fff;
+}
+
+.mol-canvas-wrap {
+    position: relative;
+    background: #0d1017;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.mol-canvas {
+    display: block;
+    width: 100%;
+    cursor: grab;
+}
+
+.mol-canvas:active { cursor: grabbing; }
+
+.mol-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.mol-hint {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.35);
+}
+
+#mol-info {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.mol-info-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.mol-info-desc {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 8px;
+}
+
+.mol-info-row {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.8);
+}
+
+.mol-info-label {
+    color: rgba(255,255,255,0.5);
+    min-width: 50px;
+}
+
+.mol-atom-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+/* ===== 键参数表（v4.5.0-α4） ===== */
+.mol-bondparams {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md, 8px);
+    background: rgba(100, 200, 255, 0.05);
+    border: 1px solid rgba(100, 200, 255, 0.14);
+}
+.mol-bondparams__title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.mol-bondparams__sub {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.4);
+}
+.mol-bondparams__tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.78);
+}
+.mol-bondparams__tbl th,
+.mol-bondparams__tbl td {
+    padding: 4px 6px;
+    text-align: left;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.mol-bondparams__tbl th {
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.74rem;
+}
+.mol-bondparams__tbl tr:last-child td { border-bottom: none; }
+.mol-bondparams__bond {
+    font-family: 'JetBrains Mono', var(--font-mono, monospace);
+    font-weight: 600;
+    color: rgba(100, 200, 255, 0.95);
+}
+.mol-bondparams__type {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.74rem;
+}
+.mol-bondparams__hint {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(100, 200, 255, 0.1);
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+
+/* ===== 同族对比表（v4.5.0-α5：H₂S vs H₂O 等） ===== */
+.mol-compare {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md, 8px);
+    background: rgba(229, 192, 123, 0.06);
+    border: 1px solid rgba(229, 192, 123, 0.18);
+}
+.mol-compare__title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin-bottom: 6px;
+}
+.mol-compare__title b {
+    color: rgba(229, 192, 123, 0.95);
+    font-weight: 700;
+}
+.mol-compare__sub {
+    font-size: 0.74rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.4);
+}
+.mol-compare__tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.82);
+}
+.mol-compare__tbl th,
+.mol-compare__tbl td {
+    padding: 4px 8px;
+    text-align: left;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.mol-compare__tbl th {
+    font-weight: 600;
+    color: rgba(229, 192, 123, 0.85);
+    font-size: 0.78rem;
+}
+.mol-compare__tbl td:first-child {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.78rem;
+    width: 32%;
+}
+.mol-compare__tbl tr:last-child td { border-bottom: none; }
+.mol-compare__hint {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(229, 192, 123, 0.15);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+@media (max-width: 768px) {
+    .mol-compare { padding: 8px 10px; }
+    .mol-compare__tbl { font-size: 0.74rem; }
+    .mol-compare__tbl th,
+    .mol-compare__tbl td { padding: 3px 5px; }
+}
+
+@media (max-width: 768px) {
+    .mol-bondparams { padding: 8px 10px; }
+    .mol-bondparams__tbl { font-size: 0.74rem; }
+    .mol-bondparams__tbl th,
+    .mol-bondparams__tbl td { padding: 3px 4px; }
+    .mol-bondparams__type { font-size: 0.7rem; }
+}
+
+.mol-edu { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(77,158,126,.06); border:1px solid rgba(77,158,126,.12); font-size:.85rem; line-height:1.65; }
+.mol-edu .chem-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.mol-edu .chem-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(77,158,126,.18); color:rgba(77,158,126,.9); }
+.mol-edu .chem-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.mol-edu .chem-key { flex-shrink:0; font-weight:600; color:rgba(77,158,126,.85); min-width:80px; }
+.mol-edu .chem-key--purple { color:rgba(139,111,192,.85); }
+.mol-edu .chem-key--amber { color:rgba(229,192,123,.85); }
+.mol-edu .chem-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(77,158,126,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+@media (max-width: 768px) {
+    .mol-controls { gap: 6px; }
+    .mol-select-btn { padding: 5px 10px; font-size: 0.78rem; }
+}
+
+/* ===== Chemical Reactions ===== */
+.rxn-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.rxn-select-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.rxn-select-btn:hover { border-color: var(--accent-green); color: #fff; }
+.rxn-select-btn.active {
+    background: rgba(77,158,126,0.15);
+    border-color: var(--accent-green);
+    color: #fff;
+}
+
+.rxn-canvas-wrap {
+    position: relative;
+    background: #0d1017;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.rxn-canvas {
+    display: block;
+    width: 100%;
+}
+
+.rxn-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.rxn-speed {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.5);
+}
+
+.rxn-speed input[type="range"] { width: 100px; }
+
+.rxn-energy-wrap {
+    margin-top: 12px;
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.rxn-energy-track {
+    height: 8px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+#rxn-energy-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: background 0.1s;
+}
+
+#rxn-energy-label {
+    font-size: 0.82rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+#rxn-info {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.rxn-info-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.rxn-info-desc {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 8px;
+}
+
+.rxn-info-row {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.8);
+}
+
+.rxn-info-label {
+    color: rgba(255,255,255,0.5);
+    min-width: 60px;
+}
+.rxn-edu { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(77,158,126,.06); border:1px solid rgba(77,158,126,.12); font-size:.85rem; line-height:1.65; }
+.rxn-edu .chem-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.rxn-edu .chem-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(77,158,126,.18); color:rgba(77,158,126,.9); }
+.rxn-edu .chem-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.rxn-edu .chem-key { flex-shrink:0; font-weight:600; color:rgba(77,158,126,.85); min-width:70px; }
+.rxn-edu .chem-key--purple { color:rgba(139,111,192,.85); }
+.rxn-edu .chem-key--amber { color:rgba(229,192,123,.85); }
+.rxn-edu .chem-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(77,158,126,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+@media (max-width: 768px) {
+    .rxn-controls { gap: 6px; }
+    .rxn-select-btn { padding: 5px 10px; font-size: 0.78rem; }
+    .rxn-actions { flex-direction: column; align-items: flex-start; }
+}
+
+/* ── Buttons (green accent override) ── */
+#page-chemistry .btn-primary {
+    background: rgba(77,158,126,0.18);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+#page-chemistry .btn-primary:hover {
+    background: rgba(77,158,126,0.28);
+    box-shadow: 0 0 12px rgba(77,158,126,0.15);
+}
+
+#page-chemistry .btn-secondary:hover {
+    border-color: var(--accent-green);
+}
+
+/* ===== Periodic Table Mode Buttons & Scale ===== */
+.pt-modes {
+    display: flex;
+    gap: 6px;
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.pt-mode-btn {
+    padding: 5px 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.6);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pt-mode-btn:hover {
+    border-color: var(--accent-green);
+    color: #fff;
+}
+
+.pt-mode-btn.active {
+    background: rgba(77,158,126,0.15);
+    border-color: var(--accent-green);
+    color: #fff;
+}
+
+.pt-scale-legend {
+    margin-top: var(--space-3);
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.02);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.pt-scale-title {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+}
+
+.pt-scale-bar {
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+}
+
+.pt-scale-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    margin-top: 2px;
+}
+
+/* ===== Molecular Mode Buttons ===== */
+.mol-modes {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.mol-mode-btn {
+    padding: 5px 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.6);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mol-mode-btn:hover {
+    border-color: var(--accent-green);
+    color: #fff;
+}
+
+.mol-mode-btn.active {
+    background: rgba(77,158,126,0.15);
+    border-color: var(--accent-green);
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .pt-modes, .mol-modes { gap: 4px; }
+    .pt-mode-btn, .mol-mode-btn { padding: 4px 10px; font-size: 0.78rem; }
+}
+
+@media (max-width: 480px) {
+    .pt-modes, .mol-modes { gap: 3px; }
+    .pt-mode-btn, .mol-mode-btn { padding: 3px 8px; font-size: 0.72rem; }
+}
+
+/* ══════ Chemical Equilibrium ══════ */
+.cheq-controls {
+    display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center;
+    margin-bottom: var(--space-3);
+}
+.cheq-actions {
+    display: flex; gap: var(--space-2);
+}
+.cheq-perturb {
+    display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;
+}
+.cheq-label {
+    font-size: var(--text-xs); color: var(--text-muted); min-width: 40px;
+}
+.cheq-info {
+    text-align: center; margin-top: var(--space-2); padding: var(--space-2) var(--space-3);
+    background: rgba(77,158,126,0.06); border-radius: var(--radius-md);
+}
+.cheq-info p {
+    font-size: var(--text-sm); color: var(--text-muted);
+    font-family: var(--font-mono, monospace); margin: 2px 0;
+}
+.chem-canvas-wrap {
+    width: 100%; border-radius: var(--radius-md); overflow: hidden;
+    background: rgba(77,158,126,0.03); border: 1px solid rgba(77,158,126,0.1);
+}
+.chem-canvas-wrap canvas {
+    display: block; width: 100%;
+}
+
+@media (max-width: 768px) {
+    .cheq-controls { flex-direction: column; align-items: flex-start; }
+    .cheq-perturb { width: 100%; }
+}
+
+/* ── Electrochemistry ── */
+.echem-controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+.echem-modes { display: flex; gap: .5rem; }
+.echem-mode-btn {
+    padding: .35rem .9rem; border-radius: 6px; border: 1px solid rgba(255,255,255,.12);
+    background: transparent; color: rgba(255,255,255,.6); font-size: .85rem; cursor: pointer; transition: .2s;
+}
+.echem-mode-btn:hover { border-color: var(--accent-green); color: #fff; }
+.echem-mode-btn.active { background: var(--accent-green, #4d9e7e); color: #fff; border-color: var(--accent-green); }
+.echem-info {
+    margin-top: .75rem; font-size: .82rem; color: rgba(255,255,255,.55); line-height: 1.7;
+    font-family: var(--font-mono, monospace);
+}
+
+@media (max-width: 768px) {
+    .echem-controls { flex-direction: column; }
+}
+
+/* ── Chemical Bond ── */
+.chembond-controls {
+    display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem;
+}
+.chembond-mode-btn {
+    padding: .4rem 1rem; border-radius: 6px; border: 1.5px solid rgba(77,158,126,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.chembond-mode-btn.active, .chembond-mode-btn:hover {
+    background: rgba(77,158,126,.25); border-color: var(--chemistry);
+    color: #fff;
+}
+.chembond-info {
+    margin-top: .75rem; font-size: .82rem; color: rgba(255,255,255,.55); line-height: 1.7;
+    font-family: var(--font-mono, monospace);
+}
+@media (max-width: 768px) {
+    .chembond-controls { flex-direction: column; }
+}
+
+/* ── Organic Chemistry v2 ── */
+.organic-controls {
+    display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem;
+    align-items: center; justify-content: space-between;
+}
+.organic-mol-btns {
+    display: flex; gap: .4rem; flex-wrap: wrap;
+}
+.organic-mol-btn {
+    padding: .4rem 1rem; border-radius: 6px; border: 1.5px solid rgba(77,158,126,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.organic-mol-btn.active, .organic-mol-btn:hover {
+    background: rgba(77,158,126,.25); border-color: var(--chemistry);
+    color: #fff;
+}
+
+/* ── Atomic Structure 原子结构与电子排布 ── */
+.as-controls { margin-bottom: .75rem; }
+.as-mode-btns { display: flex; gap: .5rem; flex-wrap: wrap; border: none; padding: 0; margin: 0 0 .75rem; }
+.as-mode-btn {
+    padding: .4rem 1rem; border-radius: 6px; border: 1.5px solid rgba(77,158,126,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.as-mode-btn.active, .as-mode-btn:hover {
+    background: rgba(77,158,126,.25); border-color: var(--chemistry, #4d9e7e); color: #fff;
+}
+.as-params { margin-bottom: .75rem; }
+.as-orbital-btns { display: flex; gap: .4rem; flex-wrap: wrap; }
+.as-orb-btn {
+    padding: .3rem .8rem; border-radius: 5px; border: 1px solid rgba(77,158,126,.3);
+    background: transparent; color: rgba(255,255,255,.6); cursor: pointer; font-size: .8rem;
+    font-family: var(--font-mono, monospace); transition: all .2s;
+}
+.as-orb-btn.active, .as-orb-btn:hover {
+    background: rgba(77,158,126,.2); border-color: var(--chemistry, #4d9e7e); color: #fff;
+}
+.as-slider-row { margin-bottom: .5rem; }
+.as-label { font-size: .85rem; color: rgba(255,255,255,.7); margin-bottom: .25rem; }
+.as-label strong { color: #4d9e7e; }
+.as-slider { width: 100%; max-width: 280px; accent-color: #4d9e7e; }
+.as-info {
+    margin-top: .5rem; font-size: .82rem; color: rgba(255,255,255,.55); line-height: 1.7;
+    font-family: var(--font-mono, monospace);
+}
+.as-mode-tag {
+    display: inline-block; padding: .15rem .6rem; border-radius: 4px; font-size: .75rem;
+    background: rgba(77,158,126,.15); color: #4d9e7e; margin-bottom: .3rem;
+}
+.as-data-row { margin: .15rem 0; }
+.as-data-row strong { color: #4d9e7e; }
+.as-tip { color: rgba(255,200,50,.7); font-size: .78rem; margin-top: .25rem; }
+.as-edu { font-size: .88rem; line-height: 1.8; color: rgba(255,255,255,.65); margin-top: 1rem; }
+.as-edu h4 { color: var(--chemistry, #4d9e7e); margin-bottom: .5rem; }
+.as-edu strong { color: #4d9e7e; }
+.as-edu ul { padding-left: 1.2rem; margin: .3rem 0; }
+.as-edu li { margin: .2rem 0; }
+.as-formula { font-family: var(--font-mono, monospace); color: rgba(255,255,255,.5); font-size: .82rem; }
+@media (max-width: 768px) {
+    .as-mode-btns { flex-direction: column; }
+    .as-orbital-btns { gap: .3rem; }
+}
+
+/* ── Element Compounds 元素化合物 ── */
+.ec-controls { margin-bottom: .75rem; }
+.ec-mode-btns { display: flex; gap: .5rem; flex-wrap: wrap; border: none; padding: 0; margin: 0 0 .75rem; }
+.ec-mode-btn {
+    padding: .4rem 1rem; border-radius: 6px; border: 1.5px solid rgba(77,158,126,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.ec-mode-btn.active, .ec-mode-btn:hover {
+    background: rgba(77,158,126,.25); border-color: var(--chemistry, #4d9e7e); color: #fff;
+}
+.ec-params { margin-bottom: .75rem; }
+.ec-pick-label { font-size: .85rem; color: rgba(255,255,255,.7); margin-bottom: .35rem; }
+.ec-elem-btns { display: flex; gap: .4rem; flex-wrap: wrap; }
+.ec-elem-btn {
+    padding: .3rem .9rem; border-radius: 5px; border: 1px solid rgba(77,158,126,.3);
+    background: transparent; color: rgba(255,255,255,.6); cursor: pointer; font-size: .82rem;
+    font-family: var(--font-mono, monospace); transition: all .2s;
+}
+.ec-elem-btn.active, .ec-elem-btn:hover {
+    background: rgba(77,158,126,.2); border-color: var(--chemistry, #4d9e7e); color: #fff;
+}
+.ec-pick-tip { font-size: .78rem; color: rgba(255,255,255,.45); margin-top: .35rem; }
+.ec-info {
+    margin-top: .5rem; font-size: .82rem; color: rgba(255,255,255,.55); line-height: 1.7;
+    font-family: var(--font-mono, monospace);
+}
+.ec-mode-tag {
+    display: inline-block; padding: .15rem .6rem; border-radius: 4px; font-size: .75rem;
+    background: rgba(77,158,126,.15); color: #4d9e7e; margin-bottom: .3rem;
+}
+.ec-data-row { margin: .15rem 0; }
+.ec-data-row strong { color: #4d9e7e; }
+.ec-note { color: rgba(255,255,255,.5); font-size: .8rem; margin-top: .3rem; }
+.ec-rxn-list { margin: .4rem 0 0; }
+.ec-rxn { padding: .35rem .5rem; margin: .3rem 0; border-left: 2px solid rgba(77,158,126,.5); background: rgba(77,158,126,.06); border-radius: 0 4px 4px 0; }
+.ec-eq { color: rgba(255,255,255,.8); font-size: .82rem; }
+.ec-meta { color: rgba(255,255,255,.45); font-size: .76rem; margin-top: .15rem; }
+.ec-tag { display: inline-block; padding: .05rem .4rem; border-radius: 3px; background: rgba(229,192,123,.15); color: #e5c07b; font-size: .72rem; margin-right: .3rem; }
+.ec-tip { color: rgba(229,192,123,.8); font-size: .78rem; margin-top: .25rem; }
+.ec-edu { font-size: .88rem; line-height: 1.8; color: rgba(255,255,255,.65); margin-top: 1rem; }
+.ec-edu h4 { color: var(--chemistry, #4d9e7e); margin-bottom: .5rem; }
+.ec-edu strong { color: #4d9e7e; }
+.ec-edu ul { padding-left: 1.2rem; margin: .3rem 0; }
+.ec-edu li { margin: .2rem 0; }
+.ec-formula { font-family: var(--font-mono, monospace); color: rgba(255,255,255,.5); font-size: .82rem; }
+@media (max-width: 768px) {
+    .ec-mode-btns { flex-direction: column; }
+    .ec-elem-btns { gap: .3rem; }
+}
+
+/* ── Intermolecular Forces 分子间力与氢键 ── */
+.im-controls { margin-bottom: .75rem; }
+.im-mode-btns { display: flex; gap: .5rem; flex-wrap: wrap; border: none; padding: 0; margin: 0 0 .75rem; }
+.im-mode-btn {
+    padding: .4rem 1rem; border-radius: 6px; border: 1.5px solid rgba(77,158,126,.35);
+    background: transparent; color: rgba(255,255,255,.7); cursor: pointer; font-size: .82rem;
+    transition: all .2s;
+}
+.im-mode-btn.active, .im-mode-btn:hover {
+    background: rgba(77,158,126,.25); border-color: var(--chemistry, #4d9e7e); color: #fff;
+}
+.im-params { margin-bottom: .75rem; }
+.im-pick-label { font-size: .85rem; color: rgba(255,255,255,.7); margin-bottom: .35rem; }
+.im-elem-btns { display: flex; gap: .4rem; flex-wrap: wrap; }
+.im-elem-btn {
+    padding: .3rem .9rem; border-radius: 5px; border: 1px solid rgba(77,158,126,.3);
+    background: transparent; color: rgba(255,255,255,.55); cursor: pointer; font-size: .82rem;
+    font-family: var(--font-mono, monospace); transition: all .2s;
+}
+.im-elem-btn.active, .im-elem-btn:hover {
+    background: rgba(77,158,126,.2); border-color: var(--chemistry, #4d9e7e); color: #fff;
+}
+.im-pick-tip { font-size: .78rem; color: rgba(255,255,255,.45); margin-top: .35rem; }
+.im-info {
+    margin-top: .5rem; font-size: .82rem; color: rgba(255,255,255,.55); line-height: 1.7;
+    font-family: var(--font-mono, monospace);
+}
+.im-mode-tag {
+    display: inline-block; padding: .15rem .6rem; border-radius: 4px; font-size: .75rem;
+    background: rgba(77,158,126,.15); color: #4d9e7e; margin-bottom: .3rem;
+}
+.im-data-row { margin: .15rem 0; }
+.im-data-row strong { color: #4d9e7e; }
+.im-note { color: rgba(255,255,255,.5); font-size: .8rem; margin-top: .3rem; }
+.im-tip { color: rgba(229,192,123,.85); font-size: .8rem; margin-top: .3rem; line-height: 1.6; }
+.im-edu { font-size: .88rem; line-height: 1.8; color: rgba(255,255,255,.65); margin-top: 1rem; }
+.im-edu h4 { color: var(--chemistry, #4d9e7e); margin-bottom: .5rem; }
+.im-edu strong { color: #4d9e7e; }
+.im-edu ul { padding-left: 1.2rem; margin: .3rem 0; }
+.im-edu li { margin: .2rem 0; }
+.im-formula { font-family: var(--font-mono, monospace); color: rgba(255,255,255,.5); font-size: .82rem; }
+@media (max-width: 768px) {
+    .im-mode-btns { flex-direction: column; }
+    .im-elem-btns { gap: .3rem; }
+}
+.organic-info {
+    margin-top: .75rem; font-size: .82rem; color: rgba(255,255,255,.6); line-height: 1.8;
+}
+.oc-hd { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.oc-name { font-weight: 600; font-size: .92rem; color: #fff; }
+.oc-badge { font-size: .72rem; padding: .12rem .5rem; border-radius: 4px; background: rgba(77,158,126,.15); color: rgba(255,255,255,.6); }
+.oc-badge--mw { background: rgba(229,192,123,.12); }
+.oc-row { margin-bottom: .3rem; }
+.oc-tag { display: inline-block; padding: .1rem .45rem; border-radius: 3px; font-size: .72rem; font-weight: 600;
+    background: rgba(77,158,126,.18); color: var(--chemistry); margin-right: .4rem; vertical-align: middle; }
+.oc-tag--blue { background: rgba(91,141,206,.15); color: #7eb8f0; }
+.oc-tag--amber { background: rgba(229,192,123,.12); color: #e5c07b; }
+.oc-tag--red { background: rgba(224,108,117,.12); color: #e06c75; }
+.oc-tag--purple { background: rgba(155,141,206,.16); color: #b29bdc; }      /* v4.5.0-α9 几何标签 */
+.oc-tag--green { background: rgba(140,200,140,.16); color: #95d495; }       /* v4.5.0-α9 交互标签 */
+.organic-disabled-flash { animation: organicDisabledFlash .55s ease; }      /* v4.5.0-α9 σ 键按钮无效反馈 */
+@keyframes organicDisabledFlash {
+    0% { background: rgba(224,108,117,.0); }
+    40% { background: rgba(224,108,117,.35); }
+    100% { background: rgba(224,108,117,.0); }
+}
+.oc-rxns ul { margin: .3rem 0 0 1.2rem; padding: 0; }
+.oc-rxns li { margin-bottom: .2rem; font-family: var(--font-mono, monospace); font-size: .78rem; }
+@media (max-width: 768px) {
+    .organic-controls { flex-direction: column; align-items: flex-start; }
+    .organic-mol-btns { width: 100%; }
+}
+
+/* ══════ Reaction Rate v2 ══════ */
+.rxr-controls { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
+.rxr-label { font-size:.82rem; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
+.rxr-label input[type="range"] { width:75px; accent-color:var(--chemistry,#4d9e7e); }
+.rxr-label input[type="checkbox"] { accent-color:var(--chemistry,#4d9e7e); }
+.rxr-reset-btn { padding:4px 12px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.82rem; transition:all .2s; }
+.rxr-reset-btn:hover { background:rgba(77,158,126,.12); }
+.rxr-ctrl-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.rxr-pause-btn { width:30px; height:30px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.9rem; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+.rxr-pause-btn:hover { background:rgba(77,158,126,.12); }
+.rxr-info { background:rgba(77,158,126,.04); border:1px solid rgba(77,158,126,.12); border-radius:var(--radius-md); padding:14px 18px; margin-top:14px; font-size:.85rem; line-height:1.75; }
+.rxr-hd { font-weight:600; margin-bottom:6px; font-size:.92rem; }
+.rxr-tag { display:inline-block; background:rgba(77,158,126,.15); color:var(--chemistry,#4d9e7e); padding:1px 8px; border-radius:var(--radius-xs); font-size:.78rem; margin-right:6px; }
+.rxr-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0; }
+.rxr-card { padding:9px 10px; border-radius:var(--radius-sm,6px); background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.06); }
+.rxr-card__label { display:block; color:rgba(77,158,126,.9); font-size:.76rem; margin-bottom:2px; }
+.rxr-card strong { display:block; color:var(--text-primary); font-size:.88rem; margin-bottom:2px; }
+.rxr-card p { margin:0; color:var(--text-secondary); font-size:.78rem; line-height:1.55; }
+.rxr-row { display:flex; gap:8px; align-items:baseline; }
+.rxr-key { display:inline-block; min-width:64px; color:var(--chemistry,#4d9e7e); font-weight:500; font-size:.8rem; }
+.rxr-key--purple { color:var(--accent-purple,#c678dd); }
+.rxr-key--amber { color:var(--accent-amber,#e5c07b); }
+.rxr-note { margin-top:8px; color:var(--text-tertiary); font-size:.8rem; }
+.rxr-source { margin-top:.7rem; padding-top:.6rem; border-top:1px solid rgba(77,158,126,.14); color:rgba(255,255,255,.42); font-size:.76rem; line-height:1.55; }
+@media (max-width: 768px) {
+    .rxr-controls { display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:8px; }
+    .rxr-label { width:100%; justify-content:space-between; }
+    .rxr-label:nth-child(1), .rxr-label:nth-child(2) { grid-column:1 / -1; }
+    .rxr-label input[type="range"] { flex:1; min-width:128px; }
+    .rxr-reset-btn { width:100%; min-height:34px; }
+    .rxr-ctrl-right { margin-left:0; width:100%; justify-content:flex-end; }
+    .rxr-grid { grid-template-columns:1fr; }
+    .rxr-row { flex-direction:column; gap:1px; margin:6px 0; }
+}
+
+/* ══════ Solution & Ionization v2 ══════ */
+.sol-controls { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+.sol-substance-btns { display:flex; gap:5px; flex-wrap:wrap; }
+.sol-substance-btn { padding:5px 10px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.25); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.78rem; line-height:1.35; transition:all .2s; }
+.sol-substance-btn:hover { background:rgba(77,158,126,.08); }
+.sol-substance-btn.active { background:rgba(77,158,126,.18); color:var(--text-primary); border-color:rgba(77,158,126,.5); }
+.sol-ctrl-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.sol-ctrl-right label { font-size:.78rem; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
+.sol-ctrl-right input[type="range"] { width:72px; accent-color:var(--chemistry); }
+.sol-pause-btn { padding:5px 12px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.25); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.78rem; line-height:1.35; transition:all .2s; }
+.sol-pause-btn:hover { background:rgba(77,158,126,.1); }
+.sol-info { margin-top:10px; padding:12px 14px; border-radius:var(--radius-md); border:1px solid rgba(77,158,126,.12); background:rgba(77,158,126,.04); font-size:.82rem; line-height:1.6; }
+.sol-hd { font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+.sol-tag { display:inline-block; padding:1px 7px; border-radius:var(--radius-sm); background:rgba(77,158,126,.14); color:rgba(77,158,126,.8); font-size:.72rem; }
+.sol-tag--amber { background:rgba(229,192,123,.14); color:rgba(229,192,123,.8); }
+.sol-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:10px 0; }
+.sol-summary__card { min-width:0; padding:8px 9px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,.08); background:rgba(0,0,0,.14); }
+.sol-summary__card span { display:block; margin-bottom:2px; color:var(--text-muted); font-size:.7rem; }
+.sol-summary__card strong { display:block; color:var(--text-primary); font-size:.86rem; font-weight:650; overflow-wrap:anywhere; }
+.sol-row { margin:4px 0; color:var(--text-secondary); }
+.sol-key { display:inline-block; min-width:72px; padding:1px 6px; border-radius:2px; margin-right:6px; background:rgba(77,158,126,.1); color:rgba(77,158,126,.7); font-size:.72rem; }
+.sol-key--purple { background:rgba(139,111,192,.1); color:rgba(139,111,192,.7); }
+.sol-key--amber { background:rgba(229,192,123,.1); color:rgba(229,192,123,.7); }
+.sol-key--teal { background:rgba(86,182,194,.1); color:rgba(86,182,194,.7); }
+.sol-note { margin-top:8px; padding:6px 10px; border-radius:var(--radius-sm); background:rgba(77,158,126,.06); color:var(--text-secondary); font-size:.78rem; }
+.sol-note--boundary { background:rgba(229,192,123,.06); border:1px solid rgba(229,192,123,.12); }
+.sol-source { margin-top:8px; color:var(--text-muted); font-size:.74rem; line-height:1.55; }
+@media (max-width: 768px) {
+    .sol-controls { flex-direction:column; align-items:stretch; gap:9px; }
+    .sol-substance-btns { width:100%; }
+    .sol-substance-btn { flex:1 1 calc(50% - 5px); min-height:34px; }
+    .sol-ctrl-right { width:100%; display:grid; grid-template-columns:1fr; align-items:stretch; gap:8px; }
+    .sol-ctrl-right label { width:100%; justify-content:space-between; gap:8px; }
+    .sol-ctrl-right input[type="range"] { width:auto; min-width:128px; flex:1; }
+    .sol-pause-btn { width:100%; min-height:34px; }
+    .sol-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .sol-row { display:flex; flex-direction:column; gap:3px; }
+    .sol-key { width:max-content; min-width:0; margin-right:0; }
+}
+@media (max-width: 420px) {
+    .sol-summary { grid-template-columns:1fr; }
+}
+
+/* ══════ Ionic Reaction ══════ */
+.ionrxn-controls { display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+.ionrxn-select { padding:5px 10px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.3); background:rgba(77,158,126,.08); color:var(--text-primary); font-size:.82rem; }
+.ionrxn-mode-btns { display:flex; gap:6px; }
+.ionrxn-mode-btn { padding:5px 14px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.82rem; transition:all .2s; }
+.ionrxn-mode-btn.active { background:rgba(77,158,126,.18); color:var(--text-primary); border-color:rgba(77,158,126,.5); }
+@media (max-width: 768px) { .ionrxn-controls { flex-direction: column; align-items: flex-start; } }
+
+/* Hybrid Orbitals */
+.hybrid-controls {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.hybrid-example-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.hybrid-btn {
+    min-height: 34px;
+    padding: 6px 13px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(77,158,126,.32);
+    background: rgba(255,255,255,.02);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: .82rem;
+    line-height: 1.2;
+    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.hybrid-btn:hover,
+.hybrid-btn.active {
+    background: rgba(77,158,126,.18);
+    border-color: rgba(77,158,126,.72);
+    color: var(--text-primary);
+}
+
+.hybrid-btn:hover {
+    transform: translateY(-1px);
+}
+
+.hybrid-toggles {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 10px 12px;
+    border: 1px solid rgba(77,158,126,.12);
+    border-radius: var(--radius-md);
+    background: rgba(77,158,126,.045);
+}
+
+.hybrid-check,
+.hybrid-speed {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-secondary);
+    font-size: .8rem;
+    line-height: 1.3;
+}
+
+.hybrid-check input,
+.hybrid-speed input {
+    accent-color: var(--chemistry, #4d9e7e);
+}
+
+.hybrid-speed {
+    margin-left: auto;
+}
+
+.hybrid-speed input {
+    width: 92px;
+}
+
+.hybrid-speed__value {
+    min-width: 3.8em;
+    color: rgba(77,158,126,.95);
+    font-family: var(--font-mono, monospace);
+    font-size: .76rem;
+}
+
+#hybrid-canvas {
+    display: block;
+    width: 100%;
+}
+
+.hybrid-info {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(77,158,126,.14);
+    border-radius: var(--radius-md);
+    background: rgba(77,158,126,.05);
+    color: var(--text-secondary);
+    font-size: .84rem;
+    line-height: 1.65;
+}
+
+.hybrid-info__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.hybrid-info__head h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.hybrid-tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 2px 8px;
+    border-radius: var(--radius-xs);
+    background: rgba(77,158,126,.16);
+    color: rgba(111,209,165,.95);
+    font-family: var(--font-mono, monospace);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.hybrid-info__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+}
+
+.hybrid-info__row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.hybrid-info__row span {
+    flex: 0 0 auto;
+    min-width: 4.5em;
+    color: rgba(77,158,126,.9);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.hybrid-info__row strong {
+    min-width: 0;
+    color: rgba(255,255,255,.78);
+    font-weight: 500;
+}
+
+.hybrid-info__note,
+.hybrid-info__source {
+    margin: 10px 0 0;
+    color: var(--text-secondary);
+}
+
+.hybrid-info__source {
+    padding-top: 8px;
+    border-top: 1px solid rgba(77,158,126,.12);
+    color: var(--text-tertiary);
+    font-size: .78rem;
+}
+
+@media (max-width: 768px) {
+    .hybrid-toggles {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .hybrid-speed {
+        margin-left: 0;
+    }
+
+    .hybrid-info__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .hybrid-btn {
+        flex: 1 1 calc(50% - 7px);
+        padding-inline: 10px;
+        font-size: .78rem;
+    }
+}
+
+/* Crystal Structures */
+.crystal-controls {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.crystal-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.crystal-btn {
+    min-height: 34px;
+    padding: 6px 13px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(77,158,126,.32);
+    background: rgba(255,255,255,.02);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: .82rem;
+    line-height: 1.2;
+    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.crystal-btn:hover,
+.crystal-btn.active {
+    background: rgba(77,158,126,.18);
+    border-color: rgba(77,158,126,.72);
+    color: var(--text-primary);
+}
+
+.crystal-btn:hover {
+    transform: translateY(-1px);
+}
+
+.crystal-toggles {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 10px 12px;
+    border: 1px solid rgba(77,158,126,.12);
+    border-radius: var(--radius-md);
+    background: rgba(77,158,126,.045);
+}
+
+.crystal-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-secondary);
+    font-size: .8rem;
+    line-height: 1.3;
+}
+
+.crystal-check input {
+    accent-color: var(--chemistry, #4d9e7e);
+}
+
+#crystal-canvas {
+    display: block;
+    width: 100%;
+}
+
+.crystal-info {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(77,158,126,.14);
+    border-radius: var(--radius-md);
+    background: rgba(77,158,126,.05);
+    color: var(--text-secondary);
+    font-size: .84rem;
+    line-height: 1.65;
+}
+
+.crystal-info__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.crystal-info__head h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.crystal-tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 2px 8px;
+    border-radius: var(--radius-xs);
+    background: rgba(77,158,126,.16);
+    color: rgba(111,209,165,.95);
+    font-family: var(--font-mono, monospace);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.crystal-info__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+}
+
+.crystal-info__row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.crystal-info__row span {
+    flex: 0 0 auto;
+    min-width: 5.2em;
+    color: rgba(77,158,126,.9);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.crystal-info__row strong {
+    min-width: 0;
+    color: rgba(255,255,255,.78);
+    font-weight: 500;
+}
+
+.crystal-info__note,
+.crystal-info__source {
+    margin: 10px 0 0;
+    color: var(--text-secondary);
+}
+
+.crystal-info__source {
+    padding-top: 8px;
+    border-top: 1px solid rgba(77,158,126,.12);
+    color: var(--text-tertiary);
+    font-size: .78rem;
+}
+
+@media (max-width: 768px) {
+    .crystal-toggles {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .crystal-info__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .crystal-btn {
+        flex: 1 1 calc(50% - 7px);
+        padding-inline: 10px;
+        font-size: .78rem;
+    }
+}
+
+/* Ionic Reaction education panel */
+.ionic-info { margin-top:10px; padding:12px 16px; border-radius:var(--radius-md,8px); background:rgba(77,158,126,.06); border:1px solid rgba(77,158,126,.12); font-size:.85rem; line-height:1.65; }
+.ionic-info .chem-hd { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.ionic-info .chem-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:.75rem; font-weight:600; background:rgba(77,158,126,.18); color:rgba(77,158,126,.9); }
+.ionic-info .chem-tag--amber { background:rgba(229,192,123,.15); color:rgba(229,192,123,.9); }
+.ionic-info .chem-row { display:flex; gap:8px; margin:3px 0; color:var(--text-secondary); }
+.ionic-info .chem-key { flex-shrink:0; font-weight:600; color:rgba(77,158,126,.85); }
+.ionic-info .chem-key--purple { color:rgba(139,111,192,.85); }
+.ionic-info .chem-key--amber { color:rgba(229,192,123,.85); }
+.ionic-info .chem-note { margin-top:6px; padding-top:6px; border-top:1px solid rgba(77,158,126,.1); color:var(--text-tertiary); font-size:.82rem; }
+
+/* ══════ Redox ══════ */
+.redox-controls { display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+.redox-select { padding:5px 10px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.3); background:rgba(77,158,126,.08); color:var(--text-primary); font-size:.82rem; }
+.redox-btn { padding:5px 14px; border-radius:var(--radius-sm); border:1px solid rgba(77,158,126,.3); background:transparent; color:var(--text-secondary); cursor:pointer; font-size:.82rem; transition:all .2s; }
+.redox-btn:hover { background:rgba(77,158,126,.12); }
+.redox-slider-wrap { display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--text-secondary); }
+.redox-slider-label { white-space:nowrap; }
+.redox-slider { width:80px; accent-color:rgba(77,158,126,.7); }
+.redox-slider-val { font-variant-numeric:tabular-nums; min-width:2.5em; }
+/* info panel */
+.redox-info { margin-top:14px; padding:14px 18px; border-radius:var(--radius-md,10px); background:rgba(77,158,126,.05); border:1px solid rgba(77,158,126,.12); font-size:.85rem; line-height:1.7; }
+.redox-info__row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.redox-info__tag { padding:2px 8px; border-radius:4px; background:rgba(77,158,126,.15); color:rgba(77,158,126,.9); font-size:.75rem; font-weight:600; white-space:nowrap; }
+.redox-info__equation { font-weight:600; color:var(--text-primary); }
+.redox-info__half { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:8px; }
+.redox-info__half-ox, .redox-info__half-red { display:flex; flex-direction:column; gap:2px; }
+.redox-info__half-ox .redox-info__label { color:rgba(255,120,80,.85); font-weight:600; font-size:.78rem; }
+.redox-info__half-red .redox-info__label { color:rgba(80,140,255,.85); font-weight:600; font-size:.78rem; }
+.redox-info__half code { font-size:.82rem; color:var(--text-primary); background:rgba(255,255,255,.04); padding:2px 6px; border-radius:4px; }
+.redox-info__half small { color:var(--text-secondary); font-size:.76rem; }
+.redox-info__guide { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0; }
+.redox-info__guide div { padding:8px 10px; border-radius:var(--radius-sm,6px); background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.06); }
+.redox-info__guide b { display:block; color:rgba(77,158,126,.9); font-size:.78rem; margin-bottom:2px; }
+.redox-info__guide span { display:block; color:var(--text-secondary); font-size:.78rem; line-height:1.55; }
+.redox-info__note { margin:0; color:var(--text-secondary); font-size:.8rem; }
+.redox-info__source { margin:.7rem 0 0; padding-top:.6rem; border-top:1px solid rgba(77,158,126,.14); color:rgba(255,255,255,.42); font-size:.76rem; line-height:1.55; }
+@media (max-width: 768px) {
+    .redox-controls { display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:8px; }
+    .redox-select { grid-column:1 / -1; width:100%; min-height:36px; }
+    .redox-slider-wrap { grid-column:1 / -1; width:100%; justify-content:space-between; }
+    .redox-slider { flex:1; min-width:128px; }
+    .redox-btn { width:100%; min-height:34px; }
+    .redox-info__half { grid-template-columns:1fr; }
+    .redox-info__guide { grid-template-columns:1fr; }
+}
+
+/* ===== Chemistry Virtual Experiments ===== */
+.vexp-controls {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.vexp-modebar,
+.vexp-control-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.vexp-mode,
+.vexp-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid rgba(77,158,126,.28);
+    border-radius: var(--radius-sm, 6px);
+    background: rgba(255,255,255,.035);
+    color: var(--text-secondary);
+    font-size: .82rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+
+.vexp-mode:hover,
+.vexp-chip:hover {
+    border-color: rgba(77,158,126,.52);
+    background: rgba(77,158,126,.10);
+    color: var(--text-primary);
+}
+
+.vexp-mode.active,
+.vexp-chip.active {
+    border-color: rgba(77,158,126,.78);
+    background: rgba(77,158,126,.18);
+    color: #dff7ef;
+}
+
+.vexp-mode span {
+    min-width: 2.2em;
+    color: rgba(250,204,21,.92);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+.vexp-control-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid rgba(77,158,126,.14);
+    border-radius: var(--radius-md, 8px);
+    background: rgba(255,255,255,.025);
+}
+
+.vexp-range {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+    color: var(--text-secondary);
+    font-size: .82rem;
+    white-space: nowrap;
+}
+
+.vexp-range input {
+    width: min(220px, 28vw);
+    accent-color: rgb(77,158,126);
+}
+
+.vexp-range span {
+    min-width: 4.6em;
+    color: #dff7ef;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.vexp-info {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(77,158,126,.16);
+    border-radius: var(--radius-md, 8px);
+    background:
+        linear-gradient(135deg, rgba(77,158,126,.08), rgba(56,189,248,.035)),
+        rgba(255,255,255,.025);
+}
+
+.vexp-info__head {
+    margin-bottom: 10px;
+    color: var(--text-primary);
+    font-size: .95rem;
+    font-weight: 700;
+}
+
+.vexp-info__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+
+.vexp-info__row {
+    display: grid;
+    grid-template-columns: 5.2em minmax(0, 1fr);
+    gap: 9px;
+    align-items: start;
+}
+
+.vexp-info__row span {
+    color: rgba(77,158,126,.94);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.vexp-info__row p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: .82rem;
+    line-height: 1.6;
+}
+
+@media (max-width: 860px) {
+    .vexp-control-panel {
+        grid-template-columns: 1fr;
+        align-items: start;
+    }
+
+    .vexp-range {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .vexp-range input {
+        flex: 1 1 170px;
+        width: auto;
+        min-width: 150px;
+    }
+
+    .vexp-info__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 520px) {
+    .vexp-mode,
+    .vexp-chip {
+        flex: 1 1 calc(50% - 6px);
+        padding-inline: 9px;
+        font-size: .78rem;
+    }
+
+    .vexp-info__row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+}
